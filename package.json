@@ -1,0 +1,17 @@
+{
+  "name": "stellartrail-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "check": "npm run check --workspaces --if-present",
+    "format:check": "prettier --check \"**/*.{json,md,yml,yaml,ts,tsx,js,wxss,wxml}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  }
+}

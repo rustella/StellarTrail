@@ -1,0 +1,28 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/routes/index",
+    "pages/gears/index",
+    "pages/skills/index",
+    "pages/profile/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "StellarTrail",
+    "navigationBarBackgroundColor": "#0f172a",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f8fafc"
+  },
+  "tabBar": {
+    "color": "#64748b",
+    "selectedColor": "#0f766e",
+    "backgroundColor": "#ffffff",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页" },
+      { "pagePath": "pages/routes/index", "text": "路线" },
+      { "pagePath": "pages/gears/index", "text": "装备" },
+      { "pagePath": "pages/skills/index", "text": "技能" },
+      { "pagePath": "pages/profile/index", "text": "我的" }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

@@ -1,0 +1,11 @@
+FROM rust:1-bookworm AS builder
+WORKDIR /app
+COPY . .
+RUN cargo build --release -p stellartrail-api
+
+FROM debian:bookworm-slim
+WORKDIR /app
+COPY --from=builder /app/target/release/stellartrail-api /usr/local/bin/stellartrail-api
+ENV APP_HOST=0.0.0.0 APP_PORT=8080
+EXPOSE 8080
+CMD ["stellartrail-api"]

@@ -1,0 +1,13 @@
+id: wugongshan
+name: 武功山
+aliases: [萍乡武功山]
+province: 江西
+city: 萍乡
+area: 芦溪县
+elevation_m: 1918
+lat: 27.471
+lng: 114.175
+summary: 华东经典高山草甸徒步目的地，适合入门进阶用户体验轻重装穿越。
+best_seasons: [春, 夏, 秋]
+difficulty_level: beginner
+status: draft

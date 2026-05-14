@@ -1,0 +1,6 @@
+<view class="container">
+  <view class="card">
+    <view class="title">户外技能</view>
+    <view class="subtitle">绳结、扎营、打包、导航、天气和急救知识离线可查。</view>
+  </view>
+</view>

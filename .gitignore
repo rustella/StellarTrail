@@ -1,0 +1,31 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Rust
+/target/
+**/*.rs.bk
+
+# Node / mini program
+node_modules/
+dist/
+build/
+coverage/
+.miniprogram-ci/
+
+# WeChat developer tool generated local files
+apps/wechat-miniprogram/project.private.config.json
+apps/wechat-miniprogram/private.*.key
+
+# Local data
+*.db
+*.sqlite
+*.sqlite3
+/tmp/

@@ -1,0 +1,29 @@
+[workspace]
+members = [
+  "services/api",
+  "crates/domain",
+  "crates/db",
+  "crates/importer",
+  "crates/migration",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/rustella/StellarTrail"
+rust-version = "1.78"
+
+[workspace.dependencies]
+anyhow = "1"
+axum = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+thiserror = "1"
+time = { version = "0.3", features = ["serde", "formatting", "macros"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1", features = ["serde", "v4"] }

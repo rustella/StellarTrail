@@ -1,0 +1,38 @@
+id: wugongshan-classic-2d1n
+mountain_id: wugongshan
+title: 武功山经典 2 天 1 夜穿越
+province: 江西
+city: 萍乡
+route_type: backpacking
+difficulty_level: beginner
+distance_m: 18000
+ascent_m: 1200
+descent_m: 1200
+duration_min: 900
+best_seasons: [春, 夏, 秋]
+summary: 适合有基础体能的新手入门重装或轻装体验，天气变化和防风保暖是主要准备点。
+transport_info: 可从萍乡方向抵达景区或徒步起点，具体以当季交通和景区公告为准。
+permit_info: 景区路线需关注门票、索道、露营区域和临时管制公告。
+risk_summary: 山脊风大、雷雨天气风险高，夜间和大雾时容易迷失方向。
+status: draft
+points:
+  - type: start
+    name: 徒步起点
+    description: 根据具体轨迹选择起点，出发前确认交通和天气。
+    sort_order: 1
+  - type: danger
+    name: 山脊大风区
+    description: 遇雷雨、大风、大雾不建议强行穿越。
+    sort_order: 2
+gear_suggestions:
+  - gear_category: rain_protection
+    gear_name: 雨衣或硬壳
+    required_level: required
+    reason: 山区天气变化快，防雨和防风是刚需。
+  - gear_category: lighting
+    gear_name: 头灯
+    required_level: required
+    reason: 2 天路线可能遇到早晚低光环境。
+skill_links:
+  - skill_id: taut-line-hitch
+    reason: 露营或天幕风绳调节时常用。
