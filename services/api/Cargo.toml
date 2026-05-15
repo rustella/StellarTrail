@@ -21,6 +21,7 @@ serde_json.workspace = true
 sha2.workspace = true
 stellartrail-db = { path = "../../crates/db" }
 stellartrail-domain = { path = "../../crates/domain" }
+stellartrail-importer = { path = "../../crates/importer" }
 stellartrail-migration = { path = "../../crates/migration" }
 time.workspace = true
 tokio.workspace = true

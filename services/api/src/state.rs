@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use sea_orm::DatabaseConnection;
+use stellartrail_importer::ContentCatalog;
 
 use crate::config::ApiConfig;
 
@@ -12,12 +13,25 @@ pub struct AppState {
 struct AppStateInner {
     config: ApiConfig,
     db: DatabaseConnection,
+    content: ContentCatalog,
 }
 
 impl AppState {
     pub fn new(config: ApiConfig, db: DatabaseConnection) -> Self {
+        Self::new_with_content(config, db, ContentCatalog::default())
+    }
+
+    pub fn new_with_content(
+        config: ApiConfig,
+        db: DatabaseConnection,
+        content: ContentCatalog,
+    ) -> Self {
         Self {
-            inner: Arc::new(AppStateInner { config, db }),
+            inner: Arc::new(AppStateInner {
+                config,
+                db,
+                content,
+            }),
         }
     }
 
@@ -27,5 +41,9 @@ impl AppState {
 
     pub fn db(&self) -> &DatabaseConnection {
         &self.inner.db
+    }
+
+    pub fn content(&self) -> &ContentCatalog {
+        &self.inner.content
     }
 }

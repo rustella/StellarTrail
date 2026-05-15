@@ -2514,6 +2514,7 @@ dependencies = [
  "sha2",
  "stellartrail-db",
  "stellartrail-domain",
+ "stellartrail-importer",
  "stellartrail-migration",
  "tempfile",
  "time",

@@ -8,15 +8,17 @@ pub mod state;
 use sea_orm::DatabaseConnection;
 use sea_orm_migration::prelude::MigratorTrait;
 use stellartrail_db::connect_database;
+use stellartrail_importer::read_content_catalog;
 use stellartrail_migration::Migrator;
 
 use config::ApiConfig;
 use state::AppState;
 
 pub async fn build_state(config: ApiConfig) -> anyhow::Result<AppState> {
+    let content = read_content_catalog(&config.content_dir)?;
     let db = connect_database(&config.database).await?;
     migrate_database(&db).await?;
-    Ok(AppState::new(config, db))
+    Ok(AppState::new_with_content(config, db, content))
 }
 
 pub async fn migrate_database(db: &DatabaseConnection) -> anyhow::Result<()> {
