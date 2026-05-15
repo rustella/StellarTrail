@@ -1,38 +1,61 @@
-# StellarTrail
+# 🌌 StellarTrail
 
 > A China-focused outdoor route encyclopedia, gear preparation assistant, and offline field-skills toolbox.
 
 [中文](README.md)
 
-## Product positioning
+<p align="center">
+  <img alt="Language" src="https://img.shields.io/badge/README-English-blue" />
+  <img alt="Rust" src="https://img.shields.io/badge/API-Rust%20%2B%20Axum-orange" />
+  <img alt="WeChat Mini Program" src="https://img.shields.io/badge/Client-WeChat%20Mini%20Program-07C160" />
+  <img alt="Content Driven" src="https://img.shields.io/badge/Content-YAML%20%2B%20Markdown-8A2BE2" />
+</p>
+
+<p align="center">
+  <strong>Pick routes</strong> · <strong>Understand risks</strong> · <strong>Pack smarter</strong> · <strong>Learn field skills</strong>
+</p>
+
+---
+
+## ✨ At a glance
 
 StellarTrail serves hikers, campers, and lightweight outdoor users in China. The product is designed around one preparation loop: choose a route, understand difficulty, seasonality and risks, generate a packing checklist, compare it with the user's gear library, and learn the related outdoor skills.
 
-The current entry point is a WeChat Mini Program. A Rust API service provides backend capabilities, while routes, mountains, skills, and gear templates are driven by YAML/Markdown content so the project can build a high-quality knowledge base quickly.
+The current entry point is a **WeChat Mini Program**. A **Rust API service** provides backend capabilities, while routes, mountains, skills, and gear templates are driven by **YAML/Markdown content** so the project can build a high-quality outdoor knowledge base quickly.
 
-## MVP scope
+| Module            | Current goal                                             |
+| ----------------- | -------------------------------------------------------- |
+| 🗺️ Route wiki     | Curate mountains, routes, difficulty, seasons, and risks |
+| 🎒 Gear prep      | Generate packing lists and compare personal gear         |
+| 🧭 Skills toolbox | Cover knots, camping, navigation, weather, first aid     |
+| 📦 Content import | Iterate seed content quickly with YAML/Markdown          |
+| 🧱 Rust backend   | Provide stable APIs, domain models, and data boundaries  |
+
+## 🚀 MVP scope
 
 The first release focuses on:
 
-- WeChat login placeholder and account model.
-- Mountain and route catalog.
-- Route details: difficulty, season, risk, transport, and gear suggestions.
-- User gear library.
-- Route-based packing checklist generation.
-- Skill catalog for knots, camping, packing, navigation, weather, and first aid.
-- Content importing from YAML/Markdown.
-- Database abstraction: SQLite for local development, PostgreSQL recommended for production, and conservative MySQL compatibility.
+- 🧑‍💻 WeChat login placeholder and account model.
+- ⛰️ Mountain and route catalog.
+- 🧾 Route details: difficulty, season, risk, transport, and gear suggestions.
+- 🎒 User gear library.
+- ✅ Route-based packing checklist generation.
+- 🪢 Skill catalog for knots, camping, packing, navigation, weather, and first aid.
+- 📝 Content importing from YAML/Markdown.
+- 🗄️ Database abstraction: SQLite for local development, PostgreSQL recommended for production, and conservative MySQL compatibility.
 
 Realtime navigation, social feeds, guided-trip marketplaces, full GPX editing, and commerce are intentionally out of scope for the MVP.
 
-## Current seed content
+## 🌱 Current seed content
 
-- Mountain: Wugongshan.
-- Route: Wugongshan classic 2-day / 1-night traverse.
-- Skill: Taut-line hitch.
-- Gear template: beginner backpacking basics.
+| Type             | Content                                     |
+| ---------------- | ------------------------------------------- |
+| ⛰️ Mountain      | Wugongshan                                  |
+| 🥾 Route         | Wugongshan classic 2-day / 1-night traverse |
+| 🪢 Skill         | Taut-line hitch                             |
+| 🎒 Gear template | Beginner backpacking basics                 |
 
-## Repository layout
+## 🧭 Repository layout
 
 ```text
 StellarTrail/
@@ -54,21 +77,21 @@ StellarTrail/
   scripts/                  # Development helper scripts
 ```
 
-## Quick start
+## ⚡ Quick start
 
-### Prerequisites
+### 1. Prerequisites
 
-- Rust stable toolchain. The repository includes `rust-toolchain.toml` and expects `rustfmt` and `clippy`.
-- Node.js 22+ and npm.
-- WeChat DevTools for Mini Program debugging.
+- 🦀 Rust stable toolchain. The repository includes `rust-toolchain.toml` and expects `rustfmt` and `clippy`.
+- 🟢 Node.js 22+ and npm.
+- 💬 WeChat DevTools for Mini Program debugging.
 
-### Install dependencies
+### 2. Install dependencies
 
 ```bash
 npm install
 ```
 
-### Start the API
+### 3. Start the API
 
 ```bash
 cp .env.example .env
@@ -91,11 +114,11 @@ GET /healthz
 GET /api/meta
 ```
 
-### Open the WeChat Mini Program
+### 4. Open the WeChat Mini Program
 
 Open `apps/wechat-miniprogram` in WeChat DevTools. The project config points `miniprogramRoot` to `miniprogram/`.
 
-## Common checks
+## 🧪 Common checks
 
 ```bash
 # Frontend / TypeScript workspace checks
@@ -111,14 +134,14 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-## Documentation
+## 📚 Documentation
 
-- [MVP scope](docs/mvp.md)
-- [Architecture](docs/architecture.md)
-- [API draft](docs/api.md)
-- [Content schema draft](docs/content-schema.md)
+- 📌 [MVP scope](docs/mvp.md)
+- 🏗️ [Architecture](docs/architecture.md)
+- 🔌 [API draft](docs/api.md)
+- 🧩 [Content schema draft](docs/content-schema.md)
 
-## Naming
+## 🏷️ Naming
 
 - Product: **StellarTrail**
 - Chinese placeholder: **星径**
