@@ -29,3 +29,9 @@ apps/wechat-miniprogram/private.*.key
 *.sqlite
 *.sqlite3
 /tmp/
+.hermes/
+.agent/
+AGENTS.md
+CLAUDE.md
+skills/
+scripts/init_agent_context.py

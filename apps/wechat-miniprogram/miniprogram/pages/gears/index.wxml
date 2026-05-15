@@ -1,6 +1,102 @@
-<view class="container">
-  <view class="card">
-    <view class="title">我的装备库</view>
-    <view class="subtitle">管理装备重量、状态、保养和行程打包清单。</view>
+<view class="gear-page">
+  <view class="hero-card">
+    <view>
+      <view class="eyebrow">StellarTrail 装备库</view>
+      <view class="hero-title">我的户外装备</view>
+      <view class="hero-subtitle">按分类、状态和关键词快速管理装备，为下一次出行做准备。</view>
+    </view>
+    <button class="primary-action" bindtap="goCreate">+ 添加</button>
   </view>
+
+  <view class="tab-card">
+    <block wx:for="{{tabOptions}}" wx:key="value">
+      <view class="tab-item {{tab === item.value ? 'active' : ''}}" data-value="{{item.value}}" bindtap="switchTab">
+        {{item.label}}
+      </view>
+    </block>
+  </view>
+
+  <view class="stats-grid">
+    <block wx:for="{{statCards}}" wx:key="label">
+      <view class="stat-card">
+        <view class="stat-value">{{item.value}}</view>
+        <view class="stat-label">{{item.label}}</view>
+        <view class="stat-hint">{{item.hint}}</view>
+      </view>
+    </block>
+  </view>
+
+  <view class="search-card">
+    <input class="search-input" value="{{q}}" placeholder="搜索装备名、品牌、型号" confirm-type="search" bindinput="onSearchInput" bindconfirm="submitSearch" />
+    <button class="search-button" bindtap="submitSearch">搜索</button>
+    <button wx:if="{{q}}" class="clear-button" bindtap="clearSearch">清除</button>
+  </view>
+
+  <scroll-view class="category-scroll" scroll-x enable-flex>
+    <block wx:for="{{categories}}" wx:key="id">
+      <view class="category-chip {{selectedCategory === item.id ? 'active' : ''}}" data-id="{{item.id}}" bindtap="selectCategory">
+        <text>{{item.label}}</text>
+        <text class="chip-count">{{item.count}}</text>
+      </view>
+    </block>
+  </scroll-view>
+
+  <view class="filter-row">
+    <picker value="{{selectedStatusIndex}}" range="{{statusLabels}}" bindchange="onStatusChange">
+      <view class="filter-pill">{{statusLabels[selectedStatusIndex]}}</view>
+    </picker>
+    <picker value="{{selectedSortIndex}}" range="{{sortLabels}}" bindchange="onSortChange">
+      <view class="filter-pill">{{sortLabels[selectedSortIndex]}}</view>
+    </picker>
+  </view>
+
+  <view wx:if="{{error}}" class="error-card">
+    <view>{{error}}</view>
+    <button bindtap="refreshPage">重试</button>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{loading}}" class="loading-card">正在加载装备库...</view>
+
+    <view wx:elif="{{!gears.length}}" class="empty-card">
+      <view class="empty-title">{{emptyText}}</view>
+      <view class="empty-subtitle">用移动端卡片记录重量、价格、存放位置和共享设置。</view>
+      <button wx:if="{{tab === 'available'}}" class="primary-action wide" bindtap="goCreate">添加第一件装备</button>
+    </view>
+
+    <view wx:else class="gear-list">
+      <block wx:for="{{gears}}" wx:key="id">
+        <view class="gear-card" data-id="{{item.id}}" bindtap="goDetail">
+          <view class="card-topline">
+            <view class="category-badge">{{item.categoryText}}</view>
+            <view class="status-badge {{item.statusTone}}">{{item.statusText}}</view>
+          </view>
+          <view class="gear-name">{{item.name}}</view>
+          <view class="gear-meta">{{item.brandModelText}}</view>
+          <view class="metrics-row">
+            <view class="metric">
+              <view class="metric-value">{{item.weightText}}</view>
+              <view class="metric-label">重量</view>
+            </view>
+            <view class="metric">
+              <view class="metric-value">{{item.priceText}}</view>
+              <view class="metric-label">价格</view>
+            </view>
+            <view class="metric">
+              <view class="metric-value">{{item.purchaseDateText}}</view>
+              <view class="metric-label">购买日期</view>
+            </view>
+          </view>
+          <view class="card-actions">
+            <button catchtap="goEdit" data-id="{{item.id}}">编辑</button>
+            <button wx:if="{{tab === 'available'}}" class="danger" catchtap="archiveItem" data-id="{{item.id}}">移入历史</button>
+            <button wx:else class="restore" catchtap="restoreItem" data-id="{{item.id}}">恢复</button>
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <view wx:if="{{loadingMore}}" class="load-more">继续加载...</view>
+    <view wx:elif="{{gears.length && !nextCursor}}" class="load-more muted">没有更多装备了</view>
+  </block>
 </view>

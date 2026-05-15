@@ -3,6 +3,8 @@
     "pages/index/index",
     "pages/routes/index",
     "pages/gears/index",
+    "pages/gears/form/index",
+    "pages/gears/detail/index",
     "pages/skills/index",
     "pages/profile/index"
   ],
@@ -17,11 +19,26 @@
     "selectedColor": "#0f766e",
     "backgroundColor": "#ffffff",
     "list": [
-      { "pagePath": "pages/index/index", "text": "首页" },
-      { "pagePath": "pages/routes/index", "text": "路线" },
-      { "pagePath": "pages/gears/index", "text": "装备" },
-      { "pagePath": "pages/skills/index", "text": "技能" },
-      { "pagePath": "pages/profile/index", "text": "我的" }
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/routes/index",
+        "text": "路线"
+      },
+      {
+        "pagePath": "pages/gears/index",
+        "text": "装备"
+      },
+      {
+        "pagePath": "pages/skills/index",
+        "text": "技能"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的"
+      }
     ]
   },
   "sitemapLocation": "sitemap.json"

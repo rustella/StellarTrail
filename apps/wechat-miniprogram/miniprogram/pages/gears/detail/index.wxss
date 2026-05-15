@@ -1,0 +1,194 @@
+.detail-page {
+  min-height: 100vh;
+  padding: 28rpx 28rpx 64rpx;
+  background: #f8fafc;
+  box-sizing: border-box;
+}
+
+.detail-hero,
+.action-row,
+.tag-card,
+.info-card,
+.state-card {
+  border-radius: 30rpx;
+  background: #ffffff;
+  box-shadow: 0 12rpx 40rpx rgba(15, 23, 42, 0.06);
+}
+
+.detail-hero {
+  padding: 32rpx;
+}
+
+.badge-row {
+  display: flex;
+  gap: 14rpx;
+}
+
+.category-badge,
+.status-badge,
+.tag {
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.category-badge {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.status-badge {
+  color: #64748b;
+  background: #f1f5f9;
+}
+
+.status-badge.success {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.status-badge.warning {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.detail-title {
+  margin-top: 24rpx;
+  color: #0f172a;
+  font-size: 42rpx;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.detail-subtitle {
+  margin-top: 10rpx;
+  color: #64748b;
+  font-size: 26rpx;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 28rpx;
+}
+
+.summary-item {
+  min-width: 0;
+  padding: 18rpx 12rpx;
+  border-radius: 22rpx;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.summary-value {
+  color: #0f172a;
+  font-size: 24rpx;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-label {
+  margin-top: 6rpx;
+  color: #94a3b8;
+  font-size: 20rpx;
+}
+
+.action-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 24rpx;
+  padding: 18rpx;
+}
+
+.action-row button,
+.state-card button {
+  flex: 1;
+  margin: 0;
+  border-radius: 999rpx;
+  color: #ffffff;
+  background: #0f766e;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 76rpx;
+}
+
+.action-row .danger {
+  background: #dc2626;
+}
+
+.action-row .restore {
+  background: #2563eb;
+}
+
+.tag-card,
+.info-card,
+.state-card {
+  margin-top: 24rpx;
+  padding: 28rpx;
+}
+
+.section-title {
+  color: #0f172a;
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 18rpx;
+}
+
+.tag {
+  color: #0f766e;
+  background: #ecfdf5;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid #f1f5f9;
+}
+
+.info-row:last-child {
+  border-bottom: 0;
+}
+
+.info-label {
+  flex: 0 0 180rpx;
+  color: #64748b;
+  font-size: 26rpx;
+}
+
+.info-value {
+  flex: 1;
+  color: #0f172a;
+  font-size: 26rpx;
+  line-height: 1.5;
+  text-align: right;
+  word-break: break-word;
+}
+
+.state-card {
+  color: #64748b;
+  font-size: 28rpx;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.state-card.error {
+  color: #b91c1c;
+  background: #fff1f2;
+}
+
+.state-card button {
+  max-width: 220rpx;
+  margin: 20rpx auto 0;
+}

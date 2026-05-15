@@ -21,7 +21,7 @@
 
 StellarTrail serves hikers, campers, and lightweight outdoor users in China. The product is designed around one preparation loop: choose a route, understand difficulty, seasonality and risks, generate a packing checklist, compare it with the user's gear library, and learn the related outdoor skills.
 
-The current entry point is a **WeChat Mini Program**. A **Rust API service** provides backend capabilities, while routes, mountains, skills, and gear templates are driven by **YAML/Markdown content** so the project can build a high-quality outdoor knowledge base quickly.
+The current entry point is a **WeChat Mini Program**. A **Rust API service** provides backend capabilities. Phase one focuses on **personal gear library management**, while routes, mountains, skills, and gear templates remain follow-up content directions.
 
 | Module            | Current goal                                             |
 | ----------------- | -------------------------------------------------------- |
@@ -33,18 +33,18 @@ The current entry point is a **WeChat Mini Program**. A **Rust API service** pro
 
 ## 🚀 MVP scope
 
-The first release focuses on:
+Phase one focuses on:
 
-- 🧑‍💻 WeChat login placeholder and account model.
-- ⛰️ Mountain and route catalog.
-- 🧾 Route details: difficulty, season, risk, transport, and gear suggestions.
-- 🎒 User gear library.
-- ✅ Route-based packing checklist generation.
-- 🪢 Skill catalog for knots, camping, packing, navigation, weather, and first aid.
-- 📝 Content importing from YAML/Markdown.
-- 🗄️ Database abstraction: SQLite for local development, PostgreSQL recommended for production, and conservative MySQL compatibility.
+- 🧑‍💻 Local WeChat-login placeholder and account model.
+- 🎒 Personal gear-library CRUD.
+- 🔎 Search, category filtering, status filtering, sorting, and pagination.
+- 📊 Gear count, total value, total weight, and category counts.
+- 🗃️ Available / historical gear via soft archive and restore.
+- 🏷️ Tags, status/location fields, sharing toggle, and notes.
+- 📤 JSON import and CSV export.
+- 🗄️ SeaORM data access: SQLite by default for local development, PostgreSQL recommended for production.
 
-Realtime navigation, social feeds, guided-trip marketplaces, full GPX editing, and commerce are intentionally out of scope for the MVP.
+Routes, trips, skills, realtime navigation, social feeds, guided-trip marketplaces, full GPX editing, and commerce are intentionally out of scope for phase one.
 
 ## 🌱 Current seed content
 
@@ -81,7 +81,7 @@ StellarTrail/
 
 ### 1. Prerequisites
 
-- 🦀 Rust stable toolchain. The repository includes `rust-toolchain.toml` and expects `rustfmt` and `clippy`.
+- 🦀 Rust stable toolchain with Rust 2024 edition. The repository includes `rust-toolchain.toml` and expects `rustfmt` and `clippy`.
 - 🟢 Node.js 22+ and npm.
 - 💬 WeChat DevTools for Mini Program debugging.
 
@@ -95,10 +95,11 @@ npm install
 
 ```bash
 cp .env.example .env
+cargo run -p stellartrail-api --bin migrate -- up
 cargo run -p stellartrail-api
 ```
 
-The API listens on `127.0.0.1:8080` by default and reads configuration from environment variables. The default database URL is `sqlite://stellartrail.db`.
+The API listens on `127.0.0.1:8080` by default and reads configuration from environment variables. The default database URL is `sqlite://stellartrail.db`; local mock login is enabled with `WECHAT_MOCK_LOGIN=true`.
 
 Use these endpoints for local smoke testing:
 
@@ -112,6 +113,17 @@ Currently implemented endpoints:
 ```http
 GET /healthz
 GET /api/meta
+POST /api/auth/wechat-login
+GET /api/me/gears/categories
+GET /api/me/gears/stats
+GET /api/me/gears
+POST /api/me/gears
+GET /api/me/gears/:id
+PATCH /api/me/gears/:id
+DELETE /api/me/gears/:id
+POST /api/me/gears/:id/restore
+GET /api/me/gears/export
+POST /api/me/gears/import
 ```
 
 ### 4. Open the WeChat Mini Program
