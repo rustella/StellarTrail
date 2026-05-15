@@ -1,4 +1,5 @@
 mod auth;
+mod content;
 mod gears;
 mod health;
 mod meta;
@@ -13,6 +14,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/healthz", get(health::healthz))
         .route("/api/meta", get(meta::meta))
         .merge(auth::routes())
+        .merge(content::routes())
         .merge(gears::routes())
         .fallback(not_found)
         .with_state(state)

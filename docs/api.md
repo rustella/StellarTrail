@@ -30,6 +30,23 @@ POST /api/auth/wechat-login
 Authorization: Bearer <access_token>
 ```
 
+## Public content catalog
+
+服务启动时会从 `CONTENT_DIR`（默认 `content`）读取 YAML/Markdown 种子内容，提供只读公共内容 API；这些接口不需要 Bearer Token。
+
+```http
+GET /api/mountains
+GET /api/mountains/:id
+GET /api/routes
+GET /api/routes/:id
+GET /api/skills
+GET /api/skills/:id
+GET /api/gear-templates
+GET /api/gear-templates/:id
+```
+
+`/api/routes/:id` 会返回路线点位、路线装备建议和关联技能；`/api/skills/:id` 会返回 Markdown 正文 `body_markdown`；`/api/gear-templates/:id` 会返回装备模板分类和条目。
+
 ## Gear inventory
 
 ```http

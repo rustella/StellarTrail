@@ -59,3 +59,24 @@ Required front matter:
 - `category`
 - `difficulty_level`
 - `summary`
+
+## Gear Template YAML
+
+Required fields:
+
+- `id`
+- `title`
+- `categories[]`
+
+Each category contains:
+
+- `id`
+- `name`
+- `items[]`
+
+## Public content API mapping
+
+- `content/mountains/*.yaml` -> `GET /api/mountains*`
+- `content/routes/*.yaml` -> `GET /api/routes*`
+- `content/skills/**/*.md` -> `GET /api/skills*`，正文放在 `body_markdown`
+- `content/gear-templates/*.yaml` -> `GET /api/gear-templates*`
