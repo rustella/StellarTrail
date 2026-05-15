@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "check": "npm run check --workspaces --if-present",
-    "format:check": "prettier --check \"**/*.{json,md,yml,yaml,ts,tsx,js,wxss,wxml}\""
+    "format:check": "prettier --check --ignore-unknown \"**/*.{json,md,yml,yaml,ts,tsx,js,wxss,wxml}\""
   },
   "devDependencies": {
     "prettier": "^3.3.3",

@@ -1,0 +1,62 @@
+<view class="detail-page">
+  <view wx:if="{{error}}" class="state-card error">
+    <view>{{error}}</view>
+    <button bindtap="loadDetail">重试</button>
+  </view>
+
+  <view wx:elif="{{loading && !item}}" class="state-card">正在加载装备详情...</view>
+
+  <view wx:elif="{{!item}}" class="state-card">暂无装备详情</view>
+
+  <block wx:else>
+    <view class="detail-hero">
+      <view class="badge-row">
+        <view class="category-badge">{{categoryText}}</view>
+        <view class="status-badge {{statusTone}}">{{statusText}}</view>
+      </view>
+      <view class="detail-title">{{item.name}}</view>
+      <view class="detail-subtitle">{{item.brand || '未填写品牌'}} · {{item.model || '未填写型号'}}</view>
+      <view class="summary-grid">
+        <view class="summary-item">
+          <view class="summary-value">{{weightText}}</view>
+          <view class="summary-label">重量</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-value">{{priceText}}</view>
+          <view class="summary-label">价格</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-value">{{shareText}}</view>
+          <view class="summary-label">共享</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="action-row">
+      <button bindtap="goEdit">编辑装备</button>
+      <button wx:if="{{tab === 'available'}}" class="danger" bindtap="archiveItem">移入历史</button>
+      <button wx:else class="restore" bindtap="restoreItem">恢复可用</button>
+    </view>
+
+    <view wx:if="{{tagList.length}}" class="tag-card">
+      <view class="section-title">标签</view>
+      <view class="tag-list">
+        <block wx:for="{{tagList}}" wx:key="*this">
+          <view class="tag">{{item}}</view>
+        </block>
+      </view>
+    </view>
+
+    <block wx:for="{{groups}}" wx:key="title">
+      <view class="info-card">
+        <view class="section-title">{{item.title}}</view>
+        <block wx:for="{{item.items}}" wx:key="label" wx:for-item="row">
+          <view class="info-row">
+            <view class="info-label">{{row.label}}</view>
+            <view class="info-value">{{row.value}}</view>
+          </view>
+        </block>
+      </view>
+    </block>
+  </block>
+</view>

@@ -1,23 +1,16 @@
-mod config;
-mod error;
-mod routes;
-mod state;
-
 use anyhow::Context;
-use config::ApiConfig;
-use routes::build_router;
-use state::AppState;
+use stellartrail_api::{build_state, config::ApiConfig, routes::build_router};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::info;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     init_tracing();
 
     let config = ApiConfig::from_env()?;
-    let state = AppState::new(config.clone());
+    let state = build_state(config.clone()).await?;
     let app = build_router(state).layer(TraceLayer::new_for_http());
 
     let listener = TcpListener::bind(config.bind_addr())
