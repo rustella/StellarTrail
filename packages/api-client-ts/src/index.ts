@@ -1,14 +1,19 @@
 import type {
+  ContentListResponse,
   CreateGearRequest,
   GearCategoriesResponse,
+  GearTemplate,
   GearItem,
   GearStatsResponse,
   HealthResponse,
   ImportGearsRequest,
   ImportGearsResponse,
+  MountainContent,
   ListGearsRequest,
   ListGearsResponse,
   MetaResponse,
+  RouteContent,
+  SkillContent,
   UpdateGearRequest,
   WechatLoginRequest,
   WechatLoginResponse,
@@ -41,6 +46,38 @@ export class StellarTrailApiClient {
 
   async meta(): Promise<MetaResponse> {
     return this.get("/api/meta");
+  }
+
+  async listMountains(): Promise<ContentListResponse<MountainContent>> {
+    return this.get("/api/mountains");
+  }
+
+  async getMountain(id: string): Promise<MountainContent> {
+    return this.get(`/api/mountains/${encodeURIComponent(id)}`);
+  }
+
+  async listRoutes(): Promise<ContentListResponse<RouteContent>> {
+    return this.get("/api/routes");
+  }
+
+  async getRoute(id: string): Promise<RouteContent> {
+    return this.get(`/api/routes/${encodeURIComponent(id)}`);
+  }
+
+  async listSkills(): Promise<ContentListResponse<SkillContent>> {
+    return this.get("/api/skills");
+  }
+
+  async getSkill(id: string): Promise<SkillContent> {
+    return this.get(`/api/skills/${encodeURIComponent(id)}`);
+  }
+
+  async listGearTemplates(): Promise<ContentListResponse<GearTemplate>> {
+    return this.get("/api/gear-templates");
+  }
+
+  async getGearTemplate(id: string): Promise<GearTemplate> {
+    return this.get(`/api/gear-templates/${encodeURIComponent(id)}`);
   }
 
   async loginWithWechatCode(

@@ -28,6 +28,7 @@ async fn test_app() -> TestApp {
         port: 0,
         database,
         wechat_mock_login: true,
+        content_dir: temp_dir.path().join("content"),
     };
     TestApp {
         router: build_router(AppState::new(config, db)),

@@ -1,4 +1,4 @@
-use std::{env, net::SocketAddr};
+use std::{env, net::SocketAddr, path::PathBuf};
 
 use stellartrail_db::{DatabaseConfig, DatabaseKind};
 
@@ -9,6 +9,7 @@ pub struct ApiConfig {
     pub port: u16,
     pub database: DatabaseConfig,
     pub wechat_mock_login: bool,
+    pub content_dir: PathBuf,
 }
 
 impl ApiConfig {
@@ -23,6 +24,7 @@ impl ApiConfig {
         let wechat_mock_login = env::var("WECHAT_MOCK_LOGIN")
             .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
             .unwrap_or(app_env == "local");
+        let content_dir = env::var("CONTENT_DIR").unwrap_or_else(|_| "content".to_owned());
 
         Ok(Self {
             app_env,
@@ -30,6 +32,7 @@ impl ApiConfig {
             port,
             database: DatabaseConfig::new(database_url)?,
             wechat_mock_login,
+            content_dir: PathBuf::from(content_dir),
         })
     }
 
