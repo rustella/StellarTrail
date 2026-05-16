@@ -142,15 +142,14 @@ POST /api/me/gears/import
 
 ### 4. Start PostgreSQL + Redis + API with Docker Compose
 
-You can also start a local integration stack with Docker Compose:
+You can also run a one-shot local integration test with Docker Compose:
 
 ```bash
 COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=15432 REDIS_HOST_PORT=16379 \
-  docker compose -f infra/docker-compose.yml up -d --build postgres redis api
-BASE_URL=http://127.0.0.1:18080 bash infra/smoke-test.sh
+  bash infra/integration-test.sh
 ```
 
-The compose stack enables PostgreSQL, Redis caching, and the API service, then the smoke script validates it with username/password account registration and login. Inject real WeChat and database secrets only through secure production channels.
+The script starts PostgreSQL, Redis caching, and the API service, validates them with username/password account registration and login, and always runs `docker compose down -v --remove-orphans` when the test exits or fails. Inject real WeChat and database secrets only through secure production channels.
 
 ### 5. Open the WeChat Mini Program
 

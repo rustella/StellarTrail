@@ -142,15 +142,14 @@ POST /api/me/gears/import
 
 ### 4. 使用 Docker Compose 启动 PostgreSQL + Redis + API
 
-也可以用 Docker Compose 启动本地集成环境：
+也可以用 Docker Compose 启动一次性本地集成测试：
 
 ```bash
 COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=15432 REDIS_HOST_PORT=16379 \
-  docker compose -f infra/docker-compose.yml up -d --build postgres redis api
-BASE_URL=http://127.0.0.1:18080 bash infra/smoke-test.sh
+  bash infra/integration-test.sh
 ```
 
-该配置会启用 PostgreSQL、Redis 缓存和 API 服务，并使用用户名/密码账号注册与登录做 curl 冒烟测试；生产环境请通过安全渠道注入真实微信与数据库密钥。
+该脚本会启动 PostgreSQL、Redis 缓存和 API 服务，使用用户名/密码账号注册与登录做 curl 冒烟测试，并在测试结束或失败时自动执行 `docker compose down -v --remove-orphans` 关闭并清理容器；生产环境请通过安全渠道注入真实微信与数据库密钥。
 
 ### 5. 打开微信小程序
 
