@@ -1,4 +1,4 @@
-<view class="gear-page">
+<view class="gear-page {{themeClass}}">
   <view class="hero-card">
     <view>
       <view class="eyebrow">StellarTrail 装备库</view>

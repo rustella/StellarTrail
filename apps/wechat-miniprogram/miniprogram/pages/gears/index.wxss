@@ -359,3 +359,122 @@
 .load-more.muted {
   color: #94a3b8;
 }
+
+/* Dark theme overrides */
+.gear-page.theme-dark {
+  background: var(--body-gradient);
+  color: var(--text-color);
+}
+
+.gear-page.theme-dark .hero-card {
+  background: var(--hero-gradient);
+  box-shadow: var(--shadow-card);
+}
+
+.gear-page.theme-dark .primary-action {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}
+
+.gear-page.theme-dark .tab-card,
+.gear-page.theme-dark .search-card,
+.gear-page.theme-dark .error-card,
+.gear-page.theme-dark .loading-card,
+.gear-page.theme-dark .empty-card,
+.gear-page.theme-dark .gear-card,
+.gear-page.theme-dark .stat-card {
+  border: 1rpx solid var(--border-color);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.gear-page.theme-dark .tab-item,
+.gear-page.theme-dark .stat-hint,
+.gear-page.theme-dark .gear-meta,
+.gear-page.theme-dark .metric-label,
+.gear-page.theme-dark .load-more,
+.gear-page.theme-dark .error-card,
+.gear-page.theme-dark .loading-card,
+.gear-page.theme-dark .empty-card,
+.gear-page.theme-dark .chip-count {
+  color: var(--muted-color);
+}
+
+.gear-page.theme-dark .tab-item.active,
+.gear-page.theme-dark .category-badge,
+.gear-page.theme-dark .category-chip.active,
+.gear-page.theme-dark .card-actions button {
+  color: var(--brand-color);
+  background: var(--chip-bg);
+}
+
+.gear-page.theme-dark .stat-value,
+.gear-page.theme-dark .empty-title,
+.gear-page.theme-dark .gear-name,
+.gear-page.theme-dark .metric-value {
+  color: var(--text-color);
+}
+
+.gear-page.theme-dark .stat-label,
+.gear-page.theme-dark .filter-pill {
+  color: var(--heading-muted-color);
+}
+
+.gear-page.theme-dark .search-input,
+.gear-page.theme-dark .filter-pill,
+.gear-page.theme-dark .metric {
+  color: var(--text-color);
+  background: var(--control-bg);
+}
+
+.gear-page.theme-dark .clear-button {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+}
+
+.gear-page.theme-dark .category-chip {
+  border-color: var(--border-color);
+  color: var(--muted-color);
+  background: var(--surface-color);
+}
+
+.gear-page.theme-dark .category-chip.active {
+  border-color: var(--brand-color);
+}
+
+.gear-page.theme-dark .status-badge,
+.gear-page.theme-dark .status-badge.muted {
+  color: var(--muted-color);
+  background: var(--soft-control-bg);
+}
+
+.gear-page.theme-dark .status-badge.success {
+  color: var(--status-success-text);
+  background: var(--status-success-bg);
+}
+
+.gear-page.theme-dark .status-badge.warning {
+  color: var(--status-warning-text);
+  background: var(--status-warning-bg);
+}
+
+.gear-page.theme-dark .search-button,
+.gear-page.theme-dark .error-card button {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}
+
+.gear-page.theme-dark .error-card {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
+.gear-page.theme-dark .card-actions .danger {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
+.gear-page.theme-dark .card-actions .restore {
+  color: var(--status-info-text);
+  background: var(--status-info-bg);
+}

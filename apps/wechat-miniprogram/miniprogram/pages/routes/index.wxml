@@ -1,4 +1,4 @@
-<view class="container">
+<view class="container {{themeClass}}">
   <view class="card">
     <view class="title">中国路线库</view>
     <view class="subtitle">先从 50 条经典徒步路线开始，沉淀难度、季节、交通、风险和装备建议。</view>

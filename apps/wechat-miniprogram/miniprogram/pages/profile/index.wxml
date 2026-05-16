@@ -1,6 +1,21 @@
-<view class="container">
+<view class="container {{themeClass}}">
   <view class="card">
     <view class="title">我的 StellarTrail</view>
     <view class="subtitle">微信登录、收藏路线、行程计划和个人装备统计。</view>
+  </view>
+
+  <view class="card theme-settings-card">
+    <view>
+      <view class="theme-settings-title">黑夜模式</view>
+      <view class="theme-settings-desc">参考 Web 端紫色星空/银河暗色主题，切换后会应用到小程序页面、导航栏和 TabBar。</view>
+    </view>
+    <button
+      class="theme-toggle"
+      aria-pressed="{{isDarkTheme}}"
+      aria-label="{{themeToggleAriaLabel}}"
+      bindtap="toggleTheme"
+    >
+      <text class="theme-toggle-icon">{{themeToggleIcon}}</text>{{themeToggleText}}
+    </button>
   </view>
 </view>
