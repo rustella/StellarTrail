@@ -76,6 +76,8 @@ pub struct ApiConfig {
     pub wechat_app_id: Option<String>,
     pub wechat_app_secret: Option<String>,
     pub content_dir: PathBuf,
+    pub content_assets_dir: PathBuf,
+    pub media_base_url: String,
     pub redis_cache: RedisCacheConfig,
     pub upload: UploadConfig,
     pub object_storage: ObjectStorageConfig,
@@ -96,6 +98,10 @@ impl ApiConfig {
         let wechat_app_id = optional_env("WECHAT_APP_ID");
         let wechat_app_secret = optional_env("WECHAT_APP_SECRET");
         let content_dir = env::var("CONTENT_DIR").unwrap_or_else(|_| "content".to_owned());
+        let content_assets_dir = env::var("CONTENT_ASSETS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from(&content_dir).join("assets"));
+        let media_base_url = optional_env("MEDIA_BASE_URL").unwrap_or_else(|| "/assets".to_owned());
         let redis_cache = RedisCacheConfig {
             url: optional_env("REDIS_URL"),
             key_prefix: optional_env("REDIS_KEY_PREFIX")
@@ -137,6 +143,8 @@ impl ApiConfig {
             wechat_app_id,
             wechat_app_secret,
             content_dir: PathBuf::from(content_dir),
+            content_assets_dir,
+            media_base_url,
             redis_cache,
             upload,
             object_storage,
@@ -203,6 +211,8 @@ mod tests {
             env::set_var("WECHAT_APP_ID", " wx-app-id ");
             env::set_var("WECHAT_APP_SECRET", " wx-secret ");
             env::set_var("CONTENT_DIR", "content");
+            env::set_var("CONTENT_ASSETS_DIR", "content/assets");
+            env::set_var("MEDIA_BASE_URL", "/assets");
         }
 
         let config = ApiConfig::from_env().unwrap();
@@ -211,6 +221,8 @@ mod tests {
         assert!(!config.wechat_mock_login);
         assert_eq!(config.wechat_app_id.as_deref(), Some("wx-app-id"));
         assert_eq!(config.wechat_app_secret.as_deref(), Some("wx-secret"));
+        assert_eq!(config.content_assets_dir, PathBuf::from("content/assets"));
+        assert_eq!(config.media_base_url, "/assets");
         assert_eq!(config.upload, UploadConfig::default());
 
         restore_env(saved);
@@ -228,6 +240,8 @@ mod tests {
             env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
             env::set_var("WECHAT_MOCK_LOGIN", "true");
             env::set_var("CONTENT_DIR", "content");
+            env::remove_var("CONTENT_ASSETS_DIR");
+            env::remove_var("MEDIA_BASE_URL");
             env::set_var("REDIS_URL", " redis://127.0.0.1:6379/2 ");
             env::set_var("REDIS_KEY_PREFIX", " stellartrail-test ");
             env::set_var("REDIS_GEAR_CACHE_TTL_SECONDS", "45");
@@ -241,6 +255,8 @@ mod tests {
         );
         assert_eq!(config.redis_cache.key_prefix, "stellartrail-test");
         assert_eq!(config.redis_cache.gear_ttl_seconds, 45);
+        assert_eq!(config.content_assets_dir, PathBuf::from("content/assets"));
+        assert_eq!(config.media_base_url, "/assets");
 
         restore_env(saved);
     }
@@ -298,7 +314,7 @@ mod tests {
         restore_env(saved);
     }
 
-    const CONFIG_KEYS: [&str; 21] = [
+    const CONFIG_KEYS: [&str; 23] = [
         "APP_ENV",
         "APP_HOST",
         "APP_PORT",
@@ -307,6 +323,8 @@ mod tests {
         "WECHAT_APP_ID",
         "WECHAT_APP_SECRET",
         "CONTENT_DIR",
+        "CONTENT_ASSETS_DIR",
+        "MEDIA_BASE_URL",
         "REDIS_URL",
         "REDIS_KEY_PREFIX",
         "REDIS_GEAR_CACHE_TTL_SECONDS",

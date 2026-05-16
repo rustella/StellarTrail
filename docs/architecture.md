@@ -45,7 +45,7 @@ crates/importer -> AppState in-memory public catalog
 
 ## Public content catalog
 
-`ApiConfig::content_dir` 默认读取 `CONTENT_DIR=content`。`build_state` 会通过 `crates/importer` 解析山峰、路线、技能 Markdown front matter 和装备模板，并将 `ContentCatalog` 放入 `AppState`。公共接口包括 `/api/mountains*`、`/api/routes*`、`/api/skills*` 和 `/api/gear-templates*`。当前 catalog 是启动时加载的只读内存数据，不写入 DB。
+`ApiConfig::content_dir` 默认读取 `CONTENT_DIR=content`。`build_state` 会通过 `crates/importer` 解析山峰、路线、非绳结技能 Markdown front matter 和装备模板，并将 `ContentCatalog` 放入 `AppState`。公共接口包括 `/api/mountains*`、`/api/routes*`、`/api/skills*` 和 `/api/gear-templates*`。当前 catalog 是启动时加载的只读内存数据，不写入 DB。
 
 ## Cache strategy
 

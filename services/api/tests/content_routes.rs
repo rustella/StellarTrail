@@ -41,6 +41,8 @@ async fn test_app_with_content_dir(temp_dir: TempDir, content_dir: PathBuf) -> T
         wechat_mock_login: true,
         wechat_app_id: None,
         wechat_app_secret: None,
+        content_assets_dir: temp_dir.path().join("assets"),
+        media_base_url: "/assets".to_owned(),
         content_dir,
         redis_cache: RedisCacheConfig::disabled(),
         upload: UploadConfig::default(),
@@ -84,12 +86,10 @@ async fn public_content_routes_expose_seed_catalog() {
     assert_eq!(route["mountain_id"], "wugongshan");
     assert_eq!(route["points"][0]["type"], "start");
     assert_eq!(route["gear_suggestions"][0]["gear_name"], "雨衣或硬壳");
-    assert_eq!(route["skill_links"][0]["skill_id"], "taut-line-hitch");
-
-    let (status, skill) = get_json(&app.router, "/api/skills/taut-line-hitch").await;
-    assert_eq!(status, StatusCode::OK, "{skill}");
-    assert_eq!(skill["category"], "knot");
-    assert!(skill["body_markdown"].as_str().unwrap().contains("## 步骤"));
+    assert_eq!(
+        route["skill_links"][0]["skill_id"],
+        "adjustable-grip-hitch-knot"
+    );
 
     let (status, template) = get_json(&app.router, "/api/gear-templates/backpacking-basic").await;
     assert_eq!(status, StatusCode::OK, "{template}");
@@ -179,28 +179,8 @@ gear_suggestions:
     required_level: required
     reason: 山区天气变化快。
 skill_links:
-  - skill_id: taut-line-hitch
+  - skill_id: adjustable-grip-hitch-knot
     reason: 风绳调节常用。
-"#,
-    )
-    .unwrap();
-
-    fs::write(
-        root.join("skills/knots/taut-line-hitch.md"),
-        r#"---
-id: taut-line-hitch
-title: 可调节帐绳结
-category: knot
-difficulty_level: beginner
-summary: 常用于帐篷和天幕风绳张力调节。
-related_gear_categories: [tent, tarp, guyline]
----
-
-# 可调节帐绳结
-
-## 步骤
-
-1. 绳子绕过固定点。
 "#,
     )
     .unwrap();

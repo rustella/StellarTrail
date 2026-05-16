@@ -121,12 +121,28 @@ GET /api/mountains/:id
 GET /api/routes
 GET /api/routes/:id
 GET /api/skills
-GET /api/skills/:id
+GET /api/skills/knots/list?offset=0&limit=20
+GET /api/skills/knots/detail/:id
+GET /assets/*
 GET /api/gear-templates
 GET /api/gear-templates/:id
 ```
 
-`/api/routes/:id` 会返回路线点位、路线装备建议和关联技能；`/api/skills/:id` 会返回 Markdown 正文 `body_markdown`；`/api/gear-templates/:id` 会返回装备模板分类和条目。
+`/api/routes/:id` 会返回路线点位、路线装备建议和关联技能；`/api/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不再暴露 Markdown mock。`/api/gear-templates/:id` 会返回装备模板分类和条目。
+
+### Outdoor skills / knots
+
+一期户外技能只有绳结。服务端通过 `import-knots3d` 将 `.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json` 导入数据库；JSON 响应只返回 metadata 与媒体 URL，GIF/MP4/WebP 等二进制由 `/assets/*` 静态资源接口返回。
+
+语言不使用 query 参数，统一通过请求头：
+
+```http
+X-StellarTrail-Locale: zh-CN
+# 或
+X-StellarTrail-Locale: en
+```
+
+未显式传 `X-StellarTrail-Locale` 时会尝试 `Accept-Language`，再 fallback 到 `zh-CN`。`?locale=...` 会返回 `400 unsupported_query_parameter`。分页参数为 `offset`/`limit`，响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
 
 ## Cache / performance
 

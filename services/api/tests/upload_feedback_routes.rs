@@ -47,6 +47,8 @@ async fn test_app(max_images_per_window: u64) -> TestApp {
         wechat_app_id: None,
         wechat_app_secret: None,
         content_dir: temp_dir.path().join("content"),
+        content_assets_dir: temp_dir.path().join("assets"),
+        media_base_url: "/assets".to_owned(),
         redis_cache: RedisCacheConfig::disabled(),
         upload: UploadConfig {
             max_image_bytes: 8_000_000,

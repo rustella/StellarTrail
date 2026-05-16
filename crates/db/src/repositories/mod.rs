@@ -1,13 +1,15 @@
-//! Repository aggregation module that re-exports authentication and gear persistence objects.
+//! Repository aggregation module that re-exports authentication, gear, feedback, upload image, and knot persistence objects.
 
 pub mod auth_repository;
 pub mod feedback_repository;
 pub mod gear_repository;
+pub mod knot_repository;
 pub mod upload_image_repository;
 
 pub use auth_repository::{AuthRepository, UserRecord, hash_token};
 pub use feedback_repository::{FeedbackRecord, FeedbackRepository};
 pub use gear_repository::{GearRepository, ListGearOptions};
+pub use knot_repository::KnotRepository;
 pub use upload_image_repository::{UploadImageDraft, UploadImageRecord, UploadImageRepository};
 
 use sea_orm::{DatabaseBackend, Statement, Value};
@@ -61,19 +63,23 @@ mod tests {
 
     #[test]
     fn converts_question_mark_placeholders_for_postgres() {
+        let sql = postgres_placeholders(
+            "SELECT * FROM user_gear_items WHERE user_id = ? AND category = ? AND name LIKE ?",
+        );
         assert_eq!(
-            postgres_placeholders("SELECT * FROM users WHERE id = ? AND email = ?"),
-            "SELECT * FROM users WHERE id = $1 AND email = $2",
+            sql,
+            "SELECT * FROM user_gear_items WHERE user_id = $1 AND category = $2 AND name LIKE $3",
         );
     }
 
     #[test]
     fn leaves_question_marks_inside_sql_strings_unchanged() {
+        let sql = postgres_placeholders(
+            "SELECT '?' AS literal, name FROM user_gear_items WHERE user_id = ? AND note = 'it''s ? ok'",
+        );
         assert_eq!(
-            postgres_placeholders(
-                "SELECT '?' AS literal, name FROM users WHERE id = ? AND note = 'it''s ?'"
-            ),
-            "SELECT '?' AS literal, name FROM users WHERE id = $1 AND note = 'it''s ?'",
+            sql,
+            "SELECT '?' AS literal, name FROM user_gear_items WHERE user_id = $1 AND note = 'it''s ? ok'",
         );
     }
 }

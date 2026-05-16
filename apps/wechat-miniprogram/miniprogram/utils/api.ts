@@ -8,7 +8,13 @@ import type {
   UpdateGearRequest,
   WechatLoginResponse,
 } from "./gear-utils";
-import type { ListSkillsResponse, SkillContent } from "./skill-utils";
+import type {
+  KnotDetail,
+  KnotListResponse,
+  ListKnotsRequest,
+  ListSkillsResponse,
+  SkillLocale,
+} from "./skill-utils";
 
 const TOKEN_STORAGE_KEY = "stellartrail_access_token";
 const USER_STORAGE_KEY = "stellartrail_user";
@@ -20,6 +26,7 @@ interface ApiRequestOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   data?: unknown;
   auth?: boolean;
+  locale?: SkillLocale;
 }
 
 interface WechatLoginRequest {
@@ -151,12 +158,28 @@ export async function restoreGear(id: string): Promise<GearItem> {
   });
 }
 
-export async function listSkills(): Promise<ListSkillsResponse> {
-  return requestJson("/api/skills");
+export async function listSkills(
+  locale: SkillLocale = "zh-CN",
+): Promise<ListSkillsResponse> {
+  return requestJson("/api/skills", { locale });
 }
 
-export async function getSkill(id: string): Promise<SkillContent> {
-  return requestJson(`/api/skills/${encodeURIComponent(id)}`);
+export async function listKnots(
+  request: ListKnotsRequest = {},
+  locale: SkillLocale = "zh-CN",
+): Promise<KnotListResponse> {
+  return requestJson(`/api/skills/knots/list${queryString(request)}`, {
+    locale,
+  });
+}
+
+export async function getKnotDetail(
+  id: string,
+  locale: SkillLocale = "zh-CN",
+): Promise<KnotDetail> {
+  return requestJson(`/api/skills/knots/detail/${encodeURIComponent(id)}`, {
+    locale,
+  });
 }
 
 export function getErrorMessage(error: unknown): string {
@@ -177,6 +200,9 @@ async function requestJson<T>(
   const header: Record<string, string> = {};
   if (options.data !== undefined) {
     header["content-type"] = "application/json";
+  }
+  if (options.locale) {
+    header["X-StellarTrail-Locale"] = options.locale;
   }
   if (token) {
     header.authorization = `Bearer ${token}`;

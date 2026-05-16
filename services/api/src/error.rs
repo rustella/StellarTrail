@@ -8,13 +8,22 @@ use stellartrail_domain::validation::FieldViolation;
 #[derive(Debug)]
 pub enum ApiError {
     BadRequest(String),
+    BadRequestWithCode {
+        code: &'static str,
+        message: String,
+        parameter: Option<String>,
+    },
     Unauthorized,
     InvalidCredentials,
     CaptchaRequired,
     NotFound,
     Validation(Vec<FieldViolation>),
-    PayloadTooLarge { max_bytes: u64 },
-    RateLimited { retry_after_seconds: u64 },
+    PayloadTooLarge {
+        max_bytes: u64,
+    },
+    RateLimited {
+        retry_after_seconds: u64,
+    },
     Internal(anyhow::Error),
 }
 
@@ -27,6 +36,8 @@ struct ErrorBody {
     fields: Option<Vec<FieldViolation>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     captcha: Option<CaptchaChallenge>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parameter: Option<String>,
 }
 
 /// Stable data boundary for `CaptchaChallenge`, exposed by or reused within this module.
@@ -42,19 +53,66 @@ impl ApiError {
     pub fn internal(error: impl Into<anyhow::Error>) -> Self {
         Self::Internal(error.into())
     }
+
+    /// Builds an unsupported query parameter error with a stable machine-readable code.
+    pub fn unsupported_query_parameter(parameter: impl Into<String>) -> Self {
+        let parameter = parameter.into();
+        Self::BadRequestWithCode {
+            code: "unsupported_query_parameter",
+            message: format!("query parameter `{parameter}` is not supported"),
+            parameter: Some(parameter),
+        }
+    }
+
+    /// Builds an invalid header error with a stable machine-readable code.
+    pub fn invalid_header(parameter: impl Into<String>) -> Self {
+        let parameter = parameter.into();
+        Self::BadRequestWithCode {
+            code: "invalid_header",
+            message: format!("header `{parameter}` is invalid"),
+            parameter: Some(parameter),
+        }
+    }
+
+    /// Builds an invalid query parameter error with a stable machine-readable code.
+    pub fn invalid_query_parameter(parameter: impl Into<String>, message: String) -> Self {
+        Self::BadRequestWithCode {
+            code: "invalid_query_parameter",
+            message,
+            parameter: Some(parameter.into()),
+        }
+    }
 }
 
 impl IntoResponse for ApiError {
     /// Runs the `into response` server-side flow while preserving input validation, error propagation, and state invariants.
     fn into_response(self) -> axum::response::Response {
-        let (status, code, message, fields, captcha) = match self {
-            Self::BadRequest(message) => {
-                (StatusCode::BAD_REQUEST, "bad_request", message, None, None)
-            }
+        let (status, code, message, fields, captcha, parameter) = match self {
+            Self::BadRequest(message) => (
+                StatusCode::BAD_REQUEST,
+                "bad_request",
+                message,
+                None,
+                None,
+                None,
+            ),
+            Self::BadRequestWithCode {
+                code,
+                message,
+                parameter,
+            } => (
+                StatusCode::BAD_REQUEST,
+                code,
+                message,
+                None,
+                None,
+                parameter,
+            ),
             Self::Unauthorized => (
                 StatusCode::UNAUTHORIZED,
                 "unauthorized",
                 "missing or invalid bearer token".to_owned(),
+                None,
                 None,
                 None,
             ),
@@ -62,6 +120,7 @@ impl IntoResponse for ApiError {
                 StatusCode::UNAUTHORIZED,
                 "invalid_credentials",
                 "用户名/邮箱或密码不正确".to_owned(),
+                None,
                 None,
                 None,
             ),
@@ -74,11 +133,13 @@ impl IntoResponse for ApiError {
                     captcha_type: "image",
                     endpoint: "/api/auth/captcha",
                 }),
+                None,
             ),
             Self::NotFound => (
                 StatusCode::NOT_FOUND,
                 "not_found",
                 "resource not found".to_owned(),
+                None,
                 None,
                 None,
             ),
@@ -88,11 +149,13 @@ impl IntoResponse for ApiError {
                 "request validation failed".to_owned(),
                 Some(fields),
                 None,
+                None,
             ),
             Self::PayloadTooLarge { max_bytes } => (
                 StatusCode::PAYLOAD_TOO_LARGE,
                 "payload_too_large",
                 format!("file must be at most {max_bytes} bytes"),
+                None,
                 None,
                 None,
             ),
@@ -104,6 +167,7 @@ impl IntoResponse for ApiError {
                 format!("upload rate limit exceeded; retry after {retry_after_seconds} seconds"),
                 None,
                 None,
+                None,
             ),
             Self::Internal(error) => {
                 tracing::error!(error = %error, "api internal error");
@@ -111,6 +175,7 @@ impl IntoResponse for ApiError {
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "internal_error",
                     "internal server error".to_owned(),
+                    None,
                     None,
                     None,
                 )
@@ -124,6 +189,7 @@ impl IntoResponse for ApiError {
                 message,
                 fields,
                 captcha,
+                parameter,
             }),
         )
             .into_response()

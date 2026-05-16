@@ -50,15 +50,11 @@ Recommended fields:
 
 ## Skill Markdown
 
-Skill documents use YAML front matter plus Markdown body.
+历史 `content/skills/**/*.md` mock 不再作为绳结 API 数据源；`content/skills/knots/taut-line-hitch.md` 已删除且不保留兼容路由。
 
-Required front matter:
+## Knots3D metadata
 
-- `id`
-- `title`
-- `category`
-- `difficulty_level`
-- `summary`
+绳结数据从 `.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json` 导入数据库。导入后由 `GET /api/skills/knots/list` 和 `GET /api/skills/knots/detail/:id` 返回 locale-resolved 字段。媒体二进制不进 JSON，由 `/assets/*` 返回。
 
 ## Gear Template YAML
 
@@ -78,5 +74,5 @@ Each category contains:
 
 - `content/mountains/*.yaml` -> `GET /api/mountains*`
 - `content/routes/*.yaml` -> `GET /api/routes*`
-- `content/skills/**/*.md` -> `GET /api/skills*`，正文放在 `body_markdown`
+- DB-backed `knots` metadata -> `GET /api/skills`, `GET /api/skills/knots/list`, `GET /api/skills/knots/detail/:id`
 - `content/gear-templates/*.yaml` -> `GET /api/gear-templates*`

@@ -34,6 +34,8 @@ async fn test_app() -> TestApp {
         wechat_app_id: None,
         wechat_app_secret: None,
         content_dir: temp_dir.path().join("content"),
+        content_assets_dir: temp_dir.path().join("assets"),
+        media_base_url: "/assets".to_owned(),
         redis_cache: RedisCacheConfig::disabled(),
         upload: UploadConfig::default(),
         object_storage: ObjectStorageConfig::default(),
