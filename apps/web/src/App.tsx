@@ -103,6 +103,10 @@ const EMPTY_STATS: GearStatsResponse = {
   by_status: [],
 };
 
+const EMPTY_CATEGORIES: GearCategoryFilter[] = [
+  { id: "all", label: "全部装备", count: 0 },
+];
+
 const emptyForm: GearFormState = {
   category: "backpack_system",
   name: "",
@@ -164,9 +168,8 @@ export default function App({ client }: AppProps) {
     useState<RegisterFormState>(emptyRegisterForm);
   const [captcha, setCaptcha] = useState<CaptchaState | null>(null);
   const [emailCodeNotice, setEmailCodeNotice] = useState<string | null>(null);
-  const [categories, setCategories] = useState<GearCategoryFilter[]>([
-    { id: "all", label: "全部装备", count: 0 },
-  ]);
+  const [categories, setCategories] =
+    useState<GearCategoryFilter[]>(EMPTY_CATEGORIES);
   const [stats, setStats] = useState<GearStatsResponse>(EMPTY_STATS);
   const [gears, setGears] = useState<GearSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -179,6 +182,7 @@ export default function App({ client }: AppProps) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [detail, setDetail] = useState<GearItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dashboardRequestRef = useRef(0);
 
   useEffect(() => {
     api.setAccessToken(session?.accessToken);
@@ -205,6 +209,8 @@ export default function App({ client }: AppProps) {
     if (!session) {
       return;
     }
+    const requestId = dashboardRequestRef.current + 1;
+    dashboardRequestRef.current = requestId;
     setLoading(true);
     setError(null);
     try {
@@ -215,15 +221,21 @@ export default function App({ client }: AppProps) {
           api.getGearStats(tab),
           api.listGears(listRequest),
         ]);
+      if (requestId !== dashboardRequestRef.current) {
+        return;
+      }
       setMeta(metaResponse);
       setCategories(
         categoryResponse.items.length
           ? categoryResponse.items
-          : [{ id: "all", label: "全部装备", count: 0 }],
+          : EMPTY_CATEGORIES,
       );
       setStats(statsResponse);
       setGears(listResponse.items);
     } catch (err) {
+      if (requestId !== dashboardRequestRef.current) {
+        return;
+      }
       const message = errorMessage(err);
       setError(message);
       if (message.includes("401")) {
@@ -231,7 +243,9 @@ export default function App({ client }: AppProps) {
         setSession(null);
       }
     } finally {
-      setLoading(false);
+      if (requestId === dashboardRequestRef.current) {
+        setLoading(false);
+      }
     }
   }, [api, listRequest, session, tab]);
 
@@ -239,7 +253,21 @@ export default function App({ client }: AppProps) {
     void loadDashboard();
   }, [loadDashboard]);
 
+  function resetDashboardState() {
+    dashboardRequestRef.current += 1;
+    setMeta(null);
+    setCategory("all");
+    setStatus("");
+    setQuery("");
+    setCategories(EMPTY_CATEGORIES);
+    setStats(EMPTY_STATS);
+    setGears([]);
+    setLoading(false);
+    setDetail(null);
+  }
+
   function completeLogin(response: WechatLoginResponse) {
+    resetDashboardState();
     const nextSession: WebSession = {
       accessToken: response.access_token,
       expiresAt: response.expires_at,
@@ -393,8 +421,7 @@ export default function App({ client }: AppProps) {
     clearSession();
     api.setAccessToken(undefined);
     setSession(null);
-    setGears([]);
-    setDetail(null);
+    resetDashboardState();
   }
 
   function toggleTheme() {

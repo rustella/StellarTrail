@@ -149,6 +149,14 @@ function buildClient(): WebGearApi {
   };
 }
 
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 describe("App", () => {
   afterEach(() => {
     localStorage.clear();
@@ -174,6 +182,70 @@ describe("App", () => {
     expect(
       screen.getByText("NITECORE SUMMIT 20000 超薄充电宝 · SUMMIT 20000"),
     ).toBeInTheDocument();
+  });
+
+  it("clears previous dashboard totals before loading a newly registered empty account", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(await screen.findByText("2 件")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "退出" }));
+
+    const categoriesRequest =
+      deferred<Awaited<ReturnType<WebGearApi["listGearCategories"]>>>();
+    const statsRequest =
+      deferred<Awaited<ReturnType<WebGearApi["getGearStats"]>>>();
+    const listRequest =
+      deferred<Awaited<ReturnType<WebGearApi["listGears"]>>>();
+    vi.mocked(client.listGearCategories).mockReturnValueOnce(
+      categoriesRequest.promise,
+    );
+    vi.mocked(client.getGearStats).mockReturnValueOnce(statsRequest.promise);
+    vi.mocked(client.listGears).mockReturnValueOnce(listRequest.promise);
+
+    fireEvent.click(screen.getByRole("button", { name: "账号登录" }));
+    fireEvent.click(screen.getByRole("button", { name: "注册账号" }));
+    fireEvent.change(screen.getByLabelText("用户名"), {
+      target: { value: "New-User" },
+    });
+    fireEvent.change(screen.getByLabelText("邮箱"), {
+      target: { value: "new@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "strong-password" },
+    });
+    fireEvent.change(screen.getByLabelText("确认密码"), {
+      target: { value: "strong-password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送邮箱验证码" }));
+    expect(await screen.findByText("本地验证码：123456")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("邮箱验证码"), {
+      target: { value: "123456" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "注册并登录" }));
+
+    await screen.findByRole("heading", { name: "装备管理" });
+    expect(screen.getByText("0 件")).toBeInTheDocument();
+    expect(screen.queryByText("2 件")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText("分类筛选")).getByText("0"),
+    ).toBeInTheDocument();
+
+    await waitFor(() => expect(client.getGearStats).toHaveBeenCalledTimes(2));
+    categoriesRequest.resolve({
+      items: [{ id: "all", label: "全部装备", count: 0 }],
+    });
+    statsRequest.resolve({
+      current_count: 0,
+      archived_count: 0,
+      total_value_cents: 0,
+      total_weight_g: 0,
+      by_category: [],
+      by_status: [],
+    });
+    listRequest.resolve({ items: [], next_cursor: null });
+    expect(await screen.findByText("还没有装备")).toBeInTheDocument();
   });
 
   it("keeps registration outside the top auth method switch", () => {
