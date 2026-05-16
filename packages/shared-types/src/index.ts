@@ -304,6 +304,18 @@ export interface RegisterRequest {
   email_verification_code: string;
 }
 
+export interface CaptchaChallengeRequest {
+  account: string;
+}
+
+export interface CaptchaChallengeResponse {
+  captcha_ticket: string;
+  captcha_type: "image";
+  image_svg: string;
+  expires_at: string;
+  debug_answer?: string;
+}
+
 export interface PasswordLoginRequest {
   account: string;
   password: string;

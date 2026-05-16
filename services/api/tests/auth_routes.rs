@@ -142,6 +142,24 @@ async fn register_password_user(
     register_value
 }
 
+async fn create_captcha(app: &Router, account: &str) -> (String, String) {
+    let (status, value) = send_json(
+        app,
+        "POST",
+        "/api/auth/captcha",
+        None,
+        json!({"account": account}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{value}");
+    assert_eq!(value["captcha_type"], "image");
+    assert!(value["image_svg"].as_str().unwrap().contains("<svg"));
+    (
+        value["captcha_ticket"].as_str().unwrap().to_owned(),
+        value["debug_answer"].as_str().unwrap().to_owned(),
+    )
+}
+
 async fn send_empty(
     app: &Router,
     method: &str,
@@ -342,7 +360,9 @@ async fn password_login_requires_captcha_after_repeated_failures() {
     );
     assert_eq!(captcha_value["code"], "captcha_required");
     assert_eq!(captcha_value["captcha"]["type"], "image");
+    assert_eq!(captcha_value["captcha"]["endpoint"], "/api/auth/captcha");
 
+    let (captcha_ticket, captcha_answer) = create_captcha(&app.router, "trail_bob").await;
     let (verified_status, verified_value) = send_json(
         &app.router,
         "POST",
@@ -351,8 +371,8 @@ async fn password_login_requires_captcha_after_repeated_failures() {
         json!({
             "account": "trail_bob",
             "password": "OutdoorPass123!",
-            "captcha_ticket": "local-dev-captcha",
-            "captcha_answer": "pass"
+            "captcha_ticket": captcha_ticket,
+            "captcha_answer": captcha_answer
         }),
     )
     .await;

@@ -27,6 +27,7 @@ struct ErrorBody {
 struct CaptchaChallenge {
     #[serde(rename = "type")]
     captcha_type: &'static str,
+    endpoint: &'static str,
 }
 
 impl ApiError {
@@ -62,6 +63,7 @@ impl IntoResponse for ApiError {
                 None,
                 Some(CaptchaChallenge {
                     captcha_type: "image",
+                    endpoint: "/api/auth/captcha",
                 }),
             ),
             Self::NotFound => (

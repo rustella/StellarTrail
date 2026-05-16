@@ -36,6 +36,21 @@ pub struct RegisterRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct CaptchaChallengeRequest {
+    pub account: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CaptchaChallengeResponse {
+    pub captcha_ticket: String,
+    pub captcha_type: &'static str,
+    pub image_svg: String,
+    pub expires_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debug_answer: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct PasswordLoginRequest {
     pub account: String,
     pub password: String,

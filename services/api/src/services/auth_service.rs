@@ -7,8 +7,8 @@ use time::{Duration, OffsetDateTime, format_description::well_known::Iso8601};
 
 use crate::{
     dto::auth::{
-        EmailVerificationCodeResponse, LoginProfileRequest, LoginResponse, LoginUserResponse,
-        PasswordLoginRequest, RegisterRequest,
+        CaptchaChallengeResponse, EmailVerificationCodeResponse, LoginProfileRequest,
+        LoginResponse, LoginUserResponse, PasswordLoginRequest, RegisterRequest,
     },
     error::ApiError,
     services::wechat::WechatCodeSessionError,
@@ -17,6 +17,7 @@ use crate::{
 
 const EMAIL_CODE_PURPOSE_REGISTER: &str = "register";
 const EMAIL_CODE_EXPIRES_MINUTES: i64 = 10;
+const CAPTCHA_EXPIRES_MINUTES: i64 = 5;
 const LOGIN_CAPTCHA_THRESHOLD: i32 = 3;
 
 pub async fn wechat_login(
@@ -133,7 +134,6 @@ pub async fn password_login(
     state: &AppState,
     payload: PasswordLoginRequest,
 ) -> Result<LoginResponse, ApiError> {
-    let captcha_ok = valid_local_captcha(&payload);
     let account = validate_login_account(payload.account)?;
     let password = validate_login_password(payload.password)?;
     let repo = AuthRepository::new(state.db().clone());
@@ -141,8 +141,12 @@ pub async fn password_login(
         return Err(ApiError::InvalidCredentials);
     };
 
-    if user.failed_login_attempts >= LOGIN_CAPTCHA_THRESHOLD && !captcha_ok {
-        return Err(ApiError::CaptchaRequired);
+    if user.failed_login_attempts >= LOGIN_CAPTCHA_THRESHOLD {
+        let captcha_ok =
+            verify_captcha(&repo, payload.captcha_ticket, payload.captcha_answer).await?;
+        if !captcha_ok {
+            return Err(ApiError::CaptchaRequired);
+        }
     }
 
     let Some(password_hash) = user.password_hash.as_deref() else {
@@ -155,6 +159,30 @@ pub async fn password_login(
 
     repo.reset_failed_password_login(&user.id).await?;
     issue_login_for_user(&repo, user).await
+}
+
+pub async fn create_captcha_challenge(
+    state: &AppState,
+    account: String,
+) -> Result<CaptchaChallengeResponse, ApiError> {
+    let account = validate_login_account(account)?;
+    let answer = generate_captcha_answer();
+    let ticket = generate_token();
+    let answer_hash = hash_token(&normalize_captcha_answer(&answer));
+    let expires_at = OffsetDateTime::now_utc() + Duration::minutes(CAPTCHA_EXPIRES_MINUTES);
+    AuthRepository::new(state.db().clone())
+        .create_captcha_challenge(&account, &ticket, &answer_hash, expires_at)
+        .await?;
+
+    Ok(CaptchaChallengeResponse {
+        captcha_ticket: ticket,
+        captcha_type: "image",
+        image_svg: render_captcha_svg(&answer),
+        expires_at: expires_at
+            .format(&Iso8601::DEFAULT)
+            .map_err(ApiError::internal)?,
+        debug_answer: (state.config().app_env == "local").then_some(answer),
+    })
 }
 
 pub async fn mock_login(
@@ -323,13 +351,55 @@ fn validate_verification_code(code: String) -> Result<String, ApiError> {
     Ok(code.to_owned())
 }
 
-fn valid_local_captcha(payload: &PasswordLoginRequest) -> bool {
-    matches!(
-        (
-            payload.captcha_ticket.as_deref(),
-            payload.captcha_answer.as_deref().map(str::trim),
-        ),
-        (Some("local-dev-captcha"), Some("pass"))
+async fn verify_captcha(
+    repo: &AuthRepository,
+    ticket: Option<String>,
+    answer: Option<String>,
+) -> Result<bool, ApiError> {
+    let (Some(ticket), Some(answer)) = (ticket, answer) else {
+        return Ok(false);
+    };
+    let ticket = ticket.trim();
+    if ticket.is_empty() {
+        return Ok(false);
+    }
+    let answer = normalize_captcha_answer(&answer);
+    if answer.is_empty() {
+        return Ok(false);
+    }
+    repo.consume_captcha_challenge(ticket, &hash_token(&answer))
+        .await
+        .map_err(ApiError::from)
+}
+
+fn normalize_captcha_answer(answer: &str) -> String {
+    answer.trim().to_ascii_uppercase()
+}
+
+fn generate_captcha_answer() -> String {
+    const CHARS: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+    let mut rng = rand::thread_rng();
+    (0..4)
+        .map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char)
+        .collect()
+}
+
+fn render_captcha_svg(answer: &str) -> String {
+    let chars = answer
+        .chars()
+        .enumerate()
+        .map(|(idx, ch)| {
+            let x = 18 + idx * 28;
+            let y = if idx % 2 == 0 { 42 } else { 35 };
+            format!(
+                r#"<text x="{x}" y="{y}" transform="rotate({rotate} {x},{y})">{ch}</text>"#,
+                rotate = if idx % 2 == 0 { -8 } else { 7 },
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+    format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="140" height="54" viewBox="0 0 140 54" role="img" aria-label="captcha"><rect width="140" height="54" rx="8" fill="#f8fafc"/><path d="M8 18 C40 2, 80 52, 132 20" stroke="#94a3b8" stroke-width="2" fill="none"/><path d="M10 40 C44 54, 86 8, 130 36" stroke="#cbd5e1" stroke-width="2" fill="none"/><g font-family="monospace" font-size="26" font-weight="700" fill="#0f172a">{chars}</g></svg>"##
     )
 }
 
