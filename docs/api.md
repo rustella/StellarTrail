@@ -13,7 +13,12 @@ GET /api/meta
 
 ```http
 POST /api/auth/wechat-login
+POST /api/auth/email-verification-code
+POST /api/auth/register
+POST /api/auth/login
 ```
+
+### WeChat login
 
 小程序端传入 `wx.login()` 返回的 `code`。服务端行为：
 
@@ -27,10 +32,66 @@ POST /api/auth/wechat-login
 }
 ```
 
-响应会返回 `access_token`，后续请求使用：
+### Email / username registration and password login
+
+注册页可在同一表单中填写用户名、邮箱、密码、确认密码，并通过“发送邮箱验证码”按钮调用：
+
+```json
+POST /api/auth/email-verification-code
+{
+  "email": "alice@example.com"
+}
+```
+
+本地环境响应会带 `debug_code` 方便联调；生产环境不返回明文验证码，后续接入邮件投递服务即可在生成验证码后发送邮件：
+
+```json
+{
+  "email": "alice@example.com",
+  "expires_at": "2026-05-16T10:00:00Z",
+  "debug_code": "123456"
+}
+```
+
+注册接口会校验邮箱验证码和确认密码，密码以 SHA-256 十六进制摘要写入数据库：
+
+```json
+POST /api/auth/register
+{
+  "username": "trail_alice",
+  "email": "alice@example.com",
+  "password": "OutdoorPass123!",
+  "confirm_password": "OutdoorPass123!",
+  "email_verification_code": "123456"
+}
+```
+
+登录接口的 `account` 可填写用户名或邮箱。首次和正常登录不需要验证码；同一账号连续多次输错密码后，接口返回 `captcha_required`，前端应展示图片验证码或滑动验证码后重试。
+
+```json
+POST /api/auth/login
+{
+  "account": "trail_alice",
+  "password": "OutdoorPass123!",
+  "captcha_ticket": "local-dev-captcha",
+  "captcha_answer": "pass"
+}
+```
+
+验证码门槛响应示例：
+
+```json
+{
+  "code": "captcha_required",
+  "message": "多次登录失败，请先完成验证码验证",
+  "captcha": { "type": "image" }
+}
+```
+
+登录/注册成功响应会返回 `access_token`，后续请求使用：
 
 ```http
-Authorization: Bearer <access_token>
+Authorization: Bearer ***
 ```
 
 ## Public content catalog

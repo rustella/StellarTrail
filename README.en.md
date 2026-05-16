@@ -35,7 +35,7 @@ The current entry point is a **WeChat Mini Program**. A **Rust API service** pro
 
 Phase one focuses on:
 
-- 🧑‍💻 WeChat Mini Program login and account model.
+- 🧑‍💻 WeChat Mini Program login, email/username password login, and account model.
 - 🎒 Personal gear-library CRUD.
 - 🔎 Search, category filtering, status filtering, sorting, and pagination.
 - 📊 Gear count, total value, total weight, and category counts.
@@ -114,6 +114,9 @@ Currently implemented endpoints:
 GET /healthz
 GET /api/meta
 POST /api/auth/wechat-login
+POST /api/auth/email-verification-code
+POST /api/auth/register
+POST /api/auth/login
 GET /api/mountains
 GET /api/mountains/:id
 GET /api/routes

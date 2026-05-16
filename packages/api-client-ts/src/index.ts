@@ -1,6 +1,8 @@
 import type {
   ContentListResponse,
   CreateGearRequest,
+  EmailVerificationCodeRequest,
+  EmailVerificationCodeResponse,
   GearCategoriesResponse,
   GearTemplate,
   GearItem,
@@ -12,6 +14,8 @@ import type {
   ListGearsRequest,
   ListGearsResponse,
   MetaResponse,
+  PasswordLoginRequest,
+  RegisterRequest,
   RouteContent,
   SkillContent,
   UpdateGearRequest,
@@ -32,7 +36,7 @@ export class StellarTrailApiClient {
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
-    this.fetcher = options.fetcher ?? fetch;
+    this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
     this.accessToken = options.accessToken;
   }
 
@@ -85,6 +89,35 @@ export class StellarTrailApiClient {
   ): Promise<WechatLoginResponse> {
     const response = await this.post<WechatLoginResponse>(
       "/api/auth/wechat-login",
+      request,
+    );
+    this.accessToken = response.access_token;
+    return response;
+  }
+
+  async sendEmailVerificationCode(
+    request: EmailVerificationCodeRequest,
+  ): Promise<EmailVerificationCodeResponse> {
+    return this.post<EmailVerificationCodeResponse>(
+      "/api/auth/email-verification-code",
+      request,
+    );
+  }
+
+  async register(request: RegisterRequest): Promise<WechatLoginResponse> {
+    const response = await this.post<WechatLoginResponse>(
+      "/api/auth/register",
+      request,
+    );
+    this.accessToken = response.access_token;
+    return response;
+  }
+
+  async loginWithPassword(
+    request: PasswordLoginRequest,
+  ): Promise<WechatLoginResponse> {
+    const response = await this.post<WechatLoginResponse>(
+      "/api/auth/login",
       request,
     );
     this.accessToken = response.access_token;
