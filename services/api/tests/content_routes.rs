@@ -9,7 +9,11 @@ use axum::{
     http::{Request, StatusCode},
 };
 use serde_json::Value;
-use stellartrail_api::{build_state, config::ApiConfig, routes::build_router};
+use stellartrail_api::{
+    build_state,
+    config::{ApiConfig, RedisCacheConfig},
+    routes::build_router,
+};
 use stellartrail_db::DatabaseConfig;
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -38,6 +42,7 @@ async fn test_app_with_content_dir(temp_dir: TempDir, content_dir: PathBuf) -> T
         wechat_app_id: None,
         wechat_app_secret: None,
         content_dir,
+        redis_cache: RedisCacheConfig::disabled(),
     };
     let state = build_state(config).await.unwrap();
     TestApp {

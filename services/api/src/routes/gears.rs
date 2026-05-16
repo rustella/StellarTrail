@@ -5,6 +5,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use serde_json::json;
 use stellartrail_db::repositories::{GearRepository, ListGearOptions};
 use stellartrail_domain::gear::GearItem;
 
@@ -39,6 +40,17 @@ async fn categories(
     Query(query): Query<GearStatsQuery>,
 ) -> Result<Json<GearCategoriesResponse>, ApiError> {
     let user = auth_service::authenticate(&headers, &state).await?;
+    let cache_payload = json!({ "tab": query.tab }).to_string();
+    let cache_key = state
+        .cache()
+        .gear_response_key(&user.id, "categories", &cache_payload)
+        .await;
+    if let Some(key) = cache_key.as_deref() {
+        if let Some(cached) = state.cache().get_json::<GearCategoriesResponse>(key).await {
+            return Ok(Json(cached));
+        }
+    }
+
     let counts = GearRepository::new(state.db().clone())
         .category_counts(&user.id, query.tab)
         .await?;
@@ -53,7 +65,11 @@ async fn categories(
         label: item.label,
         count: item.count,
     }));
-    Ok(Json(GearCategoriesResponse { items }))
+    let response = GearCategoriesResponse { items };
+    if let Some(key) = cache_key.as_deref() {
+        state.cache().set_json(key, &response).await;
+    }
+    Ok(Json(response))
 }
 
 async fn stats(
@@ -62,9 +78,27 @@ async fn stats(
     Query(query): Query<GearStatsQuery>,
 ) -> Result<Json<stellartrail_domain::gear::GearStats>, ApiError> {
     let user = auth_service::authenticate(&headers, &state).await?;
+    let cache_payload = json!({ "tab": query.tab }).to_string();
+    let cache_key = state
+        .cache()
+        .gear_response_key(&user.id, "stats", &cache_payload)
+        .await;
+    if let Some(key) = cache_key.as_deref() {
+        if let Some(cached) = state
+            .cache()
+            .get_json::<stellartrail_domain::gear::GearStats>(key)
+            .await
+        {
+            return Ok(Json(cached));
+        }
+    }
+
     let stats = GearRepository::new(state.db().clone())
         .stats(&user.id, query.tab)
         .await?;
+    if let Some(key) = cache_key.as_deref() {
+        state.cache().set_json(key, &stats).await;
+    }
     Ok(Json(stats))
 }
 
@@ -74,6 +108,27 @@ async fn list(
     Query(query): Query<ListGearQuery>,
 ) -> Result<Json<ListGearResponse>, ApiError> {
     let user = auth_service::authenticate(&headers, &state).await?;
+    let limit = query.limit.unwrap_or(20);
+    let cache_payload = json!({
+        "tab": query.tab,
+        "category": query.category,
+        "status": query.status,
+        "q": query.q.as_deref(),
+        "sort": query.sort,
+        "limit": limit,
+        "cursor": query.cursor.as_deref(),
+    })
+    .to_string();
+    let cache_key = state
+        .cache()
+        .gear_response_key(&user.id, "list", &cache_payload)
+        .await;
+    if let Some(key) = cache_key.as_deref() {
+        if let Some(cached) = state.cache().get_json::<ListGearResponse>(key).await {
+            return Ok(Json(cached));
+        }
+    }
+
     let (items, next_cursor) = GearRepository::new(state.db().clone())
         .list(
             &user.id,
@@ -83,15 +138,19 @@ async fn list(
                 status: query.status,
                 q: query.q,
                 sort: query.sort,
-                limit: query.limit.unwrap_or(20),
+                limit,
                 cursor: query.cursor,
             },
         )
         .await?;
-    Ok(Json(ListGearResponse {
+    let response = ListGearResponse {
         items: items.iter().map(Into::into).collect(),
         next_cursor,
-    }))
+    };
+    if let Some(key) = cache_key.as_deref() {
+        state.cache().set_json(key, &response).await;
+    }
+    Ok(Json(response))
 }
 
 async fn create(
@@ -101,6 +160,7 @@ async fn create(
 ) -> Result<(StatusCode, Json<GearItem>), ApiError> {
     let user = auth_service::authenticate(&headers, &state).await?;
     let item = gear_service::create_gear(&state, &user.id, payload.into_draft()).await?;
+    state.cache().invalidate_user_gear(&user.id).await;
     Ok((StatusCode::CREATED, Json(item)))
 }
 
@@ -110,10 +170,24 @@ async fn get_one(
     Path(id): Path<String>,
 ) -> Result<Json<GearItem>, ApiError> {
     let user = auth_service::authenticate(&headers, &state).await?;
+    let cache_payload = json!({ "id": id }).to_string();
+    let cache_key = state
+        .cache()
+        .gear_response_key(&user.id, "item", &cache_payload)
+        .await;
+    if let Some(key) = cache_key.as_deref() {
+        if let Some(cached) = state.cache().get_json::<GearItem>(key).await {
+            return Ok(Json(cached));
+        }
+    }
+
     let item = GearRepository::new(state.db().clone())
         .get(&user.id, &id)
         .await?
         .ok_or(ApiError::NotFound)?;
+    if let Some(key) = cache_key.as_deref() {
+        state.cache().set_json(key, &item).await;
+    }
     Ok(Json(item))
 }
 
@@ -125,6 +199,7 @@ async fn update(
 ) -> Result<Json<GearItem>, ApiError> {
     let user = auth_service::authenticate(&headers, &state).await?;
     let item = gear_service::update_gear(&state, &user.id, &id, payload).await?;
+    state.cache().invalidate_user_gear(&user.id).await;
     Ok(Json(item))
 }
 
@@ -138,6 +213,7 @@ async fn archive(
         .archive(&user.id, &id)
         .await?;
     if archived {
+        state.cache().invalidate_user_gear(&user.id).await;
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(ApiError::NotFound)
@@ -154,6 +230,7 @@ async fn restore(
         .restore(&user.id, &id)
         .await?
         .ok_or(ApiError::NotFound)?;
+    state.cache().invalidate_user_gear(&user.id).await;
     Ok(Json(item))
 }
 
@@ -269,6 +346,9 @@ async fn import_json(
         for draft in drafts {
             repo.create(&user.id, &draft).await?;
             created_count += 1;
+        }
+        if created_count > 0 {
+            state.cache().invalidate_user_gear(&user.id).await;
         }
     }
     Ok(Json(ImportGearsResponse {

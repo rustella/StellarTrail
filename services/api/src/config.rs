@@ -3,6 +3,23 @@ use std::{env, net::SocketAddr, path::PathBuf};
 use stellartrail_db::{DatabaseConfig, DatabaseKind};
 
 #[derive(Clone, Debug)]
+pub struct RedisCacheConfig {
+    pub url: Option<String>,
+    pub key_prefix: String,
+    pub gear_ttl_seconds: u64,
+}
+
+impl RedisCacheConfig {
+    pub fn disabled() -> Self {
+        Self {
+            url: None,
+            key_prefix: "stellartrail".to_owned(),
+            gear_ttl_seconds: 30,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct ApiConfig {
     pub app_env: String,
     pub host: String,
@@ -12,6 +29,7 @@ pub struct ApiConfig {
     pub wechat_app_id: Option<String>,
     pub wechat_app_secret: Option<String>,
     pub content_dir: PathBuf,
+    pub redis_cache: RedisCacheConfig,
 }
 
 impl ApiConfig {
@@ -29,6 +47,12 @@ impl ApiConfig {
         let wechat_app_id = optional_env("WECHAT_APP_ID");
         let wechat_app_secret = optional_env("WECHAT_APP_SECRET");
         let content_dir = env::var("CONTENT_DIR").unwrap_or_else(|_| "content".to_owned());
+        let redis_cache = RedisCacheConfig {
+            url: optional_env("REDIS_URL"),
+            key_prefix: optional_env("REDIS_KEY_PREFIX")
+                .unwrap_or_else(|| "stellartrail".to_owned()),
+            gear_ttl_seconds: optional_u64_env("REDIS_GEAR_CACHE_TTL_SECONDS", 30)?,
+        };
 
         Ok(Self {
             app_env,
@@ -39,6 +63,7 @@ impl ApiConfig {
             wechat_app_id,
             wechat_app_secret,
             content_dir: PathBuf::from(content_dir),
+            redis_cache,
         })
     }
 
@@ -58,6 +83,13 @@ fn optional_env(name: &str) -> Option<String> {
         .ok()
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
+}
+
+fn optional_u64_env(name: &str, default: u64) -> anyhow::Result<u64> {
+    match optional_env(name) {
+        Some(value) => Ok(value.parse::<u64>()?),
+        None => Ok(default),
+    }
 }
 
 #[cfg(test)]
@@ -80,6 +112,9 @@ mod tests {
             "WECHAT_APP_ID",
             "WECHAT_APP_SECRET",
             "CONTENT_DIR",
+            "REDIS_URL",
+            "REDIS_KEY_PREFIX",
+            "REDIS_GEAR_CACHE_TTL_SECONDS",
         ];
         let saved = snapshot_env(&keys);
 
@@ -92,6 +127,9 @@ mod tests {
             env::set_var("WECHAT_APP_ID", " wx-app-id ");
             env::set_var("WECHAT_APP_SECRET", " wx-secret ");
             env::set_var("CONTENT_DIR", "content");
+            env::remove_var("REDIS_URL");
+            env::remove_var("REDIS_KEY_PREFIX");
+            env::remove_var("REDIS_GEAR_CACHE_TTL_SECONDS");
         }
 
         let config = ApiConfig::from_env().unwrap();
@@ -100,6 +138,48 @@ mod tests {
         assert!(!config.wechat_mock_login);
         assert_eq!(config.wechat_app_id.as_deref(), Some("wx-app-id"));
         assert_eq!(config.wechat_app_secret.as_deref(), Some("wx-secret"));
+
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_reads_redis_cache_config() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let keys = [
+            "APP_ENV",
+            "APP_HOST",
+            "APP_PORT",
+            "DATABASE_URL",
+            "WECHAT_MOCK_LOGIN",
+            "WECHAT_APP_ID",
+            "WECHAT_APP_SECRET",
+            "CONTENT_DIR",
+            "REDIS_URL",
+            "REDIS_KEY_PREFIX",
+            "REDIS_GEAR_CACHE_TTL_SECONDS",
+        ];
+        let saved = snapshot_env(&keys);
+
+        unsafe {
+            env::set_var("APP_ENV", "local");
+            env::set_var("APP_HOST", "127.0.0.1");
+            env::set_var("APP_PORT", "8080");
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("WECHAT_MOCK_LOGIN", "true");
+            env::set_var("CONTENT_DIR", "content");
+            env::set_var("REDIS_URL", " redis://127.0.0.1:6379/2 ");
+            env::set_var("REDIS_KEY_PREFIX", " stellartrail-test ");
+            env::set_var("REDIS_GEAR_CACHE_TTL_SECONDS", "45");
+        }
+
+        let config = ApiConfig::from_env().unwrap();
+
+        assert_eq!(
+            config.redis_cache.url.as_deref(),
+            Some("redis://127.0.0.1:6379/2"),
+        );
+        assert_eq!(config.redis_cache.key_prefix, "stellartrail-test");
+        assert_eq!(config.redis_cache.gear_ttl_seconds, 45);
 
         restore_env(saved);
     }

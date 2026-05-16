@@ -8,6 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
 axum.workspace = true
 base64.workspace = true
 csv.workspace = true
@@ -15,6 +16,7 @@ dotenvy.workspace = true
 hex.workspace = true
 http-body-util.workspace = true
 rand.workspace = true
+redis.workspace = true
 sea-orm.workspace = true
 sea-orm-migration.workspace = true
 serde.workspace = true

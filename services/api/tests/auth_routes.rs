@@ -8,7 +8,7 @@ use axum::{
 use sea_orm::{ConnectionTrait, Statement};
 use serde_json::{Value, json};
 use stellartrail_api::{
-    config::ApiConfig,
+    config::{ApiConfig, RedisCacheConfig},
     migrate_database,
     routes::build_router,
     services::wechat::{WechatCodeSession, WechatCodeSessionClient},
@@ -39,6 +39,7 @@ async fn test_app() -> TestApp {
         wechat_app_id: None,
         wechat_app_secret: None,
         content_dir: temp_dir.path().join("content"),
+        redis_cache: RedisCacheConfig::disabled(),
     };
     TestApp {
         router: build_router(AppState::new(config, db.clone())),
@@ -219,6 +220,7 @@ async fn production_wechat_login_uses_code2session_client() {
         wechat_app_id: Some("wx-test-app-id".to_owned()),
         wechat_app_secret: Some("wx-test-secret".to_owned()),
         content_dir: temp_dir.path().join("content"),
+        redis_cache: RedisCacheConfig::disabled(),
     };
     let wechat_client = RecordingWechatCodeSessionClient::default();
     let calls = Arc::clone(&wechat_client.calls);

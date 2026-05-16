@@ -154,7 +154,7 @@ impl UpdateGearRequest {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearSummaryResponse {
     pub id: String,
     pub category: GearCategory,
@@ -191,20 +191,20 @@ impl From<&GearItem> for GearSummaryResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListGearResponse {
     pub items: Vec<GearSummaryResponse>,
     pub next_cursor: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearCategoryFilterResponse {
     pub id: String,
     pub label: String,
     pub count: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearCategoriesResponse {
     pub items: Vec<GearCategoryFilterResponse>,
 }

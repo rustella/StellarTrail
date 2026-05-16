@@ -43,6 +43,7 @@ Phase one focuses on:
 - 🏷️ Tags, status/location fields, sharing toggle, and notes.
 - 📤 JSON import and CSV export.
 - 🗄️ SeaORM data access: SQLite by default for local development, PostgreSQL recommended for production.
+- ⚡ Optional Redis read-through cache for high-traffic gear read APIs.
 
 Routes, trips, skills, realtime navigation, social feeds, guided-trip marketplaces, full GPX editing, and commerce are intentionally out of scope for phase one.
 
@@ -84,6 +85,7 @@ StellarTrail/
 - 🦀 Rust stable toolchain with Rust 2024 edition. The repository includes `rust-toolchain.toml` and expects `rustfmt` and `clippy`.
 - 🟢 Node.js 22+ and npm.
 - 💬 WeChat DevTools for Mini Program debugging.
+- ⚡ Redis 7+ (optional; set `REDIS_URL` to enable server-side caching).
 
 ### 2. Install dependencies
 
@@ -99,7 +101,7 @@ cargo run -p stellartrail-api --bin migrate -- up
 cargo run -p stellartrail-api
 ```
 
-The API listens on `127.0.0.1:8080` by default and reads configuration from environment variables. The default database URL is `sqlite://stellartrail.db`. Local mock login is enabled with `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true`; real WeChat login requires `WECHAT_MOCK_LOGIN=false`, `WECHAT_APP_ID`, and `WECHAT_APP_SECRET`.
+The API listens on `127.0.0.1:8080` by default and reads configuration from environment variables. The default database URL is `sqlite://stellartrail.db`. Local mock login is enabled with `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true`; real WeChat login requires `WECHAT_MOCK_LOGIN=false`, `WECHAT_APP_ID`, and `WECHAT_APP_SECRET`. To enable Redis caching, set `REDIS_URL=redis://127.0.0.1:6379/0`; `REDIS_GEAR_CACHE_TTL_SECONDS` controls the gear API cache TTL.
 
 Use these endpoints for local smoke testing:
 

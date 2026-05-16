@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use axum::{
     Router,
     body::{Body, to_bytes},
@@ -5,7 +7,11 @@ use axum::{
 };
 use serde_json::{Value, json};
 use stellartrail_api::{
-    config::ApiConfig, migrate_database, routes::build_router, state::AppState,
+    cache::{Cache, InMemoryCacheStore},
+    config::{ApiConfig, RedisCacheConfig},
+    migrate_database,
+    routes::build_router,
+    state::AppState,
 };
 use stellartrail_db::{DatabaseConfig, connect_database};
 use tempfile::TempDir;
@@ -17,6 +23,10 @@ struct TestApp {
 }
 
 async fn test_app() -> TestApp {
+    test_app_with_cache(Cache::disabled()).await
+}
+
+async fn test_app_with_cache(cache: Cache) -> TestApp {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
@@ -31,9 +41,10 @@ async fn test_app() -> TestApp {
         wechat_app_id: None,
         wechat_app_secret: None,
         content_dir: temp_dir.path().join("content"),
+        redis_cache: RedisCacheConfig::disabled(),
     };
     TestApp {
-        router: build_router(AppState::new(config, db)),
+        router: build_router(AppState::new_with_cache(config, db, cache)),
         _temp_dir: temp_dir,
     }
 }
@@ -103,6 +114,72 @@ async fn login(app: &Router, code: &str) -> String {
     .await;
     assert_eq!(status, StatusCode::OK, "{value}");
     value["access_token"].as_str().unwrap().to_owned()
+}
+
+#[tokio::test]
+async fn gear_stats_reads_are_cached_and_mutations_invalidate_cache_version() {
+    let store = InMemoryCacheStore::default();
+    let app = test_app_with_cache(Cache::with_store_for_tests(
+        store.clone(),
+        "test-stellartrail",
+        Duration::from_secs(300),
+    ))
+    .await;
+    let token = login(&app.router, "gear-cache-user").await;
+
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({"category": "lighting_system", "name": "缓存头灯"}),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+
+    let (first_status, first_stats) =
+        send_empty(&app.router, "GET", "/api/me/gears/stats", Some(&token)).await;
+    assert_eq!(first_status, StatusCode::OK, "{first_stats}");
+    assert_eq!(first_stats["current_count"], 1);
+    let after_first_read = store.stats();
+    assert!(
+        after_first_read.set_count >= 1,
+        "first read should populate Redis-compatible cache: {after_first_read:?}",
+    );
+
+    let (second_status, second_stats) =
+        send_empty(&app.router, "GET", "/api/me/gears/stats", Some(&token)).await;
+    assert_eq!(second_status, StatusCode::OK, "{second_stats}");
+    assert_eq!(second_stats["current_count"], 1);
+    let after_second_read = store.stats();
+    assert!(
+        after_second_read.hit_count > after_first_read.hit_count,
+        "second read should hit Redis-compatible cache: before={after_first_read:?} after={after_second_read:?}",
+    );
+
+    let (second_create_status, second_created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({"category": "lighting_system", "name": "缓存营灯"}),
+    )
+    .await;
+    assert_eq!(
+        second_create_status,
+        StatusCode::CREATED,
+        "{second_created}",
+    );
+    let after_mutation = store.stats();
+    assert!(
+        after_mutation.increment_count > after_second_read.increment_count,
+        "gear mutation should bump cache version instead of serving stale read cache: before={after_second_read:?} after={after_mutation:?}",
+    );
+
+    let (fresh_status, fresh_stats) =
+        send_empty(&app.router, "GET", "/api/me/gears/stats", Some(&token)).await;
+    assert_eq!(fresh_status, StatusCode::OK, "{fresh_stats}");
+    assert_eq!(fresh_stats["current_count"], 2);
 }
 
 #[tokio::test]
