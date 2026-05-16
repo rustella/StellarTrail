@@ -343,18 +343,14 @@ export default function App({ client }: AppProps) {
     setSubmitting(true);
     setError(null);
     try {
-      await api.register({
+      const registerResponse = await api.register({
         username,
         email,
         password: registerForm.password,
         confirm_password: registerForm.confirmPassword,
         email_verification_code: emailVerificationCode,
       });
-      const loginResponse = await api.loginWithPassword({
-        account: email,
-        password: registerForm.password,
-      });
-      completeLogin(loginResponse);
+      completeLogin(registerResponse);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
