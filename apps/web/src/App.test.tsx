@@ -321,7 +321,7 @@ describe("App", () => {
     );
   });
 
-  it("registers a password account then logs in with the new credential", async () => {
+  it("registers a password account with the registration session response", async () => {
     const client = buildClient();
     render(<App client={client} />);
 
@@ -359,18 +359,12 @@ describe("App", () => {
       confirm_password: "strong-password",
       email_verification_code: "123456",
     });
-    expect(client.loginWithPassword).toHaveBeenCalledWith({
-      account: "new@example.com",
-      password: "strong-password",
-    });
-    expect(vi.mocked(client.register).mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(client.loginWithPassword).mock.invocationCallOrder[0],
-    );
+    expect(client.loginWithPassword).not.toHaveBeenCalled();
     expect(localStorage.getItem("stellartrail.web.session")).toContain(
-      "token-password",
+      "token-register",
     );
     expect(localStorage.getItem("stellartrail.web.session")).not.toContain(
-      "token-register",
+      "token-password",
     );
   });
 });
