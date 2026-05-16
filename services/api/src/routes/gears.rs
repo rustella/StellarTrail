@@ -1,3 +1,5 @@
+//! 装备库路由模块，处理当前用户装备的列表、详情、导入导出、归档恢复和统计查询。
+
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
@@ -20,6 +22,7 @@ use crate::{
     state::AppState,
 };
 
+/// 执行 `routes` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/me/gears/categories", get(categories))
@@ -34,6 +37,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/me/gears/:id/restore", post(restore))
 }
 
+/// 执行 `categories` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 async fn categories(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -41,6 +45,7 @@ async fn categories(
 ) -> Result<Json<GearCategoriesResponse>, ApiError> {
     let user = auth_service::authenticate(&headers, &state).await?;
     let cache_payload = json!({ "tab": query.tab }).to_string();
+    // 高频读接口先尝试 read-through cache，缓存不可用时自然跳过。
     let cache_key = state
         .cache()
         .gear_response_key(&user.id, "categories", &cache_payload)
@@ -72,6 +77,7 @@ async fn categories(
     Ok(Json(response))
 }
 
+/// 执行 `stats` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 async fn stats(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -102,6 +108,7 @@ async fn stats(
     Ok(Json(stats))
 }
 
+/// 处理装备分页列表接口：解析查询参数、认证用户、生成缓存 key，并在未命中时读取数据库。
 async fn list(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -153,6 +160,7 @@ async fn list(
     Ok(Json(response))
 }
 
+/// 创建当前资源，并在需要时触发后续状态维护。
 async fn create(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -160,10 +168,12 @@ async fn create(
 ) -> Result<(StatusCode, Json<GearItem>), ApiError> {
     let user = auth_service::authenticate(&headers, &state).await?;
     let item = gear_service::create_gear(&state, &user.id, payload.into_draft()).await?;
+    // 写入成功后递增用户级版本号，避免后续读接口命中旧装备数据。
     state.cache().invalidate_user_gear(&user.id).await;
     Ok((StatusCode::CREATED, Json(item)))
 }
 
+/// 执行 `get one` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 async fn get_one(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -191,6 +201,7 @@ async fn get_one(
     Ok(Json(item))
 }
 
+/// 更新当前资源，并在写入成功后维护相关派生状态。
 async fn update(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -203,6 +214,7 @@ async fn update(
     Ok(Json(item))
 }
 
+/// 归档当前资源，让默认列表不再展示。
 async fn archive(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -220,6 +232,7 @@ async fn archive(
     }
 }
 
+/// 恢复已归档资源，让默认列表重新展示。
 async fn restore(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -234,6 +247,7 @@ async fn restore(
     Ok(Json(item))
 }
 
+/// 按当前筛选条件导出装备 CSV。
 async fn export_csv(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -317,6 +331,7 @@ async fn export_csv(
         .into_response())
 }
 
+/// 批量导入装备 JSON；dry-run 只校验不写库，真实导入后失效缓存。
 async fn import_json(
     State(state): State<AppState>,
     headers: HeaderMap,

@@ -1,3 +1,5 @@
+//! 认证路由模块，绑定微信登录、邮箱验证码、注册、密码登录和图片验证码 challenge 接口。
+
 use axum::{Json, Router, routing::post};
 
 use crate::{
@@ -11,6 +13,7 @@ use crate::{
     state::AppState,
 };
 
+/// 执行 `routes` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/auth/wechat-login", post(wechat_login))
@@ -23,6 +26,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/auth/captcha", post(create_captcha))
 }
 
+/// 处理微信小程序 code 登录，成功后签发 StellarTrail 会话 token。
 async fn wechat_login(
     axum::extract::State(state): axum::extract::State<AppState>,
     Json(payload): Json<WechatLoginRequest>,
@@ -31,6 +35,7 @@ async fn wechat_login(
     Ok(Json(response))
 }
 
+/// 生成注册邮箱验证码并保存摘要，供后续注册接口消费。
 async fn send_email_verification_code(
     axum::extract::State(state): axum::extract::State<AppState>,
     Json(payload): Json<EmailVerificationCodeRequest>,
@@ -39,6 +44,7 @@ async fn send_email_verification_code(
     Ok(Json(response))
 }
 
+/// 执行 `register` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 async fn register(
     axum::extract::State(state): axum::extract::State<AppState>,
     Json(payload): Json<RegisterRequest>,
@@ -47,6 +53,7 @@ async fn register(
     Ok(Json(response))
 }
 
+/// 处理用户名或邮箱密码登录，必要时校验一次性图片验证码。
 async fn password_login(
     axum::extract::State(state): axum::extract::State<AppState>,
     Json(payload): Json<PasswordLoginRequest>,
@@ -55,6 +62,7 @@ async fn password_login(
     Ok(Json(response))
 }
 
+/// 执行 `create captcha` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 async fn create_captcha(
     axum::extract::State(state): axum::extract::State<AppState>,
     Json(payload): Json<CaptchaChallengeRequest>,

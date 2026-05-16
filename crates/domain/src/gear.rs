@@ -1,3 +1,5 @@
+//! 装备库领域模型模块，定义装备分类、状态、草稿校验、统计结构和路线装备建议。
+
 use serde::{Deserialize, Serialize};
 use time::{Date, OffsetDateTime, format_description::well_known::Iso8601};
 
@@ -5,6 +7,7 @@ use crate::validation::{
     FieldViolation, ValidationError, normalize_optional_text, normalize_required_text,
 };
 
+/// GearCategory 枚举，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GearCategory {
@@ -36,6 +39,7 @@ impl GearCategory {
         Self::Consumable,
     ];
 
+    /// 执行 `as str` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn as_str(self) -> &'static str {
         match self {
             Self::BackpackSystem => "backpack_system",
@@ -52,6 +56,7 @@ impl GearCategory {
         }
     }
 
+    /// 执行 `label` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn label(self) -> &'static str {
         match self {
             Self::BackpackSystem => "背负系统",
@@ -68,6 +73,7 @@ impl GearCategory {
         }
     }
 
+    /// 执行 `from key` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn from_key(value: &str) -> Option<Self> {
         Self::ALL
             .into_iter()
@@ -76,11 +82,13 @@ impl GearCategory {
 }
 
 impl std::fmt::Display for GearCategory {
+    /// 执行 `fmt` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
     }
 }
 
+/// GearStatus 枚举，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GearStatus {
@@ -107,6 +115,7 @@ impl GearStatus {
         Self::Idle,
     ];
 
+    /// 执行 `as str` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Available => "available",
@@ -120,6 +129,7 @@ impl GearStatus {
         }
     }
 
+    /// 执行 `label` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn label(self) -> &'static str {
         match self {
             Self::Available => "可用",
@@ -133,6 +143,7 @@ impl GearStatus {
         }
     }
 
+    /// 执行 `from key` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn from_key(value: &str) -> Option<Self> {
         Self::ALL
             .into_iter()
@@ -141,11 +152,13 @@ impl GearStatus {
 }
 
 impl std::fmt::Display for GearStatus {
+    /// 执行 `fmt` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
     }
 }
 
+/// GearShareStatus 枚举，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GearShareStatus {
@@ -166,6 +179,7 @@ impl GearShareStatus {
         Self::Withdrawn,
     ];
 
+    /// 执行 `as str` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn as_str(self) -> &'static str {
         match self {
             Self::NotShared => "not_shared",
@@ -176,6 +190,7 @@ impl GearShareStatus {
         }
     }
 
+    /// 执行 `from key` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn from_key(value: &str) -> Option<Self> {
         Self::ALL
             .into_iter()
@@ -184,11 +199,13 @@ impl GearShareStatus {
 }
 
 impl std::fmt::Display for GearShareStatus {
+    /// 执行 `fmt` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
     }
 }
 
+/// GearTab 枚举，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GearTab {
@@ -197,6 +214,7 @@ pub enum GearTab {
     History,
 }
 
+/// GearSort 枚举，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GearSort {
@@ -209,6 +227,7 @@ pub enum GearSort {
     PriceDesc,
 }
 
+/// 装备完整领域对象，表示数据库中单条用户装备记录。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearItem {
     pub id: String,
@@ -240,6 +259,7 @@ pub struct GearItem {
     pub updated_at: String,
 }
 
+/// 装备写入草稿，封装创建、更新和导入前的可校验字段。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearDraft {
     pub category: GearCategory,
@@ -267,6 +287,7 @@ pub struct GearDraft {
 }
 
 impl GearDraft {
+    /// 校验装备草稿并规范化文本、标签、状态等字段。
     pub fn validate_and_normalize(&mut self) -> Result<(), ValidationError> {
         let mut errors = Vec::new();
         self.name =
@@ -348,6 +369,7 @@ impl GearDraft {
     }
 }
 
+/// 执行 `derive share status` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 pub fn derive_share_status(share_enabled: bool, previous: GearShareStatus) -> GearShareStatus {
     if share_enabled {
         match previous {
@@ -364,6 +386,7 @@ pub fn derive_share_status(share_enabled: bool, previous: GearShareStatus) -> Ge
     }
 }
 
+/// 清洗标签列表，去除空值、截断长度并去重。
 pub fn normalize_tags(values: Vec<String>, errors: &mut Vec<FieldViolation>) -> Vec<String> {
     let mut normalized = Vec::new();
     for raw in values {
@@ -389,18 +412,21 @@ pub fn normalize_tags(values: Vec<String>, errors: &mut Vec<FieldViolation>) -> 
     normalized
 }
 
+/// 执行 `now rfc3339` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 pub fn now_rfc3339() -> String {
     OffsetDateTime::now_utc()
         .format(&Iso8601::DEFAULT)
         .expect("RFC3339 timestamp formatting should be infallible")
 }
 
+/// 执行 `validate date` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 fn validate_date(value: Option<&str>, field: &str, errors: &mut Vec<FieldViolation>) {
     if value.is_some() && parse_date(value).is_none() {
         errors.push(FieldViolation::new(field, "must use YYYY-MM-DD format"));
     }
 }
 
+/// 执行 `parse date` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 fn parse_date(value: Option<&str>) -> Option<Date> {
     let value = value?;
     Date::parse(
@@ -410,6 +436,7 @@ fn parse_date(value: Option<&str>) -> Option<Date> {
     .ok()
 }
 
+/// GearCategoryCount 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearCategoryCount {
     pub category: GearCategory,
@@ -417,6 +444,7 @@ pub struct GearCategoryCount {
     pub count: i64,
 }
 
+/// GearStatusCount 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearStatusCount {
     pub status: GearStatus,
@@ -424,6 +452,7 @@ pub struct GearStatusCount {
     pub count: i64,
 }
 
+/// GearStats 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearStats {
     pub current_count: i64,
@@ -434,6 +463,7 @@ pub struct GearStats {
     pub by_status: Vec<GearStatusCount>,
 }
 
+/// RouteGearSuggestion 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RouteGearSuggestion {
     pub route_id: String,
@@ -443,6 +473,7 @@ pub struct RouteGearSuggestion {
     pub reason: String,
 }
 
+/// RequiredLevel 枚举，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RequiredLevel {
@@ -455,6 +486,7 @@ pub enum RequiredLevel {
 mod tests {
     use super::*;
 
+    /// 执行 `valid draft` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     fn valid_draft() -> GearDraft {
         GearDraft {
             category: GearCategory::LightingSystem,
@@ -482,6 +514,7 @@ mod tests {
         }
     }
 
+    /// 执行 `gear enums serialize as snake case` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     #[test]
     fn gear_enums_serialize_as_snake_case() {
         assert_eq!(
@@ -498,6 +531,8 @@ mod tests {
         );
     }
 
+    /// 执行 `draft validation trims nulls dedupes tags and derives share status`
+    /// 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     #[test]
     fn draft_validation_trims_nulls_dedupes_tags_and_derives_share_status() {
         let mut draft = valid_draft();
@@ -511,6 +546,7 @@ mod tests {
         assert_eq!(draft.share_status, GearShareStatus::Pending);
     }
 
+    /// 执行 `draft validation rejects required and bounded fields` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     #[test]
     fn draft_validation_rejects_required_and_bounded_fields() {
         let mut draft = valid_draft();

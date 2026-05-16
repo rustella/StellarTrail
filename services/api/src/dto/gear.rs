@@ -1,8 +1,11 @@
+//! 装备库 HTTP DTO，负责将查询参数和请求体转换为领域层装备草稿与响应结构。
+
 use serde::{Deserialize, Serialize};
 use stellartrail_domain::gear::{
     GearCategory, GearDraft, GearItem, GearShareStatus, GearSort, GearStatus, GearTab,
 };
 
+/// ListGearQuery 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Debug, Deserialize)]
 pub struct ListGearQuery {
     #[serde(default)]
@@ -16,12 +19,14 @@ pub struct ListGearQuery {
     pub cursor: Option<String>,
 }
 
+/// GearStatsQuery 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Debug, Deserialize)]
 pub struct GearStatsQuery {
     #[serde(default)]
     pub tab: GearTab,
 }
 
+/// GearExportQuery 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Debug, Deserialize)]
 pub struct GearExportQuery {
     #[serde(default)]
@@ -30,10 +35,12 @@ pub struct GearExportQuery {
     pub format: String,
 }
 
+/// 执行 `default csv format` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 fn default_csv_format() -> String {
     "csv".to_owned()
 }
 
+/// CreateGearRequest 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Debug, Deserialize)]
 pub struct CreateGearRequest {
     pub category: GearCategory,
@@ -62,6 +69,7 @@ pub struct CreateGearRequest {
 }
 
 impl CreateGearRequest {
+    /// 执行 `into draft` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn into_draft(self) -> GearDraft {
         GearDraft {
             category: self.category,
@@ -90,6 +98,7 @@ impl CreateGearRequest {
     }
 }
 
+/// UpdateGearRequest 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Debug, Default, Deserialize)]
 pub struct UpdateGearRequest {
     pub category: Option<GearCategory>,
@@ -116,6 +125,7 @@ pub struct UpdateGearRequest {
 }
 
 impl UpdateGearRequest {
+    /// 执行 `merge into` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn merge_into(self, existing: &GearItem) -> GearDraft {
         GearDraft {
             category: self.category.unwrap_or(existing.category),
@@ -154,6 +164,7 @@ impl UpdateGearRequest {
     }
 }
 
+/// GearSummaryResponse 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearSummaryResponse {
     pub id: String,
@@ -172,6 +183,7 @@ pub struct GearSummaryResponse {
 }
 
 impl From<&GearItem> for GearSummaryResponse {
+    /// 执行 `from` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     fn from(item: &GearItem) -> Self {
         Self {
             id: item.id.clone(),
@@ -191,12 +203,14 @@ impl From<&GearItem> for GearSummaryResponse {
     }
 }
 
+/// ListGearResponse 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListGearResponse {
     pub items: Vec<GearSummaryResponse>,
     pub next_cursor: Option<String>,
 }
 
+/// GearCategoryFilterResponse 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearCategoryFilterResponse {
     pub id: String,
@@ -204,11 +218,13 @@ pub struct GearCategoryFilterResponse {
     pub count: i64,
 }
 
+/// GearCategoriesResponse 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearCategoriesResponse {
     pub items: Vec<GearCategoryFilterResponse>,
 }
 
+/// ImportGearsRequest 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Debug, Deserialize)]
 pub struct ImportGearsRequest {
     #[serde(default)]
@@ -217,6 +233,7 @@ pub struct ImportGearsRequest {
     pub items: Vec<CreateGearRequest>,
 }
 
+/// ImportGearsResponse 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Debug, Serialize)]
 pub struct ImportGearsResponse {
     pub created_count: usize,
@@ -225,6 +242,7 @@ pub struct ImportGearsResponse {
     pub errors: Vec<ImportGearError>,
 }
 
+/// ImportGearError 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Debug, Serialize)]
 pub struct ImportGearError {
     pub row: usize,

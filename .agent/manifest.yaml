@@ -1,0 +1,53 @@
+project:
+  name: StellarTrail
+  repository: https://github.com/rustella/StellarTrail
+  description: 户外装备管理小程序与服务端，中文名“寻径星野”。
+
+stack:
+  backend:
+    language: Rust
+    framework: axum
+    source_roots:
+      - services/api/src
+      - crates/domain/src
+      - crates/db/src
+      - crates/importer/src
+      - crates/migration/src
+  frontend:
+    source_roots:
+      - apps/web
+      - apps/wechat-miniprogram
+
+entrypoints:
+  api:
+    main: services/api/src/main.rs
+    library: services/api/src/lib.rs
+    routes: services/api/src/routes/mod.rs
+  migrations: crates/migration/src/lib.rs
+
+policies:
+  server_rust_comments:
+    language: zh-CN
+    module_docs: 使用 `//!` 为服务端 Rust crate/module 文件说明职责、边界和关键约束。
+    item_docs: 使用 `///` 为 `pub` 类型、`pub` 函数和重要私有函数说明用途、输入输出、错误或安全边界。
+    inline_comments: 使用 `//` 解释认证、数据库、缓存、状态切换、外部调用、导入导出、迁移 DDL 等关键逻辑。
+  secrets:
+    rule: 不在代码、注释、日志或文档中写入 token、密码、连接串等敏感信息。
+  docs_sync:
+    rule: API、配置、迁移或运行方式变化时同步 README、docs/api.md 或 .agent 规则。
+
+validation:
+  backend:
+    - cargo fmt --all -- --check
+    - cargo check --workspace
+    - cargo test --workspace
+    - cargo clippy --workspace --all-targets -- -D warnings
+    - cargo doc --workspace --no-deps
+  workspace:
+    - npm run check
+    - npm run format:check
+    - git diff --check
+
+freshness:
+  last_updated: 2026-05-16
+  source: 当前仓库真实代码与用户明确要求。
