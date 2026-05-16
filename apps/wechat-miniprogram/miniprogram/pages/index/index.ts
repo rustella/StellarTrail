@@ -2,7 +2,7 @@ import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 
 Page({
   data: {
-    title: "星径户外助手",
+    title: "寻径星野",
     ...getThemeViewData(),
   },
 

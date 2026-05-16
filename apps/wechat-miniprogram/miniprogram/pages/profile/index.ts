@@ -6,7 +6,7 @@ import {
 
 Page({
   data: {
-    title: "我的 StellarTrail",
+    title: "我的寻径星野",
     ...getThemeViewData(),
   },
 

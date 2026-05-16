@@ -1,6 +1,6 @@
 <view class="container {{themeClass}}">
   <view class="card">
-    <view class="title">我的 StellarTrail</view>
+    <view class="title">我的寻径星野</view>
     <view class="subtitle">微信登录、收藏路线、行程计划和个人装备统计。</view>
   </view>
 

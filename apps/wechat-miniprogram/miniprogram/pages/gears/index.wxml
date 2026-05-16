@@ -1,7 +1,7 @@
 <view class="gear-page {{themeClass}}">
   <view class="hero-card">
     <view>
-      <view class="eyebrow">StellarTrail 装备库</view>
+      <view class="eyebrow">寻径星野装备库</view>
       <view class="hero-title">我的户外装备</view>
       <view class="hero-subtitle">按分类、状态和关键词快速管理装备，为下一次出行做准备。</view>
     </view>
