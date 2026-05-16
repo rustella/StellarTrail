@@ -454,8 +454,9 @@
   top: 28rpx;
   width: 270rpx;
   height: 194rpx;
-  border-radius: 28rpx;
-  opacity: 0.94;
+  border-radius: 0;
+  opacity: 1;
+  background-color: transparent;
   background-image:
     radial-gradient(
       circle,
@@ -504,12 +505,6 @@
       rgba(125, 211, 252, 0.58) 0%,
       rgba(125, 211, 252, 0.58) 28%,
       transparent 46%
-    ),
-    linear-gradient(
-      135deg,
-      rgba(168, 85, 247, 0.12),
-      rgba(45, 212, 191, 0.05) 62%,
-      transparent 82%
     );
   background-repeat: no-repeat;
   background-position:
@@ -520,8 +515,7 @@
     76% 66%,
     24% 74%,
     53% 54%,
-    8% 58%,
-    50% 50%;
+    8% 58%;
   background-size:
     12rpx 12rpx,
     8rpx 8rpx,
@@ -530,8 +524,7 @@
     9rpx 9rpx,
     6rpx 6rpx,
     8rpx 8rpx,
-    5rpx 5rpx,
-    100% 100%;
+    5rpx 5rpx;
   box-shadow: none;
 }
 
