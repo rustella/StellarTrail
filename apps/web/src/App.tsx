@@ -337,17 +337,24 @@ export default function App({ client }: AppProps) {
       setError("两次输入的密码不一致");
       return;
     }
+    const username = registerForm.username.trim();
+    const email = registerForm.email.trim();
+    const emailVerificationCode = registerForm.emailVerificationCode.trim();
     setSubmitting(true);
     setError(null);
     try {
-      const response = await api.register({
-        username: registerForm.username.trim(),
-        email: registerForm.email.trim(),
+      await api.register({
+        username,
+        email,
         password: registerForm.password,
         confirm_password: registerForm.confirmPassword,
-        email_verification_code: registerForm.emailVerificationCode.trim(),
+        email_verification_code: emailVerificationCode,
       });
-      completeLogin(response);
+      const loginResponse = await api.loginWithPassword({
+        account: email,
+        password: registerForm.password,
+      });
+      completeLogin(loginResponse);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
