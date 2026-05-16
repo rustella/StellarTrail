@@ -552,22 +552,24 @@ export default function App({ client }: AppProps) {
                 ? "使用后端账号密码登录；需要新账号时可在下方注册。"
                 : "通过邮箱验证码创建账号，注册成功后会自动进入个人装备库。"}
           </p>
-          <div className="auth-tabs" role="group" aria-label="登录方式">
-            <button
-              type="button"
-              className={authMode === "wechat" ? "active" : ""}
-              onClick={() => switchAuthMode("wechat")}
-            >
-              微信登录
-            </button>
-            <button
-              type="button"
-              className={authMode === "password" ? "active" : ""}
-              onClick={() => switchAuthMode("password")}
-            >
-              账号登录
-            </button>
-          </div>
+          {authMode !== "register" ? (
+            <div className="auth-tabs" role="group" aria-label="登录方式">
+              <button
+                type="button"
+                className={authMode === "wechat" ? "active" : ""}
+                onClick={() => switchAuthMode("wechat")}
+              >
+                微信登录
+              </button>
+              <button
+                type="button"
+                className={authMode === "password" ? "active" : ""}
+                onClick={() => switchAuthMode("password")}
+              >
+                账号登录
+              </button>
+            </div>
+          ) : null}
 
           {authMode === "wechat" ? (
             <form className="auth-form" onSubmit={handleLogin}>
