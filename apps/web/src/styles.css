@@ -55,7 +55,8 @@
   --heading-muted-color: #ddd6fe;
   --accent-color: #e879f9;
   --page-bg: #07051a;
-  --body-gradient: radial-gradient(
+  --body-gradient:
+    radial-gradient(
       circle at 16% 22%,
       rgba(255, 255, 255, 0.36) 0 1px,
       transparent 1.8px
@@ -446,36 +447,52 @@ td small {
   overflow-x: auto;
 }
 
-table {
+.table-wrap table {
   width: 100%;
+  min-width: 980px;
   border-collapse: collapse;
 }
 
-th,
-td {
+.table-wrap th,
+.table-wrap td {
   padding: 14px 12px;
   border-bottom: 1px solid var(--soft-border-color);
   text-align: left;
   vertical-align: middle;
 }
 
-th {
+.table-wrap th {
   color: var(--heading-muted-color);
   font-size: 13px;
 }
 
-td:first-child {
+.table-wrap th:nth-child(n + 2),
+.table-wrap td:nth-child(n + 2) {
+  white-space: nowrap;
+}
+
+.table-wrap td:first-child {
   min-width: 280px;
 }
 
-td small {
+.table-wrap td small {
   display: block;
   margin-top: 4px;
+}
+
+.table-wrap .actions {
+  flex-wrap: nowrap;
+}
+
+.table-wrap .actions button {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .status-pill {
   display: inline-flex;
   align-items: center;
+  white-space: nowrap;
   border-radius: 999px;
   padding: 5px 10px;
   color: var(--status-success-text);
