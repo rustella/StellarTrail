@@ -438,27 +438,101 @@
 }
 
 .home-page.theme-dark .hero-card::before {
+  opacity: 0.78;
   background:
-    linear-gradient(150deg, rgba(168, 85, 247, 0.18), rgba(45, 212, 191, 0.08)),
+    linear-gradient(150deg, rgba(168, 85, 247, 0.12), rgba(45, 212, 191, 0.06)),
     linear-gradient(
       28deg,
       transparent 0 38%,
-      rgba(221, 214, 254, 0.12) 39% 56%,
+      rgba(221, 214, 254, 0.08) 39% 56%,
       transparent 57% 100%
     );
 }
 
 .home-page.theme-dark .hero-card::after {
-  background: radial-gradient(
-    circle,
-    rgba(221, 214, 254, 0.5) 0%,
-    rgba(168, 85, 247, 0.18) 58%,
-    rgba(168, 85, 247, 0) 72%
-  );
-  box-shadow:
-    -96rpx 42rpx 0 -46rpx rgba(45, 212, 191, 0.24),
-    -34rpx 126rpx 0 -48rpx rgba(232, 121, 249, 0.22),
-    26rpx 156rpx 0 -50rpx rgba(125, 211, 252, 0.24);
+  right: 24rpx;
+  top: 28rpx;
+  width: 270rpx;
+  height: 194rpx;
+  border-radius: 28rpx;
+  opacity: 0.94;
+  background-image:
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(255, 255, 255, 0.96) 38%,
+      transparent 48%
+    ),
+    radial-gradient(
+      circle,
+      rgba(221, 214, 254, 0.92) 0%,
+      rgba(221, 214, 254, 0.92) 40%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle,
+      rgba(191, 219, 254, 0.9) 0%,
+      rgba(191, 219, 254, 0.9) 36%,
+      transparent 48%
+    ),
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.78) 0%,
+      rgba(255, 255, 255, 0.78) 32%,
+      transparent 48%
+    ),
+    radial-gradient(
+      circle,
+      rgba(251, 191, 36, 0.7) 0%,
+      rgba(251, 191, 36, 0.7) 36%,
+      transparent 52%
+    ),
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.62) 0%,
+      rgba(255, 255, 255, 0.62) 30%,
+      transparent 46%
+    ),
+    radial-gradient(
+      circle,
+      rgba(216, 180, 254, 0.62) 0%,
+      rgba(216, 180, 254, 0.62) 34%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle,
+      rgba(125, 211, 252, 0.58) 0%,
+      rgba(125, 211, 252, 0.58) 28%,
+      transparent 46%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(168, 85, 247, 0.12),
+      rgba(45, 212, 191, 0.05) 62%,
+      transparent 82%
+    );
+  background-repeat: no-repeat;
+  background-position:
+    16% 24%,
+    39% 12%,
+    68% 31%,
+    86% 18%,
+    76% 66%,
+    24% 74%,
+    53% 54%,
+    8% 58%,
+    50% 50%;
+  background-size:
+    12rpx 12rpx,
+    8rpx 8rpx,
+    10rpx 10rpx,
+    6rpx 6rpx,
+    9rpx 9rpx,
+    6rpx 6rpx,
+    8rpx 8rpx,
+    5rpx 5rpx,
+    100% 100%;
+  box-shadow: none;
 }
 
 .home-page.theme-dark .hero-eyebrow {
