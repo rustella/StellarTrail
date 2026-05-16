@@ -1,3 +1,4 @@
+import { getThemeViewData, syncPageTheme } from "../../../utils/theme";
 import {
   archiveGear,
   getErrorMessage,
@@ -42,6 +43,7 @@ Page({
     groups: [] as DetailGroup[],
     loading: false,
     error: "",
+    ...getThemeViewData(),
   },
 
   onLoad(options: Record<string, string | undefined>) {
@@ -52,6 +54,10 @@ Page({
     }
     this.setData({ id, tab: (options.tab as GearTab) || "available" });
     this.loadDetail();
+  },
+
+  onShow() {
+    syncPageTheme(this);
   },
 
   onPullDownRefresh() {

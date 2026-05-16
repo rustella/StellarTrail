@@ -1,3 +1,4 @@
+import { getThemeViewData, syncPageTheme } from "../../../utils/theme";
 import {
   createGear,
   getErrorMessage,
@@ -31,6 +32,7 @@ Page({
     loading: false,
     submitting: false,
     error: "",
+    ...getThemeViewData(),
   },
 
   onLoad(options: Record<string, string | undefined>) {
@@ -42,6 +44,10 @@ Page({
     } else {
       wx.setNavigationBarTitle({ title: "添加装备" });
     }
+  },
+
+  onShow() {
+    syncPageTheme(this);
   },
 
   async loadGearForEdit(id: string) {

@@ -1,4 +1,4 @@
-<view class="container">
+<view class="container {{themeClass}}">
   <view class="card">
     <view class="title">星径户外助手</view>
     <view class="subtitle">路线、装备、技能一体化，帮你从想去到敢出发。</view>
