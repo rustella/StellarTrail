@@ -165,7 +165,7 @@ textarea:focus-visible {
 }
 
 .login-card {
-  width: min(460px, 100%);
+  width: min(560px, 100%);
   padding: 36px;
   border: 1px solid var(--border-color);
   border-radius: 28px;
@@ -218,7 +218,64 @@ textarea:focus-visible {
 }
 
 .login-card input {
-  margin: 18px 0;
+  margin: 0;
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 22px 0 18px;
+  padding: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--soft-control-bg);
+}
+
+.auth-tabs button {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--soft-control-text);
+  background: transparent;
+  font-weight: 800;
+}
+
+.auth-tabs button.active {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-form .primary-button,
+.auth-form .secondary-button {
+  width: 100%;
+}
+
+.captcha-panel {
+  display: grid;
+  grid-template-columns: auto minmax(96px, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.captcha-panel img {
+  width: 140px;
+  height: 54px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.helper-text {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 13px;
 }
 
 .app-shell {
