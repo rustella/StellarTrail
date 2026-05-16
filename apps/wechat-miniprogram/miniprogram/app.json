@@ -1,7 +1,6 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/routes/index",
     "pages/gears/index",
     "pages/gears/form/index",
     "pages/gears/detail/index",
@@ -22,10 +21,6 @@
       {
         "pagePath": "pages/index/index",
         "text": "首页"
-      },
-      {
-        "pagePath": "pages/routes/index",
-        "text": "路线"
       },
       {
         "pagePath": "pages/gears/index",

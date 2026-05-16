@@ -1,3 +1,136 @@
-.container {
-  padding-top: 40rpx;
+.skills-page {
+  min-height: 100vh;
+  padding: 28rpx 28rpx 64rpx;
+  background: var(--page-bg);
+  color: var(--text-color);
+  box-sizing: border-box;
+}
+
+.skills-page.theme-dark {
+  background: var(--body-gradient);
+}
+
+.hero-card,
+.state-card,
+.skill-card {
+  border: 1rpx solid var(--border-color);
+  border-radius: 30rpx;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.hero-card {
+  padding: 34rpx;
+  color: #ffffff;
+  background: var(--hero-gradient);
+  box-shadow: var(--shadow-card);
+}
+
+.eyebrow {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 22rpx;
+  font-weight: 800;
+  letter-spacing: 2rpx;
+}
+
+.hero-title {
+  margin-top: 12rpx;
+  font-size: 44rpx;
+  font-weight: 900;
+}
+
+.hero-subtitle {
+  margin-top: 12rpx;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 26rpx;
+  line-height: 1.58;
+}
+
+.state-card {
+  margin-top: 24rpx;
+  padding: 32rpx;
+  color: var(--muted-color);
+  font-size: 26rpx;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.state-card.error {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
+.state-card button {
+  margin: 20rpx auto 0;
+  padding: 0 28rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 25rpx;
+  font-weight: 800;
+  line-height: 66rpx;
+}
+
+.empty-title {
+  color: var(--text-color);
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.empty-subtitle {
+  margin-top: 10rpx;
+}
+
+.skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  margin-top: 24rpx;
+}
+
+.skill-card {
+  padding: 28rpx;
+}
+
+.skill-tags {
+  display: flex;
+  gap: 12rpx;
+}
+
+.skill-tag {
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  color: var(--status-info-text);
+  background: var(--status-info-bg);
+  font-size: 21rpx;
+  font-weight: 800;
+}
+
+.skill-tag.success {
+  color: var(--status-success-text);
+  background: var(--status-success-bg);
+}
+
+.skill-tag.warning {
+  color: var(--status-warning-text);
+  background: var(--status-warning-bg);
+}
+
+.skill-tag.danger {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
+.skill-title {
+  margin-top: 18rpx;
+  color: var(--text-color);
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.skill-summary {
+  margin-top: 10rpx;
+  color: var(--muted-color);
+  font-size: 25rpx;
+  line-height: 1.6;
 }

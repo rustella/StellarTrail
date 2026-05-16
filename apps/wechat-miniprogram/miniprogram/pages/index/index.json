@@ -1,3 +1,4 @@
 {
-  "navigationBarTitleText": "寻径星野"
+  "navigationBarTitleText": "寻径星野",
+  "enablePullDownRefresh": true
 }
