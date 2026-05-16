@@ -4,7 +4,9 @@
     <button bindtap="loadDetail">重试</button>
   </view>
 
-  <view wx:elif="{{loading && !item}}" class="state-card">正在加载装备详情...</view>
+  <view wx:elif="{{loading && !item}}" class="state-card"
+    >正在加载装备详情...</view
+  >
 
   <view wx:elif="{{!item}}" class="state-card">暂无装备详情</view>
 
@@ -15,7 +17,9 @@
         <view class="status-badge {{statusTone}}">{{statusText}}</view>
       </view>
       <view class="detail-title">{{item.name}}</view>
-      <view class="detail-subtitle">{{item.brand || '未填写品牌'}} · {{item.model || '未填写型号'}}</view>
+      <view class="detail-subtitle"
+        >{{item.brand || '未填写品牌'}} · {{item.model || '未填写型号'}}</view
+      >
       <view class="summary-grid">
         <view class="summary-item">
           <view class="summary-value">{{weightText}}</view>
@@ -34,7 +38,13 @@
 
     <view class="action-row">
       <button bindtap="goEdit">编辑装备</button>
-      <button wx:if="{{tab === 'available'}}" class="danger" bindtap="archiveItem">移入历史</button>
+      <button
+        wx:if="{{tab === 'available'}}"
+        class="danger"
+        bindtap="archiveItem"
+      >
+        移入历史
+      </button>
       <button wx:else class="restore" bindtap="restoreItem">恢复可用</button>
     </view>
 

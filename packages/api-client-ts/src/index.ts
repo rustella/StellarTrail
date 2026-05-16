@@ -10,6 +10,9 @@ import type {
   GearItem,
   GearStatsResponse,
   HealthResponse,
+  KnotDetail,
+  KnotListResponse,
+  ListKnotsRequest,
   ImportGearsRequest,
   ImportGearsResponse,
   MountainContent,
@@ -19,7 +22,8 @@ import type {
   PasswordLoginRequest,
   RegisterRequest,
   RouteContent,
-  SkillContent,
+  SkillCategoriesResponse,
+  SkillLocale,
   UpdateGearRequest,
   WechatLoginRequest,
   WechatLoginResponse,
@@ -70,12 +74,27 @@ export class StellarTrailApiClient {
     return this.get(`/api/routes/${encodeURIComponent(id)}`);
   }
 
-  async listSkills(): Promise<ContentListResponse<SkillContent>> {
-    return this.get("/api/skills");
+  async listSkills(locale?: SkillLocale): Promise<SkillCategoriesResponse> {
+    return this.get("/api/skills", false, locale);
   }
 
-  async getSkill(id: string): Promise<SkillContent> {
-    return this.get(`/api/skills/${encodeURIComponent(id)}`);
+  async listKnots(
+    request: ListKnotsRequest = {},
+    locale?: SkillLocale,
+  ): Promise<KnotListResponse> {
+    return this.get(
+      `/api/skills/knots/list${queryString(request)}`,
+      false,
+      locale,
+    );
+  }
+
+  async getKnotDetail(id: string, locale?: SkillLocale): Promise<KnotDetail> {
+    return this.get(
+      `/api/skills/knots/detail/${encodeURIComponent(id)}`,
+      false,
+      locale,
+    );
   }
 
   async listGearTemplates(): Promise<ContentListResponse<GearTemplate>> {
@@ -189,8 +208,12 @@ export class StellarTrailApiClient {
     return this.post("/api/me/gears/import", request, true);
   }
 
-  private async get<T>(path: string, auth = false): Promise<T> {
-    const response = await this.request(path, {}, auth);
+  private async get<T>(
+    path: string,
+    auth = false,
+    locale?: SkillLocale,
+  ): Promise<T> {
+    const response = await this.request(path, {}, auth, locale);
     return response.json() as Promise<T>;
   }
 
@@ -235,8 +258,12 @@ export class StellarTrailApiClient {
     path: string,
     init: RequestInit = {},
     auth = false,
+    locale?: SkillLocale,
   ): Promise<Response> {
     const headers = new Headers(init.headers);
+    if (locale) {
+      headers.set("X-StellarTrail-Locale", locale);
+    }
     if (auth) {
       if (!this.accessToken) {
         throw new Error("StellarTrail API request requires an access token");

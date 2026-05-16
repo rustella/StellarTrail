@@ -6,7 +6,7 @@ use axum::{
     routing::get,
 };
 use serde::Serialize;
-use stellartrail_importer::{GearTemplate, MountainContent, RouteContent, SkillContent};
+use stellartrail_importer::{GearTemplate, MountainContent, RouteContent};
 
 use crate::{error::ApiError, state::AppState};
 
@@ -23,8 +23,6 @@ pub fn routes() -> Router<AppState> {
         .route("/api/mountains/:id", get(get_mountain))
         .route("/api/routes", get(list_routes))
         .route("/api/routes/:id", get(get_route))
-        .route("/api/skills", get(list_skills))
-        .route("/api/skills/:id", get(get_skill))
         .route("/api/gear-templates", get(list_gear_templates))
         .route("/api/gear-templates/:id", get(get_gear_template))
 }
@@ -66,28 +64,6 @@ async fn get_route(
     state
         .content()
         .routes
-        .iter()
-        .find(|item| item.id == id)
-        .cloned()
-        .map(Json)
-        .ok_or(ApiError::NotFound)
-}
-
-/// Runs the `list skills` server-side flow while preserving input validation, error propagation, and state invariants.
-async fn list_skills(State(state): State<AppState>) -> Json<ListResponse<SkillContent>> {
-    Json(ListResponse {
-        items: state.content().skills.clone(),
-    })
-}
-
-/// Runs the `get skill` server-side flow while preserving input validation, error propagation, and state invariants.
-async fn get_skill(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<SkillContent>, ApiError> {
-    state
-        .content()
-        .skills
         .iter()
         .find(|item| item.id == id)
         .cloned()

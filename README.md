@@ -127,7 +127,9 @@ GET /api/mountains/:id
 GET /api/routes
 GET /api/routes/:id
 GET /api/skills
-GET /api/skills/:id
+GET /api/skills/knots/list
+GET /api/skills/knots/detail/:id
+GET /assets/*
 GET /api/gear-templates
 GET /api/gear-templates/:id
 GET /api/me/gears/categories

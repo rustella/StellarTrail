@@ -96,6 +96,75 @@ export interface SkillContent {
   body_markdown: string;
 }
 
+export type SkillLocale = "zh-CN" | "en";
+
+export interface SkillCategorySummary {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  item_count: number;
+  href: string;
+}
+
+export interface SkillCategoriesResponse {
+  items: SkillCategorySummary[];
+}
+
+export interface PageInfo {
+  limit: number;
+  offset: number;
+  next_offset?: number | null;
+}
+
+export interface KnotTaxonomyItem {
+  id: string;
+  slug: string;
+  title: string;
+}
+
+export interface KnotMediaAsset {
+  id: string;
+  media_type: string;
+  url: string;
+  mime_type: string;
+  width?: number | null;
+  height?: number | null;
+  attribution?: string | null;
+  license_note?: string | null;
+}
+
+export interface KnotSummary {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  difficulty?: string | null;
+  categories: KnotTaxonomyItem[];
+  types: KnotTaxonomyItem[];
+  media: KnotMediaAsset[];
+  href: string;
+}
+
+export interface KnotListResponse {
+  locale: SkillLocale;
+  items: KnotSummary[];
+  page: PageInfo;
+}
+
+export interface KnotDetail extends KnotSummary {
+  description?: string | null;
+  steps: string[];
+  locale: SkillLocale;
+}
+
+export interface ListKnotsRequest {
+  offset?: number;
+  limit?: number;
+  category?: string;
+  q?: string;
+}
+
 export interface GearTemplateCategory {
   id: string;
   name: string;

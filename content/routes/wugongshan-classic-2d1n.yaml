@@ -34,5 +34,5 @@ gear_suggestions:
     required_level: required
     reason: 2 天路线可能遇到早晚低光环境。
 skill_links:
-  - skill_id: taut-line-hitch
+  - skill_id: adjustable-grip-hitch-knot
     reason: 露营或天幕风绳调节时常用。
