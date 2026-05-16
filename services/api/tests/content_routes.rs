@@ -35,6 +35,8 @@ async fn test_app_with_content_dir(temp_dir: TempDir, content_dir: PathBuf) -> T
         port: 0,
         database,
         wechat_mock_login: true,
+        wechat_app_id: None,
+        wechat_app_secret: None,
         content_dir,
     };
     let state = build_state(config).await.unwrap();

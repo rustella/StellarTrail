@@ -1,6 +1,6 @@
 # API
 
-StellarTrail 第一期服务端只实现装备库管理。除系统接口和本地 mock 登录外，`/api/me/*` 均需要 Bearer Token。
+StellarTrail 第一期服务端只实现装备库管理。除系统接口、登录接口和公共内容接口外，`/api/me/*` 均需要 Bearer Token。
 
 ## System
 
@@ -15,11 +15,14 @@ GET /api/meta
 POST /api/auth/wechat-login
 ```
 
-本地开发设置 `APP_ENV=local` 且 `WECHAT_MOCK_LOGIN=true` 时可用。
+小程序端传入 `wx.login()` 返回的 `code`。服务端行为：
+
+- 本地开发：`APP_ENV=local` 且 `WECHAT_MOCK_LOGIN=true` 时走 mock openid，便于本地调试。
+- 正式环境：设置 `WECHAT_MOCK_LOGIN=false`，并通过环境变量提供 `WECHAT_APP_ID` / `WECHAT_APP_SECRET`，服务端会请求微信 `jscode2session` 换取真实 `openid` 后 upsert 用户。
 
 ```json
 {
-  "code": "local-dev-user",
+  "code": "wx-js-code",
   "profile": { "nickname": "测试用户", "avatar_url": null }
 }
 ```

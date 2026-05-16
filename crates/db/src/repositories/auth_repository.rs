@@ -29,6 +29,16 @@ impl AuthRepository {
         nickname: Option<String>,
         avatar_url: Option<String>,
     ) -> Result<UserRecord, DbErr> {
+        self.upsert_wechat_user(wechat_openid, nickname, avatar_url)
+            .await
+    }
+
+    pub async fn upsert_wechat_user(
+        &self,
+        wechat_openid: &str,
+        nickname: Option<String>,
+        avatar_url: Option<String>,
+    ) -> Result<UserRecord, DbErr> {
         if let Some(user) = self.find_user_by_openid(wechat_openid).await? {
             let now = now_rfc3339();
             self.db

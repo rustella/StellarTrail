@@ -4,6 +4,9 @@ COPY . .
 RUN cargo build --release -p stellartrail-api
 
 FROM debian:bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /app/target/release/stellartrail-api /usr/local/bin/stellartrail-api
 ENV APP_HOST=0.0.0.0 APP_PORT=8080
