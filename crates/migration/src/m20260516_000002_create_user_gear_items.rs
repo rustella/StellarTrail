@@ -24,7 +24,7 @@ impl MigrationTrait for Migration {
                 warmth_index TEXT NULL,
                 waterproof_index TEXT NULL,
                 purchase_date TEXT NULL,
-                purchase_price_cents INTEGER NULL,
+                purchase_price_cents BIGINT NULL,
                 expiry_or_warranty_date TEXT NULL,
                 purchase_location TEXT NULL,
                 status TEXT NOT NULL DEFAULT 'available',
@@ -33,9 +33,9 @@ impl MigrationTrait for Migration {
                 share_enabled BOOLEAN NOT NULL DEFAULT FALSE,
                 share_status TEXT NOT NULL DEFAULT 'not_shared',
                 notes TEXT NULL,
-                archived_at TIMESTAMP NULL,
-                created_at TIMESTAMP NOT NULL,
-                updated_at TIMESTAMP NOT NULL
+                archived_at TEXT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             )"#,
         )
         .await?;

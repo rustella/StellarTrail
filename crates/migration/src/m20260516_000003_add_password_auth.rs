@@ -17,7 +17,7 @@ impl MigrationTrait for Migration {
             "ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER NOT NULL DEFAULT 0",
         )
         .await?;
-        db.execute_unprepared("ALTER TABLE users ADD COLUMN last_failed_login_at TIMESTAMP NULL")
+        db.execute_unprepared("ALTER TABLE users ADD COLUMN last_failed_login_at TEXT NULL")
             .await?;
         db.execute_unprepared(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL",
@@ -33,9 +33,9 @@ impl MigrationTrait for Migration {
                 email TEXT NOT NULL,
                 purpose TEXT NOT NULL,
                 code_hash TEXT NOT NULL,
-                expires_at TIMESTAMP NOT NULL,
-                consumed_at TIMESTAMP NULL,
-                created_at TIMESTAMP NOT NULL
+                expires_at TEXT NOT NULL,
+                consumed_at TEXT NULL,
+                created_at TEXT NOT NULL
             )"#,
         )
         .await?;

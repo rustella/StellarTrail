@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Statement, Value};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Value};
+
+use super::statement;
 use stellartrail_domain::gear::{
     GearCategory, GearCategoryCount, GearDraft, GearItem, GearShareStatus, GearSort, GearStats,
     GearStatus, GearStatusCount, GearTab, now_rfc3339,
@@ -48,7 +50,7 @@ impl GearRepository {
         let tags_json =
             serde_json::to_string(&draft.tags).map_err(|err| DbErr::Custom(err.to_string()))?;
         self.db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 r#"INSERT INTO user_gear_items (
                     id, user_id, category, name, brand, model, color, material, capacity, size, description,
@@ -67,7 +69,7 @@ impl GearRepository {
     pub async fn get(&self, user_id: &str, id: &str) -> Result<Option<GearItem>, DbErr> {
         let row = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one(statement(
                 self.db.get_database_backend(),
                 gear_select_sql("WHERE user_id = ? AND id = ?"),
                 vec![user_id.to_owned().into(), id.to_owned().into()],
@@ -114,7 +116,7 @@ impl GearRepository {
         values.push(id.to_owned().into());
         let result = self
             .db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 r#"UPDATE user_gear_items SET
                     category = ?, name = ?, brand = ?, model = ?, color = ?, material = ?, capacity = ?, size = ?, description = ?,
@@ -169,11 +171,7 @@ impl GearRepository {
         );
         let mut items = self
             .db
-            .query_all(Statement::from_sql_and_values(
-                self.db.get_database_backend(),
-                sql,
-                values,
-            ))
+            .query_all(statement(self.db.get_database_backend(), sql, values))
             .await?
             .into_iter()
             .map(|row| map_gear(&row))
@@ -191,7 +189,7 @@ impl GearRepository {
         let now = now_rfc3339();
         let result = self
             .db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 "UPDATE user_gear_items SET archived_at = ?, updated_at = ? WHERE user_id = ? AND id = ? AND archived_at IS NULL",
                 vec![now.clone().into(), now.into(), user_id.to_owned().into(), id.to_owned().into()],
@@ -204,7 +202,7 @@ impl GearRepository {
         let now = now_rfc3339();
         let result = self
             .db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 "UPDATE user_gear_items SET archived_at = NULL, updated_at = ? WHERE user_id = ? AND id = ?",
                 vec![now.into(), user_id.to_owned().into(), id.to_owned().into()],
@@ -225,7 +223,7 @@ impl GearRepository {
         let archived_clause = archived_clause(tab);
         let rows = self
             .db
-            .query_all(Statement::from_sql_and_values(
+            .query_all(statement(
                 self.db.get_database_backend(),
                 format!("SELECT category, COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND {archived_clause} GROUP BY category"),
                 vec![user_id.to_owned().into()],
@@ -253,16 +251,16 @@ impl GearRepository {
         let archived_clause = archived_clause(tab);
         let summary = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one(statement(
                 self.db.get_database_backend(),
-                format!("SELECT COUNT(*) AS count, COALESCE(SUM(purchase_price_cents), 0) AS total_value_cents, COALESCE(SUM(weight_g), 0) AS total_weight_g FROM user_gear_items WHERE user_id = ? AND {archived_clause}"),
+                format!("SELECT COUNT(*) AS count, CAST(COALESCE(SUM(purchase_price_cents), 0) AS BIGINT) AS total_value_cents, CAST(COALESCE(SUM(weight_g), 0) AS BIGINT) AS total_weight_g FROM user_gear_items WHERE user_id = ? AND {archived_clause}"),
                 vec![user_id.to_owned().into()],
             ))
             .await?
             .ok_or_else(|| DbErr::Custom("missing stats row".to_owned()))?;
         let archived_count = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one(statement(
                 self.db.get_database_backend(),
                 "SELECT COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND archived_at IS NOT NULL",
                 vec![user_id.to_owned().into()],
@@ -290,7 +288,7 @@ impl GearRepository {
         let archived_clause = archived_clause(tab);
         let rows = self
             .db
-            .query_all(Statement::from_sql_and_values(
+            .query_all(statement(
                 self.db.get_database_backend(),
                 format!("SELECT status, COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND {archived_clause} GROUP BY status"),
                 vec![user_id.to_owned().into()],

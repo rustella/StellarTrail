@@ -1,14 +1,13 @@
 FROM rust:1-bookworm AS builder
 WORKDIR /app
+RUN rustup show active-toolchain | awk '{print $1}' > /tmp/rust-toolchain-docker
 COPY . .
-RUN cargo build --release -p stellartrail-api
+RUN RUSTUP_TOOLCHAIN="$(cat /tmp/rust-toolchain-docker)" cargo build --release -p stellartrail-api
 
-FROM debian:bookworm-slim
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
+FROM rust:1-bookworm AS runtime
 WORKDIR /app
 COPY --from=builder /app/target/release/stellartrail-api /usr/local/bin/stellartrail-api
+RUN command -v curl >/dev/null && test -f /etc/ssl/certs/ca-certificates.crt
 ENV APP_HOST=0.0.0.0 APP_PORT=8080
 EXPOSE 8080
 CMD ["stellartrail-api"]

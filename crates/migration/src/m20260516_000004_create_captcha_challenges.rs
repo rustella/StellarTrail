@@ -13,9 +13,9 @@ impl MigrationTrait for Migration {
                 account TEXT NOT NULL,
                 ticket TEXT NOT NULL UNIQUE,
                 answer_hash TEXT NOT NULL,
-                expires_at TIMESTAMP NOT NULL,
-                consumed_at TIMESTAMP NULL,
-                created_at TIMESTAMP NOT NULL
+                expires_at TEXT NOT NULL,
+                consumed_at TEXT NULL,
+                created_at TEXT NOT NULL
             )"#,
         )
         .await?;

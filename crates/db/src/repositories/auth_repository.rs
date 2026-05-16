@@ -1,4 +1,6 @@
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Statement};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr};
+
+use super::statement;
 use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Iso8601};
 use uuid::Uuid;
@@ -48,7 +50,7 @@ impl AuthRepository {
         if let Some(user) = self.find_user_by_openid(wechat_openid).await? {
             let now = now_rfc3339();
             self.db
-                .execute(Statement::from_sql_and_values(
+                .execute(statement(
                     self.db.get_database_backend(),
                     "UPDATE users SET nickname = ?, avatar_url = ?, updated_at = ? WHERE id = ?",
                     vec![
@@ -79,7 +81,7 @@ impl AuthRepository {
             updated_at: now,
         };
         self.db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 "INSERT INTO users (id, wechat_openid, nickname, avatar_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                 vec![
@@ -104,7 +106,7 @@ impl AuthRepository {
         let now = now_rfc3339();
         let id = Uuid::new_v4().to_string();
         self.db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 r#"INSERT INTO users (
                     id, username, email, password_hash, nickname, created_at, updated_at
@@ -137,7 +139,7 @@ impl AuthRepository {
             .format(&Iso8601::DEFAULT)
             .map_err(|err| DbErr::Custom(err.to_string()))?;
         self.db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 "INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
                 vec![
@@ -165,7 +167,7 @@ impl AuthRepository {
             .format(&Iso8601::DEFAULT)
             .map_err(|err| DbErr::Custom(err.to_string()))?;
         self.db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 r#"INSERT INTO email_verification_codes (
                     id, email, purpose, code_hash, expires_at, created_at
@@ -192,7 +194,7 @@ impl AuthRepository {
         let now = now_rfc3339();
         let row = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one(statement(
                 self.db.get_database_backend(),
                 r#"SELECT id FROM email_verification_codes
                    WHERE email = ?
@@ -216,7 +218,7 @@ impl AuthRepository {
         let id: String = row.try_get("", "id")?;
         let result = self
             .db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 "UPDATE email_verification_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL",
                 vec![now.into(), id.into()],
@@ -238,7 +240,7 @@ impl AuthRepository {
             .format(&Iso8601::DEFAULT)
             .map_err(|err| DbErr::Custom(err.to_string()))?;
         self.db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 r#"INSERT INTO captcha_challenges (
                     id, account, ticket, answer_hash, expires_at, created_at
@@ -264,7 +266,7 @@ impl AuthRepository {
         let now = now_rfc3339();
         let row = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one(statement(
                 self.db.get_database_backend(),
                 r#"SELECT id FROM captcha_challenges
                    WHERE ticket = ?
@@ -285,7 +287,7 @@ impl AuthRepository {
         let id: String = row.try_get("", "id")?;
         let result = self
             .db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 "UPDATE captcha_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL",
                 vec![now.into(), id.into()],
@@ -301,7 +303,7 @@ impl AuthRepository {
         let now = now_rfc3339();
         let row = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one(statement(
                 self.db.get_database_backend(),
                 format!(
                     r#"SELECT users.{user_select}
@@ -326,7 +328,7 @@ impl AuthRepository {
     ) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one(statement(
                 self.db.get_database_backend(),
                 format!(
                     "SELECT {USER_SELECT} FROM users WHERE (username = ? OR email = ?) AND deleted_at IS NULL LIMIT 1"
@@ -340,7 +342,7 @@ impl AuthRepository {
     pub async fn find_user_by_username(&self, username: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one(statement(
                 self.db.get_database_backend(),
                 format!("SELECT {USER_SELECT} FROM users WHERE username = ? AND deleted_at IS NULL LIMIT 1"),
                 vec![username.to_owned().into()],
@@ -352,7 +354,7 @@ impl AuthRepository {
     pub async fn find_user_by_email(&self, email: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one(statement(
                 self.db.get_database_backend(),
                 format!(
                     "SELECT {USER_SELECT} FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1"
@@ -366,7 +368,7 @@ impl AuthRepository {
     pub async fn record_failed_password_login(&self, user_id: &str) -> Result<(), DbErr> {
         let now = now_rfc3339();
         self.db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 r#"UPDATE users
                    SET failed_login_attempts = failed_login_attempts + 1,
@@ -382,7 +384,7 @@ impl AuthRepository {
     pub async fn reset_failed_password_login(&self, user_id: &str) -> Result<(), DbErr> {
         let now = now_rfc3339();
         self.db
-            .execute(Statement::from_sql_and_values(
+            .execute(statement(
                 self.db.get_database_backend(),
                 r#"UPDATE users
                    SET failed_login_attempts = 0,
@@ -398,7 +400,7 @@ impl AuthRepository {
     async fn find_user_by_openid(&self, wechat_openid: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one(statement(
                 self.db.get_database_backend(),
                 format!("SELECT {USER_SELECT} FROM users WHERE wechat_openid = ? AND deleted_at IS NULL LIMIT 1"),
                 vec![wechat_openid.to_owned().into()],
@@ -410,7 +412,7 @@ impl AuthRepository {
     async fn find_user_by_id(&self, user_id: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one(statement(
                 self.db.get_database_backend(),
                 format!(
                     "SELECT {USER_SELECT} FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1"

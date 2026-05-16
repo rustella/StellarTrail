@@ -13,9 +13,9 @@ impl MigrationTrait for Migration {
                 wechat_openid TEXT UNIQUE NULL,
                 nickname TEXT NULL,
                 avatar_url TEXT NULL,
-                created_at TIMESTAMP NOT NULL,
-                updated_at TIMESTAMP NOT NULL,
-                deleted_at TIMESTAMP NULL
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                deleted_at TEXT NULL
             )"#,
         )
         .await?;
@@ -24,9 +24,9 @@ impl MigrationTrait for Migration {
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id),
                 token_hash TEXT NOT NULL UNIQUE,
-                expires_at TIMESTAMP NOT NULL,
-                created_at TIMESTAMP NOT NULL,
-                revoked_at TIMESTAMP NULL
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                revoked_at TEXT NULL
             )"#,
         )
         .await?;

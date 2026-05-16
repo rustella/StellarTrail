@@ -1,0 +1,14 @@
+.git
+.github
+.hermes
+node_modules
+target
+**/target
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+Dockerfile*
+infra/*.log
