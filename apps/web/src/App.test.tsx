@@ -176,6 +176,38 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps registration outside the top auth method switch", () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    const authMethods = screen.getByRole("group", { name: "登录方式" });
+    expect(within(authMethods).getAllByRole("button")).toHaveLength(2);
+    expect(
+      within(authMethods).getByRole("button", { name: "微信登录" }),
+    ).toBeInTheDocument();
+    expect(
+      within(authMethods).getByRole("button", { name: "账号登录" }),
+    ).toBeInTheDocument();
+    expect(
+      within(authMethods).queryByRole("button", { name: "注册账号" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "注册账号" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(authMethods).getByRole("button", { name: "账号登录" }),
+    );
+
+    expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "注册账号" }),
+    ).toBeInTheDocument();
+    expect(
+      within(authMethods).queryByRole("button", { name: "注册账号" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("submits a minimal add gear form through the API client", async () => {
     const client = buildClient();
     render(<App client={client} />);
@@ -255,7 +287,7 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("密码"), {
       target: { value: "correct-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "账号密码登录" }));
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
 
     await screen.findByRole("heading", { name: "装备管理" });
     expect(client.loginWithPassword).toHaveBeenCalledWith({
@@ -271,6 +303,7 @@ describe("App", () => {
     const client = buildClient();
     render(<App client={client} />);
 
+    fireEvent.click(screen.getByRole("button", { name: "账号登录" }));
     fireEvent.click(screen.getByRole("button", { name: "注册账号" }));
     fireEvent.change(screen.getByLabelText("用户名"), {
       target: { value: "New-User" },
