@@ -223,7 +223,7 @@ textarea:focus-visible {
 
 .auth-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin: 22px 0 18px;
   padding: 6px;
@@ -254,6 +254,24 @@ textarea:focus-visible {
 .auth-form .primary-button,
 .auth-form .secondary-button {
   width: 100%;
+}
+
+.auth-secondary-action {
+  margin-top: 2px;
+  text-align: center;
+}
+
+.auth-link-button {
+  border: 0;
+  background: transparent;
+  color: var(--brand-color);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.auth-link-button:hover,
+.auth-link-button:focus-visible {
+  text-decoration: underline;
 }
 
 .captcha-panel {

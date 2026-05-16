@@ -547,9 +547,9 @@ export default function App({ client }: AppProps) {
           <h1>{authTitle(authMode)}</h1>
           <p className="muted">
             {authMode === "wechat"
-              ? "使用微信 code 登录，或切换到账号密码登录 / 注册新账号。"
+              ? "使用微信 code 登录，或切换到账号密码登录。"
               : authMode === "password"
-                ? "使用后端账号密码登录；多次失败时按提示输入图形验证码。"
+                ? "使用后端账号密码登录；需要新账号时可在下方注册。"
                 : "通过邮箱验证码创建账号，注册成功后会自动进入个人装备库。"}
           </p>
           <div className="auth-tabs" role="group" aria-label="登录方式">
@@ -566,13 +566,6 @@ export default function App({ client }: AppProps) {
               onClick={() => switchAuthMode("password")}
             >
               账号登录
-            </button>
-            <button
-              type="button"
-              className={authMode === "register" ? "active" : ""}
-              onClick={() => switchAuthMode("register")}
-            >
-              注册账号
             </button>
           </div>
 
@@ -662,8 +655,17 @@ export default function App({ client }: AppProps) {
                 className="primary-button"
                 disabled={submitting}
               >
-                {submitting ? "登录中…" : "账号密码登录"}
+                {submitting ? "登录中…" : "登录"}
               </button>
+              <div className="auth-secondary-action">
+                <button
+                  type="button"
+                  className="auth-link-button"
+                  onClick={() => switchAuthMode("register")}
+                >
+                  注册账号
+                </button>
+              </div>
             </form>
           ) : null}
 
@@ -750,6 +752,15 @@ export default function App({ client }: AppProps) {
               >
                 {submitting ? "注册中…" : "注册并进入装备库"}
               </button>
+              <div className="auth-secondary-action">
+                <button
+                  type="button"
+                  className="auth-link-button"
+                  onClick={() => switchAuthMode("password")}
+                >
+                  已有账号？返回登录
+                </button>
+              </div>
             </form>
           ) : null}
           {error ? <p className="error-text">{error}</p> : null}
