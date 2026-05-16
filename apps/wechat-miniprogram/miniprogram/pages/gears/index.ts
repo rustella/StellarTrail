@@ -1,3 +1,4 @@
+import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import {
   archiveGear,
   getErrorMessage,
@@ -72,6 +73,7 @@ Page({
     loadingMore: false,
     error: "",
     emptyText: "还没有装备，先添加第一件户外装备吧",
+    ...getThemeViewData(),
   },
 
   onLoad() {
@@ -79,6 +81,7 @@ Page({
   },
 
   onShow() {
+    syncPageTheme(this);
     const shouldRefresh = wx.getStorageSync(
       "stellartrail_gears_should_refresh",
     );

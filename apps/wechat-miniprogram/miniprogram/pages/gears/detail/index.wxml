@@ -1,4 +1,4 @@
-<view class="detail-page">
+<view class="detail-page {{themeClass}}">
   <view wx:if="{{error}}" class="state-card error">
     <view>{{error}}</view>
     <button bindtap="loadDetail">重试</button>

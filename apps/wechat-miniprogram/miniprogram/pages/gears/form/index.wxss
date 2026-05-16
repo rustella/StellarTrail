@@ -152,3 +152,65 @@ textarea {
   color: #ffffff;
   background: #0f766e;
 }
+
+/* Dark theme overrides */
+.form-page.theme-dark {
+  background: var(--body-gradient);
+  color: var(--text-color);
+}
+
+.form-page.theme-dark .intro-card {
+  background: var(--hero-gradient);
+  box-shadow: var(--shadow-card);
+}
+
+.form-page.theme-dark .form-card,
+.form-page.theme-dark .error-card,
+.form-page.theme-dark .state-card {
+  border: 1rpx solid var(--border-color);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.form-page.theme-dark .section-title,
+.form-page.theme-dark .field-value,
+.form-page.theme-dark input,
+.form-page.theme-dark textarea {
+  color: var(--text-color);
+}
+
+.form-page.theme-dark .field-label {
+  color: var(--heading-muted-color);
+}
+
+.form-page.theme-dark .field-hint,
+.form-page.theme-dark .state-card,
+.form-page.theme-dark .chevron {
+  color: var(--muted-color);
+}
+
+.form-page.theme-dark .field,
+.form-page.theme-dark .picker-row,
+.form-page.theme-dark .switch-row {
+  background: var(--control-bg);
+}
+
+.form-page.theme-dark .error-card {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
+.form-page.theme-dark .footer-actions {
+  background: var(--footer-bg);
+  box-shadow: 0 -8rpx 28rpx rgba(3, 1, 12, 0.42);
+}
+
+.form-page.theme-dark .footer-actions .secondary {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+}
+
+.form-page.theme-dark .footer-actions .primary {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}

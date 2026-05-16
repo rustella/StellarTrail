@@ -1,4 +1,4 @@
-<view class="form-page">
+<view class="form-page {{themeClass}}">
   <view wx:if="{{error}}" class="error-card">{{error}}</view>
   <view wx:if="{{loading}}" class="state-card">正在加载装备信息...</view>
 
