@@ -416,6 +416,13 @@ export default function App({ client }: AppProps) {
           <span>路线清单 · 待接入</span>
           <span>户外技能 · 待接入</span>
         </nav>
+        <div
+          className="sidebar-global-actions"
+          role="group"
+          aria-label="全局设置"
+        >
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        </div>
         <div className="sidebar-footer">
           <span>{session.user.nickname ?? "本地用户"}</span>
           <button className="ghost-button" onClick={handleLogout}>
@@ -436,7 +443,6 @@ export default function App({ client }: AppProps) {
             </p>
           </div>
           <div className="toolbar">
-            <ThemeToggle theme={theme} onToggle={toggleTheme} />
             <button
               className={
                 viewMode === "table" ? "segmented active" : "segmented"

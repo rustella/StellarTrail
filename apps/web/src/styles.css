@@ -247,11 +247,21 @@ td small {
   background: var(--brand-color);
 }
 
+.sidebar-global-actions {
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+.sidebar-global-actions .theme-toggle {
+  width: 100%;
+  justify-content: center;
+}
+
 .sidebar-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: auto;
+  margin-top: 14px;
   padding-top: 18px;
   border-top: 1px solid var(--border-color);
 }

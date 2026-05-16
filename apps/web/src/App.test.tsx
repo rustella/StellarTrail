@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
@@ -170,22 +176,35 @@ describe("App", () => {
     expect(client.listGears).toHaveBeenCalledTimes(2);
   });
 
-  it("toggles dark mode and persists the theme preference", async () => {
+  it("shows the theme switch in the global app shell and persists the preference", async () => {
     const client = buildClient();
     render(<App client={client} />);
 
     fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
     await screen.findByRole("heading", { name: "装备管理" });
 
-    fireEvent.click(screen.getByRole("button", { name: "切换到黑夜模式" }));
+    const sidebar = screen.getByRole("complementary");
+    const toolbar = document.querySelector(".toolbar");
+    expect(toolbar).not.toBeNull();
+    expect(
+      within(toolbar as HTMLElement).queryByRole("button", {
+        name: "切换到黑夜模式",
+      }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(sidebar).getByRole("button", { name: "切换到黑夜模式" }),
+    );
 
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     expect(localStorage.getItem("stellartrail.web.theme")).toBe("dark");
     expect(
-      screen.getByRole("button", { name: "切换到白天模式" }),
+      within(sidebar).getByRole("button", { name: "切换到白天模式" }),
     ).toHaveAttribute("aria-pressed", "true");
 
-    fireEvent.click(screen.getByRole("button", { name: "切换到白天模式" }));
+    fireEvent.click(
+      within(sidebar).getByRole("button", { name: "切换到白天模式" }),
+    );
 
     expect(document.documentElement).toHaveAttribute("data-theme", "light");
     expect(localStorage.getItem("stellartrail.web.theme")).toBe("light");
