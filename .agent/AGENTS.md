@@ -1,11 +1,12 @@
 # StellarTrail Agent Rules
 
-这是 StellarTrail 仓库的 agent 入口；更详细的架构、命令和检查清单可继续下沉到 `.agent/knowledge/`、`.agent/commands.yaml` 和 `.agent/checklists/`。
+This is the agent entrypoint for the StellarTrail repository. Keep it compact and route deeper architecture, command, and checklist details through `.agent/knowledge/`, `.agent/commands.yaml`, and `.agent/checklists/`.
 
-## 服务端 Rust 注释规则
+## Code Comment Rules
 
-- `services/api/src` 与 `crates/{domain,db,importer,migration}/src` 下的服务端 Rust 代码必须写详细中文注释。
-- 包、crate、module 文件顶部使用符合 rustdoc 规范的 `//!` 说明模块职责、边界和关键约束。
-- `pub` 类型、`pub` 函数，以及重要私有函数使用符合 rustdoc 规范的 `///` 注释说明用途、输入输出、错误或安全边界。
-- 函数内部的认证、数据库、缓存、状态切换、外部调用、导入导出、迁移 DDL 等关键逻辑使用普通 `//` 注释解释原因与不变量。
-- 新增或修改服务端代码后至少运行 `cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace`、`cargo clippy --workspace --all-targets -- -D warnings`；涉及 rustdoc 时额外运行 `cargo doc --workspace --no-deps`。
+- All code comments across the repository must be written in English.
+- Server-side Rust code under `services/api/src` and `crates/{domain,db,importer,migration}/src` must use detailed English comments.
+- Crate and module files must start with rustdoc-compatible `//!` comments that describe module responsibilities, boundaries, and key constraints.
+- `pub` types, `pub` functions, and important private functions must use rustdoc-compatible `///` comments that describe purpose, inputs/outputs, errors, or safety boundaries.
+- Critical logic inside functions, including authentication, database access, cache behavior, state transitions, external calls, import/export, and migration DDL, must use regular `//` comments that explain intent and invariants.
+- After adding or modifying server code, run at least `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets -- -D warnings`; when rustdoc changes are involved, also run `cargo doc --workspace --no-deps`.

@@ -1,4 +1,4 @@
-//! 可选缓存层，封装 Redis 与测试内存实现，为装备库高频读接口提供可降级的 read-through cache。
+//! Optional cache layer that wraps Redis and test in-memory stores to provide degradable read-through caching for high-traffic gear endpoints.
 
 use std::{
     collections::HashMap,
@@ -14,7 +14,7 @@ use tracing::warn;
 
 use crate::config::RedisCacheConfig;
 
-/// 缓存门面对象，隐藏 Redis/内存实现差异，并在缓存不可用时让调用方自然回源数据库。
+/// Cache facade that hides Redis/in-memory implementation differences and lets callers fall back to the database when caching is unavailable.
 #[derive(Clone)]
 pub struct Cache {
     store: Option<Arc<dyn CacheStore>>,
@@ -23,7 +23,7 @@ pub struct Cache {
 }
 
 impl Cache {
-    /// 执行 `disabled` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `disabled` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn disabled() -> Self {
         Self {
             store: None,
@@ -32,7 +32,7 @@ impl Cache {
         }
     }
 
-    /// 执行 `with store for tests` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `with store for tests` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn with_store_for_tests(
         store: InMemoryCacheStore,
         key_prefix: impl Into<String>,
@@ -45,13 +45,13 @@ impl Cache {
         }
     }
 
-    /// 执行 `from config` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `from config` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn from_config(config: &RedisCacheConfig) -> anyhow::Result<Self> {
-        // REDIS_URL 为空表示显式关闭缓存，本地和测试环境无需额外启动 Redis。
+        // An empty REDIS_URL explicitly disables caching, so local and test environments do not need Redis running.
         let Some(url) = config.url.as_deref() else {
             return Ok(Self::disabled_with_config(config));
         };
-        // 启动阶段先探测 Redis；失败时只降级并告警，不能阻断核心 API 可用性。
+        // Probe Redis during startup first; failures only degrade with a warning and must not block the core API.
         match RedisCacheStore::connect(url).await {
             Ok(store) => Ok(Self {
                 store: Some(Arc::new(store)),
@@ -65,12 +65,12 @@ impl Cache {
         }
     }
 
-    /// 执行 `is enabled` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `is enabled` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn is_enabled(&self) -> bool {
         self.store.is_some()
     }
 
-    /// 生成装备读接口响应缓存 key，并把用户级版本号纳入 key 以支持写后失效。
+    /// Builds a response cache key for gear read endpoints and includes the per-user version to support invalidation after writes.
     pub async fn gear_response_key(
         &self,
         user_id: &str,
@@ -78,7 +78,7 @@ impl Cache {
         payload: &str,
     ) -> Option<String> {
         let store = self.store.as_ref()?;
-        // 用户级版本号参与响应缓存 key，写操作递增版本即可让旧缓存自然失效。
+        // The per-user version is part of the response cache key, so writes only need to increment it to age out old cache entries.
         let version_key = self.gear_version_key(user_id);
         let version = match store.get(&version_key).await {
             Ok(Some(value)) => value.parse::<u64>().unwrap_or(0),
@@ -95,14 +95,14 @@ impl Cache {
         ))
     }
 
-    /// 从缓存读取 JSON 并反序列化为目标响应类型；失败时返回 None 触发数据库回源。
+    /// Reads JSON from cache and deserializes it into the target response type; failures return None to trigger a database fallback.
     pub async fn get_json<T>(&self, key: &str) -> Option<T>
     where
         T: DeserializeOwned,
     {
         let store = self.store.as_ref()?;
         match store.get(key).await {
-            // 缓存保存的是完整响应 JSON，反序列化失败时回源数据库以保证响应正确。
+            // The cache stores complete response JSON; deserialization failures fall back to the database to keep responses correct.
             Ok(Some(value)) => match serde_json::from_str(&value) {
                 Ok(value) => Some(value),
                 Err(error) => {
@@ -118,7 +118,7 @@ impl Cache {
         }
     }
 
-    /// 将响应序列化为 JSON 写入缓存；写入失败仅记录告警，不影响 HTTP 响应。
+    /// Serializes the response to JSON for caching; write failures are warning-only and do not affect the HTTP response.
     pub async fn set_json<T>(&self, key: &str, value: &T)
     where
         T: Serialize,
@@ -138,7 +138,7 @@ impl Cache {
         }
     }
 
-    /// 递增用户装备缓存版本号，让旧版本 key 自然失效。
+    /// Increments the user gear cache version so keys from older versions expire naturally.
     pub async fn invalidate_user_gear(&self, user_id: &str) {
         let Some(store) = self.store.as_ref() else {
             return;
@@ -149,7 +149,7 @@ impl Cache {
         }
     }
 
-    /// 执行 `disabled with config` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `disabled with config` server-side flow while preserving input validation, error propagation, and state invariants.
     fn disabled_with_config(config: &RedisCacheConfig) -> Self {
         Self {
             store: None,
@@ -158,7 +158,7 @@ impl Cache {
         }
     }
 
-    /// 执行 `gear version key` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `gear version key` server-side flow while preserving input validation, error propagation, and state invariants.
     fn gear_version_key(&self, user_id: &str) -> String {
         format!("{}:gear:{user_id}:version", self.key_prefix)
     }
@@ -166,37 +166,37 @@ impl Cache {
 
 const DEFAULT_GEAR_CACHE_TTL_SECONDS: u64 = 30;
 
-/// 缓存存储抽象，约束 Redis 与测试内存实现必须提供读取、写入和版本递增能力。
+/// Cache store abstraction requiring both Redis and in-memory test stores to support read, write, and version increment operations.
 #[async_trait]
 pub trait CacheStore: Send + Sync {
-    /// 执行 `get` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `get` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn get(&self, key: &str) -> anyhow::Result<Option<String>>;
-    /// 执行 `set` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `set` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn set(&self, key: &str, value: &str, ttl: Duration) -> anyhow::Result<()>;
-    /// 执行 `increment` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `increment` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn increment(&self, key: &str) -> anyhow::Result<u64>;
 }
 
-/// InMemoryCacheStore 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `InMemoryCacheStore`, exposed by or reused within this module.
 #[derive(Clone, Default)]
 pub struct InMemoryCacheStore {
     inner: Arc<Mutex<InMemoryCacheInner>>,
 }
 
-/// InMemoryCacheInner 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `InMemoryCacheInner`, exposed by or reused within this module.
 #[derive(Default)]
 struct InMemoryCacheInner {
     entries: HashMap<String, InMemoryCacheEntry>,
     stats: InMemoryCacheStats,
 }
 
-/// InMemoryCacheEntry 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `InMemoryCacheEntry`, exposed by or reused within this module.
 struct InMemoryCacheEntry {
     value: String,
     expires_at: Option<Instant>,
 }
 
-/// InMemoryCacheStats 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `InMemoryCacheStats`, exposed by or reused within this module.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct InMemoryCacheStats {
     pub get_count: usize,
@@ -206,7 +206,7 @@ pub struct InMemoryCacheStats {
 }
 
 impl InMemoryCacheStore {
-    /// 执行 `stats` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `stats` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn stats(&self) -> InMemoryCacheStats {
         self.inner.lock().unwrap().stats
     }
@@ -214,7 +214,7 @@ impl InMemoryCacheStore {
 
 #[async_trait]
 impl CacheStore for InMemoryCacheStore {
-    /// 执行 `get` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `get` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn get(&self, key: &str) -> anyhow::Result<Option<String>> {
         let mut inner = self.inner.lock().unwrap();
         inner.stats.get_count += 1;
@@ -234,7 +234,7 @@ impl CacheStore for InMemoryCacheStore {
         Ok(value)
     }
 
-    /// 执行 `set` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `set` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn set(&self, key: &str, value: &str, ttl: Duration) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().unwrap();
         inner.stats.set_count += 1;
@@ -248,7 +248,7 @@ impl CacheStore for InMemoryCacheStore {
         Ok(())
     }
 
-    /// 执行 `increment` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `increment` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn increment(&self, key: &str) -> anyhow::Result<u64> {
         let mut inner = self.inner.lock().unwrap();
         inner.stats.increment_count += 1;
@@ -269,14 +269,14 @@ impl CacheStore for InMemoryCacheStore {
     }
 }
 
-/// RedisCacheStore 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `RedisCacheStore`, exposed by or reused within this module.
 #[derive(Clone)]
 struct RedisCacheStore {
     connection: redis::aio::MultiplexedConnection,
 }
 
 impl RedisCacheStore {
-    /// 执行 `connect` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `connect` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn connect(url: &str) -> anyhow::Result<Self> {
         let client = redis::Client::open(url)?;
         let mut connection = client.get_multiplexed_async_connection().await?;
@@ -287,20 +287,20 @@ impl RedisCacheStore {
 
 #[async_trait]
 impl CacheStore for RedisCacheStore {
-    /// 执行 `get` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `get` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn get(&self, key: &str) -> anyhow::Result<Option<String>> {
         let mut connection = self.connection.clone();
         Ok(connection.get(key).await?)
     }
 
-    /// 执行 `set` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `set` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn set(&self, key: &str, value: &str, ttl: Duration) -> anyhow::Result<()> {
         let mut connection = self.connection.clone();
         let _: () = connection.set_ex(key, value, ttl.as_secs()).await?;
         Ok(())
     }
 
-    /// 执行 `increment` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `increment` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn increment(&self, key: &str) -> anyhow::Result<u64> {
         let mut connection = self.connection.clone();
         let value: i64 = connection.incr(key, 1).await?;
@@ -308,7 +308,7 @@ impl CacheStore for RedisCacheStore {
     }
 }
 
-/// 执行 `digest` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `digest` server-side flow while preserving input validation, error propagation, and state invariants.
 fn digest(value: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(value.as_bytes());

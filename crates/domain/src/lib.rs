@@ -1,4 +1,4 @@
-//! 领域模型 crate 入口，导出装备、山峰、路线、技能、用户和通用校验模块。
+//! Domain model crate entrypoint exporting gear, mountain, route, skill, user, and shared validation modules.
 
 pub mod gear;
 pub mod mountain;

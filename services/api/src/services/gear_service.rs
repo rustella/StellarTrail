@@ -1,11 +1,11 @@
-//! 装备库业务服务模块，在 repository 读写之外补充领域校验、缓存失效和导出列表编排。
+//! Gear inventory service module that adds domain validation, cache invalidation, and export/list orchestration around repository reads and writes.
 
 use stellartrail_db::repositories::{GearRepository, ListGearOptions};
 use stellartrail_domain::gear::{GearDraft, GearItem, GearTab};
 
 use crate::{dto::gear::UpdateGearRequest, error::ApiError, state::AppState};
 
-/// 执行 `create gear` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `create gear` server-side flow while preserving input validation, error propagation, and state invariants.
 pub async fn create_gear(
     state: &AppState,
     user_id: &str,
@@ -18,7 +18,7 @@ pub async fn create_gear(
         .map_err(ApiError::from)
 }
 
-/// 执行 `update gear` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `update gear` server-side flow while preserving input validation, error propagation, and state invariants.
 pub async fn update_gear(
     state: &AppState,
     user_id: &str,
@@ -34,7 +34,7 @@ pub async fn update_gear(
         .ok_or(ApiError::NotFound)
 }
 
-/// 执行 `list for export` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `list for export` server-side flow while preserving input validation, error propagation, and state invariants.
 pub async fn list_for_export(
     state: &AppState,
     user_id: &str,

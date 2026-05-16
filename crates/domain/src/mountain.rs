@@ -1,8 +1,8 @@
-//! 山峰内容领域模型，描述山峰摘要和难度等级。
+//! Mountain content domain model describing mountain summaries and difficulty levels.
 
 use serde::{Deserialize, Serialize};
 
-/// MountainSummary 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `MountainSummary`, exposed by or reused within this module.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MountainSummary {
     pub id: String,
@@ -13,7 +13,7 @@ pub struct MountainSummary {
     pub summary: String,
 }
 
-/// DifficultyLevel 枚举，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable enum boundary for `DifficultyLevel`, exposed by or reused within this module.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DifficultyLevel {

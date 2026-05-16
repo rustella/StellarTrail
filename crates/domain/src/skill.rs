@@ -1,10 +1,10 @@
-//! 户外技能领域模型，描述技能摘要和技能分类。
+//! Outdoor skill domain model describing skill summaries and skill categories.
 
 use serde::{Deserialize, Serialize};
 
 use crate::mountain::DifficultyLevel;
 
-/// SkillSummary 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `SkillSummary`, exposed by or reused within this module.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SkillSummary {
     pub id: String,
@@ -14,7 +14,7 @@ pub struct SkillSummary {
     pub summary: String,
 }
 
-/// SkillCategory 枚举，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable enum boundary for `SkillCategory`, exposed by or reused within this module.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SkillCategory {

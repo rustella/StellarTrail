@@ -1,4 +1,4 @@
-//! 微信 code2session 客户端模块，封装小程序登录凭证换取 openid/session_key 的外部调用。
+//! WeChat code2session client module wrapping the external call that exchanges Mini Program login credentials for openid/session_key.
 
 use std::{
     error::Error,
@@ -11,16 +11,16 @@ use serde::Deserialize;
 
 const CODE2SESSION_URL: &str = "https://api.weixin.qq.com/sns/jscode2session";
 
-/// WechatCodeSession 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `WechatCodeSession`, exposed by or reused within this module.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WechatCodeSession {
     pub openid: String,
     pub unionid: Option<String>,
 }
 
-/// 微信 code2session 客户端抽象，便于测试中替换真实 HTTP 调用。
+/// WeChat code2session client abstraction that lets tests replace the real HTTP call.
 pub trait WechatCodeSessionClient: Send + Sync {
-    /// 调用微信 code2session 接口，将小程序临时 code 换取可信 openid。
+    /// Calls the WeChat code2session API to exchange a temporary Mini Program code for a trusted openid.
     fn code2session(
         &self,
         app_id: &str,
@@ -29,11 +29,11 @@ pub trait WechatCodeSessionClient: Send + Sync {
     ) -> anyhow::Result<WechatCodeSession>;
 }
 
-/// CurlWechatCodeSessionClient 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `CurlWechatCodeSessionClient`, exposed by or reused within this module.
 #[derive(Clone, Default)]
 pub struct CurlWechatCodeSessionClient;
 
-/// 微信 code2session 失败类型，区分缺少配置、网络错误和微信业务错误。
+/// WeChat code2session failure type that distinguishes missing configuration, network errors, and WeChat business errors.
 #[derive(Debug)]
 pub enum WechatCodeSessionError {
     Rejected { code: i64, message: String },
@@ -45,7 +45,7 @@ pub enum WechatCodeSessionError {
 }
 
 impl fmt::Display for WechatCodeSessionError {
-    /// 执行 `fmt` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `fmt` server-side flow while preserving input validation, error propagation, and state invariants.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Rejected { code, message } => {
@@ -75,7 +75,7 @@ impl fmt::Display for WechatCodeSessionError {
 }
 
 impl Error for WechatCodeSessionError {
-    /// 执行 `source` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `source` server-side flow while preserving input validation, error propagation, and state invariants.
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::CurlUnavailable(error) => Some(error),
@@ -86,7 +86,7 @@ impl Error for WechatCodeSessionError {
     }
 }
 
-/// WechatCodeSessionResponse 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `WechatCodeSessionResponse`, exposed by or reused within this module.
 #[derive(Debug, Deserialize)]
 struct WechatCodeSessionResponse {
     openid: Option<String>,
@@ -95,7 +95,7 @@ struct WechatCodeSessionResponse {
     errmsg: Option<String>,
 }
 
-/// 执行 `build curl config` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `build curl config` server-side flow while preserving input validation, error propagation, and state invariants.
 fn build_curl_config(app_id: &str, app_secret: &str, code: &str) -> String {
     [
         "silent".to_owned(),
@@ -125,7 +125,7 @@ fn build_curl_config(app_id: &str, app_secret: &str, code: &str) -> String {
     .join("\n")
 }
 
-/// 执行 `curl config quote` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `curl config quote` server-side flow while preserving input validation, error propagation, and state invariants.
 fn curl_config_quote(value: &str) -> String {
     let escaped = value
         .replace('\\', "\\\\")
@@ -135,7 +135,7 @@ fn curl_config_quote(value: &str) -> String {
 }
 
 impl WechatCodeSessionClient for CurlWechatCodeSessionClient {
-    /// 调用微信 code2session 接口，将小程序临时 code 换取可信 openid。
+    /// Calls the WeChat code2session API to exchange a temporary Mini Program code for a trusted openid.
     fn code2session(
         &self,
         app_id: &str,
