@@ -12,6 +12,38 @@ pub struct RedisCacheConfig {
     pub gear_ttl_seconds: u64,
 }
 
+/// Public unauthenticated read API protection and cache configuration.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PublicApiConfig {
+    pub rate_limit_enabled: bool,
+    pub rate_limit_window_seconds: u64,
+    pub rate_limit_max_requests_per_ip: u64,
+    pub cache_ttl_seconds: u64,
+    pub cache_stale_seconds: u64,
+    pub max_list_limit: u32,
+    pub max_search_query_chars: usize,
+    pub max_offset: u32,
+    pub trust_proxy_headers: bool,
+    pub trusted_proxy_cidrs: Vec<String>,
+}
+
+impl Default for PublicApiConfig {
+    fn default() -> Self {
+        Self {
+            rate_limit_enabled: true,
+            rate_limit_window_seconds: 60,
+            rate_limit_max_requests_per_ip: 120,
+            cache_ttl_seconds: 300,
+            cache_stale_seconds: 600,
+            max_list_limit: 100,
+            max_search_query_chars: 64,
+            max_offset: 10_000,
+            trust_proxy_headers: false,
+            trusted_proxy_cidrs: Vec::new(),
+        }
+    }
+}
+
 impl RedisCacheConfig {
     /// Returns a disabled cache configuration for tests and local defaults.
     pub fn disabled() -> Self {
@@ -81,6 +113,7 @@ pub struct ApiConfig {
     pub redis_cache: RedisCacheConfig,
     pub upload: UploadConfig,
     pub object_storage: ObjectStorageConfig,
+    pub public_api: PublicApiConfig,
 }
 
 impl ApiConfig {
@@ -134,6 +167,35 @@ impl ApiConfig {
             force_path_style: optional_bool_env("OBJECT_STORAGE_FORCE_PATH_STYLE")?.unwrap_or(true),
         };
 
+        let public_api = PublicApiConfig {
+            rate_limit_enabled: optional_bool_env("PUBLIC_API_RATE_LIMIT_ENABLED")?.unwrap_or(true),
+            rate_limit_window_seconds: optional_u64_env(
+                "PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS",
+                60,
+            )?,
+            rate_limit_max_requests_per_ip: optional_u64_env(
+                "PUBLIC_API_RATE_LIMIT_MAX_REQUESTS_PER_IP",
+                120,
+            )?,
+            cache_ttl_seconds: optional_u64_env("PUBLIC_API_CACHE_TTL_SECONDS", 300)?,
+            cache_stale_seconds: optional_u64_env("PUBLIC_API_CACHE_STALE_SECONDS", 600)?,
+            max_list_limit: optional_u32_env("PUBLIC_API_MAX_LIST_LIMIT", 100)?,
+            max_search_query_chars: optional_usize_env("PUBLIC_API_MAX_SEARCH_QUERY_CHARS", 64)?,
+            max_offset: optional_u32_env("PUBLIC_API_MAX_OFFSET", 10_000)?,
+            trust_proxy_headers: optional_bool_env("TRUST_PROXY_HEADERS")?.unwrap_or(false),
+            trusted_proxy_cidrs: optional_env("TRUSTED_PROXY_CIDRS")
+                .map(|value| {
+                    value
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(ToOwned::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default(),
+        };
+        validate_public_api_config(&public_api)?;
+
         Ok(Self {
             app_env,
             host,
@@ -148,6 +210,7 @@ impl ApiConfig {
             redis_cache,
             upload,
             object_storage,
+            public_api,
         })
     }
 
@@ -176,6 +239,42 @@ fn optional_u64_env(name: &str, default: u64) -> anyhow::Result<u64> {
         Some(value) => Ok(value.parse::<u64>()?),
         None => Ok(default),
     }
+}
+
+fn optional_u32_env(name: &str, default: u32) -> anyhow::Result<u32> {
+    match optional_env(name) {
+        Some(value) => Ok(value.parse::<u32>()?),
+        None => Ok(default),
+    }
+}
+
+fn optional_usize_env(name: &str, default: usize) -> anyhow::Result<usize> {
+    match optional_env(name) {
+        Some(value) => Ok(value.parse::<usize>()?),
+        None => Ok(default),
+    }
+}
+
+fn validate_public_api_config(config: &PublicApiConfig) -> anyhow::Result<()> {
+    if config.rate_limit_window_seconds == 0 {
+        anyhow::bail!("PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS must be greater than 0");
+    }
+    if config.rate_limit_max_requests_per_ip == 0 {
+        anyhow::bail!("PUBLIC_API_RATE_LIMIT_MAX_REQUESTS_PER_IP must be greater than 0");
+    }
+    if config.cache_ttl_seconds == 0 {
+        anyhow::bail!("PUBLIC_API_CACHE_TTL_SECONDS must be greater than 0");
+    }
+    if config.max_list_limit == 0 {
+        anyhow::bail!("PUBLIC_API_MAX_LIST_LIMIT must be greater than 0");
+    }
+    if config.max_search_query_chars == 0 || config.max_search_query_chars > 256 {
+        anyhow::bail!("PUBLIC_API_MAX_SEARCH_QUERY_CHARS must be in 1..=256");
+    }
+    if config.trust_proxy_headers && config.trusted_proxy_cidrs.is_empty() {
+        anyhow::bail!("TRUSTED_PROXY_CIDRS must be set when TRUST_PROXY_HEADERS=true");
+    }
+    Ok(())
 }
 
 fn optional_bool_env(name: &str) -> anyhow::Result<Option<bool>> {
@@ -299,6 +398,59 @@ mod tests {
     }
 
     #[test]
+    fn from_env_reads_public_api_config() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(&CONFIG_KEYS);
+        unsafe {
+            clear_env(&CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("PUBLIC_API_RATE_LIMIT_ENABLED", "true");
+            env::set_var("PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS", "30");
+            env::set_var("PUBLIC_API_RATE_LIMIT_MAX_REQUESTS_PER_IP", "9");
+            env::set_var("PUBLIC_API_CACHE_TTL_SECONDS", "120");
+            env::set_var("PUBLIC_API_CACHE_STALE_SECONDS", "240");
+            env::set_var("PUBLIC_API_MAX_LIST_LIMIT", "50");
+            env::set_var("PUBLIC_API_MAX_SEARCH_QUERY_CHARS", "24");
+            env::set_var("PUBLIC_API_MAX_OFFSET", "500");
+            env::set_var("TRUST_PROXY_HEADERS", "true");
+            env::set_var("TRUSTED_PROXY_CIDRS", "10.0.0.0/8,127.0.0.1/32");
+        }
+
+        let config = ApiConfig::from_env().unwrap();
+
+        assert_eq!(config.public_api.rate_limit_window_seconds, 30);
+        assert_eq!(config.public_api.rate_limit_max_requests_per_ip, 9);
+        assert_eq!(config.public_api.cache_ttl_seconds, 120);
+        assert_eq!(config.public_api.cache_stale_seconds, 240);
+        assert_eq!(config.public_api.max_list_limit, 50);
+        assert_eq!(config.public_api.max_search_query_chars, 24);
+        assert_eq!(config.public_api.max_offset, 500);
+        assert!(config.public_api.trust_proxy_headers);
+        assert_eq!(
+            config.public_api.trusted_proxy_cidrs,
+            vec!["10.0.0.0/8".to_owned(), "127.0.0.1/32".to_owned()],
+        );
+
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_rejects_trusting_proxy_headers_without_trusted_cidrs() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(&CONFIG_KEYS);
+        unsafe {
+            clear_env(&CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("TRUST_PROXY_HEADERS", "true");
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(error.contains("TRUSTED_PROXY_CIDRS"), "{error}");
+        restore_env(saved);
+    }
+
+    #[test]
     fn from_env_rejects_zero_upload_limits() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = snapshot_env(&CONFIG_KEYS);
@@ -314,7 +466,7 @@ mod tests {
         restore_env(saved);
     }
 
-    const CONFIG_KEYS: [&str; 23] = [
+    const CONFIG_KEYS: [&str; 33] = [
         "APP_ENV",
         "APP_HOST",
         "APP_PORT",
@@ -337,6 +489,16 @@ mod tests {
         "OBJECT_STORAGE_ACCESS_KEY_ID",
         "OBJECT_STORAGE_SECRET_ACCESS_KEY",
         "OBJECT_STORAGE_FORCE_PATH_STYLE",
+        "PUBLIC_API_RATE_LIMIT_ENABLED",
+        "PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS",
+        "PUBLIC_API_RATE_LIMIT_MAX_REQUESTS_PER_IP",
+        "PUBLIC_API_CACHE_TTL_SECONDS",
+        "PUBLIC_API_CACHE_STALE_SECONDS",
+        "PUBLIC_API_MAX_LIST_LIMIT",
+        "PUBLIC_API_MAX_SEARCH_QUERY_CHARS",
+        "PUBLIC_API_MAX_OFFSET",
+        "TRUST_PROXY_HEADERS",
+        "TRUSTED_PROXY_CIDRS",
         "MINIO_ROOT_USER",
     ];
 

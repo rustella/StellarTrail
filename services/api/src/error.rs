@@ -164,7 +164,7 @@ impl IntoResponse for ApiError {
             } => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "rate_limited",
-                format!("upload rate limit exceeded; retry after {retry_after_seconds} seconds"),
+                format!("Too many requests. Please retry after {retry_after_seconds} seconds."),
                 None,
                 None,
                 None,

@@ -27,6 +27,64 @@ curl -fsS "$BASE_URL/healthz"   | python3 -c 'import json,sys; data=json.load(sy
 echo "[smoke] meta"
 curl -fsS "$BASE_URL/api/meta"   | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["name"] == "StellarTrail", data; assert data["env"] == "local", data; assert data["database_kind"] == "postgres", data; print(data)'
 
+
+echo "[smoke] public skills and knots are readable without login"
+SKILLS_HEADERS="$TMP_DIR/public-skills.headers"
+SKILLS_JSON="$TMP_DIR/public-skills.json"
+curl -fsS -D "$SKILLS_HEADERS" -H 'X-StellarTrail-Locale: zh-CN' "$BASE_URL/api/skills" -o "$SKILLS_JSON"
+python3 - "$SKILLS_HEADERS" "$SKILLS_JSON" <<'PY'
+import json
+import sys
+headers = open(sys.argv[1]).read().lower()
+data = json.load(open(sys.argv[2]))
+assert any(item.get("id") == "knots" for item in data.get("items", [])), data
+assert "content-language: zh-cn" in headers, headers
+assert "cache-control:" in headers, headers
+assert "etag:" in headers, headers
+print({"public_skill_categories": len(data["items"])})
+PY
+
+KNOTS_HEADERS="$TMP_DIR/public-knots.headers"
+KNOTS_JSON="$TMP_DIR/public-knots.json"
+curl -fsS -D "$KNOTS_HEADERS" -H 'X-StellarTrail-Locale: zh-CN' "$BASE_URL/api/skills/knots/list?offset=0&limit=20" -o "$KNOTS_JSON"
+KNOT_ID="$(python3 - "$KNOTS_JSON" <<'PY'
+import json
+import sys
+data = json.load(open(sys.argv[1]))
+assert data.get("locale") == "zh-CN", data
+items = data.get("items", [])
+assert items, data
+assert all("source_slug_en" not in item and "source_slug_zh" not in item for item in items), data
+print(items[0]["id"])
+PY
+)"
+KNOT_ETAG="$(python3 - "$KNOTS_HEADERS" <<'PY'
+import sys
+for line in open(sys.argv[1]):
+    if line.lower().startswith("etag:"):
+        print(line.split(":", 1)[1].strip())
+        break
+PY
+)"
+DETAIL_JSON="$TMP_DIR/public-knot-detail.json"
+curl -fsS -H 'X-StellarTrail-Locale: zh-CN' "$BASE_URL/api/skills/knots/detail/$KNOT_ID" -o "$DETAIL_JSON"
+python3 - "$DETAIL_JSON" "$KNOT_ID" <<'PY'
+import json
+import sys
+data = json.load(open(sys.argv[1]))
+assert data.get("id") == sys.argv[2], data
+assert data.get("title"), data
+assert "source_slug_en" not in data and "source_slug_zh" not in data, data
+print({"public_knot_detail": data["id"]})
+PY
+if [ -n "$KNOT_ETAG" ]; then
+  NOT_MODIFIED_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' -H "If-None-Match: $KNOT_ETAG" "$BASE_URL/api/skills/knots/list?offset=0&limit=20")"
+  expect_status 304 "$NOT_MODIFIED_STATUS" "$KNOTS_JSON"
+fi
+LEGACY_BODY="$TMP_DIR/public-skills-legacy.json"
+LEGACY_STATUS="$(curl -sS -o "$LEGACY_BODY" -w '%{http_code}' "$BASE_URL/api/skills?category=knot")"
+expect_status 400 "$LEGACY_STATUS" "$LEGACY_BODY"
+
 echo "[smoke] username/password account registration and login"
 EMAIL_CODE_REQUEST="$TMP_DIR/email-code-request.json"
 EMAIL_CODE_JSON="$TMP_DIR/email-code.json"

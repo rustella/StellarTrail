@@ -121,7 +121,7 @@ GET /api/mountains/:id
 GET /api/routes
 GET /api/routes/:id
 GET /api/skills
-GET /api/skills/knots/list?offset=0&limit=20
+GET /api/skills/knots/list?offset=0&limit=20&category=<slug>&q=<query>
 GET /api/skills/knots/detail/:id
 GET /assets/*
 GET /api/gear-templates
@@ -143,6 +143,8 @@ X-StellarTrail-Locale: en
 ```
 
 未显式传 `X-StellarTrail-Locale` 时会尝试 `Accept-Language`，再 fallback 到 `zh-CN`。`?locale=...` 会返回 `400 unsupported_query_parameter`。分页参数为 `offset`/`limit`，响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
+
+公开技能/绳结接口不需要登录，但必须保持只读 allowlist，不开放 `/api/me/*`。响应包含 `Cache-Control`、`ETag` 和 `Content-Language`；服务端限制 `limit`、`offset`、`q` 长度，默认按客户端 IP 做固定窗口限流。生产中 `TRUST_PROXY_HEADERS` 默认应保持关闭，只有在直接上游为可信反向代理且配置 `TRUSTED_PROXY_CIDRS` 后才允许使用 `X-Forwarded-For` / `X-Real-IP`。
 
 ## Cache / performance
 

@@ -2,7 +2,8 @@ import {
   getErrorMessage,
   getGearStats,
   listGears,
-  listSkills,
+  hasAccessToken,
+  listKnots,
 } from "../../utils/api";
 import {
   formatGearPrice,
@@ -119,13 +120,24 @@ Page({
   },
 
   onPullDownRefresh() {
-    Promise.all([this.loadGearSummary(), this.loadFeaturedSkills()]).finally(
-      () => wx.stopPullDownRefresh(),
-    );
+    const tasks = [this.loadFeaturedSkills()];
+    if (hasAccessToken()) {
+      tasks.push(this.loadGearSummary());
+    }
+    Promise.all(tasks).finally(() => wx.stopPullDownRefresh());
   },
 
   loadHomeDashboard() {
-    this.loadGearSummary();
+    if (hasAccessToken()) {
+      this.loadGearSummary();
+    } else {
+      this.setData({
+        gearLoading: false,
+        gearError: "登录后查看个人装备概览",
+        gearStatCards: buildGearStatCards(EMPTY_STATS),
+        recentGears: [] as HomeGearCard[],
+      });
+    }
     this.loadFeaturedSkills();
   },
 
@@ -153,7 +165,7 @@ Page({
   async loadFeaturedSkills() {
     this.setData({ skillLoading: true, skillError: "" });
     try {
-      const response = await listSkills();
+      const response = await listKnots({ offset: 0, limit: 3 });
       this.setData({
         featuredSkills: response.items.slice(0, 3).map(mapSkillCard),
         skillLoading: false,

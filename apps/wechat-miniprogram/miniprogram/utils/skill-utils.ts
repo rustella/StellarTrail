@@ -1,5 +1,12 @@
 export type SkillLocale = "zh-CN" | "en";
 
+export type SkillDifficulty =
+  | "leisure"
+  | "beginner"
+  | "intermediate"
+  | "advanced"
+  | "technical";
+
 export interface SkillCategorySummary {
   id: string;
   slug: string;
@@ -74,13 +81,38 @@ export interface SkillCard {
   summary: string;
 }
 
-export function mapSkillCard(item: SkillCategorySummary): SkillCard {
+const SKILL_DIFFICULTY_LABELS: Record<string, string> = {
+  leisure: "入门",
+  beginner: "新手",
+  intermediate: "进阶",
+  advanced: "高阶",
+  technical: "技术",
+};
+
+export function getSkillDifficultyLabel(value?: string | null): string {
+  if (!value) {
+    return "未分级";
+  }
+  return SKILL_DIFFICULTY_LABELS[value] ?? value;
+}
+
+export function getSkillDifficultyTone(value?: string | null): string {
+  if (value === "leisure" || value === "beginner" || !value) {
+    return "success";
+  }
+  if (value === "intermediate") {
+    return "warning";
+  }
+  return "danger";
+}
+
+export function mapSkillCard(item: KnotSummary): SkillCard {
   return {
     id: item.id,
     title: item.title,
-    categoryText: "户外技能",
-    difficultyText: `${item.item_count} 个内容`,
-    difficultyTone: item.item_count > 0 ? "success" : "warning",
+    categoryText: item.categories[0]?.title ?? "绳结",
+    difficultyText: getSkillDifficultyLabel(item.difficulty),
+    difficultyTone: getSkillDifficultyTone(item.difficulty),
     summary: item.summary,
   };
 }

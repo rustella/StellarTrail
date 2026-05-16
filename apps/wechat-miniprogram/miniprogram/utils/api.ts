@@ -59,6 +59,10 @@ export function setApiBaseUrl(baseUrl: string): void {
   wx.setStorageSync(API_BASE_URL_STORAGE_KEY, baseUrl.replace(/\/$/, ""));
 }
 
+export function hasAccessToken(): boolean {
+  return Boolean(wx.getStorageSync(TOKEN_STORAGE_KEY));
+}
+
 export async function ensureAccessToken(): Promise<string> {
   const cached = wx.getStorageSync(TOKEN_STORAGE_KEY) as string | undefined;
   if (cached) {

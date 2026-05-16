@@ -96,7 +96,8 @@ export interface SkillContent {
   body_markdown: string;
 }
 
-export type SkillLocale = "zh-CN" | "en";
+export type PublicLocale = "zh-CN" | "en";
+export type SkillLocale = PublicLocale;
 
 export interface SkillCategorySummary {
   id: string;
@@ -152,7 +153,7 @@ export interface KnotListResponse {
   page: PageInfo;
 }
 
-export interface KnotDetail extends KnotSummary {
+export interface KnotDetail extends Omit<KnotSummary, "href"> {
   description?: string | null;
   steps: string[];
   locale: SkillLocale;

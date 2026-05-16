@@ -123,6 +123,14 @@ impl Cache {
     where
         T: Serialize,
     {
+        self.set_json_with_ttl(key, value, self.gear_ttl).await;
+    }
+
+    /// Serializes the response to JSON with a caller-provided TTL.
+    pub async fn set_json_with_ttl<T>(&self, key: &str, value: &T, ttl: Duration)
+    where
+        T: Serialize,
+    {
         let Some(store) = self.store.as_ref() else {
             return;
         };
@@ -133,7 +141,7 @@ impl Cache {
             );
             return;
         };
-        if let Err(error) = store.set(key, &payload, self.gear_ttl).await {
+        if let Err(error) = store.set(key, &payload, ttl).await {
             warn!(key, error = %error, "redis cache write failed; continuing without cache");
         }
     }

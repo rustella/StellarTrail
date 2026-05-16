@@ -1,4 +1,4 @@
-//! Application state module that stores configuration, database connection, content catalog, WeChat client, cache, object storage, and knot repository for routes.
+//! Application state module that stores configuration, database connection, content catalog, WeChat client, cache, object storage, and public API helpers for routes.
 
 use std::sync::Arc;
 
@@ -10,7 +10,11 @@ use crate::{
     cache::Cache,
     config::ApiConfig,
     object_store::{InMemoryObjectStore, ObjectStore},
-    services::wechat::{CurlWechatCodeSessionClient, WechatCodeSessionClient},
+    services::{
+        public_rate_limit_service::InMemoryPublicRateLimiter,
+        public_response_cache::InMemoryPublicResponseCache,
+        wechat::{CurlWechatCodeSessionClient, WechatCodeSessionClient},
+    },
 };
 
 /// Shared Axum route state that uses Arc internally for low-cost cloning across handlers.
@@ -27,6 +31,8 @@ struct AppStateInner {
     cache: Cache,
     object_store: Arc<dyn ObjectStore>,
     knot_repository: KnotRepository,
+    public_rate_limiter: InMemoryPublicRateLimiter,
+    public_response_cache: InMemoryPublicResponseCache,
 }
 
 impl AppState {
@@ -150,6 +156,8 @@ impl AppState {
                 cache,
                 object_store,
                 knot_repository,
+                public_rate_limiter: InMemoryPublicRateLimiter::default(),
+                public_response_cache: InMemoryPublicResponseCache::default(),
             }),
         }
     }
@@ -184,8 +192,18 @@ impl AppState {
         Arc::clone(&self.inner.object_store)
     }
 
-    /// Returns the knot repository.
+    /// Returns the DB-backed public knot repository.
     pub fn knot_repository(&self) -> &KnotRepository {
         &self.inner.knot_repository
+    }
+
+    /// Returns the in-memory fallback public API limiter.
+    pub fn public_rate_limiter(&self) -> &InMemoryPublicRateLimiter {
+        &self.inner.public_rate_limiter
+    }
+
+    /// Returns the in-memory fallback public response cache.
+    pub fn public_response_cache(&self) -> &InMemoryPublicResponseCache {
+        &self.inner.public_response_cache
     }
 }

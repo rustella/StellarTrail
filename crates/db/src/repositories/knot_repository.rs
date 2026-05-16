@@ -470,7 +470,7 @@ async fn fetch_media(
         .query_all(statement(
             db.get_database_backend(),
             "SELECT asset_id, media_type, path, mime_type, width, height, attribution, license_note \
-             FROM knot_media_assets WHERE knot_id = ? ORDER BY id ASC",
+             FROM knot_media_assets WHERE knot_id = ? ORDER BY asset_id ASC",
             vec![knot_id.to_owned().into()],
         ))
         .await?;

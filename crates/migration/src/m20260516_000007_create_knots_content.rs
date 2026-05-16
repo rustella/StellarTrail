@@ -1,4 +1,4 @@
-//! Knots content migration creating DB-backed outdoor skill category, knot metadata, localization, taxonomy, media, and import audit tables.
+//! Knots content migration creating DB-backed public outdoor skill knot metadata, localization, taxonomy, media, and import audit tables.
 
 use sea_orm_migration::prelude::*;
 
@@ -139,7 +139,6 @@ const KNOTS_SCHEMA_SQL: &str = r#"
     );
 
     CREATE TABLE IF NOT EXISTS knot_media_assets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
         knot_id TEXT NOT NULL,
         asset_id TEXT NOT NULL,
         media_type TEXT NOT NULL,
@@ -149,11 +148,11 @@ const KNOTS_SCHEMA_SQL: &str = r#"
         height INTEGER NULL,
         attribution TEXT NULL,
         license_note TEXT NULL,
-        FOREIGN KEY (knot_id) REFERENCES knots(id) ON DELETE CASCADE
+        FOREIGN KEY (knot_id) REFERENCES knots(id) ON DELETE CASCADE,
+        PRIMARY KEY (knot_id, asset_id)
     );
 
     CREATE TABLE IF NOT EXISTS knot_import_runs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
         source TEXT NOT NULL,
         item_count INTEGER NOT NULL,
         imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -164,4 +163,10 @@ const KNOTS_SCHEMA_SQL: &str = r#"
         raw_json TEXT NOT NULL,
         FOREIGN KEY (knot_id) REFERENCES knots(id) ON DELETE CASCADE
     );
+
+    CREATE INDEX IF NOT EXISTS idx_knot_localizations_locale_slug ON knot_localizations(locale, slug);
+    CREATE INDEX IF NOT EXISTS idx_knot_localizations_locale_title ON knot_localizations(locale, title);
+    CREATE INDEX IF NOT EXISTS idx_knot_category_memberships_category ON knot_category_memberships(category_id, knot_id);
+    CREATE INDEX IF NOT EXISTS idx_knot_type_memberships_type ON knot_type_memberships(type_id, knot_id);
+    CREATE INDEX IF NOT EXISTS idx_knot_media_assets_knot ON knot_media_assets(knot_id);
 "#;
