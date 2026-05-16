@@ -40,6 +40,7 @@ import "./styles.css";
 type GearCategoryFilterId = "all" | GearCategory;
 type GearStatusFilter = "" | GearStatus;
 type ViewMode = "table" | "cards";
+type ThemeMode = "light" | "dark";
 type FormMode = "create" | "edit";
 
 interface AppProps {
@@ -103,6 +104,8 @@ const emptyForm: GearFormState = {
   notes: "",
 };
 
+const THEME_STORAGE_KEY = "stellartrail.web.theme";
+
 export default function App({ client }: AppProps) {
   const [api] = useState<WebGearApi>(() => client ?? createWebGearApi());
   const [session, setSession] = useState<WebSession | null>(() =>
@@ -115,6 +118,7 @@ export default function App({ client }: AppProps) {
   const [sort, setSort] = useState<GearSort>("created_at_desc");
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [theme, setTheme] = useState<ThemeMode>(() => loadThemePreference());
   const [categories, setCategories] = useState<GearCategoryFilter[]>([
     { id: "all", label: "全部装备", count: 0 },
   ]);
@@ -134,6 +138,11 @@ export default function App({ client }: AppProps) {
   useEffect(() => {
     api.setAccessToken(session?.accessToken);
   }, [api, session?.accessToken]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   const listRequest = useMemo(
     () => ({
@@ -214,6 +223,10 @@ export default function App({ client }: AppProps) {
     setSession(null);
     setGears([]);
     setDetail(null);
+  }
+
+  function toggleTheme() {
+    setTheme((current) => (current === "dark" ? "light" : "dark"));
   }
 
   function openCreateForm() {
@@ -358,7 +371,10 @@ export default function App({ client }: AppProps) {
     return (
       <main className="login-page">
         <section className="login-card">
-          <p className="eyebrow">StellarTrail · 寻径星野</p>
+          <div className="login-card-top">
+            <p className="eyebrow">StellarTrail · 寻径星野</p>
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
+          </div>
           <h1>本地开发登录</h1>
           <p className="muted">
             当前后端使用微信 mock 登录。请输入本地 code，获取 Bearer Token
@@ -420,6 +436,7 @@ export default function App({ client }: AppProps) {
             </p>
           </div>
           <div className="toolbar">
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
             <button
               className={
                 viewMode === "table" ? "segmented active" : "segmented"
@@ -621,6 +638,28 @@ function StatCard({
       <strong>{value}</strong>
       <small>{hint}</small>
     </article>
+  );
+}
+
+function ThemeToggle({
+  theme,
+  onToggle,
+}: {
+  theme: ThemeMode;
+  onToggle(): void;
+}) {
+  const isDark = theme === "dark";
+  return (
+    <button
+      type="button"
+      className="theme-toggle secondary-button"
+      onClick={onToggle}
+      aria-pressed={isDark}
+      aria-label={isDark ? "切换到白天模式" : "切换到黑夜模式"}
+    >
+      <span aria-hidden="true">{isDark ? "☀️" : "🌙"}</span>
+      {isDark ? "白天模式" : "黑夜模式"}
+    </button>
   );
 }
 
@@ -1145,6 +1184,10 @@ function optionalNumber(value: string): number | null {
   }
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function loadThemePreference(): ThemeMode {
+  return localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
 }
 
 function errorMessage(err: unknown): string {
