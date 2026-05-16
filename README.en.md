@@ -140,7 +140,19 @@ GET /api/me/gears/export
 POST /api/me/gears/import
 ```
 
-### 4. Open the WeChat Mini Program
+### 4. Start PostgreSQL + Redis + API with Docker Compose
+
+You can also start a local integration stack with Docker Compose:
+
+```bash
+COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=15432 REDIS_HOST_PORT=16379 \
+  docker compose -f infra/docker-compose.yml up -d --build postgres redis api
+BASE_URL=http://127.0.0.1:18080 bash infra/smoke-test.sh
+```
+
+The compose stack enables PostgreSQL, Redis caching, and the API service, then the smoke script validates it with local mock WeChat login. Inject real WeChat and database secrets only through secure production channels.
+
+### 5. Open the WeChat Mini Program
 
 Open `apps/wechat-miniprogram` in WeChat DevTools. The project config points `miniprogramRoot` to `miniprogram/`.
 
