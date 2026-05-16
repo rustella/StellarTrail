@@ -1,10 +1,14 @@
 //! Repository aggregation module that re-exports authentication and gear persistence objects.
 
 pub mod auth_repository;
+pub mod feedback_repository;
 pub mod gear_repository;
+pub mod upload_image_repository;
 
 pub use auth_repository::{AuthRepository, UserRecord, hash_token};
+pub use feedback_repository::{FeedbackRecord, FeedbackRepository};
 pub use gear_repository::{GearRepository, ListGearOptions};
+pub use upload_image_repository::{UploadImageDraft, UploadImageRecord, UploadImageRepository};
 
 use sea_orm::{DatabaseBackend, Statement, Value};
 

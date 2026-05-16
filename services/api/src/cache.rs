@@ -149,6 +149,18 @@ impl Cache {
         }
     }
 
+    /// Increments a key and applies a TTL on first use. Returns None when the cache is disabled or unavailable.
+    pub async fn increment_with_ttl(&self, key: &str, ttl: Duration) -> Option<u64> {
+        let store = self.store.as_ref()?;
+        match store.increment_with_ttl(key, ttl).await {
+            Ok(value) => Some(value),
+            Err(error) => {
+                warn!(key, error = %error, "redis increment-with-ttl failed; falling back when possible");
+                None
+            }
+        }
+    }
+
     /// Runs the `disabled with config` server-side flow while preserving input validation, error propagation, and state invariants.
     fn disabled_with_config(config: &RedisCacheConfig) -> Self {
         Self {
@@ -175,6 +187,8 @@ pub trait CacheStore: Send + Sync {
     async fn set(&self, key: &str, value: &str, ttl: Duration) -> anyhow::Result<()>;
     /// Runs the `increment` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn increment(&self, key: &str) -> anyhow::Result<u64>;
+    /// Increments a key and sets a TTL on first use.
+    async fn increment_with_ttl(&self, key: &str, ttl: Duration) -> anyhow::Result<u64>;
 }
 
 /// Stable data boundary for `InMemoryCacheStore`, exposed by or reused within this module.
@@ -267,6 +281,34 @@ impl CacheStore for InMemoryCacheStore {
         );
         Ok(next)
     }
+
+    async fn increment_with_ttl(&self, key: &str, ttl: Duration) -> anyhow::Result<u64> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.stats.increment_count += 1;
+        let now = Instant::now();
+        let expired = inner
+            .entries
+            .get(key)
+            .and_then(|entry| entry.expires_at)
+            .is_some_and(|expires_at| expires_at <= now);
+        if expired {
+            inner.entries.remove(key);
+        }
+        let current = inner
+            .entries
+            .get(key)
+            .and_then(|entry| entry.value.parse::<u64>().ok())
+            .unwrap_or(0);
+        let next = current + 1;
+        inner.entries.insert(
+            key.to_owned(),
+            InMemoryCacheEntry {
+                value: next.to_string(),
+                expires_at: Some(now + ttl),
+            },
+        );
+        Ok(next)
+    }
 }
 
 /// Stable data boundary for `RedisCacheStore`, exposed by or reused within this module.
@@ -304,6 +346,19 @@ impl CacheStore for RedisCacheStore {
     async fn increment(&self, key: &str) -> anyhow::Result<u64> {
         let mut connection = self.connection.clone();
         let value: i64 = connection.incr(key, 1).await?;
+        Ok(value.max(0) as u64)
+    }
+
+    async fn increment_with_ttl(&self, key: &str, ttl: Duration) -> anyhow::Result<u64> {
+        let mut connection = self.connection.clone();
+        let value: i64 = connection.incr(key, 1).await?;
+        if value == 1 {
+            let _: () = redis::cmd("EXPIRE")
+                .arg(key)
+                .arg(ttl.as_secs())
+                .query_async(&mut connection)
+                .await?;
+        }
         Ok(value.max(0) as u64)
     }
 }
