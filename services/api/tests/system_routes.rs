@@ -5,7 +5,7 @@ use axum::{
 };
 use serde_json::Value;
 use stellartrail_api::{
-    config::{ApiConfig, ObjectStorageConfig, RedisCacheConfig, UploadConfig},
+    config::{ApiConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig},
     migrate_database,
     routes::build_router,
     state::AppState,
@@ -39,6 +39,7 @@ async fn test_app() -> TestApp {
         redis_cache: RedisCacheConfig::disabled(),
         upload: UploadConfig::default(),
         object_storage: ObjectStorageConfig::default(),
+        public_api: PublicApiConfig::default(),
     };
     TestApp {
         router: build_router(AppState::new(config, db)),

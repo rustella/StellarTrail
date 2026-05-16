@@ -6,7 +6,7 @@ use axum::{
 use http_body_util::BodyExt;
 use serde_json::Value;
 use stellartrail_api::{
-    config::{ApiConfig, ObjectStorageConfig, RedisCacheConfig, UploadConfig},
+    config::{ApiConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig},
     migrate_database,
     routes::build_router,
     state::AppState,
@@ -120,6 +120,18 @@ async fn seeded_app() -> TestApp {
         redis_cache: RedisCacheConfig::disabled(),
         upload: UploadConfig::default(),
         object_storage: ObjectStorageConfig::default(),
+        public_api: PublicApiConfig {
+            rate_limit_enabled: true,
+            rate_limit_window_seconds: 60,
+            rate_limit_max_requests_per_ip: 2,
+            cache_ttl_seconds: 300,
+            cache_stale_seconds: 600,
+            max_list_limit: 100,
+            max_search_query_chars: 64,
+            max_offset: 10_000,
+            trust_proxy_headers: false,
+            trusted_proxy_cidrs: Vec::new(),
+        },
     };
     let repository = KnotRepository::new(db.clone(), config.media_base_url.clone());
     repository
@@ -311,7 +323,6 @@ async fn old_knots_routes_are_not_kept_as_compatibility_aliases() {
         "/api/skills/knots",
         "/api/skills/knots/adjustable-grip-hitch-knot",
         "/api/knots",
-        "/api/skills?category=knot",
         "/api/skills/adjustable-grip-hitch-knot",
     ] {
         let app = seeded_app().await;
@@ -323,6 +334,19 @@ async fn old_knots_routes_are_not_kept_as_compatibility_aliases() {
         assert_eq!(status, StatusCode::NOT_FOUND, "{uri}");
         assert_eq!(body["code"], "not_found", "{uri}");
     }
+
+    let app = seeded_app().await;
+    let (status, _headers, body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/api/skills?category=knot")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["code"], "unsupported_query_parameter");
+    assert_eq!(body["parameter"], "category");
 }
 
 #[tokio::test]
@@ -351,4 +375,98 @@ async fn assets_are_served_from_content_assets_only() {
         .expect("body")
         .to_bytes();
     assert_eq!(&body[..6], b"GIF89a");
+}
+
+#[tokio::test]
+async fn public_knots_are_available_without_authorization_and_send_cache_headers() {
+    let app = seeded_app().await;
+    let response = app
+        .router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/skills/knots/list?offset=0&limit=1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(response.headers().contains_key(header::ETAG));
+    assert!(response.headers().contains_key(header::CACHE_CONTROL));
+    assert_eq!(
+        response.headers().get("X-Content-Type-Options").unwrap(),
+        "nosniff"
+    );
+}
+
+#[tokio::test]
+async fn public_knots_support_conditional_get_with_etag() {
+    let app = seeded_app().await;
+    let first = app
+        .router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/skills/knots/detail/adjustable-grip-hitch-knot")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .expect("first response");
+    assert_eq!(first.status(), StatusCode::OK);
+    let etag = first
+        .headers()
+        .get(header::ETAG)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_owned();
+
+    let second = app
+        .router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/skills/knots/detail/adjustable-grip-hitch-knot")
+                .header(header::IF_NONE_MATCH, etag)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .expect("second response");
+    assert_eq!(second.status(), StatusCode::NOT_MODIFIED);
+}
+
+#[tokio::test]
+async fn public_knots_rate_limit_before_expensive_reads() {
+    let app = seeded_app().await;
+    for attempt in 1..=2 {
+        let response = app
+            .router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/skills/knots/list")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::OK, "attempt {attempt}");
+    }
+    let response = app
+        .router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/skills/knots/list")
+                .header("X-Forwarded-For", "203.0.113.99")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .expect("limited response");
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(response.headers().contains_key(header::RETRY_AFTER));
 }

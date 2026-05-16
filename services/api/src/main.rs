@@ -23,11 +23,14 @@ async fn main() -> anyhow::Result<()> {
 
     info!(addr = %config.bind_addr(), "StellarTrail API listening");
 
-    axum::serve(listener, app)
-        // Use graceful shutdown so container stops or Ctrl-C can finish accepted requests where possible.
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .context("api server failed")
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    // Use graceful shutdown so container stops or Ctrl-C can finish accepted requests where possible.
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .context("api server failed")
 }
 
 /// Runs the `init tracing` server-side flow while preserving input validation, error propagation, and state invariants.

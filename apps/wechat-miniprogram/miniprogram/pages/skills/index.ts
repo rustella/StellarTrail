@@ -1,4 +1,4 @@
-import { getErrorMessage, listSkills } from "../../utils/api";
+import { getErrorMessage, listKnots } from "../../utils/api";
 import { mapSkillCard, type SkillCard } from "../../utils/skill-utils";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 
@@ -26,7 +26,7 @@ Page({
   async loadSkills() {
     this.setData({ loading: true, error: "" });
     try {
-      const response = await listSkills();
+      const response = await listKnots({ offset: 0, limit: 50 });
       this.setData({
         skills: response.items.map(mapSkillCard),
         loading: false,

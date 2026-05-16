@@ -45,6 +45,7 @@ Phase one focuses on:
 - 🗄️ SeaORM data access: SQLite by default for local development, PostgreSQL recommended for production.
 - ⚡ Optional Redis read-through cache for high-traffic gear read APIs.
 - 🖼️ User feedback with safe image uploads stored in a private MinIO/S3-compatible bucket.
+- 🪢 Unauthenticated public skills/knots read APIs protected by rate limits, cache headers, ETags, and query bounds.
 
 Routes, trips, skills, realtime navigation, social feeds, guided-trip marketplaces, full GPX editing, and commerce are intentionally out of scope for phase one.
 
