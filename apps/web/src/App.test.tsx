@@ -206,6 +206,28 @@ describe("App", () => {
     expect(
       within(authMethods).queryByRole("button", { name: "注册账号" }),
     ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "注册账号" }));
+
+    expect(
+      screen.queryByRole("group", { name: "登录方式" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "微信登录" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "账号登录" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "已有账号？返回登录" }));
+
+    const restoredAuthMethods = screen.getByRole("group", { name: "登录方式" });
+    expect(within(restoredAuthMethods).getAllByRole("button")).toHaveLength(2);
+    expect(
+      within(restoredAuthMethods).getByRole("button", { name: "微信登录" }),
+    ).toBeInTheDocument();
+    expect(
+      within(restoredAuthMethods).getByRole("button", { name: "账号登录" }),
+    ).toBeInTheDocument();
   });
 
   it("submits a minimal add gear form through the API client", async () => {
