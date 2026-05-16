@@ -35,7 +35,7 @@ The current entry point is a **WeChat Mini Program**. A **Rust API service** pro
 
 Phase one focuses on:
 
-- 🧑‍💻 Local WeChat-login placeholder and account model.
+- 🧑‍💻 WeChat Mini Program login and account model.
 - 🎒 Personal gear-library CRUD.
 - 🔎 Search, category filtering, status filtering, sorting, and pagination.
 - 📊 Gear count, total value, total weight, and category counts.
@@ -99,7 +99,7 @@ cargo run -p stellartrail-api --bin migrate -- up
 cargo run -p stellartrail-api
 ```
 
-The API listens on `127.0.0.1:8080` by default and reads configuration from environment variables. The default database URL is `sqlite://stellartrail.db`; local mock login is enabled with `WECHAT_MOCK_LOGIN=true`.
+The API listens on `127.0.0.1:8080` by default and reads configuration from environment variables. The default database URL is `sqlite://stellartrail.db`. Local mock login is enabled with `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true`; real WeChat login requires `WECHAT_MOCK_LOGIN=false`, `WECHAT_APP_ID`, and `WECHAT_APP_SECRET`.
 
 Use these endpoints for local smoke testing:
 

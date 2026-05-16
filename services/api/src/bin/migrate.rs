@@ -5,6 +5,7 @@ use stellartrail_migration::Migrator;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    dotenvy::dotenv().ok();
     let command = std::env::args().nth(1).unwrap_or_else(|| "up".to_owned());
     let config = ApiConfig::from_env()?;
     let db = connect_database(&config.database).await?;
