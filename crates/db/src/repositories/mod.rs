@@ -1,3 +1,5 @@
+//! Repository 聚合模块，统一导出认证和装备持久化对象。
+
 pub mod auth_repository;
 pub mod gear_repository;
 

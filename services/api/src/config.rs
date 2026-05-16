@@ -1,7 +1,10 @@
+//! API 服务配置模块，集中解析环境变量并暴露数据库、微信登录和 Redis 缓存等运行时参数。
+
 use std::{env, net::SocketAddr, path::PathBuf};
 
 use stellartrail_db::{DatabaseConfig, DatabaseKind};
 
+/// RedisCacheConfig 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
 #[derive(Clone, Debug)]
 pub struct RedisCacheConfig {
     pub url: Option<String>,
@@ -10,6 +13,7 @@ pub struct RedisCacheConfig {
 }
 
 impl RedisCacheConfig {
+    /// 执行 `disabled` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn disabled() -> Self {
         Self {
             url: None,
@@ -19,6 +23,7 @@ impl RedisCacheConfig {
     }
 }
 
+/// API 服务运行时配置，汇总环境、监听地址、数据库、微信和内容目录等参数。
 #[derive(Clone, Debug)]
 pub struct ApiConfig {
     pub app_env: String,
@@ -33,6 +38,7 @@ pub struct ApiConfig {
 }
 
 impl ApiConfig {
+    /// 从环境变量构建运行配置，并对端口、数据库连接串和可选 Redis TTL 做基础解析。
     pub fn from_env() -> anyhow::Result<Self> {
         let app_env = env::var("APP_ENV").unwrap_or_else(|_| "local".to_owned());
         let host = env::var("APP_HOST").unwrap_or_else(|_| "127.0.0.1".to_owned());
@@ -47,6 +53,7 @@ impl ApiConfig {
         let wechat_app_id = optional_env("WECHAT_APP_ID");
         let wechat_app_secret = optional_env("WECHAT_APP_SECRET");
         let content_dir = env::var("CONTENT_DIR").unwrap_or_else(|_| "content".to_owned());
+        // Redis 配置保持可选，空 REDIS_URL 会在缓存层转为 disabled 状态。
         let redis_cache = RedisCacheConfig {
             url: optional_env("REDIS_URL"),
             key_prefix: optional_env("REDIS_KEY_PREFIX")
@@ -67,17 +74,20 @@ impl ApiConfig {
         })
     }
 
+    /// 执行 `bind addr` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn bind_addr(&self) -> SocketAddr {
         format!("{}:{}", self.host, self.port)
             .parse()
             .expect("validated socket address")
     }
 
+    /// 执行 `database kind` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     pub fn database_kind(&self) -> DatabaseKind {
         self.database.kind
     }
 }
 
+/// 执行 `optional env` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 fn optional_env(name: &str) -> Option<String> {
     env::var(name)
         .ok()
@@ -85,6 +95,7 @@ fn optional_env(name: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+/// 执行 `optional u64 env` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
 fn optional_u64_env(name: &str, default: u64) -> anyhow::Result<u64> {
     match optional_env(name) {
         Some(value) => Ok(value.parse::<u64>()?),
@@ -100,6 +111,7 @@ mod tests {
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
+    /// 执行 `from env reads wechat credentials` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     #[test]
     fn from_env_reads_wechat_credentials() {
         let _guard = ENV_LOCK.lock().unwrap();
@@ -142,6 +154,7 @@ mod tests {
         restore_env(saved);
     }
 
+    /// 执行 `from env reads redis cache config` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     #[test]
     fn from_env_reads_redis_cache_config() {
         let _guard = ENV_LOCK.lock().unwrap();
@@ -184,10 +197,12 @@ mod tests {
         restore_env(saved);
     }
 
+    /// 执行 `snapshot env` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     fn snapshot_env(keys: &[&'static str]) -> Vec<(&'static str, Option<String>)> {
         keys.iter().map(|key| (*key, env::var(key).ok())).collect()
     }
 
+    /// 执行 `restore env` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
     fn restore_env(saved: Vec<(&'static str, Option<String>)>) {
         for (key, value) in saved {
             unsafe {
