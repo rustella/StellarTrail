@@ -752,7 +752,7 @@ export default function App({ client }: AppProps) {
                 className="primary-button"
                 disabled={submitting}
               >
-                {submitting ? "注册中…" : "注册并进入装备库"}
+                {submitting ? "注册中…" : "注册并登录"}
               </button>
               <div className="auth-secondary-action">
                 <button

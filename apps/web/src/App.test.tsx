@@ -346,7 +346,7 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("邮箱验证码"), {
       target: { value: "123456" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "注册并进入装备库" }));
+    fireEvent.click(screen.getByRole("button", { name: "注册并登录" }));
 
     await screen.findByRole("heading", { name: "装备管理" });
     expect(client.sendEmailVerificationCode).toHaveBeenCalledWith({
