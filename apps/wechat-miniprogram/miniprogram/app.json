@@ -9,7 +9,7 @@
     "pages/profile/index"
   ],
   "window": {
-    "navigationBarTitleText": "StellarTrail",
+    "navigationBarTitleText": "寻径星野",
     "navigationBarBackgroundColor": "#0f172a",
     "navigationBarTextStyle": "white",
     "backgroundColor": "#f8fafc"
