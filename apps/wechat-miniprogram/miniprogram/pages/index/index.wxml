@@ -1,17 +1,28 @@
 <view class="home-page {{themeClass}}">
   <view class="hero-card">
-    <view class="hero-eyebrow">寻径星野</view>
-    <view class="hero-title">装备清单与户外技能，帮你更安全地出发。</view>
-    <view class="hero-subtitle">先确认装备状态，再补齐关键技能；首页只保留当前可用的装备与技能能力。</view>
+    <view class="hero-eyebrow">寻径星野 · 出发前检查</view>
+    <view class="hero-title">今天准备好出发了吗？</view>
+    <view class="hero-subtitle">先看装备状态，再补一项户外技能。</view>
+    <view class="hero-status-row">
+      <view class="hero-status-pill">
+        <text class="hero-status-dot"></text>
+        <text>装备库已同步</text>
+      </view>
+      <view class="hero-status-pill">技能精选已更新</view>
+    </view>
     <view class="hero-actions">
-      <button class="hero-button primary" bindtap="goGears">管理装备</button>
+      <button class="hero-button primary" bindtap="goGears">检查装备</button>
       <button class="hero-button secondary" bindtap="goSkills">学习技能</button>
     </view>
   </view>
 
   <view class="quick-grid">
     <block wx:for="{{quickActions}}" wx:key="id">
-      <view class="quick-card" data-target="{{item.target}}" bindtap="onQuickAction">
+      <view
+        class="quick-card"
+        data-target="{{item.target}}"
+        bindtap="onQuickAction"
+      >
         <view class="quick-icon">{{item.icon}}</view>
         <view class="quick-title">{{item.title}}</view>
         <view class="quick-desc">{{item.description}}</view>
@@ -33,7 +44,9 @@
       <button bindtap="loadGearSummary">重试</button>
     </view>
     <block wx:else>
-      <view wx:if="{{gearLoading}}" class="state-card">正在加载装备状态...</view>
+      <view wx:if="{{gearLoading}}" class="state-card"
+        >正在加载装备状态...</view
+      >
       <view wx:else class="stat-grid">
         <block wx:for="{{gearStatCards}}" wx:key="label">
           <view class="stat-card">
@@ -75,13 +88,17 @@
       <button bindtap="loadFeaturedSkills">重试</button>
     </view>
     <block wx:else>
-      <view wx:if="{{skillLoading}}" class="state-card">正在加载户外技能...</view>
+      <view wx:if="{{skillLoading}}" class="state-card"
+        >正在加载户外技能...</view
+      >
       <view wx:elif="{{featuredSkills.length}}" class="skill-list">
         <block wx:for="{{featuredSkills}}" wx:key="id">
           <view class="skill-card">
             <view class="skill-tags">
               <text class="skill-tag">{{item.categoryText}}</text>
-              <text class="skill-tag {{item.difficultyTone}}">{{item.difficultyText}}</text>
+              <text class="skill-tag {{item.difficultyTone}}"
+                >{{item.difficultyText}}</text
+              >
             </view>
             <view class="skill-title">{{item.title}}</view>
             <view class="skill-summary">{{item.summary}}</view>
