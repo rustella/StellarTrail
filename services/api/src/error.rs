@@ -13,6 +13,8 @@ pub enum ApiError {
     CaptchaRequired,
     NotFound,
     Validation(Vec<FieldViolation>),
+    PayloadTooLarge { max_bytes: u64 },
+    RateLimited { retry_after_seconds: u64 },
     Internal(anyhow::Error),
 }
 
@@ -85,6 +87,22 @@ impl IntoResponse for ApiError {
                 "validation_failed",
                 "request validation failed".to_owned(),
                 Some(fields),
+                None,
+            ),
+            Self::PayloadTooLarge { max_bytes } => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "payload_too_large",
+                format!("file must be at most {max_bytes} bytes"),
+                None,
+                None,
+            ),
+            Self::RateLimited {
+                retry_after_seconds,
+            } => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "rate_limited",
+                format!("upload rate limit exceeded; retry after {retry_after_seconds} seconds"),
+                None,
                 None,
             ),
             Self::Internal(error) => {

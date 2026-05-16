@@ -1,10 +1,10 @@
-//! API service configuration module that parses environment variables for database, WeChat login, Redis cache, and other runtime settings.
+//! API service configuration module that parses environment variables for database, WeChat login, Redis cache, uploads, object storage, and other runtime settings.
 
 use std::{env, net::SocketAddr, path::PathBuf};
 
 use stellartrail_db::{DatabaseConfig, DatabaseKind};
 
-/// Stable data boundary for `RedisCacheConfig`, exposed by or reused within this module.
+/// Redis read-through cache configuration.
 #[derive(Clone, Debug)]
 pub struct RedisCacheConfig {
     pub url: Option<String>,
@@ -13,7 +13,7 @@ pub struct RedisCacheConfig {
 }
 
 impl RedisCacheConfig {
-    /// Runs the `disabled` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Returns a disabled cache configuration for tests and local defaults.
     pub fn disabled() -> Self {
         Self {
             url: None,
@@ -23,7 +23,49 @@ impl RedisCacheConfig {
     }
 }
 
-/// Runtime API configuration containing environment, bind address, database, WeChat, and content directory settings.
+/// Feedback image upload limits.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UploadConfig {
+    pub max_image_bytes: u64,
+    pub rate_limit_window_seconds: u64,
+    pub max_images_per_window: u64,
+}
+
+impl Default for UploadConfig {
+    fn default() -> Self {
+        Self {
+            max_image_bytes: 8_000_000,
+            rate_limit_window_seconds: 3600,
+            max_images_per_window: 30,
+        }
+    }
+}
+
+/// S3-compatible object storage configuration. MinIO is the local integration-test implementation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ObjectStorageConfig {
+    pub endpoint: String,
+    pub region: String,
+    pub bucket: String,
+    pub access_key_id: String,
+    pub secret_access_key: String,
+    pub force_path_style: bool,
+}
+
+impl Default for ObjectStorageConfig {
+    fn default() -> Self {
+        Self {
+            endpoint: "http://127.0.0.1:19000".to_owned(),
+            region: "us-east-1".to_owned(),
+            bucket: "stellartrail-uploads".to_owned(),
+            access_key_id: String::new(),
+            secret_access_key: String::new(),
+            force_path_style: true,
+        }
+    }
+}
+
+/// Runtime API configuration containing environment, bind address, database, auth providers, cache, upload, and content directory settings.
 #[derive(Clone, Debug)]
 pub struct ApiConfig {
     pub app_env: String,
@@ -35,10 +77,12 @@ pub struct ApiConfig {
     pub wechat_app_secret: Option<String>,
     pub content_dir: PathBuf,
     pub redis_cache: RedisCacheConfig,
+    pub upload: UploadConfig,
+    pub object_storage: ObjectStorageConfig,
 }
 
 impl ApiConfig {
-    /// Builds runtime configuration from environment variables and parses the port, database URL, and optional Redis TTL.
+    /// Builds runtime configuration from environment variables.
     pub fn from_env() -> anyhow::Result<Self> {
         let app_env = env::var("APP_ENV").unwrap_or_else(|_| "local".to_owned());
         let host = env::var("APP_HOST").unwrap_or_else(|_| "127.0.0.1".to_owned());
@@ -47,18 +91,41 @@ impl ApiConfig {
             .parse::<u16>()?;
         let database_url =
             env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://stellartrail.db".to_owned());
-        let wechat_mock_login = env::var("WECHAT_MOCK_LOGIN")
-            .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
-            .unwrap_or(app_env == "local");
+        let wechat_mock_login =
+            optional_bool_env("WECHAT_MOCK_LOGIN")?.unwrap_or(app_env == "local");
         let wechat_app_id = optional_env("WECHAT_APP_ID");
         let wechat_app_secret = optional_env("WECHAT_APP_SECRET");
         let content_dir = env::var("CONTENT_DIR").unwrap_or_else(|_| "content".to_owned());
-        // Redis remains optional; an empty REDIS_URL is converted to a disabled cache state by the cache layer.
         let redis_cache = RedisCacheConfig {
             url: optional_env("REDIS_URL"),
             key_prefix: optional_env("REDIS_KEY_PREFIX")
                 .unwrap_or_else(|| "stellartrail".to_owned()),
             gear_ttl_seconds: optional_u64_env("REDIS_GEAR_CACHE_TTL_SECONDS", 30)?,
+        };
+        let upload = UploadConfig {
+            max_image_bytes: optional_u64_env("UPLOAD_MAX_IMAGE_BYTES", 8_000_000)?,
+            rate_limit_window_seconds: optional_u64_env("UPLOAD_RATE_LIMIT_WINDOW_SECONDS", 3600)?,
+            max_images_per_window: optional_u64_env("UPLOAD_MAX_IMAGES_PER_WINDOW", 30)?,
+        };
+        if upload.max_image_bytes == 0 {
+            anyhow::bail!("UPLOAD_MAX_IMAGE_BYTES must be greater than 0");
+        }
+        if upload.rate_limit_window_seconds == 0 {
+            anyhow::bail!("UPLOAD_RATE_LIMIT_WINDOW_SECONDS must be greater than 0");
+        }
+        if upload.max_images_per_window == 0 {
+            anyhow::bail!("UPLOAD_MAX_IMAGES_PER_WINDOW must be greater than 0");
+        }
+        let default_storage = ObjectStorageConfig::default();
+        let object_storage = ObjectStorageConfig {
+            endpoint: optional_env("OBJECT_STORAGE_ENDPOINT").unwrap_or(default_storage.endpoint),
+            region: optional_env("OBJECT_STORAGE_REGION").unwrap_or(default_storage.region),
+            bucket: optional_env("OBJECT_STORAGE_BUCKET").unwrap_or(default_storage.bucket),
+            access_key_id: optional_env("OBJECT_STORAGE_ACCESS_KEY_ID")
+                .unwrap_or(default_storage.access_key_id),
+            secret_access_key: optional_env("OBJECT_STORAGE_SECRET_ACCESS_KEY")
+                .unwrap_or(default_storage.secret_access_key),
+            force_path_style: optional_bool_env("OBJECT_STORAGE_FORCE_PATH_STYLE")?.unwrap_or(true),
         };
 
         Ok(Self {
@@ -71,23 +138,24 @@ impl ApiConfig {
             wechat_app_secret,
             content_dir: PathBuf::from(content_dir),
             redis_cache,
+            upload,
+            object_storage,
         })
     }
 
-    /// Runs the `bind addr` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Returns the API socket bind address.
     pub fn bind_addr(&self) -> SocketAddr {
         format!("{}:{}", self.host, self.port)
             .parse()
             .expect("validated socket address")
     }
 
-    /// Runs the `database kind` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Returns the configured database kind.
     pub fn database_kind(&self) -> DatabaseKind {
         self.database.kind
     }
 }
 
-/// Runs the `optional env` server-side flow while preserving input validation, error propagation, and state invariants.
 fn optional_env(name: &str) -> Option<String> {
     env::var(name)
         .ok()
@@ -95,12 +163,22 @@ fn optional_env(name: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-/// Runs the `optional u64 env` server-side flow while preserving input validation, error propagation, and state invariants.
 fn optional_u64_env(name: &str, default: u64) -> anyhow::Result<u64> {
     match optional_env(name) {
         Some(value) => Ok(value.parse::<u64>()?),
         None => Ok(default),
     }
+}
+
+fn optional_bool_env(name: &str) -> anyhow::Result<Option<bool>> {
+    Ok(match optional_env(name) {
+        Some(value) => Some(match value.as_str() {
+            "1" | "true" | "TRUE" | "yes" | "YES" => true,
+            "0" | "false" | "FALSE" | "no" | "NO" => false,
+            other => anyhow::bail!("{name} must be a boolean value, got {other}"),
+        }),
+        None => None,
+    })
 }
 
 #[cfg(test)]
@@ -111,26 +189,12 @@ mod tests {
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
-    /// Runs the `from env reads wechat credentials` server-side flow while preserving input validation, error propagation, and state invariants.
     #[test]
     fn from_env_reads_wechat_credentials() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let keys = [
-            "APP_ENV",
-            "APP_HOST",
-            "APP_PORT",
-            "DATABASE_URL",
-            "WECHAT_MOCK_LOGIN",
-            "WECHAT_APP_ID",
-            "WECHAT_APP_SECRET",
-            "CONTENT_DIR",
-            "REDIS_URL",
-            "REDIS_KEY_PREFIX",
-            "REDIS_GEAR_CACHE_TTL_SECONDS",
-        ];
-        let saved = snapshot_env(&keys);
-
+        let saved = snapshot_env(&CONFIG_KEYS);
         unsafe {
+            clear_env(&CONFIG_KEYS);
             env::set_var("APP_ENV", "production");
             env::set_var("APP_HOST", "127.0.0.1");
             env::set_var("APP_PORT", "8080");
@@ -139,9 +203,6 @@ mod tests {
             env::set_var("WECHAT_APP_ID", " wx-app-id ");
             env::set_var("WECHAT_APP_SECRET", " wx-secret ");
             env::set_var("CONTENT_DIR", "content");
-            env::remove_var("REDIS_URL");
-            env::remove_var("REDIS_KEY_PREFIX");
-            env::remove_var("REDIS_GEAR_CACHE_TTL_SECONDS");
         }
 
         let config = ApiConfig::from_env().unwrap();
@@ -150,30 +211,17 @@ mod tests {
         assert!(!config.wechat_mock_login);
         assert_eq!(config.wechat_app_id.as_deref(), Some("wx-app-id"));
         assert_eq!(config.wechat_app_secret.as_deref(), Some("wx-secret"));
+        assert_eq!(config.upload, UploadConfig::default());
 
         restore_env(saved);
     }
 
-    /// Runs the `from env reads redis cache config` server-side flow while preserving input validation, error propagation, and state invariants.
     #[test]
     fn from_env_reads_redis_cache_config() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let keys = [
-            "APP_ENV",
-            "APP_HOST",
-            "APP_PORT",
-            "DATABASE_URL",
-            "WECHAT_MOCK_LOGIN",
-            "WECHAT_APP_ID",
-            "WECHAT_APP_SECRET",
-            "CONTENT_DIR",
-            "REDIS_URL",
-            "REDIS_KEY_PREFIX",
-            "REDIS_GEAR_CACHE_TTL_SECONDS",
-        ];
-        let saved = snapshot_env(&keys);
-
+        let saved = snapshot_env(&CONFIG_KEYS);
         unsafe {
+            clear_env(&CONFIG_KEYS);
             env::set_var("APP_ENV", "local");
             env::set_var("APP_HOST", "127.0.0.1");
             env::set_var("APP_PORT", "8080");
@@ -197,12 +245,93 @@ mod tests {
         restore_env(saved);
     }
 
-    /// Runs the `snapshot env` server-side flow while preserving input validation, error propagation, and state invariants.
+    #[test]
+    fn from_env_reads_upload_and_object_storage_config() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(&CONFIG_KEYS);
+        unsafe {
+            clear_env(&CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("UPLOAD_MAX_IMAGE_BYTES", "123456");
+            env::set_var("UPLOAD_RATE_LIMIT_WINDOW_SECONDS", "60");
+            env::set_var("UPLOAD_MAX_IMAGES_PER_WINDOW", "7");
+            env::set_var("OBJECT_STORAGE_ENDPOINT", " http://minio:9000 ");
+            env::set_var("OBJECT_STORAGE_REGION", " us-east-1 ");
+            env::set_var("OBJECT_STORAGE_BUCKET", " stellartrail-test ");
+            env::set_var("OBJECT_STORAGE_ACCESS_KEY_ID", " local-key ");
+            env::set_var("OBJECT_STORAGE_SECRET_ACCESS_KEY", " local-secret ");
+            env::set_var("OBJECT_STORAGE_FORCE_PATH_STYLE", "true");
+        }
+
+        let config = ApiConfig::from_env().unwrap();
+
+        assert_eq!(
+            config.upload,
+            UploadConfig {
+                max_image_bytes: 123456,
+                rate_limit_window_seconds: 60,
+                max_images_per_window: 7,
+            },
+        );
+        assert_eq!(config.object_storage.endpoint, "http://minio:9000");
+        assert_eq!(config.object_storage.bucket, "stellartrail-test");
+        assert_eq!(config.object_storage.access_key_id, "local-key");
+        assert_eq!(config.object_storage.secret_access_key, "local-secret");
+        assert!(config.object_storage.force_path_style);
+
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_rejects_zero_upload_limits() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(&CONFIG_KEYS);
+        unsafe {
+            clear_env(&CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("UPLOAD_MAX_IMAGE_BYTES", "0");
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(error.contains("UPLOAD_MAX_IMAGE_BYTES"), "{error}");
+        restore_env(saved);
+    }
+
+    const CONFIG_KEYS: [&str; 21] = [
+        "APP_ENV",
+        "APP_HOST",
+        "APP_PORT",
+        "DATABASE_URL",
+        "WECHAT_MOCK_LOGIN",
+        "WECHAT_APP_ID",
+        "WECHAT_APP_SECRET",
+        "CONTENT_DIR",
+        "REDIS_URL",
+        "REDIS_KEY_PREFIX",
+        "REDIS_GEAR_CACHE_TTL_SECONDS",
+        "UPLOAD_MAX_IMAGE_BYTES",
+        "UPLOAD_RATE_LIMIT_WINDOW_SECONDS",
+        "UPLOAD_MAX_IMAGES_PER_WINDOW",
+        "OBJECT_STORAGE_ENDPOINT",
+        "OBJECT_STORAGE_REGION",
+        "OBJECT_STORAGE_BUCKET",
+        "OBJECT_STORAGE_ACCESS_KEY_ID",
+        "OBJECT_STORAGE_SECRET_ACCESS_KEY",
+        "OBJECT_STORAGE_FORCE_PATH_STYLE",
+        "MINIO_ROOT_USER",
+    ];
+
     fn snapshot_env(keys: &[&'static str]) -> Vec<(&'static str, Option<String>)> {
         keys.iter().map(|key| (*key, env::var(key).ok())).collect()
     }
 
-    /// Runs the `restore env` server-side flow while preserving input validation, error propagation, and state invariants.
+    unsafe fn clear_env(keys: &[&'static str]) {
+        for key in keys {
+            unsafe { env::remove_var(key) };
+        }
+    }
+
     fn restore_env(saved: Vec<(&'static str, Option<String>)>) {
         for (key, value) in saved {
             unsafe {

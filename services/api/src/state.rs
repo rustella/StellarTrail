@@ -1,4 +1,4 @@
-//! Application state module that stores configuration, database connection, content catalog, WeChat client, and cache instance for routes.
+//! Application state module that stores configuration, database connection, content catalog, WeChat client, cache, and object storage for routes.
 
 use std::sync::Arc;
 
@@ -8,6 +8,7 @@ use stellartrail_importer::ContentCatalog;
 use crate::{
     cache::Cache,
     config::ApiConfig,
+    object_store::{InMemoryObjectStore, ObjectStore},
     services::wechat::{CurlWechatCodeSessionClient, WechatCodeSessionClient},
 };
 
@@ -17,27 +18,44 @@ pub struct AppState {
     inner: Arc<AppStateInner>,
 }
 
-/// Stable data boundary for `AppStateInner`, exposed by or reused within this module.
 struct AppStateInner {
     config: ApiConfig,
     db: DatabaseConnection,
     content: ContentCatalog,
     wechat_client: Arc<dyn WechatCodeSessionClient>,
     cache: Cache,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 impl AppState {
-    /// Runs the `new` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Creates app state with default content, disabled cache, and test in-memory object store.
     pub fn new(config: ApiConfig, db: DatabaseConnection) -> Self {
         Self::new_with_content(config, db, ContentCatalog::default())
     }
 
-    /// Runs the `new with cache` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Creates app state with default content, a custom cache, and test in-memory object store.
     pub fn new_with_cache(config: ApiConfig, db: DatabaseConnection, cache: Cache) -> Self {
         Self::new_with_content_and_cache(config, db, ContentCatalog::default(), cache)
     }
 
-    /// Runs the `new with content` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Creates app state with default content, custom cache, and custom object store.
+    pub fn new_with_cache_and_object_store(
+        config: ApiConfig,
+        db: DatabaseConnection,
+        cache: Cache,
+        object_store: Arc<dyn ObjectStore>,
+    ) -> Self {
+        Self::new_with_content_and_wechat_client_cache_and_object_store(
+            config,
+            db,
+            ContentCatalog::default(),
+            Arc::new(CurlWechatCodeSessionClient),
+            cache,
+            object_store,
+        )
+    }
+
+    /// Creates app state with provided content, disabled cache, and test in-memory object store.
     pub fn new_with_content(
         config: ApiConfig,
         db: DatabaseConnection,
@@ -46,23 +64,24 @@ impl AppState {
         Self::new_with_content_and_cache(config, db, content, Cache::disabled())
     }
 
-    /// Runs the `new with content and cache` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Creates app state with provided content/cache and test in-memory object store.
     pub fn new_with_content_and_cache(
         config: ApiConfig,
         db: DatabaseConnection,
         content: ContentCatalog,
         cache: Cache,
     ) -> Self {
-        Self::new_with_content_and_wechat_client_and_cache(
+        Self::new_with_content_and_wechat_client_cache_and_object_store(
             config,
             db,
             content,
             Arc::new(CurlWechatCodeSessionClient),
             cache,
+            Arc::new(InMemoryObjectStore::default()),
         )
     }
 
-    /// Runs the `new with wechat client` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Creates app state with a custom WeChat client for auth tests.
     pub fn new_with_wechat_client(
         config: ApiConfig,
         db: DatabaseConnection,
@@ -76,7 +95,7 @@ impl AppState {
         )
     }
 
-    /// Runs the `new with content and wechat client` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Creates app state with custom content and WeChat client.
     pub fn new_with_content_and_wechat_client(
         config: ApiConfig,
         db: DatabaseConnection,
@@ -92,13 +111,32 @@ impl AppState {
         )
     }
 
-    /// Runs the `new with content and wechat client and cache` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Creates app state with custom content, WeChat client, cache, and test in-memory object store.
     pub fn new_with_content_and_wechat_client_and_cache(
         config: ApiConfig,
         db: DatabaseConnection,
         content: ContentCatalog,
         wechat_client: Arc<dyn WechatCodeSessionClient>,
         cache: Cache,
+    ) -> Self {
+        Self::new_with_content_and_wechat_client_cache_and_object_store(
+            config,
+            db,
+            content,
+            wechat_client,
+            cache,
+            Arc::new(InMemoryObjectStore::default()),
+        )
+    }
+
+    /// Creates app state with every dependency injected explicitly.
+    pub fn new_with_content_and_wechat_client_cache_and_object_store(
+        config: ApiConfig,
+        db: DatabaseConnection,
+        content: ContentCatalog,
+        wechat_client: Arc<dyn WechatCodeSessionClient>,
+        cache: Cache,
+        object_store: Arc<dyn ObjectStore>,
     ) -> Self {
         Self {
             inner: Arc::new(AppStateInner {
@@ -107,32 +145,38 @@ impl AppState {
                 content,
                 wechat_client,
                 cache,
+                object_store,
             }),
         }
     }
 
-    /// Runs the `config` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Returns runtime configuration.
     pub fn config(&self) -> &ApiConfig {
         &self.inner.config
     }
 
-    /// Runs the `db` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Returns the database connection.
     pub fn db(&self) -> &DatabaseConnection {
         &self.inner.db
     }
 
-    /// Runs the `content` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Returns the content catalog.
     pub fn content(&self) -> &ContentCatalog {
         &self.inner.content
     }
 
-    /// Runs the `wechat client` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Returns the WeChat code2session client.
     pub fn wechat_client(&self) -> Arc<dyn WechatCodeSessionClient> {
         Arc::clone(&self.inner.wechat_client)
     }
 
-    /// Runs the `cache` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Returns the optional cache facade.
     pub fn cache(&self) -> &Cache {
         &self.inner.cache
+    }
+
+    /// Returns the object storage backend.
+    pub fn object_store(&self) -> Arc<dyn ObjectStore> {
+        Arc::clone(&self.inner.object_store)
     }
 }
