@@ -117,6 +117,7 @@ POST /api/auth/wechat-login
 POST /api/auth/email-verification-code
 POST /api/auth/register
 POST /api/auth/login
+POST /api/auth/captcha
 GET /api/mountains
 GET /api/mountains/:id
 GET /api/routes

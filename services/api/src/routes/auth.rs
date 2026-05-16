@@ -2,8 +2,9 @@ use axum::{Json, Router, routing::post};
 
 use crate::{
     dto::auth::{
-        EmailVerificationCodeRequest, EmailVerificationCodeResponse, LoginResponse,
-        PasswordLoginRequest, RegisterRequest, WechatLoginRequest,
+        CaptchaChallengeRequest, CaptchaChallengeResponse, EmailVerificationCodeRequest,
+        EmailVerificationCodeResponse, LoginResponse, PasswordLoginRequest, RegisterRequest,
+        WechatLoginRequest,
     },
     error::ApiError,
     services::auth_service,
@@ -19,6 +20,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(password_login))
+        .route("/api/auth/captcha", post(create_captcha))
 }
 
 async fn wechat_login(
@@ -50,5 +52,13 @@ async fn password_login(
     Json(payload): Json<PasswordLoginRequest>,
 ) -> Result<Json<LoginResponse>, ApiError> {
     let response = auth_service::password_login(&state, payload).await?;
+    Ok(Json(response))
+}
+
+async fn create_captcha(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<CaptchaChallengeRequest>,
+) -> Result<Json<CaptchaChallengeResponse>, ApiError> {
+    let response = auth_service::create_captcha_challenge(&state, payload.account).await?;
     Ok(Json(response))
 }

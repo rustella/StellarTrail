@@ -16,6 +16,7 @@ POST /api/auth/wechat-login
 POST /api/auth/email-verification-code
 POST /api/auth/register
 POST /api/auth/login
+POST /api/auth/captcha
 ```
 
 ### WeChat login
@@ -66,15 +67,31 @@ POST /api/auth/register
 }
 ```
 
-登录接口的 `account` 可填写用户名或邮箱。首次和正常登录不需要验证码；同一账号连续多次输错密码后，接口返回 `captcha_required`，前端应展示图片验证码或滑动验证码后重试。
+登录接口的 `account` 可填写用户名或邮箱。首次和正常登录不需要验证码；同一账号连续多次输错密码后，接口返回 `captcha_required`，前端应先调用图片验证码接口获取 `captcha_ticket` 与 `image_svg`，用户填写图形内容后带回登录接口。
+
+```json
+POST /api/auth/captcha
+{
+  "account": "trail_alice"
+}
+```
+
+```json
+{
+  "captcha_ticket": "captcha-ticket",
+  "captcha_type": "image",
+  "image_svg": "<svg ...>...</svg>",
+  "expires_at": "2026-05-16T10:05:00Z"
+}
+```
 
 ```json
 POST /api/auth/login
 {
   "account": "trail_alice",
   "password": "OutdoorPass123!",
-  "captcha_ticket": "local-dev-captcha",
-  "captcha_answer": "pass"
+  "captcha_ticket": "captcha-ticket",
+  "captcha_answer": "A7K2"
 }
 ```
 
@@ -84,7 +101,7 @@ POST /api/auth/login
 {
   "code": "captcha_required",
   "message": "多次登录失败，请先完成验证码验证",
-  "captcha": { "type": "image" }
+  "captcha": { "type": "image", "endpoint": "/api/auth/captcha" }
 }
 ```
 

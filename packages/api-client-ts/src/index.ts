@@ -1,4 +1,6 @@
 import type {
+  CaptchaChallengeRequest,
+  CaptchaChallengeResponse,
   ContentListResponse,
   CreateGearRequest,
   EmailVerificationCodeRequest,
@@ -102,6 +104,12 @@ export class StellarTrailApiClient {
       "/api/auth/email-verification-code",
       request,
     );
+  }
+
+  async createCaptcha(
+    request: CaptchaChallengeRequest,
+  ): Promise<CaptchaChallengeResponse> {
+    return this.post<CaptchaChallengeResponse>("/api/auth/captcha", request);
   }
 
   async register(request: RegisterRequest): Promise<WechatLoginResponse> {

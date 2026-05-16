@@ -225,6 +225,75 @@ impl AuthRepository {
         Ok(result.rows_affected() > 0)
     }
 
+    pub async fn create_captcha_challenge(
+        &self,
+        account: &str,
+        ticket: &str,
+        answer_hash: &str,
+        expires_at: OffsetDateTime,
+    ) -> Result<String, DbErr> {
+        let id = Uuid::new_v4().to_string();
+        let now = now_rfc3339();
+        let expires_at = expires_at
+            .format(&Iso8601::DEFAULT)
+            .map_err(|err| DbErr::Custom(err.to_string()))?;
+        self.db
+            .execute(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                r#"INSERT INTO captcha_challenges (
+                    id, account, ticket, answer_hash, expires_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)"#,
+                vec![
+                    id.clone().into(),
+                    account.to_owned().into(),
+                    ticket.to_owned().into(),
+                    answer_hash.to_owned().into(),
+                    expires_at.into(),
+                    now.into(),
+                ],
+            ))
+            .await?;
+        Ok(id)
+    }
+
+    pub async fn consume_captcha_challenge(
+        &self,
+        ticket: &str,
+        answer_hash: &str,
+    ) -> Result<bool, DbErr> {
+        let now = now_rfc3339();
+        let row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                r#"SELECT id FROM captcha_challenges
+                   WHERE ticket = ?
+                     AND answer_hash = ?
+                     AND consumed_at IS NULL
+                     AND expires_at > ?
+                   LIMIT 1"#,
+                vec![
+                    ticket.to_owned().into(),
+                    answer_hash.to_owned().into(),
+                    now.clone().into(),
+                ],
+            ))
+            .await?;
+        let Some(row) = row else {
+            return Ok(false);
+        };
+        let id: String = row.try_get("", "id")?;
+        let result = self
+            .db
+            .execute(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                "UPDATE captcha_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL",
+                vec![now.into(), id.into()],
+            ))
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     pub async fn find_user_by_token_hash(
         &self,
         token_hash: &str,
