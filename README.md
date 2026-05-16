@@ -58,3 +58,15 @@ DATABASE_URL=sqlite://stellartrail.db cargo run -p stellartrail-api
 - Product: **StellarTrail**
 - Chinese placeholder: **星径**
 - Repository: `StellarTrail`
+
+## Outdoor skill knots
+
+Import Knots3D metadata into the local SQLite database before exercising the knots API:
+
+```bash
+cargo run -p stellartrail-importer --bin import-knots3d -- \
+  --metadata .hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json \
+  --database-url sqlite://stellartrail.db
+```
+
+The API exposes `GET /api/skills`, `GET /api/skills/knots/list`, `GET /api/skills/knots/detail/:id`, and `GET /assets/*`. Locale is selected with `X-StellarTrail-Locale`; `?locale=` is intentionally unsupported.

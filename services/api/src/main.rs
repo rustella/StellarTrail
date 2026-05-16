@@ -1,12 +1,6 @@
-mod config;
-mod error;
-mod routes;
-mod state;
-
 use anyhow::Context;
-use config::ApiConfig;
-use routes::build_router;
-use state::AppState;
+use stellartrail_api::{build_router, ApiConfig, AppState};
+use stellartrail_db::KnotRepository;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -17,7 +11,10 @@ async fn main() -> anyhow::Result<()> {
     init_tracing();
 
     let config = ApiConfig::from_env()?;
-    let state = AppState::new(config.clone());
+    let repository =
+        KnotRepository::connect_with_media_base_url(&config.database, &config.media_base_url)?
+            .migrate()?;
+    let state = AppState::new(config.clone(), repository);
     let app = build_router(state).layer(TraceLayer::new_for_http());
 
     let listener = TcpListener::bind(config.bind_addr())

@@ -1,3 +1,7 @@
 pub fn migration_plan() -> &'static str {
-    "Migrations will live here once the ORM layer is selected."
+    "Knots schema is applied by stellartrail-db::KnotRepository::migrate for the MVP SQLite backend."
+}
+
+pub fn knots_schema_sql() -> &'static str {
+    stellartrail_db::KNOTS_SCHEMA_SQL
 }

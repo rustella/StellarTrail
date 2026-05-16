@@ -1,4 +1,4 @@
-use std::{env, net::SocketAddr};
+use std::{env, net::SocketAddr, path::PathBuf};
 
 use stellartrail_db::{DatabaseConfig, DatabaseKind};
 
@@ -8,6 +8,8 @@ pub struct ApiConfig {
     pub host: String,
     pub port: u16,
     pub database: DatabaseConfig,
+    pub content_assets_dir: PathBuf,
+    pub media_base_url: String,
 }
 
 impl ApiConfig {
@@ -19,13 +21,34 @@ impl ApiConfig {
             .parse::<u16>()?;
         let database_url =
             env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://stellartrail.db".to_owned());
+        let content_assets_dir = env::var("CONTENT_ASSETS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("content/assets"));
+        let media_base_url = env::var("MEDIA_BASE_URL").unwrap_or_else(|_| "/assets".to_owned());
 
         Ok(Self {
             app_env,
             host,
             port,
             database: DatabaseConfig::new(database_url)?,
+            content_assets_dir,
+            media_base_url,
         })
+    }
+
+    pub fn for_test(
+        database_url: impl Into<String>,
+        content_assets_dir: impl Into<PathBuf>,
+        media_base_url: impl Into<String>,
+    ) -> Self {
+        Self {
+            app_env: "test".to_owned(),
+            host: "127.0.0.1".to_owned(),
+            port: 0,
+            database: DatabaseConfig::new(database_url.into()).expect("valid test database url"),
+            content_assets_dir: content_assets_dir.into(),
+            media_base_url: media_base_url.into(),
+        }
     }
 
     pub fn bind_addr(&self) -> SocketAddr {

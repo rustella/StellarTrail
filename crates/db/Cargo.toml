@@ -7,4 +7,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+stellartrail-domain = { path = "../domain" }
 thiserror.workspace = true

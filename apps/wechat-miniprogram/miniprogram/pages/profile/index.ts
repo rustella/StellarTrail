@@ -1,5 +1,5 @@
 Page({
   data: {
-    title: '我的 StellarTrail',
+    title: "我的 StellarTrail",
   },
 });
