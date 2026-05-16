@@ -1,17 +1,17 @@
-//! 图片验证码 challenge migration，建立一次性 ticket、答案摘要、过期和消费状态表。
+//! Image captcha challenge migration creating one-time ticket, answer digest, expiry, and consumed-state fields.
 
 use sea_orm_migration::prelude::*;
 
-/// 单个数据库 migration 类型，由 SeaORM migration 框架调用 up/down。
+/// Single database migration type invoked by the SeaORM migration framework for up/down operations.
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
-    /// 执行 schema 升级逻辑。
+    /// Runs the schema upgrade logic.
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
-        // challenge 表只保存答案摘要和消费状态，不保存可直接复用的验证码明文。
+        // The challenge table stores only answer digests and consumed state, never reusable plaintext captcha answers.
         db.execute_unprepared(
             r#"CREATE TABLE IF NOT EXISTS captcha_challenges (
                 id TEXT PRIMARY KEY,
@@ -35,7 +35,7 @@ impl MigrationTrait for Migration {
         Ok(())
     }
 
-    /// 执行 schema 回滚逻辑，尽量撤销 up 中创建的表或索引。
+    /// Runs schema rollback logic and tries to undo tables or indexes created by up.
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .get_connection()

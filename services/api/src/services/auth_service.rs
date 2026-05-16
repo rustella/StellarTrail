@@ -1,4 +1,4 @@
-//! 认证业务服务模块，封装微信 code2session、邮箱注册、密码登录、验证码和会话签发流程。
+//! Authentication service module for WeChat code2session, email registration, password login, captcha, and session issuance flows.
 
 use axum::http::HeaderMap;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -22,14 +22,14 @@ const EMAIL_CODE_EXPIRES_MINUTES: i64 = 10;
 const CAPTCHA_EXPIRES_MINUTES: i64 = 5;
 const LOGIN_CAPTCHA_THRESHOLD: i32 = 3;
 
-/// 处理微信小程序 code 登录，成功后签发 StellarTrail 会话 token。
+/// Handles WeChat Mini Program code login and issues a StellarTrail session token on success.
 pub async fn wechat_login(
     state: &AppState,
     code: String,
     profile: Option<LoginProfileRequest>,
 ) -> Result<LoginResponse, ApiError> {
     let code = validate_code(code)?;
-    // 仅 local 环境允许 mock 微信登录，避免生产绕过微信 code2session。
+    // Only the local environment may use mocked WeChat login so production cannot bypass code2session.
     if state.config().wechat_mock_login && state.config().app_env == "local" {
         let profile = profile.unwrap_or(LoginProfileRequest {
             nickname: Some("本地测试用户".to_owned()),
@@ -47,7 +47,7 @@ pub async fn wechat_login(
     let wechat_client = state.wechat_client();
     let app_id = app_id.to_owned();
     let app_secret = app_secret.to_owned();
-    // 生产路径必须调用微信 code2session，用临时 code 换取可信 openid。
+    // Production paths must call WeChat code2session to exchange the temporary code for a trusted openid.
     let code_session = tokio::task::spawn_blocking(move || {
         wechat_client.code2session(&app_id, &app_secret, &code)
     })
@@ -61,7 +61,7 @@ pub async fn wechat_login(
     issue_login_for_openid(state, &code_session.openid, profile).await
 }
 
-/// 生成注册邮箱验证码并保存摘要，供后续注册接口消费。
+/// Generates a registration email verification code and stores its digest for the registration endpoint to consume later.
 pub async fn send_email_verification_code(
     state: &AppState,
     email: String,
@@ -74,8 +74,8 @@ pub async fn send_email_verification_code(
         .create_email_verification_code(&email, EMAIL_CODE_PURPOSE_REGISTER, &code_hash, expires_at)
         .await?;
 
-    // 当前服务端先完成验证码生成与校验闭环；本地环境返回 debug_code 便于联调，
-    // 后续接入邮件服务时只需要在这里投递邮件，生产环境不会返回明文验证码。
+    // The current server completes the verification-code generation and validation loop first; local returns debug_code for integration testing,
+    // and future email delivery only needs to be added here while production never returns the plaintext code.
     let debug_code = (state.config().app_env == "local").then_some(code);
     Ok(EmailVerificationCodeResponse {
         email,
@@ -86,7 +86,7 @@ pub async fn send_email_verification_code(
     })
 }
 
-/// 完成邮箱用户名注册，校验验证码和密码后创建用户并签发会话。
+/// Completes email/username registration by validating the code and password, creating the user, and issuing a session.
 pub async fn register_with_password(
     state: &AppState,
     payload: RegisterRequest,
@@ -130,7 +130,7 @@ pub async fn register_with_password(
         )]));
     }
 
-    // 当前需求明确要求 SHA-256 保存密码摘要，因此复用 token hash 的十六进制实现。
+    // The current requirement explicitly stores password digests with SHA-256, so reuse the token hash hexadecimal implementation.
     let password_hash = hash_token(&password);
     let user = repo
         .create_password_user(&username, &email, &password_hash)
@@ -138,7 +138,7 @@ pub async fn register_with_password(
     issue_login_for_user(&repo, user).await
 }
 
-/// 处理用户名或邮箱密码登录，必要时校验一次性图片验证码。
+/// Handles password login by username or email and verifies a one-time image captcha when required.
 pub async fn password_login(
     state: &AppState,
     payload: PasswordLoginRequest,
@@ -150,9 +150,9 @@ pub async fn password_login(
         return Err(ApiError::InvalidCredentials);
     };
 
-    // 达到失败门槛后必须先通过一次性图片验证码，降低暴力猜测风险。
+    // After the failure threshold is reached, require a one-time image captcha first to reduce brute-force guessing risk.
     if user.failed_login_attempts >= LOGIN_CAPTCHA_THRESHOLD {
-        // 验证码校验成功会消费 ticket，防止同一个 challenge 被重复使用。
+        // Successful captcha validation consumes the ticket so the same challenge cannot be reused.
         let captcha_ok =
             verify_captcha(&repo, payload.captcha_ticket, payload.captcha_answer).await?;
         if !captcha_ok {
@@ -172,7 +172,7 @@ pub async fn password_login(
     issue_login_for_user(&repo, user).await
 }
 
-/// 创建一次性图片验证码 challenge，并在本地环境返回 debug 答案。
+/// Creates a one-time image captcha challenge and returns the debug answer in the local environment.
 pub async fn create_captcha_challenge(
     state: &AppState,
     account: String,
@@ -197,7 +197,7 @@ pub async fn create_captcha_challenge(
     })
 }
 
-/// 执行 `mock login` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `mock login` server-side flow while preserving input validation, error propagation, and state invariants.
 pub async fn mock_login(
     state: &AppState,
     code: String,
@@ -217,7 +217,7 @@ pub async fn mock_login(
     issue_login_for_openid(state, &openid, profile).await
 }
 
-/// 执行 `issue login for openid` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `issue login for openid` server-side flow while preserving input validation, error propagation, and state invariants.
 async fn issue_login_for_openid(
     state: &AppState,
     openid: &str,
@@ -230,12 +230,12 @@ async fn issue_login_for_openid(
     issue_login_for_user(&repo, user).await
 }
 
-/// 为指定用户生成随机 token、保存 token hash，并返回登录响应。
+/// Generates a random token for the user, stores its hash, and returns the login response.
 async fn issue_login_for_user(
     repo: &AuthRepository,
     user: UserRecord,
 ) -> Result<LoginResponse, ApiError> {
-    // 返回给客户端的是随机 token；数据库只保存 hash，泄露数据库也不能直接伪造请求。
+    // The client receives a random token while the database stores only its hash, so database leaks cannot directly forge requests.
     let token = generate_token();
     let token_hash = hash_token(&token);
     let expires_at = OffsetDateTime::now_utc() + Duration::days(30);
@@ -256,7 +256,7 @@ async fn issue_login_for_user(
     })
 }
 
-/// 从 Authorization 头解析 Bearer token，并查找对应有效用户。
+/// Parses the Bearer token from the Authorization header and looks up the corresponding active user.
 pub async fn authenticate(headers: &HeaderMap, state: &AppState) -> Result<UserRecord, ApiError> {
     let token = bearer_token(headers).ok_or(ApiError::Unauthorized)?;
     let token_hash = hash_token(token);
@@ -266,7 +266,7 @@ pub async fn authenticate(headers: &HeaderMap, state: &AppState) -> Result<UserR
         .ok_or(ApiError::Unauthorized)
 }
 
-/// 执行 `validate code` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `validate code` server-side flow while preserving input validation, error propagation, and state invariants.
 fn validate_code(code: String) -> Result<String, ApiError> {
     let code = code.trim();
     if code.is_empty() {
@@ -278,7 +278,7 @@ fn validate_code(code: String) -> Result<String, ApiError> {
     Ok(code.to_owned())
 }
 
-/// 执行 `validate username` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `validate username` server-side flow while preserving input validation, error propagation, and state invariants.
 fn validate_username(username: String) -> Result<String, ApiError> {
     let username = username.trim().to_ascii_lowercase();
     let mut errors = Vec::new();
@@ -309,7 +309,7 @@ fn validate_username(username: String) -> Result<String, ApiError> {
     }
 }
 
-/// 执行 `validate email` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `validate email` server-side flow while preserving input validation, error propagation, and state invariants.
 fn validate_email(email: String) -> Result<String, ApiError> {
     let email = email.trim().to_ascii_lowercase();
     let valid_shape = email.len() <= 254
@@ -328,7 +328,7 @@ fn validate_email(email: String) -> Result<String, ApiError> {
     Ok(email)
 }
 
-/// 执行 `validate password` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `validate password` server-side flow while preserving input validation, error propagation, and state invariants.
 fn validate_password(password: String) -> Result<String, ApiError> {
     let len = password.chars().count();
     if !(8..=128).contains(&len) {
@@ -340,7 +340,7 @@ fn validate_password(password: String) -> Result<String, ApiError> {
     Ok(password)
 }
 
-/// 执行 `validate login password` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `validate login password` server-side flow while preserving input validation, error propagation, and state invariants.
 fn validate_login_password(password: String) -> Result<String, ApiError> {
     if password.is_empty() {
         return Err(ApiError::Validation(vec![FieldViolation::new(
@@ -351,7 +351,7 @@ fn validate_login_password(password: String) -> Result<String, ApiError> {
     Ok(password)
 }
 
-/// 执行 `validate login account` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `validate login account` server-side flow while preserving input validation, error propagation, and state invariants.
 fn validate_login_account(account: String) -> Result<String, ApiError> {
     let account = account.trim().to_ascii_lowercase();
     if account.is_empty() {
@@ -363,7 +363,7 @@ fn validate_login_account(account: String) -> Result<String, ApiError> {
     Ok(account)
 }
 
-/// 执行 `validate verification code` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `validate verification code` server-side flow while preserving input validation, error propagation, and state invariants.
 fn validate_verification_code(code: String) -> Result<String, ApiError> {
     let code = code.trim();
     if code.is_empty() {
@@ -375,7 +375,7 @@ fn validate_verification_code(code: String) -> Result<String, ApiError> {
     Ok(code.to_owned())
 }
 
-/// 校验并消费图片验证码 challenge，防止同一 ticket 重放。
+/// Validates and consumes an image captcha challenge to prevent replaying the same ticket.
 async fn verify_captcha(
     repo: &AuthRepository,
     ticket: Option<String>,
@@ -397,12 +397,12 @@ async fn verify_captcha(
         .map_err(ApiError::from)
 }
 
-/// 执行 `normalize captcha answer` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `normalize captcha answer` server-side flow while preserving input validation, error propagation, and state invariants.
 fn normalize_captcha_answer(answer: &str) -> String {
     answer.trim().to_ascii_uppercase()
 }
 
-/// 执行 `generate captcha answer` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `generate captcha answer` server-side flow while preserving input validation, error propagation, and state invariants.
 fn generate_captcha_answer() -> String {
     const CHARS: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
     let mut rng = rand::thread_rng();
@@ -411,7 +411,7 @@ fn generate_captcha_answer() -> String {
         .collect()
 }
 
-/// 执行 `render captcha svg` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `render captcha svg` server-side flow while preserving input validation, error propagation, and state invariants.
 fn render_captcha_svg(answer: &str) -> String {
     let chars = answer
         .chars()
@@ -431,7 +431,7 @@ fn render_captcha_svg(answer: &str) -> String {
     )
 }
 
-/// 执行 `required wechat config` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `required wechat config` server-side flow while preserving input validation, error propagation, and state invariants.
 fn required_wechat_config<'a>(value: Option<&'a str>, name: &str) -> Result<&'a str, ApiError> {
     value
         .map(str::trim)
@@ -439,7 +439,7 @@ fn required_wechat_config<'a>(value: Option<&'a str>, name: &str) -> Result<&'a 
         .ok_or_else(|| ApiError::internal(anyhow::anyhow!("{name} is required for WeChat login")))
 }
 
-/// 执行 `map wechat login error` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `map wechat login error` server-side flow while preserving input validation, error propagation, and state invariants.
 fn map_wechat_login_error(error: anyhow::Error) -> ApiError {
     match error.downcast::<WechatCodeSessionError>() {
         Ok(WechatCodeSessionError::Rejected { code, message }) => {
@@ -450,7 +450,7 @@ fn map_wechat_login_error(error: anyhow::Error) -> ApiError {
     }
 }
 
-/// 执行 `bearer token` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `bearer token` server-side flow while preserving input validation, error propagation, and state invariants.
 fn bearer_token(headers: &HeaderMap) -> Option<&str> {
     let value = headers
         .get(axum::http::header::AUTHORIZATION)?
@@ -461,14 +461,14 @@ fn bearer_token(headers: &HeaderMap) -> Option<&str> {
         .or_else(|| value.strip_prefix("bearer "))
 }
 
-/// 执行 `generate token` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `generate token` server-side flow while preserving input validation, error propagation, and state invariants.
 fn generate_token() -> String {
     let mut bytes = [0_u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
-/// 执行 `generate email code` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `generate email code` server-side flow while preserving input validation, error propagation, and state invariants.
 fn generate_email_code() -> String {
     format!("{:06}", rand::thread_rng().gen_range(0..=999_999))
 }

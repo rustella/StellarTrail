@@ -1,4 +1,4 @@
-//! 装备 repository，封装用户装备的 CRUD、筛选分页、统计和归档恢复 SQL。
+//! Gear repository wrapping SQL for user gear CRUD, filtered pagination, statistics, archive, and restore operations.
 
 use std::collections::HashMap;
 
@@ -11,7 +11,7 @@ use stellartrail_domain::gear::{
 };
 use uuid::Uuid;
 
-/// ListGearOptions 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `ListGearOptions`, exposed by or reused within this module.
 #[derive(Clone, Debug)]
 pub struct ListGearOptions {
     pub tab: GearTab,
@@ -24,7 +24,7 @@ pub struct ListGearOptions {
 }
 
 impl Default for ListGearOptions {
-    /// 执行 `default` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `default` server-side flow while preserving input validation, error propagation, and state invariants.
     fn default() -> Self {
         Self {
             tab: GearTab::Available,
@@ -38,19 +38,19 @@ impl Default for ListGearOptions {
     }
 }
 
-/// 装备持久化对象，集中封装用户装备读写、统计和导入导出 SQL。
+/// Gear persistence object that centralizes SQL for user gear reads, writes, statistics, import, and export.
 #[derive(Clone)]
 pub struct GearRepository {
     db: DatabaseConnection,
 }
 
 impl GearRepository {
-    /// 执行 `new` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `new` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
-    /// 创建当前资源，并在需要时触发后续状态维护。
+    /// Creates the current resource and triggers follow-up state maintenance when needed.
     pub async fn create(&self, user_id: &str, draft: &GearDraft) -> Result<GearItem, DbErr> {
         let id = Uuid::new_v4().to_string();
         let now = now_rfc3339();
@@ -73,7 +73,7 @@ impl GearRepository {
             .ok_or_else(|| DbErr::Custom("created gear not found".to_owned()))
     }
 
-    /// 执行 `get` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `get` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn get(&self, user_id: &str, id: &str) -> Result<Option<GearItem>, DbErr> {
         let row = self
             .db
@@ -86,7 +86,7 @@ impl GearRepository {
         row.map(|row| map_gear(&row)).transpose()
     }
 
-    /// 执行 `replace` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `replace` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn replace(
         &self,
         user_id: &str,
@@ -143,7 +143,7 @@ impl GearRepository {
         }
     }
 
-    /// 按用户、标签页、分类、状态、搜索词和排序条件查询装备列表，并用 limit+1 判断下一页。
+    /// Queries gear by user, tab, category, status, search term, and sort order, using limit+1 to detect the next page.
     pub async fn list(
         &self,
         user_id: &str,
@@ -152,7 +152,7 @@ impl GearRepository {
         let limit = options.limit.clamp(1, 100);
         let offset = parse_cursor(options.cursor.as_deref())?;
         let mut values: Vec<Value> = vec![user_id.to_owned().into()];
-        // user_id 始终是第一条过滤条件，所有装备查询都限制在当前用户名下。
+        // user_id is always the first filter, keeping every gear query scoped to the current user.
         let mut clauses = vec!["user_id = ?".to_owned()];
         match options.tab {
             GearTab::Available => clauses.push("archived_at IS NULL".to_owned()),
@@ -166,17 +166,17 @@ impl GearRepository {
             clauses.push("status = ?".to_owned());
             values.push(status.as_str().to_owned().into());
         }
-        // 搜索词只作为 LIKE 参数绑定，SQL 片段保持固定白名单。
+        // Search text is bound only as a LIKE parameter while SQL fragments stay on a fixed allowlist.
         if let Some(q) = normalize_query(options.q.as_deref()) {
             clauses.push("(LOWER(name) LIKE ? OR LOWER(COALESCE(brand, '')) LIKE ? OR LOWER(COALESCE(model, '')) LIKE ?)".to_owned());
             values.push(q.clone().into());
             values.push(q.clone().into());
             values.push(q.into());
         }
-        // 多取一条用于判断是否存在下一页，响应前会截回用户请求的 limit。
+        // Fetch one extra row to detect whether another page exists, then truncate back to the requested limit before responding.
         values.push((limit as i64 + 1).into());
         values.push(offset.into());
-        // 动态 SQL 只拼接内部枚举/白名单生成的片段，用户输入全部走参数绑定。
+        // Dynamic SQL concatenates only fragments generated from internal enums or allowlists; all user input is parameter-bound.
         let sql = format!(
             "{} WHERE {} {} LIMIT ? OFFSET ?",
             gear_select_columns(),
@@ -199,7 +199,7 @@ impl GearRepository {
         Ok((items, next_cursor))
     }
 
-    /// 归档当前资源，让默认列表不再展示。
+    /// Archives the current resource so default lists no longer show it.
     pub async fn archive(&self, user_id: &str, id: &str) -> Result<bool, DbErr> {
         let now = now_rfc3339();
         let result = self
@@ -213,7 +213,7 @@ impl GearRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    /// 恢复已归档资源，让默认列表重新展示。
+    /// Restores an archived resource so default lists show it again.
     pub async fn restore(&self, user_id: &str, id: &str) -> Result<Option<GearItem>, DbErr> {
         let now = now_rfc3339();
         let result = self
@@ -231,7 +231,7 @@ impl GearRepository {
         }
     }
 
-    /// 执行 `category counts` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `category counts` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn category_counts(
         &self,
         user_id: &str,
@@ -264,7 +264,7 @@ impl GearRepository {
             .collect())
     }
 
-    /// 执行 `stats` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `stats` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn stats(&self, user_id: &str, tab: GearTab) -> Result<GearStats, DbErr> {
         let archived_clause = archived_clause(tab);
         let summary = self
@@ -298,7 +298,7 @@ impl GearRepository {
         })
     }
 
-    /// 执行 `status counts` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `status counts` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn status_counts(
         &self,
         user_id: &str,
@@ -332,7 +332,7 @@ impl GearRepository {
     }
 }
 
-/// 执行 `gear values` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `gear values` server-side flow while preserving input validation, error propagation, and state invariants.
 fn gear_values(
     id: &str,
     user_id: &str,
@@ -371,12 +371,12 @@ fn gear_values(
     ]
 }
 
-/// 执行 `gear select sql` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `gear select sql` server-side flow while preserving input validation, error propagation, and state invariants.
 fn gear_select_sql(where_clause: &str) -> String {
     format!("{} {where_clause} LIMIT 1", gear_select_columns())
 }
 
-/// 执行 `gear select columns` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `gear select columns` server-side flow while preserving input validation, error propagation, and state invariants.
 fn gear_select_columns() -> &'static str {
     r#"SELECT id, user_id, category, name, brand, model, color, material, capacity, size, description,
         weight_g, warmth_index, waterproof_index, purchase_date, purchase_price_cents,
@@ -385,7 +385,7 @@ fn gear_select_columns() -> &'static str {
        FROM user_gear_items"#
 }
 
-/// 执行 `order by` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `order by` server-side flow while preserving input validation, error propagation, and state invariants.
 fn order_by(sort: GearSort) -> &'static str {
     match sort {
         GearSort::CreatedAtDesc => "ORDER BY created_at DESC, id DESC",
@@ -397,7 +397,7 @@ fn order_by(sort: GearSort) -> &'static str {
     }
 }
 
-/// 执行 `archived clause` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `archived clause` server-side flow while preserving input validation, error propagation, and state invariants.
 fn archived_clause(tab: GearTab) -> &'static str {
     match tab {
         GearTab::Available => "archived_at IS NULL",
@@ -405,7 +405,7 @@ fn archived_clause(tab: GearTab) -> &'static str {
     }
 }
 
-/// 执行 `parse cursor` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `parse cursor` server-side flow while preserving input validation, error propagation, and state invariants.
 fn parse_cursor(cursor: Option<&str>) -> Result<i64, DbErr> {
     let Some(cursor) = cursor else {
         return Ok(0);
@@ -422,7 +422,7 @@ fn parse_cursor(cursor: Option<&str>) -> Result<i64, DbErr> {
         })
 }
 
-/// 执行 `normalize query` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `normalize query` server-side flow while preserving input validation, error propagation, and state invariants.
 fn normalize_query(q: Option<&str>) -> Option<String> {
     let q = q?.trim().to_lowercase();
     if q.is_empty() {
@@ -432,13 +432,13 @@ fn normalize_query(q: Option<&str>) -> Option<String> {
     }
 }
 
-/// 执行 `map gear` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `map gear` server-side flow while preserving input validation, error propagation, and state invariants.
 fn map_gear(row: &sea_orm::QueryResult) -> Result<GearItem, DbErr> {
     let category_raw: String = row.try_get("", "category")?;
     let status_raw: String = row.try_get("", "status")?;
     let share_status_raw: String = row.try_get("", "share_status")?;
     let tags_json: String = row.try_get("", "tags_json")?;
-    // tags_json 是数据库文本字段，反序列化失败时转为 DbErr 便于上层统一处理。
+    // tags_json is a database text field; deserialization failures are converted to DbErr for consistent upstream handling.
     let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
     Ok(GearItem {
         id: row.try_get("", "id")?,
@@ -481,7 +481,7 @@ mod tests {
     use sea_orm_migration::prelude::MigratorTrait;
     use stellartrail_migration::Migrator;
 
-    /// 执行 `draft` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `draft` server-side flow while preserving input validation, error propagation, and state invariants.
     fn draft(name: &str, category: GearCategory) -> GearDraft {
         GearDraft {
             category,
@@ -509,7 +509,7 @@ mod tests {
         }
     }
 
-    /// 执行 `gear repository crud filter stats archive restore` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `gear repository crud filter stats archive restore` server-side flow while preserving input validation, error propagation, and state invariants.
     #[tokio::test]
     async fn gear_repository_crud_filter_stats_archive_restore() {
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();

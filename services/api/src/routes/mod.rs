@@ -1,4 +1,4 @@
-//! 路由聚合模块，组合所有 API 子路由并提供统一的 404 响应。
+//! Route aggregation module that combines all API subroutes and provides a consistent 404 fallback.
 
 mod auth;
 mod content;
@@ -11,7 +11,7 @@ use axum::{Router, routing::get};
 use crate::error::ApiError;
 use crate::state::AppState;
 
-/// 组合所有业务路由、健康检查和 404 fallback。
+/// Combines all business routes, health checks, and the 404 fallback.
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(health::healthz))
@@ -23,7 +23,7 @@ pub fn build_router(state: AppState) -> Router {
         .with_state(state)
 }
 
-/// 执行 `not found` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `not found` server-side flow while preserving input validation, error propagation, and state invariants.
 async fn not_found() -> ApiError {
     ApiError::NotFound
 }

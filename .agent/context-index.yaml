@@ -1,11 +1,11 @@
 topics:
   server-rust-comments:
-    description: 服务端 Rust 注释规则、rustdoc 规范和关键逻辑行内注释要求。
+    description: Repository-wide English code comment rules plus server Rust rustdoc requirements and critical inline comment expectations.
     read:
       - .agent/AGENTS.md
       - .agent/manifest.yaml
   backend-architecture:
-    description: 服务端入口、路由、服务、领域、数据库和迁移代码。
+    description: Server entrypoints, routes, services, domain models, database repositories, and migrations.
     read:
       - services/api/src/lib.rs
       - services/api/src/routes/mod.rs
@@ -18,13 +18,13 @@ topics:
 
 tasks:
   backend-code-change:
-    description: 修改服务端 Rust 代码时加载注释规则并运行 Rust 验证命令。
+    description: Load the comment rules and run Rust verification commands when changing server Rust code.
     read:
       - .agent/AGENTS.md
       - .agent/manifest.yaml
       - .agent/commands.yaml
   agent-rule-update:
-    description: 更新 .agent 规则时验证 YAML 与相对路径引用。
+    description: Validate YAML and relative path references after updating .agent rules.
     read:
       - .agent/AGENTS.md
       - .agent/manifest.yaml

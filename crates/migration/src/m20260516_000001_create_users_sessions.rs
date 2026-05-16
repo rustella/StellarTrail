@@ -1,17 +1,17 @@
-//! 初始用户与会话表 migration，建立微信登录用户、会话 token hash 与基础索引。
+//! Initial users and sessions migration creating WeChat login users, session token hashes, and base indexes.
 
 use sea_orm_migration::prelude::*;
 
-/// 单个数据库 migration 类型，由 SeaORM migration 框架调用 up/down。
+/// Single database migration type invoked by the SeaORM migration framework for up/down operations.
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
-    /// 执行 schema 升级逻辑。
+    /// Runs the schema upgrade logic.
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
-        // 初始 migration 使用显式 DDL，确保 SQLite/Postgres/MySQL 初期字段保持一致。
+        // The initial migration uses explicit DDL to keep early SQLite/Postgres/MySQL fields aligned.
         db.execute_unprepared(
             r#"CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
@@ -46,7 +46,7 @@ impl MigrationTrait for Migration {
         Ok(())
     }
 
-    /// 执行 schema 回滚逻辑，尽量撤销 up 中创建的表或索引。
+    /// Runs schema rollback logic and tries to undo tables or indexes created by up.
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
         db.execute_unprepared("DROP TABLE IF EXISTS sessions")

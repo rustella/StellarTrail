@@ -1,4 +1,4 @@
-//! 认证 repository，封装用户、会话、邮箱验证码和图片验证码 challenge 的持久化访问。
+//! Authentication repository wrapping persistence for users, sessions, email verification codes, and image captcha challenges.
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr};
 
@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 const USER_SELECT: &str = "id, wechat_openid, username, email, password_hash, nickname, avatar_url, failed_login_attempts, created_at, updated_at";
 
-/// UserRecord 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `UserRecord`, exposed by or reused within this module.
 #[derive(Clone, Debug)]
 pub struct UserRecord {
     pub id: String,
@@ -24,19 +24,19 @@ pub struct UserRecord {
     pub updated_at: String,
 }
 
-/// 认证持久化对象，集中封装用户、会话、验证码相关 SQL。
+/// Authentication persistence object that centralizes SQL for users, sessions, and verification challenges.
 #[derive(Clone)]
 pub struct AuthRepository {
     db: DatabaseConnection,
 }
 
 impl AuthRepository {
-    /// 执行 `new` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `new` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
-    /// 执行 `upsert mock user` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `upsert mock user` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn upsert_mock_user(
         &self,
         wechat_openid: &str,
@@ -47,14 +47,14 @@ impl AuthRepository {
             .await
     }
 
-    /// 执行 `upsert wechat user` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `upsert wechat user` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn upsert_wechat_user(
         &self,
         wechat_openid: &str,
         nickname: Option<String>,
         avatar_url: Option<String>,
     ) -> Result<UserRecord, DbErr> {
-        // openid 是微信用户稳定标识；已存在用户只更新展示资料，不新建账号。
+        // openid is the stable WeChat user identifier; existing users only update display fields instead of creating a new account.
         if let Some(user) = self.find_user_by_openid(wechat_openid).await? {
             let now = now_rfc3339();
             self.db
@@ -105,7 +105,7 @@ impl AuthRepository {
         Ok(user)
     }
 
-    /// 执行 `create password user` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `create password user` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn create_password_user(
         &self,
         username: &str,
@@ -136,7 +136,7 @@ impl AuthRepository {
             .ok_or_else(|| DbErr::Custom("created user not found".to_owned()))
     }
 
-    /// 执行 `create session` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `create session` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn create_session(
         &self,
         user_id: &str,
@@ -164,7 +164,7 @@ impl AuthRepository {
         Ok(id)
     }
 
-    /// 执行 `create email verification code` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `create email verification code` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn create_email_verification_code(
         &self,
         email: &str,
@@ -196,7 +196,7 @@ impl AuthRepository {
         Ok(id)
     }
 
-    /// 按邮箱、用途和验证码摘要查找未过期记录，并原子标记为已消费。
+    /// Finds an unexpired record by email, purpose, and code digest, then atomically marks it as consumed.
     pub async fn consume_email_verification_code(
         &self,
         email: &str,
@@ -224,7 +224,7 @@ impl AuthRepository {
                 ],
             ))
             .await?;
-        // 找不到可消费验证码时直接返回 false，由服务层映射为校验错误。
+        // Return false when no consumable code exists; the service layer maps that to a validation error.
         let Some(row) = row else {
             return Ok(false);
         };
@@ -240,7 +240,7 @@ impl AuthRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    /// 创建一次性图片验证码 challenge，并在本地环境返回 debug 答案。
+    /// Creates a one-time image captcha challenge and returns the debug answer in the local environment.
     pub async fn create_captcha_challenge(
         &self,
         account: &str,
@@ -272,7 +272,7 @@ impl AuthRepository {
         Ok(id)
     }
 
-    /// 校验并消费图片验证码 challenge，确保 ticket 不能重复使用。
+    /// Validates and consumes an image captcha challenge so the ticket cannot be reused.
     pub async fn consume_captcha_challenge(
         &self,
         ticket: &str,
@@ -311,7 +311,7 @@ impl AuthRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    /// 按会话 token hash 查找有效用户，同时过滤撤销、过期和已删除数据。
+    /// Finds the active user by session token hash while filtering revoked, expired, and deleted data.
     pub async fn find_user_by_token_hash(
         &self,
         token_hash: &str,
@@ -338,7 +338,7 @@ impl AuthRepository {
         row.map(|row| map_user(&row)).transpose()
     }
 
-    /// 按规范化账号查找用户，支持用户名或邮箱登录。
+    /// Finds a user by normalized account identifier, supporting username or email login.
     pub async fn find_user_by_login_account(
         &self,
         account: &str,
@@ -356,7 +356,7 @@ impl AuthRepository {
         row.map(|row| map_user(&row)).transpose()
     }
 
-    /// 执行 `find user by username` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `find user by username` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn find_user_by_username(&self, username: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
@@ -369,7 +369,7 @@ impl AuthRepository {
         row.map(|row| map_user(&row)).transpose()
     }
 
-    /// 执行 `find user by email` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `find user by email` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn find_user_by_email(&self, email: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
@@ -384,7 +384,7 @@ impl AuthRepository {
         row.map(|row| map_user(&row)).transpose()
     }
 
-    /// 记录一次密码登录失败并递增失败计数。
+    /// Records one failed password login and increments the failure counter.
     pub async fn record_failed_password_login(&self, user_id: &str) -> Result<(), DbErr> {
         let now = now_rfc3339();
         self.db
@@ -401,7 +401,7 @@ impl AuthRepository {
         Ok(())
     }
 
-    /// 登录成功后重置失败计数和失败时间。
+    /// Resets the failure count and failure timestamp after a successful login.
     pub async fn reset_failed_password_login(&self, user_id: &str) -> Result<(), DbErr> {
         let now = now_rfc3339();
         self.db
@@ -418,7 +418,7 @@ impl AuthRepository {
         Ok(())
     }
 
-    /// 执行 `find user by openid` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `find user by openid` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn find_user_by_openid(&self, wechat_openid: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
@@ -431,7 +431,7 @@ impl AuthRepository {
         row.map(|row| map_user(&row)).transpose()
     }
 
-    /// 执行 `find user by id` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `find user by id` server-side flow while preserving input validation, error propagation, and state invariants.
     async fn find_user_by_id(&self, user_id: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
@@ -447,14 +447,14 @@ impl AuthRepository {
     }
 }
 
-/// 对访问 token 做 SHA-256 摘要，数据库只保存不可直接使用的 token hash。
+/// Computes a SHA-256 digest for access tokens so the database stores only non-reusable token hashes.
 pub fn hash_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     hex::encode(hasher.finalize())
 }
 
-/// 执行 `map user` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `map user` server-side flow while preserving input validation, error propagation, and state invariants.
 fn map_user(row: &sea_orm::QueryResult) -> Result<UserRecord, DbErr> {
     Ok(UserRecord {
         id: row.try_get("", "id")?,
@@ -470,7 +470,7 @@ fn map_user(row: &sea_orm::QueryResult) -> Result<UserRecord, DbErr> {
     })
 }
 
-/// 执行 `now rfc3339` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `now rfc3339` server-side flow while preserving input validation, error propagation, and state invariants.
 fn now_rfc3339() -> String {
     OffsetDateTime::now_utc()
         .format(&Iso8601::DEFAULT)
@@ -483,7 +483,7 @@ mod tests {
     use sea_orm_migration::prelude::MigratorTrait;
     use stellartrail_migration::Migrator;
 
-    /// 执行 `creates session and finds user by token hash` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `creates session and finds user by token hash` server-side flow while preserving input validation, error propagation, and state invariants.
     #[tokio::test]
     async fn creates_session_and_finds_user_by_token_hash() {
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();

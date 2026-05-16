@@ -1,8 +1,8 @@
-//! 用户领域模型，描述当前用户资料在 API 与数据库之间流转的核心字段。
+//! User domain model describing the core profile fields that flow between the API and database.
 
 use serde::{Deserialize, Serialize};
 
-/// UserProfile 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `UserProfile`, exposed by or reused within this module.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UserProfile {
     pub id: String,

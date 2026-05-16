@@ -1,8 +1,8 @@
-//! 数据库配置模块，根据连接串识别数据库类型并为 SeaORM 建立连接提供参数。
+//! Database configuration module that detects the database type from the connection string and provides SeaORM connection settings.
 
 use thiserror::Error;
 
-/// DatabaseKind 枚举，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable enum boundary for `DatabaseKind`, exposed by or reused within this module.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DatabaseKind {
     Sqlite,
@@ -11,7 +11,7 @@ pub enum DatabaseKind {
 }
 
 impl DatabaseKind {
-    /// 执行 `as str` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `as str` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Sqlite => "sqlite",
@@ -21,7 +21,7 @@ impl DatabaseKind {
     }
 }
 
-/// DatabaseConfig 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `DatabaseConfig`, exposed by or reused within this module.
 #[derive(Clone, Debug)]
 pub struct DatabaseConfig {
     pub url: String,
@@ -29,7 +29,7 @@ pub struct DatabaseConfig {
 }
 
 impl DatabaseConfig {
-    /// 执行 `new` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `new` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn new(url: String) -> Result<Self, DatabaseConfigError> {
         let kind = if url.starts_with("sqlite:") {
             DatabaseKind::Sqlite
@@ -45,7 +45,7 @@ impl DatabaseConfig {
     }
 }
 
-/// DatabaseConfigError 枚举，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable enum boundary for `DatabaseConfigError`, exposed by or reused within this module.
 #[derive(Debug, Error)]
 pub enum DatabaseConfigError {
     #[error("unsupported database url: {0}")]
@@ -56,7 +56,7 @@ pub enum DatabaseConfigError {
 mod tests {
     use super::*;
 
-    /// 执行 `detects supported database kinds` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `detects supported database kinds` server-side flow while preserving input validation, error propagation, and state invariants.
     #[test]
     fn detects_supported_database_kinds() {
         let cases = [

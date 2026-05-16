@@ -125,5 +125,5 @@ function setBackgroundColor(backgroundColor: string): void {
 }
 
 function noop(): void {
-  // 兼容非 TabBar 页面或低版本基础库：系统外观 API 失败时不影响页面内主题渲染。
+  // Keep non-TabBar pages and older base libraries safe: system appearance API failures must not block in-page theme rendering.
 }

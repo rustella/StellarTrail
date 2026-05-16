@@ -1,4 +1,4 @@
-//! API 服务二进制入口，负责初始化配置、日志、路由和优雅停机。
+//! API service binary entrypoint that initializes configuration, logging, routes, and graceful shutdown.
 
 use anyhow::Context;
 use stellartrail_api::{build_state, config::ApiConfig, routes::build_router};
@@ -7,7 +7,7 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-/// 执行 `main` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `main` server-side flow while preserving input validation, error propagation, and state invariants.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
@@ -24,13 +24,13 @@ async fn main() -> anyhow::Result<()> {
     info!(addr = %config.bind_addr(), "StellarTrail API listening");
 
     axum::serve(listener, app)
-        // 使用 graceful shutdown，让容器停止或 Ctrl-C 时尽量完成已接收请求。
+        // Use graceful shutdown so container stops or Ctrl-C can finish accepted requests where possible.
         .with_graceful_shutdown(shutdown_signal())
         .await
         .context("api server failed")
 }
 
-/// 执行 `init tracing` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `init tracing` server-side flow while preserving input validation, error propagation, and state invariants.
 fn init_tracing() {
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("stellartrail_api=debug,tower_http=debug,info"));
@@ -41,7 +41,7 @@ fn init_tracing() {
         .init();
 }
 
-/// 执行 `shutdown signal` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `shutdown signal` server-side flow while preserving input validation, error propagation, and state invariants.
 async fn shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c()

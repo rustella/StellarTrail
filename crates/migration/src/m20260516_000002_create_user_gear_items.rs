@@ -1,17 +1,17 @@
-//! 用户装备表 migration，建立装备字段、归档状态和常用查询索引。
+//! User gear table migration creating gear fields, archive state, and common query indexes.
 
 use sea_orm_migration::prelude::*;
 
-/// 单个数据库 migration 类型，由 SeaORM migration 框架调用 up/down。
+/// Single database migration type invoked by the SeaORM migration framework for up/down operations.
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
-    /// 执行 schema 升级逻辑。
+    /// Runs the schema upgrade logic.
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
-        // 装备表字段直接对应领域模型，减少 repository 映射时的隐式转换。
+        // Gear table fields map directly to the domain model, reducing implicit conversions in the repository.
         db.execute_unprepared(
             r#"CREATE TABLE IF NOT EXISTS user_gear_items (
                 id TEXT PRIMARY KEY,
@@ -55,7 +55,7 @@ impl MigrationTrait for Migration {
         Ok(())
     }
 
-    /// 执行 schema 回滚逻辑，尽量撤销 up 中创建的表或索引。
+    /// Runs schema rollback logic and tries to undo tables or indexes created by up.
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .get_connection()

@@ -1,10 +1,10 @@
-//! API 错误模型与 Axum 响应转换模块，统一业务错误、校验错误和认证错误的 HTTP 表达。
+//! API error model and Axum response conversion module for consistent HTTP representations of business, validation, and authentication errors.
 
 use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde::Serialize;
 use stellartrail_domain::validation::FieldViolation;
 
-/// API 统一错误枚举，覆盖校验失败、认证失败、资源不存在、验证码和内部错误。
+/// Unified API error enum covering validation failures, authentication failures, missing resources, captcha requirements, and internal errors.
 #[derive(Debug)]
 pub enum ApiError {
     BadRequest(String),
@@ -16,7 +16,7 @@ pub enum ApiError {
     Internal(anyhow::Error),
 }
 
-/// ErrorBody 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `ErrorBody`, exposed by or reused within this module.
 #[derive(Serialize)]
 struct ErrorBody {
     code: &'static str,
@@ -27,7 +27,7 @@ struct ErrorBody {
     captcha: Option<CaptchaChallenge>,
 }
 
-/// CaptchaChallenge 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `CaptchaChallenge`, exposed by or reused within this module.
 #[derive(Serialize)]
 struct CaptchaChallenge {
     #[serde(rename = "type")]
@@ -36,14 +36,14 @@ struct CaptchaChallenge {
 }
 
 impl ApiError {
-    /// 执行 `internal` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `internal` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn internal(error: impl Into<anyhow::Error>) -> Self {
         Self::Internal(error.into())
     }
 }
 
 impl IntoResponse for ApiError {
-    /// 执行 `into response` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `into response` server-side flow while preserving input validation, error propagation, and state invariants.
     fn into_response(self) -> axum::response::Response {
         let (status, code, message, fields, captcha) = match self {
             Self::BadRequest(message) => {
@@ -113,21 +113,21 @@ impl IntoResponse for ApiError {
 }
 
 impl From<sea_orm::DbErr> for ApiError {
-    /// 执行 `from` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `from` server-side flow while preserving input validation, error propagation, and state invariants.
     fn from(value: sea_orm::DbErr) -> Self {
         Self::internal(value)
     }
 }
 
 impl From<anyhow::Error> for ApiError {
-    /// 执行 `from` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `from` server-side flow while preserving input validation, error propagation, and state invariants.
     fn from(value: anyhow::Error) -> Self {
         Self::Internal(value)
     }
 }
 
 impl From<stellartrail_domain::validation::ValidationError> for ApiError {
-    /// 执行 `from` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `from` server-side flow while preserving input validation, error propagation, and state invariants.
     fn from(value: stellartrail_domain::validation::ValidationError) -> Self {
         Self::Validation(value.fields)
     }

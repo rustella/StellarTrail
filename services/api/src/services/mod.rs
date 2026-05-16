@@ -1,4 +1,4 @@
-//! 业务服务聚合模块，统一导出认证、装备和微信接口相关服务。
+//! Service aggregation module that re-exports authentication, gear, and WeChat integration services.
 
 pub mod auth_service;
 pub mod gear_service;

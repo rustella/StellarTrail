@@ -1,11 +1,11 @@
-//! 数据库迁移命令入口，供本地开发、部署流水线或一次性维护任务显式执行 schema 升降级。
+//! Database migration command entrypoint for local development, deployment pipelines, and one-off schema maintenance.
 
 use sea_orm_migration::prelude::MigratorTrait;
 use stellartrail_api::config::ApiConfig;
 use stellartrail_db::connect_database;
 use stellartrail_migration::Migrator;
 
-/// 执行 `main` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `main` server-side flow while preserving input validation, error propagation, and state invariants.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();

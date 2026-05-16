@@ -1,10 +1,10 @@
-//! 数据库连接模块，负责按配置创建 SeaORM DatabaseConnection。
+//! Database connection module responsible for creating a SeaORM DatabaseConnection from configuration.
 
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr};
 
 use crate::DatabaseConfig;
 
-/// 执行 `connect database` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `connect database` server-side flow while preserving input validation, error propagation, and state invariants.
 pub async fn connect_database(config: &DatabaseConfig) -> Result<DatabaseConnection, DbErr> {
     let mut url = config.url.clone();
     if url.starts_with("sqlite://") && !url.contains('?') && url != "sqlite::memory:" {

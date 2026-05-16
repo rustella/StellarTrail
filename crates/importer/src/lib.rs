@@ -1,4 +1,4 @@
-//! 内容导入 crate，读取 YAML/Markdown 种子内容并转换为领域内容目录。
+//! Content importer crate that reads YAML/Markdown seed content and converts it into the domain content catalog.
 
 use std::{
     fs,
@@ -9,7 +9,7 @@ use anyhow::{Context, anyhow};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use stellartrail_domain::{mountain::DifficultyLevel, route::RoutePointType, skill::SkillCategory};
 
-/// 内容目录聚合结构，保存从种子文件读取的山峰、路线、技能和装备模板。
+/// Content catalog aggregate holding mountains, routes, skills, and gear templates loaded from seed files.
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ContentCatalog {
     pub mountains: Vec<MountainContent>,
@@ -18,7 +18,7 @@ pub struct ContentCatalog {
     pub gear_templates: Vec<GearTemplate>,
 }
 
-/// MountainContent 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `MountainContent`, exposed by or reused within this module.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MountainContent {
     pub id: String,
@@ -38,7 +38,7 @@ pub struct MountainContent {
     pub status: String,
 }
 
-/// RouteContent 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `RouteContent`, exposed by or reused within this module.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RouteContent {
     pub id: String,
@@ -67,7 +67,7 @@ pub struct RouteContent {
     pub skill_links: Vec<RouteSkillLink>,
 }
 
-/// RoutePoint 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `RoutePoint`, exposed by or reused within this module.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RoutePoint {
     #[serde(rename = "type")]
@@ -77,7 +77,7 @@ pub struct RoutePoint {
     pub sort_order: i32,
 }
 
-/// RouteGearSuggestion 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `RouteGearSuggestion`, exposed by or reused within this module.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RouteGearSuggestion {
     pub gear_category: String,
@@ -86,14 +86,14 @@ pub struct RouteGearSuggestion {
     pub reason: Option<String>,
 }
 
-/// RouteSkillLink 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `RouteSkillLink`, exposed by or reused within this module.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RouteSkillLink {
     pub skill_id: String,
     pub reason: Option<String>,
 }
 
-/// SkillContent 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `SkillContent`, exposed by or reused within this module.
 #[derive(Clone, Debug, Serialize)]
 pub struct SkillContent {
     pub id: String,
@@ -105,7 +105,7 @@ pub struct SkillContent {
     pub body_markdown: String,
 }
 
-/// GearTemplate 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `GearTemplate`, exposed by or reused within this module.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearTemplate {
     pub id: String,
@@ -114,7 +114,7 @@ pub struct GearTemplate {
     pub categories: Vec<GearTemplateCategory>,
 }
 
-/// GearTemplateCategory 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `GearTemplateCategory`, exposed by or reused within this module.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearTemplateCategory {
     pub id: String,
@@ -123,7 +123,7 @@ pub struct GearTemplateCategory {
     pub items: Vec<String>,
 }
 
-/// SkillFrontMatter 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `SkillFrontMatter`, exposed by or reused within this module.
 #[derive(Debug, Deserialize)]
 struct SkillFrontMatter {
     id: String,
@@ -135,7 +135,7 @@ struct SkillFrontMatter {
     related_gear_categories: Vec<String>,
 }
 
-/// 读取完整内容目录并聚合山峰、路线、技能和装备模板。
+/// Reads the full content catalog and aggregates mountains, routes, skills, and gear templates.
 pub fn read_content_catalog(root: impl AsRef<Path>) -> anyhow::Result<ContentCatalog> {
     let root = root.as_ref();
     if !root.exists() {
@@ -165,7 +165,7 @@ pub fn read_content_catalog(root: impl AsRef<Path>) -> anyhow::Result<ContentCat
     })
 }
 
-/// 执行 `read yaml file` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `read yaml file` server-side flow while preserving input validation, error propagation, and state invariants.
 pub fn read_yaml_file<T>(path: impl AsRef<Path>) -> anyhow::Result<T>
 where
     T: DeserializeOwned,
@@ -176,7 +176,7 @@ where
     serde_yaml::from_str(&content).with_context(|| format!("failed to parse {}", path.display()))
 }
 
-/// 执行 `read yaml dir` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `read yaml dir` server-side flow while preserving input validation, error propagation, and state invariants.
 fn read_yaml_dir<T>(dir: PathBuf) -> anyhow::Result<Vec<T>>
 where
     T: DeserializeOwned,
@@ -201,7 +201,7 @@ where
         .collect()
 }
 
-/// 执行 `read skill dir` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `read skill dir` server-side flow while preserving input validation, error propagation, and state invariants.
 fn read_skill_dir(dir: PathBuf) -> anyhow::Result<Vec<SkillContent>> {
     if !dir.exists() {
         return Ok(Vec::new());
@@ -212,7 +212,7 @@ fn read_skill_dir(dir: PathBuf) -> anyhow::Result<Vec<SkillContent>> {
     paths.into_iter().map(read_skill_file).collect()
 }
 
-/// 执行 `collect markdown files` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `collect markdown files` server-side flow while preserving input validation, error propagation, and state invariants.
 fn collect_markdown_files(dir: &Path, paths: &mut Vec<PathBuf>) -> anyhow::Result<()> {
     let mut entries = fs::read_dir(dir)
         .with_context(|| format!("failed to list {}", dir.display()))?
@@ -229,7 +229,7 @@ fn collect_markdown_files(dir: &Path, paths: &mut Vec<PathBuf>) -> anyhow::Resul
     Ok(())
 }
 
-/// 执行 `read skill file` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+/// Runs the `read skill file` server-side flow while preserving input validation, error propagation, and state invariants.
 fn read_skill_file(path: PathBuf) -> anyhow::Result<SkillContent> {
     let content =
         fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
@@ -248,7 +248,7 @@ fn read_skill_file(path: PathBuf) -> anyhow::Result<SkillContent> {
     })
 }
 
-/// 拆分 Markdown front matter 与正文，不存在 front matter 时返回空元数据。
+/// Splits Markdown front matter from the body and returns empty metadata when front matter is absent.
 fn split_front_matter(content: &str) -> anyhow::Result<(&str, &str)> {
     let content = content
         .strip_prefix("---\n")
@@ -271,7 +271,7 @@ fn split_front_matter(content: &str) -> anyhow::Result<(&str, &str)> {
 mod tests {
     use super::*;
 
-    /// 执行 `split front matter returns metadata and body` 对应的服务端逻辑，并保持当前模块的输入校验、错误传播和状态不变量。
+    /// Runs the `split front matter returns metadata and body` server-side flow while preserving input validation, error propagation, and state invariants.
     #[test]
     fn split_front_matter_returns_metadata_and_body() {
         let (front_matter, body) = split_front_matter("---\nid: demo\n---\n# Demo\n").unwrap();

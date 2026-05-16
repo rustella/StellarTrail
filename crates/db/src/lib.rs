@@ -1,4 +1,4 @@
-//! 数据库 crate 入口，导出连接、配置和 repository 层能力。
+//! Database crate entrypoint exporting connection, configuration, and repository-layer capabilities.
 
 pub mod config;
 pub mod connection;

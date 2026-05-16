@@ -2,40 +2,40 @@ commands:
   cargo-fmt-check:
     cwd: .
     command: cargo fmt --all -- --check
-    when_to_run: 修改任意 Rust 文件后运行。
-    side_effects: 只检查格式，不修改文件。
+    when_to_run: Run after changing any Rust file.
+    side_effects: Checks formatting only and does not modify files.
   cargo-check:
     cwd: .
     command: cargo check --workspace
-    when_to_run: 修改服务端 Rust 类型、路由、服务、repository、migration 或 DTO 后运行。
-    side_effects: 编译检查，无业务副作用。
+    when_to_run: Run after changing server Rust types, routes, services, repositories, migrations, or DTOs.
+    side_effects: Compile check only; no business side effects.
   cargo-test:
     cwd: .
     command: cargo test --workspace
-    when_to_run: 修改服务端逻辑、迁移、领域校验或测试后运行。
-    side_effects: 运行测试，可能创建临时测试数据库文件。
+    when_to_run: Run after changing server logic, migrations, domain validation, or tests.
+    side_effects: Runs tests and may create temporary test database files.
   cargo-clippy:
     cwd: .
     command: cargo clippy --workspace --all-targets -- -D warnings
-    when_to_run: 提交服务端 Rust 改动前运行。
-    side_effects: 静态检查，无业务副作用。
+    when_to_run: Run before submitting server Rust changes.
+    side_effects: Static analysis only; no business side effects.
   cargo-doc:
     cwd: .
     command: cargo doc --workspace --no-deps
-    when_to_run: 修改 rustdoc 注释、公共类型或公共函数后运行。
-    side_effects: 生成 target/doc 本地文档产物。
+    when_to_run: Run after changing rustdoc comments, public types, or public functions.
+    side_effects: Generates local documentation artifacts under target/doc.
   npm-check:
     cwd: .
     command: npm run check
-    when_to_run: 修改 TypeScript、Web、小程序或共享包后运行。
-    side_effects: 类型检查，无业务副作用。
+    when_to_run: Run after changing TypeScript, web, Mini Program, or shared packages.
+    side_effects: Type check only; no business side effects.
   npm-format-check:
     cwd: .
     command: npm run format:check
-    when_to_run: 修改前端、共享包或 Markdown/JSON 等受格式化约束文件后运行。
-    side_effects: 只检查格式，不修改文件。
+    when_to_run: Run after changing frontend, shared packages, Markdown, JSON, YAML, or other formatted files.
+    side_effects: Checks formatting only and does not modify files.
   git-diff-check:
     cwd: .
     command: git diff --check
-    when_to_run: 提交前运行，检查空白错误。
-    side_effects: 只读。
+    when_to_run: Run before committing to check whitespace errors.
+    side_effects: Read-only.

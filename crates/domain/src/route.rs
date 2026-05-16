@@ -1,10 +1,10 @@
-//! 路线内容领域模型，描述路线摘要、地理信息和路线点类型。
+//! Route content domain model describing route summaries, geographic data, and route point types.
 
 use serde::{Deserialize, Serialize};
 
 use crate::mountain::DifficultyLevel;
 
-/// RouteSummary 数据结构，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable data boundary for `RouteSummary`, exposed by or reused within this module.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RouteSummary {
     pub id: String,
@@ -18,7 +18,7 @@ pub struct RouteSummary {
     pub summary: String,
 }
 
-/// RoutePointType 枚举，定义当前模块对外暴露或内部复用的稳定数据边界。
+/// Stable enum boundary for `RoutePointType`, exposed by or reused within this module.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RoutePointType {
