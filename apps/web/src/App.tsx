@@ -10,6 +10,7 @@ import type {
   GearSummary,
   GearTab,
   MetaResponse,
+  WechatLoginResponse,
 } from "@stellartrail/shared-types";
 
 import { createWebGearApi, type WebGearApi } from "./api";
@@ -42,6 +43,28 @@ type GearStatusFilter = "" | GearStatus;
 type ViewMode = "table" | "cards";
 type ThemeMode = "light" | "dark";
 type FormMode = "create" | "edit";
+type AuthMode = "wechat" | "password" | "register";
+
+interface PasswordLoginState {
+  account: string;
+  password: string;
+  captchaTicket: string;
+  captchaAnswer: string;
+}
+
+interface RegisterFormState {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  emailVerificationCode: string;
+}
+
+interface CaptchaState {
+  ticket: string;
+  imageSvg: string;
+  debugAnswer?: string;
+}
 
 interface AppProps {
   client?: WebGearApi;
@@ -106,6 +129,21 @@ const emptyForm: GearFormState = {
 
 const THEME_STORAGE_KEY = "stellartrail.web.theme";
 
+const emptyPasswordLogin: PasswordLoginState = {
+  account: "",
+  password: "",
+  captchaTicket: "",
+  captchaAnswer: "",
+};
+
+const emptyRegisterForm: RegisterFormState = {
+  username: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+  emailVerificationCode: "",
+};
+
 export default function App({ client }: AppProps) {
   const [api] = useState<WebGearApi>(() => client ?? createWebGearApi());
   const [session, setSession] = useState<WebSession | null>(() =>
@@ -119,6 +157,13 @@ export default function App({ client }: AppProps) {
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [theme, setTheme] = useState<ThemeMode>(() => loadThemePreference());
+  const [authMode, setAuthMode] = useState<AuthMode>("wechat");
+  const [passwordLogin, setPasswordLogin] =
+    useState<PasswordLoginState>(emptyPasswordLogin);
+  const [registerForm, setRegisterForm] =
+    useState<RegisterFormState>(emptyRegisterForm);
+  const [captcha, setCaptcha] = useState<CaptchaState | null>(null);
+  const [emailCodeNotice, setEmailCodeNotice] = useState<string | null>(null);
   const [categories, setCategories] = useState<GearCategoryFilter[]>([
     { id: "all", label: "全部装备", count: 0 },
   ]);
@@ -194,7 +239,26 @@ export default function App({ client }: AppProps) {
     void loadDashboard();
   }, [loadDashboard]);
 
-  async function handleLogin() {
+  function completeLogin(response: WechatLoginResponse) {
+    const nextSession: WebSession = {
+      accessToken: response.access_token,
+      expiresAt: response.expires_at,
+      user: response.user,
+    };
+    saveSession(nextSession);
+    api.setAccessToken(response.access_token);
+    setSession(nextSession);
+  }
+
+  function switchAuthMode(mode: AuthMode) {
+    setAuthMode(mode);
+    setError(null);
+    setCaptcha(null);
+    setEmailCodeNotice(null);
+  }
+
+  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
@@ -202,14 +266,119 @@ export default function App({ client }: AppProps) {
         code: loginCode.trim() || "web-local-user",
         profile: { nickname: "Web 本地用户", avatar_url: null },
       });
-      const nextSession: WebSession = {
-        accessToken: response.access_token,
-        expiresAt: response.expires_at,
-        user: response.user,
-      };
-      saveSession(nextSession);
-      api.setAccessToken(response.access_token);
-      setSession(nextSession);
+      completeLogin(response);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handlePasswordLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const account = passwordLogin.account.trim();
+    if (!account || !passwordLogin.password) {
+      setError("请填写用户名或邮箱和密码");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await api.loginWithPassword({
+        account,
+        password: passwordLogin.password,
+        captcha_ticket: passwordLogin.captchaTicket.trim() || undefined,
+        captcha_answer: passwordLogin.captchaAnswer.trim() || undefined,
+      });
+      completeLogin(response);
+    } catch (err) {
+      const message = errorMessage(err);
+      if (message.includes("428")) {
+        try {
+          await loadCaptcha(account);
+          setError("多次登录失败，请输入验证码后重试");
+        } catch (captchaErr) {
+          setError(errorMessage(captchaErr));
+        }
+      } else {
+        setError(message);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSendEmailCode() {
+    const email = registerForm.email.trim();
+    if (!email) {
+      setError("请先填写邮箱");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    setEmailCodeNotice(null);
+    try {
+      const response = await api.sendEmailVerificationCode({ email });
+      setEmailCodeNotice(
+        response.debug_code
+          ? `本地验证码：${response.debug_code}`
+          : `验证码已发送至 ${response.email}`,
+      );
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRegister(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (registerForm.password !== registerForm.confirmPassword) {
+      setError("两次输入的密码不一致");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await api.register({
+        username: registerForm.username.trim(),
+        email: registerForm.email.trim(),
+        password: registerForm.password,
+        confirm_password: registerForm.confirmPassword,
+        email_verification_code: registerForm.emailVerificationCode.trim(),
+      });
+      completeLogin(response);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function loadCaptcha(account: string) {
+    const response = await api.createCaptcha({ account });
+    setCaptcha({
+      ticket: response.captcha_ticket,
+      imageSvg: response.image_svg,
+      debugAnswer: response.debug_answer,
+    });
+    setPasswordLogin((current) => ({
+      ...current,
+      captchaTicket: response.captcha_ticket,
+      captchaAnswer: "",
+    }));
+  }
+
+  async function handleRefreshCaptcha() {
+    const account = passwordLogin.account.trim();
+    if (!account) {
+      setError("请先填写用户名或邮箱");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await loadCaptcha(account);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -375,25 +544,215 @@ export default function App({ client }: AppProps) {
             <p className="eyebrow">StellarTrail · 寻径星野</p>
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </div>
-          <h1>本地开发登录</h1>
+          <h1>{authTitle(authMode)}</h1>
           <p className="muted">
-            当前后端使用微信 mock 登录。请输入本地 code，获取 Bearer Token
-            后进入个人装备库。
+            {authMode === "wechat"
+              ? "使用微信 code 登录，或切换到账号密码登录 / 注册新账号。"
+              : authMode === "password"
+                ? "使用后端账号密码登录；多次失败时按提示输入图形验证码。"
+                : "通过邮箱验证码创建账号，注册成功后会自动进入个人装备库。"}
           </p>
-          <label htmlFor="login-code">Mock code</label>
-          <input
-            id="login-code"
-            value={loginCode}
-            onChange={(event) => setLoginCode(event.target.value)}
-          />
+          <div className="auth-tabs" role="group" aria-label="登录方式">
+            <button
+              type="button"
+              className={authMode === "wechat" ? "active" : ""}
+              onClick={() => switchAuthMode("wechat")}
+            >
+              微信登录
+            </button>
+            <button
+              type="button"
+              className={authMode === "password" ? "active" : ""}
+              onClick={() => switchAuthMode("password")}
+            >
+              账号登录
+            </button>
+            <button
+              type="button"
+              className={authMode === "register" ? "active" : ""}
+              onClick={() => switchAuthMode("register")}
+            >
+              注册账号
+            </button>
+          </div>
+
+          {authMode === "wechat" ? (
+            <form className="auth-form" onSubmit={handleLogin}>
+              <label htmlFor="login-code">Mock code</label>
+              <input
+                id="login-code"
+                value={loginCode}
+                onChange={(event) => setLoginCode(event.target.value)}
+              />
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={submitting}
+              >
+                {submitting ? "登录中…" : "进入装备库"}
+              </button>
+            </form>
+          ) : null}
+
+          {authMode === "password" ? (
+            <form className="auth-form" onSubmit={handlePasswordLogin}>
+              <label htmlFor="login-account">用户名或邮箱</label>
+              <input
+                id="login-account"
+                value={passwordLogin.account}
+                autoComplete="username"
+                onChange={(event) =>
+                  setPasswordLogin((current) => ({
+                    ...current,
+                    account: event.target.value,
+                  }))
+                }
+              />
+              <label htmlFor="login-password">密码</label>
+              <input
+                id="login-password"
+                type="password"
+                value={passwordLogin.password}
+                autoComplete="current-password"
+                onChange={(event) =>
+                  setPasswordLogin((current) => ({
+                    ...current,
+                    password: event.target.value,
+                  }))
+                }
+              />
+              {captcha ? (
+                <div className="captcha-panel">
+                  <img
+                    src={`data:image/svg+xml;utf8,${encodeURIComponent(captcha.imageSvg)}`}
+                    alt="验证码"
+                  />
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void handleRefreshCaptcha()}
+                    disabled={submitting}
+                  >
+                    换一张
+                  </button>
+                  {captcha.debugAnswer ? (
+                    <p className="helper-text">
+                      本地验证码答案：{captcha.debugAnswer}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              {captcha ? (
+                <label htmlFor="login-captcha-answer">验证码</label>
+              ) : null}
+              {captcha ? (
+                <input
+                  id="login-captcha-answer"
+                  value={passwordLogin.captchaAnswer}
+                  onChange={(event) =>
+                    setPasswordLogin((current) => ({
+                      ...current,
+                      captchaAnswer: event.target.value,
+                    }))
+                  }
+                />
+              ) : null}
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={submitting}
+              >
+                {submitting ? "登录中…" : "账号密码登录"}
+              </button>
+            </form>
+          ) : null}
+
+          {authMode === "register" ? (
+            <form className="auth-form" onSubmit={handleRegister}>
+              <label htmlFor="register-username">用户名</label>
+              <input
+                id="register-username"
+                value={registerForm.username}
+                autoComplete="username"
+                onChange={(event) =>
+                  setRegisterForm((current) => ({
+                    ...current,
+                    username: event.target.value,
+                  }))
+                }
+              />
+              <label htmlFor="register-email">邮箱</label>
+              <input
+                id="register-email"
+                type="email"
+                value={registerForm.email}
+                autoComplete="email"
+                onChange={(event) =>
+                  setRegisterForm((current) => ({
+                    ...current,
+                    email: event.target.value,
+                  }))
+                }
+              />
+              <label htmlFor="register-password">密码</label>
+              <input
+                id="register-password"
+                type="password"
+                value={registerForm.password}
+                autoComplete="new-password"
+                onChange={(event) =>
+                  setRegisterForm((current) => ({
+                    ...current,
+                    password: event.target.value,
+                  }))
+                }
+              />
+              <label htmlFor="register-confirm-password">确认密码</label>
+              <input
+                id="register-confirm-password"
+                type="password"
+                value={registerForm.confirmPassword}
+                autoComplete="new-password"
+                onChange={(event) =>
+                  setRegisterForm((current) => ({
+                    ...current,
+                    confirmPassword: event.target.value,
+                  }))
+                }
+              />
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleSendEmailCode()}
+                disabled={submitting}
+              >
+                发送邮箱验证码
+              </button>
+              {emailCodeNotice ? (
+                <p className="helper-text">{emailCodeNotice}</p>
+              ) : null}
+              <label htmlFor="register-email-code">邮箱验证码</label>
+              <input
+                id="register-email-code"
+                value={registerForm.emailVerificationCode}
+                inputMode="numeric"
+                onChange={(event) =>
+                  setRegisterForm((current) => ({
+                    ...current,
+                    emailVerificationCode: event.target.value,
+                  }))
+                }
+              />
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={submitting}
+              >
+                {submitting ? "注册中…" : "注册并进入装备库"}
+              </button>
+            </form>
+          ) : null}
           {error ? <p className="error-text">{error}</p> : null}
-          <button
-            className="primary-button"
-            onClick={handleLogin}
-            disabled={submitting}
-          >
-            {submitting ? "登录中…" : "进入装备库"}
-          </button>
         </section>
       </main>
     );
@@ -424,7 +783,7 @@ export default function App({ client }: AppProps) {
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
         <div className="sidebar-footer">
-          <span>{session.user.nickname ?? "本地用户"}</span>
+          <span>{displayUserName(session)}</span>
           <button className="ghost-button" onClick={handleLogout}>
             退出
           </button>
@@ -1190,6 +1549,25 @@ function optionalNumber(value: string): number | null {
   }
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function authTitle(mode: AuthMode): string {
+  if (mode === "password") {
+    return "账号密码登录";
+  }
+  if (mode === "register") {
+    return "注册账号";
+  }
+  return "本地开发登录";
+}
+
+function displayUserName(session: WebSession): string {
+  return (
+    session.user.nickname ??
+    session.user.username ??
+    session.user.email ??
+    "本地用户"
+  );
 }
 
 function loadThemePreference(): ThemeMode {

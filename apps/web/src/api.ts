@@ -1,6 +1,10 @@
 import { StellarTrailApiClient } from "@stellartrail/api-client";
 import type {
+  CaptchaChallengeRequest,
+  CaptchaChallengeResponse,
   CreateGearRequest,
+  EmailVerificationCodeRequest,
+  EmailVerificationCodeResponse,
   GearCategoriesResponse,
   GearItem,
   GearStatsResponse,
@@ -9,6 +13,8 @@ import type {
   ListGearsRequest,
   ListGearsResponse,
   MetaResponse,
+  PasswordLoginRequest,
+  RegisterRequest,
   UpdateGearRequest,
   WechatLoginRequest,
   WechatLoginResponse,
@@ -19,6 +25,16 @@ export interface WebGearApi {
   meta(): Promise<MetaResponse>;
   loginWithWechatCode(
     request: WechatLoginRequest,
+  ): Promise<WechatLoginResponse>;
+  sendEmailVerificationCode(
+    request: EmailVerificationCodeRequest,
+  ): Promise<EmailVerificationCodeResponse>;
+  createCaptcha(
+    request: CaptchaChallengeRequest,
+  ): Promise<CaptchaChallengeResponse>;
+  register(request: RegisterRequest): Promise<WechatLoginResponse>;
+  loginWithPassword(
+    request: PasswordLoginRequest,
   ): Promise<WechatLoginResponse>;
   listGearCategories(
     tab?: "available" | "history",

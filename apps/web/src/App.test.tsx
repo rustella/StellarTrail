@@ -23,6 +23,40 @@ function buildClient(): WebGearApi {
       expires_at: "2026-06-01T00:00:00Z",
       user: { id: "u1", nickname: "测试用户", avatar_url: null },
     }),
+    loginWithPassword: vi.fn().mockResolvedValue({
+      access_token: "token-password",
+      expires_at: "2026-06-01T00:00:00Z",
+      user: {
+        id: "u2",
+        username: "trail-user",
+        email: "trail@example.com",
+        nickname: null,
+        avatar_url: null,
+      },
+    }),
+    sendEmailVerificationCode: vi.fn().mockResolvedValue({
+      email: "new@example.com",
+      expires_at: "2026-05-17T00:10:00Z",
+      debug_code: "123456",
+    }),
+    createCaptcha: vi.fn().mockResolvedValue({
+      captcha_ticket: "captcha-ticket",
+      captcha_type: "image",
+      image_svg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+      expires_at: "2026-05-17T00:05:00Z",
+      debug_answer: "ABCD",
+    }),
+    register: vi.fn().mockResolvedValue({
+      access_token: "token-register",
+      expires_at: "2026-06-01T00:00:00Z",
+      user: {
+        id: "u3",
+        username: "new-user",
+        email: "new@example.com",
+        nickname: null,
+        avatar_url: null,
+      },
+    }),
     listGearCategories: vi.fn().mockResolvedValue({
       items: [
         { id: "all", label: "全部装备", count: 2 },
@@ -208,5 +242,70 @@ describe("App", () => {
 
     expect(document.documentElement).toHaveAttribute("data-theme", "light");
     expect(localStorage.getItem("stellartrail.web.theme")).toBe("light");
+  });
+
+  it("logs in with an account password credential and renders the gear dashboard", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "账号登录" }));
+    fireEvent.change(screen.getByLabelText("用户名或邮箱"), {
+      target: { value: "trail@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "correct-password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "账号密码登录" }));
+
+    await screen.findByRole("heading", { name: "装备管理" });
+    expect(client.loginWithPassword).toHaveBeenCalledWith({
+      account: "trail@example.com",
+      password: "correct-password",
+    });
+    expect(localStorage.getItem("stellartrail.web.session")).toContain(
+      "token-password",
+    );
+  });
+
+  it("registers a password account after requesting an email verification code", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "注册账号" }));
+    fireEvent.change(screen.getByLabelText("用户名"), {
+      target: { value: "New-User" },
+    });
+    fireEvent.change(screen.getByLabelText("邮箱"), {
+      target: { value: "new@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "strong-password" },
+    });
+    fireEvent.change(screen.getByLabelText("确认密码"), {
+      target: { value: "strong-password" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "发送邮箱验证码" }));
+    expect(await screen.findByText("本地验证码：123456")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("邮箱验证码"), {
+      target: { value: "123456" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "注册并进入装备库" }));
+
+    await screen.findByRole("heading", { name: "装备管理" });
+    expect(client.sendEmailVerificationCode).toHaveBeenCalledWith({
+      email: "new@example.com",
+    });
+    expect(client.register).toHaveBeenCalledWith({
+      username: "New-User",
+      email: "new@example.com",
+      password: "strong-password",
+      confirm_password: "strong-password",
+      email_verification_code: "123456",
+    });
+    expect(localStorage.getItem("stellartrail.web.session")).toContain(
+      "token-register",
+    );
   });
 });
