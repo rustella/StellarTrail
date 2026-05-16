@@ -5,6 +5,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
+use sea_orm::{ConnectionTrait, Statement};
 use serde_json::{Value, json};
 use stellartrail_api::{
     config::ApiConfig,
@@ -19,6 +20,7 @@ use tower::ServiceExt;
 
 struct TestApp {
     router: Router,
+    db: sea_orm::DatabaseConnection,
     _temp_dir: TempDir,
 }
 
@@ -39,7 +41,8 @@ async fn test_app() -> TestApp {
         content_dir: temp_dir.path().join("content"),
     };
     TestApp {
-        router: build_router(AppState::new(config, db)),
+        router: build_router(AppState::new(config, db.clone())),
+        db,
         _temp_dir: temp_dir,
     }
 }
@@ -102,6 +105,41 @@ async fn send_json(
         serde_json::from_slice(&bytes).unwrap()
     };
     (status, value)
+}
+
+async fn register_password_user(
+    app: &Router,
+    username: &str,
+    email: &str,
+    password: &str,
+) -> Value {
+    let (code_status, code_value) = send_json(
+        app,
+        "POST",
+        "/api/auth/email-verification-code",
+        None,
+        json!({"email": email}),
+    )
+    .await;
+    assert_eq!(code_status, StatusCode::OK, "{code_value}");
+    let verification_code = code_value["debug_code"].as_str().unwrap();
+
+    let (register_status, register_value) = send_json(
+        app,
+        "POST",
+        "/api/auth/register",
+        None,
+        json!({
+            "username": username,
+            "email": email,
+            "password": password,
+            "confirm_password": password,
+            "email_verification_code": verification_code,
+        }),
+    )
+    .await;
+    assert_eq!(register_status, StatusCode::OK, "{register_value}");
+    register_value
 }
 
 async fn send_empty(
@@ -197,6 +235,138 @@ async fn production_wechat_login_uses_code2session_client() {
     let (gear_status, gear_stats) =
         send_empty(&router, "GET", "/api/me/gears/stats", Some(access_token)).await;
     assert_eq!(gear_status, StatusCode::OK, "{gear_stats}");
+}
+
+#[tokio::test]
+async fn email_registration_and_password_login_flow_uses_sha256_password_hash() {
+    let app = test_app().await;
+
+    let register_value = register_password_user(
+        &app.router,
+        "trail_alice",
+        "Alice@Example.COM",
+        "OutdoorPass123!",
+    )
+    .await;
+    let registered_user_id = register_value["user"]["id"].as_str().unwrap().to_owned();
+    assert!(register_value["access_token"].as_str().unwrap().len() > 20);
+    assert_eq!(register_value["user"]["username"], "trail_alice");
+    assert_eq!(register_value["user"]["email"], "alice@example.com");
+
+    let row = app
+        .db
+        .query_one(Statement::from_sql_and_values(
+            app.db.get_database_backend(),
+            "SELECT password_hash FROM users WHERE email = ?",
+            vec!["alice@example.com".into()],
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    let password_hash: String = row.try_get("", "password_hash").unwrap();
+    assert_eq!(
+        password_hash,
+        "153dcd2b66f0ccc59397d949893b9c20ac562ef7e6eda2bc9203f2b53dffbc9e",
+    );
+    assert_ne!(password_hash, "OutdoorPass123!");
+
+    let (username_login_status, username_login_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/login",
+        None,
+        json!({"account": "trail_alice", "password": "OutdoorPass123!"}),
+    )
+    .await;
+    assert_eq!(
+        username_login_status,
+        StatusCode::OK,
+        "{username_login_value}"
+    );
+    assert_eq!(
+        username_login_value["user"]["id"].as_str().unwrap(),
+        registered_user_id,
+    );
+
+    let (email_login_status, email_login_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/login",
+        None,
+        json!({"account": "alice@example.com", "password": "OutdoorPass123!"}),
+    )
+    .await;
+    assert_eq!(email_login_status, StatusCode::OK, "{email_login_value}");
+    assert_eq!(
+        email_login_value["user"]["id"].as_str().unwrap(),
+        registered_user_id,
+    );
+}
+
+#[tokio::test]
+async fn password_login_requires_captcha_after_repeated_failures() {
+    let app = test_app().await;
+    register_password_user(
+        &app.router,
+        "trail_bob",
+        "bob@example.com",
+        "OutdoorPass123!",
+    )
+    .await;
+
+    for _ in 0..3 {
+        let (status, value) = send_json(
+            &app.router,
+            "POST",
+            "/api/auth/login",
+            None,
+            json!({"account": "trail_bob", "password": "wrong-password"}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{value}");
+        assert_eq!(value["code"], "invalid_credentials");
+    }
+
+    let (captcha_status, captcha_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/login",
+        None,
+        json!({"account": "trail_bob", "password": "OutdoorPass123!"}),
+    )
+    .await;
+    assert_eq!(
+        captcha_status,
+        StatusCode::PRECONDITION_REQUIRED,
+        "{captcha_value}",
+    );
+    assert_eq!(captcha_value["code"], "captcha_required");
+    assert_eq!(captcha_value["captcha"]["type"], "image");
+
+    let (verified_status, verified_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/login",
+        None,
+        json!({
+            "account": "trail_bob",
+            "password": "OutdoorPass123!",
+            "captcha_ticket": "local-dev-captcha",
+            "captcha_answer": "pass"
+        }),
+    )
+    .await;
+    assert_eq!(verified_status, StatusCode::OK, "{verified_value}");
+
+    let (reset_status, reset_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/login",
+        None,
+        json!({"account": "bob@example.com", "password": "OutdoorPass123!"}),
+    )
+    .await;
+    assert_eq!(reset_status, StatusCode::OK, "{reset_value}");
 }
 
 #[tokio::test]

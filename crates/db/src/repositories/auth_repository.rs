@@ -3,12 +3,18 @@ use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Iso8601};
 use uuid::Uuid;
 
+const USER_SELECT: &str = "id, wechat_openid, username, email, password_hash, nickname, avatar_url, failed_login_attempts, created_at, updated_at";
+
 #[derive(Clone, Debug)]
 pub struct UserRecord {
     pub id: String,
     pub wechat_openid: Option<String>,
+    pub username: Option<String>,
+    pub email: Option<String>,
+    pub password_hash: Option<String>,
     pub nickname: Option<String>,
     pub avatar_url: Option<String>,
+    pub failed_login_attempts: i32,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -63,8 +69,12 @@ impl AuthRepository {
         let user = UserRecord {
             id: Uuid::new_v4().to_string(),
             wechat_openid: Some(wechat_openid.to_owned()),
+            username: None,
+            email: None,
+            password_hash: None,
             nickname,
             avatar_url,
+            failed_login_attempts: 0,
             created_at: now.clone(),
             updated_at: now,
         };
@@ -83,6 +93,36 @@ impl AuthRepository {
             ))
             .await?;
         Ok(user)
+    }
+
+    pub async fn create_password_user(
+        &self,
+        username: &str,
+        email: &str,
+        password_hash: &str,
+    ) -> Result<UserRecord, DbErr> {
+        let now = now_rfc3339();
+        let id = Uuid::new_v4().to_string();
+        self.db
+            .execute(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                r#"INSERT INTO users (
+                    id, username, email, password_hash, nickname, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)"#,
+                vec![
+                    id.clone().into(),
+                    username.to_owned().into(),
+                    email.to_owned().into(),
+                    password_hash.to_owned().into(),
+                    username.to_owned().into(),
+                    now.clone().into(),
+                    now.into(),
+                ],
+            ))
+            .await?;
+        self.find_user_by_id(&id)
+            .await?
+            .ok_or_else(|| DbErr::Custom("created user not found".to_owned()))
     }
 
     pub async fn create_session(
@@ -112,6 +152,79 @@ impl AuthRepository {
         Ok(id)
     }
 
+    pub async fn create_email_verification_code(
+        &self,
+        email: &str,
+        purpose: &str,
+        code_hash: &str,
+        expires_at: OffsetDateTime,
+    ) -> Result<String, DbErr> {
+        let id = Uuid::new_v4().to_string();
+        let now = now_rfc3339();
+        let expires_at = expires_at
+            .format(&Iso8601::DEFAULT)
+            .map_err(|err| DbErr::Custom(err.to_string()))?;
+        self.db
+            .execute(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                r#"INSERT INTO email_verification_codes (
+                    id, email, purpose, code_hash, expires_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)"#,
+                vec![
+                    id.clone().into(),
+                    email.to_owned().into(),
+                    purpose.to_owned().into(),
+                    code_hash.to_owned().into(),
+                    expires_at.into(),
+                    now.into(),
+                ],
+            ))
+            .await?;
+        Ok(id)
+    }
+
+    pub async fn consume_email_verification_code(
+        &self,
+        email: &str,
+        purpose: &str,
+        code_hash: &str,
+    ) -> Result<bool, DbErr> {
+        let now = now_rfc3339();
+        let row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                r#"SELECT id FROM email_verification_codes
+                   WHERE email = ?
+                     AND purpose = ?
+                     AND code_hash = ?
+                     AND consumed_at IS NULL
+                     AND expires_at > ?
+                   ORDER BY created_at DESC
+                   LIMIT 1"#,
+                vec![
+                    email.to_owned().into(),
+                    purpose.to_owned().into(),
+                    code_hash.to_owned().into(),
+                    now.clone().into(),
+                ],
+            ))
+            .await?;
+        let Some(row) = row else {
+            return Ok(false);
+        };
+        let id: String = row.try_get("", "id")?;
+        let result = self
+            .db
+            .execute(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                "UPDATE email_verification_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL",
+                vec![now.into(), id.into()],
+            ))
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     pub async fn find_user_by_token_hash(
         &self,
         token_hash: &str,
@@ -121,18 +234,96 @@ impl AuthRepository {
             .db
             .query_one(Statement::from_sql_and_values(
                 self.db.get_database_backend(),
-                r#"SELECT users.id, users.wechat_openid, users.nickname, users.avatar_url, users.created_at, users.updated_at
-                   FROM sessions
-                   JOIN users ON users.id = sessions.user_id
-                   WHERE sessions.token_hash = ?
-                     AND sessions.revoked_at IS NULL
-                     AND sessions.expires_at > ?
-                     AND users.deleted_at IS NULL
-                   LIMIT 1"#,
+                format!(
+                    r#"SELECT users.{user_select}
+                       FROM sessions
+                       JOIN users ON users.id = sessions.user_id
+                       WHERE sessions.token_hash = ?
+                         AND sessions.revoked_at IS NULL
+                         AND sessions.expires_at > ?
+                         AND users.deleted_at IS NULL
+                       LIMIT 1"#,
+                    user_select = USER_SELECT.replace(", ", ", users."),
+                ),
                 vec![token_hash.to_owned().into(), now.into()],
             ))
             .await?;
         row.map(|row| map_user(&row)).transpose()
+    }
+
+    pub async fn find_user_by_login_account(
+        &self,
+        account: &str,
+    ) -> Result<Option<UserRecord>, DbErr> {
+        let row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                format!(
+                    "SELECT {USER_SELECT} FROM users WHERE (username = ? OR email = ?) AND deleted_at IS NULL LIMIT 1"
+                ),
+                vec![account.to_owned().into(), account.to_owned().into()],
+            ))
+            .await?;
+        row.map(|row| map_user(&row)).transpose()
+    }
+
+    pub async fn find_user_by_username(&self, username: &str) -> Result<Option<UserRecord>, DbErr> {
+        let row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                format!("SELECT {USER_SELECT} FROM users WHERE username = ? AND deleted_at IS NULL LIMIT 1"),
+                vec![username.to_owned().into()],
+            ))
+            .await?;
+        row.map(|row| map_user(&row)).transpose()
+    }
+
+    pub async fn find_user_by_email(&self, email: &str) -> Result<Option<UserRecord>, DbErr> {
+        let row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                format!(
+                    "SELECT {USER_SELECT} FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1"
+                ),
+                vec![email.to_owned().into()],
+            ))
+            .await?;
+        row.map(|row| map_user(&row)).transpose()
+    }
+
+    pub async fn record_failed_password_login(&self, user_id: &str) -> Result<(), DbErr> {
+        let now = now_rfc3339();
+        self.db
+            .execute(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                r#"UPDATE users
+                   SET failed_login_attempts = failed_login_attempts + 1,
+                       last_failed_login_at = ?,
+                       updated_at = ?
+                   WHERE id = ?"#,
+                vec![now.clone().into(), now.into(), user_id.to_owned().into()],
+            ))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn reset_failed_password_login(&self, user_id: &str) -> Result<(), DbErr> {
+        let now = now_rfc3339();
+        self.db
+            .execute(Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                r#"UPDATE users
+                   SET failed_login_attempts = 0,
+                       last_failed_login_at = NULL,
+                       updated_at = ?
+                   WHERE id = ?"#,
+                vec![now.into(), user_id.to_owned().into()],
+            ))
+            .await?;
+        Ok(())
     }
 
     async fn find_user_by_openid(&self, wechat_openid: &str) -> Result<Option<UserRecord>, DbErr> {
@@ -140,7 +331,7 @@ impl AuthRepository {
             .db
             .query_one(Statement::from_sql_and_values(
                 self.db.get_database_backend(),
-                "SELECT id, wechat_openid, nickname, avatar_url, created_at, updated_at FROM users WHERE wechat_openid = ? AND deleted_at IS NULL LIMIT 1",
+                format!("SELECT {USER_SELECT} FROM users WHERE wechat_openid = ? AND deleted_at IS NULL LIMIT 1"),
                 vec![wechat_openid.to_owned().into()],
             ))
             .await?;
@@ -152,7 +343,9 @@ impl AuthRepository {
             .db
             .query_one(Statement::from_sql_and_values(
                 self.db.get_database_backend(),
-                "SELECT id, wechat_openid, nickname, avatar_url, created_at, updated_at FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1",
+                format!(
+                    "SELECT {USER_SELECT} FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1"
+                ),
                 vec![user_id.to_owned().into()],
             ))
             .await?;
@@ -170,8 +363,12 @@ fn map_user(row: &sea_orm::QueryResult) -> Result<UserRecord, DbErr> {
     Ok(UserRecord {
         id: row.try_get("", "id")?,
         wechat_openid: row.try_get("", "wechat_openid")?,
+        username: row.try_get("", "username")?,
+        email: row.try_get("", "email")?,
+        password_hash: row.try_get("", "password_hash")?,
         nickname: row.try_get("", "nickname")?,
         avatar_url: row.try_get("", "avatar_url")?,
+        failed_login_attempts: row.try_get("", "failed_login_attempts")?,
         created_at: row.try_get("", "created_at")?,
         updated_at: row.try_get("", "updated_at")?,
     })

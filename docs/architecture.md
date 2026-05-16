@@ -28,7 +28,7 @@ crates/importer -> AppState in-memory public catalog
 - `services/api`：HTTP 路由、DTO、mock 登录、认证、错误响应、装备导入导出和只读内容 API。
 - `crates/domain`：装备分类、状态、共享状态、山峰/路线/技能枚举和校验规则。
 - `crates/db`：SeaORM 连接、repository、用户会话和装备持久化。
-- `crates/migration`：`users`、`sessions`、`user_gear_items` 迁移。
+- `crates/migration`：`users`、`sessions`、邮箱验证码、密码登录字段和 `user_gear_items` 迁移。
 - `crates/importer`：解析 `content/` 下 YAML/Markdown，在 API 启动时加载为内存只读 catalog。
 - `packages/shared-types` / `packages/api-client-ts`：小程序侧复用 DTO 和 API client。
 
@@ -38,7 +38,7 @@ crates/importer -> AppState in-memory public catalog
 - Production recommendation: PostgreSQL.
 - MySQL compatibility is no longer part of phase-one implementation; keep future compatibility conservative if needed.
 
-`user_gear_items` 使用软删除字段 `archived_at` 支撑“可用装备 / 历史装备”。金额以分为单位保存为 `purchase_price_cents`，重量以克为单位保存为 `weight_g`。
+`users` 支持微信 openid 与邮箱/用户名登录并存；密码按当前需求以 SHA-256 十六进制摘要保存，连续密码错误会累计失败次数并触发验证码门槛。`user_gear_items` 使用软删除字段 `archived_at` 支撑“可用装备 / 历史装备”。金额以分为单位保存为 `purchase_price_cents`，重量以克为单位保存为 `weight_g`。
 
 ## Public content catalog
 

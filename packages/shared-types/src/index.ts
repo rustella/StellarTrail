@@ -286,15 +286,44 @@ export interface WechatLoginRequest {
   };
 }
 
+export interface EmailVerificationCodeRequest {
+  email: string;
+}
+
+export interface EmailVerificationCodeResponse {
+  email: string;
+  expires_at: string;
+  debug_code?: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+  confirm_password: string;
+  email_verification_code: string;
+}
+
+export interface PasswordLoginRequest {
+  account: string;
+  password: string;
+  captcha_ticket?: string | null;
+  captcha_answer?: string | null;
+}
+
 export interface WechatLoginResponse {
   access_token: string;
   expires_at: string;
   user: {
     id: string;
+    username?: string | null;
+    email?: string | null;
     nickname?: string | null;
     avatar_url?: string | null;
   };
 }
+
+export type LoginResponse = WechatLoginResponse;
 
 export interface ImportGearsRequest {
   dry_run?: boolean;
