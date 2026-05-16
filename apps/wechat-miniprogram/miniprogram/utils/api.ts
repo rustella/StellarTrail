@@ -8,6 +8,7 @@ import type {
   UpdateGearRequest,
   WechatLoginResponse,
 } from "./gear-utils";
+import type { ListSkillsResponse, SkillContent } from "./skill-utils";
 
 const TOKEN_STORAGE_KEY = "stellartrail_access_token";
 const USER_STORAGE_KEY = "stellartrail_user";
@@ -148,6 +149,14 @@ export async function restoreGear(id: string): Promise<GearItem> {
     method: "POST",
     auth: true,
   });
+}
+
+export async function listSkills(): Promise<ListSkillsResponse> {
+  return requestJson("/api/skills");
+}
+
+export async function getSkill(id: string): Promise<SkillContent> {
+  return requestJson(`/api/skills/${encodeURIComponent(id)}`);
 }
 
 export function getErrorMessage(error: unknown): string {

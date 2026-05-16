@@ -1,6 +1,36 @@
-<view class="container {{themeClass}}">
-  <view class="card">
-    <view class="title">户外技能</view>
-    <view class="subtitle">绳结、扎营、打包、导航、天气和急救知识离线可查。</view>
+<view class="skills-page {{themeClass}}">
+  <view class="hero-card">
+    <view>
+      <view class="eyebrow">寻径星野技能库</view>
+      <view class="hero-title">户外技能</view>
+      <view class="hero-subtitle">绳结、扎营、打包、天气和急救知识，出发前随时复习。</view>
+    </view>
   </view>
+
+  <view wx:if="{{error}}" class="state-card error">
+    <view>{{error}}</view>
+    <button bindtap="loadSkills">重试</button>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{loading}}" class="state-card">正在加载户外技能...</view>
+
+    <view wx:elif="{{skills.length}}" class="skill-list">
+      <block wx:for="{{skills}}" wx:key="id">
+        <view class="skill-card">
+          <view class="skill-tags">
+            <text class="skill-tag">{{item.categoryText}}</text>
+            <text class="skill-tag {{item.difficultyTone}}">{{item.difficultyText}}</text>
+          </view>
+          <view class="skill-title">{{item.title}}</view>
+          <view class="skill-summary">{{item.summary}}</view>
+        </view>
+      </block>
+    </view>
+
+    <view wx:else class="state-card empty">
+      <view class="empty-title">技能内容准备中</view>
+      <view class="empty-subtitle">稍后会展示绳结、急救、天气和营地实践。</view>
+    </view>
+  </block>
 </view>
