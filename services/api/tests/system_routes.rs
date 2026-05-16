@@ -5,7 +5,10 @@ use axum::{
 };
 use serde_json::Value;
 use stellartrail_api::{
-    config::ApiConfig, migrate_database, routes::build_router, state::AppState,
+    config::{ApiConfig, RedisCacheConfig},
+    migrate_database,
+    routes::build_router,
+    state::AppState,
 };
 use stellartrail_db::{DatabaseConfig, connect_database};
 use tempfile::TempDir;
@@ -31,6 +34,7 @@ async fn test_app() -> TestApp {
         wechat_app_id: None,
         wechat_app_secret: None,
         content_dir: temp_dir.path().join("content"),
+        redis_cache: RedisCacheConfig::disabled(),
     };
     TestApp {
         router: build_router(AppState::new(config, db)),

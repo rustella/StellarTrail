@@ -128,6 +128,10 @@ GET /api/gear-templates/:id
 
 `/api/routes/:id` 会返回路线点位、路线装备建议和关联技能；`/api/skills/:id` 会返回 Markdown 正文 `body_markdown`；`/api/gear-templates/:id` 会返回装备模板分类和条目。
 
+## Cache / performance
+
+服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/me/gears`、`PATCH /api/me/gears/:id`、`DELETE /api/me/gears/:id`、`POST /api/me/gears/:id/restore` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境。
+
 ## Gear inventory
 
 ```http
