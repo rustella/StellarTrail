@@ -56,7 +56,7 @@ services:
       REDIS_URL: redis://host.docker.internal:${REDIS_HOST_PORT:-16379}/0
       REDIS_KEY_PREFIX: stellartrail-compose
       REDIS_GEAR_CACHE_TTL_SECONDS: 30
-      WECHAT_MOCK_LOGIN: "true"
+      WECHAT_MOCK_LOGIN: "false"
       WECHAT_APP_ID: ""
       WECHAT_APP_SECRET: ""
     ports:
