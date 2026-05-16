@@ -150,7 +150,7 @@ COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=1543
 BASE_URL=http://127.0.0.1:18080 bash infra/smoke-test.sh
 ```
 
-The compose stack enables PostgreSQL, Redis caching, and the API service, then the smoke script validates it with local mock WeChat login. Inject real WeChat and database secrets only through secure production channels.
+The compose stack enables PostgreSQL, Redis caching, and the API service, then the smoke script validates it with username/password account registration and login. Inject real WeChat and database secrets only through secure production channels.
 
 ### 5. Open the WeChat Mini Program
 

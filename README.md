@@ -150,7 +150,7 @@ COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=1543
 BASE_URL=http://127.0.0.1:18080 bash infra/smoke-test.sh
 ```
 
-该配置会启用 PostgreSQL、Redis 缓存和 API 服务，并使用 local mock 微信登录做 curl 冒烟测试；生产环境请通过安全渠道注入真实微信与数据库密钥。
+该配置会启用 PostgreSQL、Redis 缓存和 API 服务，并使用用户名/密码账号注册与登录做 curl 冒烟测试；生产环境请通过安全渠道注入真实微信与数据库密钥。
 
 ### 5. 打开微信小程序
 
