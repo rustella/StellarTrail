@@ -17,7 +17,7 @@
 
     <view wx:elif="{{skills.length}}" class="skill-list">
       <block wx:for="{{skills}}" wx:key="id">
-        <view class="skill-card">
+        <view class="skill-card" data-id="{{item.id}}" bindtap="goDetail">
           <view class="skill-tags">
             <text class="skill-tag">{{item.categoryText}}</text>
             <text class="skill-tag {{item.difficultyTone}}">{{item.difficultyText}}</text>

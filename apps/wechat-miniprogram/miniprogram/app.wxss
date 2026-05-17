@@ -200,3 +200,80 @@ picker {
 .theme-toggle-icon {
   margin-right: 8rpx;
 }
+
+.login-prompt-mask {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 999;
+  padding: 28rpx 28rpx calc(34rpx + env(safe-area-inset-bottom));
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(15, 23, 42, 0.22) 100%
+  );
+  box-sizing: border-box;
+}
+
+.login-prompt-card {
+  position: relative;
+  padding: 30rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: 30rpx;
+  background: var(--surface-strong-color);
+  box-shadow: 0 22rpx 64rpx rgba(15, 23, 42, 0.22);
+}
+
+.login-prompt-title {
+  color: var(--text-color);
+  font-size: 31rpx;
+  font-weight: 900;
+}
+
+.login-prompt-message {
+  margin-top: 10rpx;
+  padding-right: 42rpx;
+  color: var(--muted-color);
+  font-size: 25rpx;
+  line-height: 1.55;
+}
+
+.login-prompt-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.login-prompt-actions button {
+  flex: 1;
+  margin: 0;
+  border-radius: 999rpx;
+  font-size: 26rpx;
+  font-weight: 800;
+  line-height: 74rpx;
+}
+
+.login-prompt-actions .primary {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}
+
+.login-prompt-actions .secondary {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+}
+
+.login-prompt-close {
+  position: absolute;
+  top: 18rpx;
+  right: 18rpx;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 999rpx;
+  color: var(--muted-color);
+  background: var(--soft-control-bg);
+  font-size: 30rpx;
+  line-height: 48rpx;
+  text-align: center;
+}

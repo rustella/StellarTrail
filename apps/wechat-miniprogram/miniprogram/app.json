@@ -5,7 +5,9 @@
     "pages/gears/form/index",
     "pages/gears/detail/index",
     "pages/skills/index",
-    "pages/profile/index"
+    "pages/skills/detail/index",
+    "pages/profile/index",
+    "pages/login/index"
   ],
   "window": {
     "navigationBarTitleText": "寻径星野",

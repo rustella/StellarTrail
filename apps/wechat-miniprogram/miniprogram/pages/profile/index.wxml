@@ -4,6 +4,21 @@
     <view class="subtitle">微信登录、装备统计、技能学习和个人设置。</view>
   </view>
 
+  <view class="card account-card">
+    <view>
+      <view class="account-title">账号状态</view>
+      <view class="account-desc">{{userDisplay}}</view>
+      <view class="account-hint"
+        >{{loggedIn ? '可同步个人装备库。' :
+        '游客可浏览装备模板、公告清单和绳结详情。'}}</view
+      >
+    </view>
+    <button wx:if="{{!loggedIn}}" class="account-button" bindtap="goLogin">
+      去登录
+    </button>
+    <button wx:else class="account-button danger" bindtap="logout">退出</button>
+  </view>
+
   <view class="card theme-settings-card">
     <view>
       <view class="theme-settings-title">黑夜模式</view>

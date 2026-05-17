@@ -3,6 +3,8 @@ import type {
   GearCategoriesResponse,
   GearItem,
   GearStatsResponse,
+  GearTemplate,
+  ListGearTemplatesResponse,
   ListGearsRequest,
   ListGearsResponse,
   UpdateGearRequest,
@@ -37,6 +39,26 @@ interface WechatLoginRequest {
   };
 }
 
+export class LoginRequiredError extends Error {
+  readonly code = "LOGIN_REQUIRED";
+
+  constructor(message = "登录后继续") {
+    super(message);
+    this.name = "LoginRequiredError";
+  }
+}
+
+export function isLoginRequiredError(
+  error: unknown,
+): error is LoginRequiredError {
+  return (
+    error instanceof LoginRequiredError ||
+    (typeof error === "object" &&
+      error !== null &&
+      (error as { code?: unknown }).code === "LOGIN_REQUIRED")
+  );
+}
+
 export function getApiBaseUrl(): string {
   const stored = wx.getStorageSync(API_BASE_URL_STORAGE_KEY) as
     | string
@@ -63,20 +85,31 @@ export function hasAccessToken(): boolean {
   return Boolean(wx.getStorageSync(TOKEN_STORAGE_KEY));
 }
 
+export function getStoredUser(): WechatLoginResponse["user"] | null {
+  const user = wx.getStorageSync(USER_STORAGE_KEY) as
+    | WechatLoginResponse["user"]
+    | undefined;
+  return user ?? null;
+}
+
 export async function ensureAccessToken(): Promise<string> {
   const cached = wx.getStorageSync(TOKEN_STORAGE_KEY) as string | undefined;
   if (cached) {
     return cached;
   }
+  throw new LoginRequiredError("登录后继续");
+}
+
+export async function loginWithWechat(): Promise<string> {
   if (!loginPromise) {
-    loginPromise = loginWithWechat().finally(() => {
+    loginPromise = runWechatLogin().finally(() => {
       loginPromise = null;
     });
   }
   return loginPromise;
 }
 
-export async function loginWithWechat(): Promise<string> {
+async function runWechatLogin(): Promise<string> {
   const code = await getWechatLoginCode();
   const response = await requestJson<WechatLoginResponse>(
     "/api/auth/wechat-login",
@@ -99,6 +132,14 @@ export async function loginWithWechat(): Promise<string> {
 export function clearLoginState(): void {
   wx.removeStorageSync(TOKEN_STORAGE_KEY);
   wx.removeStorageSync(USER_STORAGE_KEY);
+}
+
+export async function listGearTemplates(): Promise<ListGearTemplatesResponse> {
+  return requestJson("/api/gear-templates");
+}
+
+export async function getGearTemplate(id: string): Promise<GearTemplate> {
+  return requestJson(`/api/gear-templates/${encodeURIComponent(id)}`);
 }
 
 export async function listGearCategories(
@@ -225,6 +266,14 @@ async function requestJson<T>(
         }
         if (response.statusCode === 401) {
           clearLoginState();
+          if (options.auth) {
+            reject(new LoginRequiredError("登录状态已过期，请重新登录"));
+            return;
+          }
+        }
+        if (response.statusCode === 403 && options.auth) {
+          reject(new LoginRequiredError("当前账号暂无权限，请重新登录后再试"));
+          return;
         }
         reject(new Error(readErrorMessage(response.data, response.statusCode)));
       },

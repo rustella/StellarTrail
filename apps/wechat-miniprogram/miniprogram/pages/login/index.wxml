@@ -1,0 +1,28 @@
+<view class="login-page {{themeClass}}">
+  <view class="login-card hero">
+    <view class="eyebrow">寻径星野账号</view>
+    <view class="title">登录后同步个人装备</view>
+    <view class="subtitle"
+      >游客可以继续浏览装备模板、公告清单和绳结详情；写入个人装备前需要登录。</view
+    >
+  </view>
+
+  <view class="login-card">
+    <view class="status-row">
+      <view>
+        <view class="status-title">当前状态</view>
+        <view class="status-desc">{{userDisplay}}</view>
+      </view>
+      <view class="status-badge {{loggedIn ? 'success' : ''}}"
+        >{{loggedIn ? '已登录' : '游客'}}</view
+      >
+    </view>
+
+    <view wx:if="{{error}}" class="error-text">{{error}}</view>
+
+    <button class="primary" loading="{{loading}}" bindtap="login">
+      {{loggedIn ? '重新登录' : '微信一键登录'}}
+    </button>
+    <button class="secondary" bindtap="skip">暂不登录</button>
+  </view>
+</view>

@@ -563,3 +563,70 @@
   color: var(--text-color);
   background: rgba(255, 255, 255, 0.12);
 }
+
+.guest-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-top: 22rpx;
+  padding: 22rpx;
+  border-radius: 24rpx;
+  color: var(--notice-text);
+  background: var(--notice-bg);
+}
+
+.guest-title {
+  font-size: 27rpx;
+  font-weight: 900;
+}
+
+.guest-desc {
+  margin-top: 6rpx;
+  font-size: 23rpx;
+  line-height: 1.45;
+}
+
+.guest-inline button {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 62rpx;
+}
+
+.template-mini-section {
+  margin-top: 24rpx;
+}
+
+.template-mini-title {
+  color: var(--text-color);
+  font-size: 28rpx;
+  font-weight: 900;
+}
+
+.template-mini-card {
+  margin-top: 16rpx;
+  padding: 22rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: 24rpx;
+  background: var(--control-bg);
+}
+
+.template-mini-name {
+  color: var(--text-color);
+  font-size: 27rpx;
+  font-weight: 900;
+}
+
+.template-mini-meta,
+.template-mini-items {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 23rpx;
+  line-height: 1.5;
+}
