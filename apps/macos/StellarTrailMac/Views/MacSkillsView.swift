@@ -58,27 +58,12 @@ struct MacSkillsView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    if viewModel.state.nextOffset != nil {
-                        Button {
-                            Task { await viewModel.loadMoreKnots() }
-                        } label: {
-                            HStack {
-                                Spacer()
-                                if viewModel.state.loadingMore {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                    Text("加载中")
-                                } else {
-                                    Image(systemName: "arrow.down.circle")
-                                    Text("加载更多")
-                                }
-                                Spacer()
+                    if let nextOffset = viewModel.state.nextOffset {
+                        MacKnotAutoLoadFooter(loading: viewModel.state.loadingMore)
+                            .id(nextOffset)
+                            .task {
+                                await viewModel.loadMoreKnots()
                             }
-                            .font(.headline.weight(.semibold))
-                            .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(viewModel.state.loadingMore)
                     }
                 }
                 .padding(22)
@@ -158,6 +143,29 @@ struct MacSkillsView: View {
                 .background(isSelected ? Color.accentColor : Color(nsColor: .controlBackgroundColor), in: Capsule())
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct MacKnotAutoLoadFooter: View {
+    let loading: Bool
+
+    var body: some View {
+        HStack {
+            Spacer()
+            if loading {
+                ProgressView()
+                    .controlSize(.small)
+                Text("加载中")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+            } else {
+                Color.clear
+                    .frame(width: 1, height: 1)
+            }
+            Spacer()
+        }
+        .frame(minHeight: 28)
+        .padding(.vertical, 4)
     }
 }
 

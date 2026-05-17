@@ -87,7 +87,7 @@ final class SkillsViewModel: ObservableObject {
     }
 
     func loadMoreKnots() async {
-        guard let offset = state.nextOffset, !state.loadingMore else { return }
+        guard let offset = state.nextOffset, !state.loading, !state.loadingMore else { return }
         state.loadingMore = true
         defer { state.loadingMore = false }
         do {
