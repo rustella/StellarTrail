@@ -104,6 +104,25 @@ data class GearSummary(
 )
 
 @Serializable
+data class GearTemplateCategory(
+    val id: String,
+    val name: String,
+    val items: List<String>,
+)
+
+@Serializable
+data class GearTemplate(
+    val id: String,
+    val title: String,
+    val categories: List<GearTemplateCategory>,
+)
+
+@Serializable
+data class ListGearTemplatesResponse(
+    val items: List<GearTemplate>,
+)
+
+@Serializable
 data class CreateGearRequest(
     val category: GearCategory,
     val name: String,

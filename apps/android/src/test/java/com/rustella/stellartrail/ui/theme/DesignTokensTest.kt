@@ -12,14 +12,48 @@ class DesignTokensTest {
         assertColor(0xFFFFFFFF, StellarTrailDesignColors.Light.surface)
         assertColor(0xFF0F172A, StellarTrailDesignColors.Light.textPrimary)
         assertColor(0xFF64748B, StellarTrailDesignColors.Light.textMuted)
+        assertColor(0xFF334155, StellarTrailDesignColors.Light.headingMuted)
+        assertColor(0xFF0F766E, StellarTrailDesignColors.Light.accent)
         assertColor(0xFF0F766E, StellarTrailDesignColors.Light.brand)
         assertColor(0xFFCCFBF1, StellarTrailDesignColors.Light.brandSoft)
+        assertColor(0xFFE2E8F0, StellarTrailDesignColors.Light.softControlBackground)
+        assertColor(0xFF475569, StellarTrailDesignColors.Light.softControlText)
+        assertColor(0xFFECFDF5, StellarTrailDesignColors.Light.chipBackground)
+    }
+
+    @Test
+    fun darkPaletteMatchesWechatMiniProgramTokens() {
+        assertColor(0xFF07051A, StellarTrailDesignColors.Dark.pageBackground)
+        assertColor(0xE6181234, StellarTrailDesignColors.Dark.surface)
+        assertColor(0xFF17112F, StellarTrailDesignColors.Dark.surfaceStrong)
+        assertColor(0xFF120D2C, StellarTrailDesignColors.Dark.controlBackground)
+        assertColor(0xFF3D2D63, StellarTrailDesignColors.Dark.border)
+        assertColor(0xFF332555, StellarTrailDesignColors.Dark.softBorder)
+        assertColor(0xFFF6F1FF, StellarTrailDesignColors.Dark.textPrimary)
+        assertColor(0xFFC7B9F4, StellarTrailDesignColors.Dark.textMuted)
+        assertColor(0xFFDDD6FE, StellarTrailDesignColors.Dark.headingMuted)
+        assertColor(0xFFE879F9, StellarTrailDesignColors.Dark.accent)
+        assertColor(0xFFA78BFA, StellarTrailDesignColors.Dark.brand)
+        assertColor(0xFF2A1F4F, StellarTrailDesignColors.Dark.brandSoft)
+        assertColor(0xFF2A1F4F, StellarTrailDesignColors.Dark.chipBackground)
+        assertColor(0xFFFDE68A, StellarTrailDesignColors.Dark.warningText)
+        assertColor(0xFF3B2A11, StellarTrailDesignColors.Dark.warningBackground)
+    }
+
+    @Test
+    fun mobileChromeTokensMatchWechatMiniProgram() {
+        assertColor(0xFF0F172A, StellarTrailDesignColors.Light.topBarBackground)
+        assertColor(0xF5FFFFFF, StellarTrailDesignColors.Light.footerBackground)
+        assertColor(0xFF12082E, StellarTrailDesignColors.Dark.topBarBackground)
+        assertColor(0xEF0E0A22, StellarTrailDesignColors.Dark.footerBackground)
     }
 
     @Test
     fun heroGradientUsesWechatMiniProgramStops() {
         assertColor(0xFF0F172A, StellarTrailDesignColors.Light.heroStart)
         assertColor(0xFF0F766E, StellarTrailDesignColors.Light.heroEnd)
+        assertColor(0xFF12082E, StellarTrailDesignColors.Dark.heroStart)
+        assertColor(0xFF0F766E, StellarTrailDesignColors.Dark.heroEnd)
     }
 
     private fun assertColor(expectedArgb: Long, actual: Color) {

@@ -5,13 +5,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -40,29 +42,37 @@ import com.rustella.stellartrail.ui.screens.GearListScreen
 import com.rustella.stellartrail.ui.screens.HomeScreen
 import com.rustella.stellartrail.ui.screens.ProfileScreen
 import com.rustella.stellartrail.ui.screens.SkillsScreen
+import com.rustella.stellartrail.ui.theme.StellarTrailDesignColors
 
 @Composable
 fun StellarTrailApp(container: AppContainer, modifier: Modifier = Modifier) {
     val session by container.sessionStore.session.collectAsStateWithLifecycle()
-    if (session == null) {
-        val authViewModel: AuthViewModel = viewModel(
-            factory = viewModelFactory { AuthViewModel(container.authRepository) },
-        )
-        AuthScreen(viewModel = authViewModel, modifier = modifier)
-    } else {
-        val navController = rememberNavController()
-        AuthenticatedApp(container = container, navController = navController, modifier = modifier)
-    }
+    val navController = rememberNavController()
+    AuthenticatedApp(
+        container = container,
+        isLoggedIn = session != null,
+        navController = navController,
+        modifier = modifier,
+    )
 }
 
 @Composable
 private fun AuthenticatedApp(
     container: AppContainer,
+    isLoggedIn: Boolean,
     navController: NavHostController,
     modifier: Modifier = Modifier,
 ) {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
+    LaunchedEffect(isLoggedIn, currentRoute) {
+        if (isLoggedIn && currentRoute == AppRoutes.AUTH) {
+            navController.navigate(AppRoutes.HOME) {
+                popUpTo(AppRoutes.AUTH) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
@@ -70,7 +80,7 @@ private fun AuthenticatedApp(
             if (currentRoute in topLevelDestinations.map { it.route }) {
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp,
+                    tonalElevation = 0.dp,
                 ) {
                     topLevelDestinations.forEach { destination ->
                         NavigationBarItem(
@@ -83,7 +93,14 @@ private fun AuthenticatedApp(
                                 }
                             },
                             icon = { Icon(destination.icon, contentDescription = null) },
-                            label = { Text(text = androidx.compose.ui.res.stringResource(destination.labelRes)) },
+                            label = { Text(text = androidx.compose.ui.res.stringResource(destination.labelRes), fontWeight = FontWeight.Bold) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = StellarTrailDesignColors.Light.brandSoft,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
                         )
                     }
                 }
@@ -95,27 +112,41 @@ private fun AuthenticatedApp(
             startDestination = AppRoutes.HOME,
             modifier = Modifier.padding(innerPadding),
         ) {
+            composable(AppRoutes.AUTH) {
+                val authViewModel: AuthViewModel = viewModel(
+                    factory = viewModelFactory { AuthViewModel(container.authRepository) },
+                )
+                AuthScreen(viewModel = authViewModel)
+            }
             composable(AppRoutes.HOME) {
                 val viewModel: HomeViewModel = viewModel(factory = viewModelFactory {
                     HomeViewModel(container.gearRepository, container.skillRepository)
                 })
-                LaunchedEffect(Unit) { viewModel.load() }
+                LaunchedEffect(isLoggedIn) { viewModel.load(isLoggedIn) }
                 HomeScreen(
                     viewModel = viewModel,
                     onOpenGears = { navController.navigate(AppRoutes.GEARS) },
                     onOpenSkills = { navController.navigate(AppRoutes.SKILLS) },
-                    onOpenGear = { navController.navigate(AppRoutes.gearDetail(it)) },
+                    onOpenGear = { id ->
+                        if (isLoggedIn) navController.navigate(AppRoutes.gearDetail(id)) else navController.navigate(AppRoutes.AUTH)
+                    },
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
                 )
             }
             composable(AppRoutes.GEARS) {
                 val viewModel: GearListViewModel = viewModel(factory = viewModelFactory {
                     GearListViewModel(container.gearRepository)
                 })
-                LaunchedEffect(Unit) { viewModel.refresh() }
+                LaunchedEffect(isLoggedIn) { viewModel.refresh(isLoggedIn) }
                 GearListScreen(
                     viewModel = viewModel,
-                    onOpenGear = { navController.navigate(AppRoutes.gearDetail(it)) },
-                    onCreateGear = { navController.navigate(AppRoutes.GEAR_NEW) },
+                    onOpenGear = { id ->
+                        if (isLoggedIn) navController.navigate(AppRoutes.gearDetail(id)) else navController.navigate(AppRoutes.AUTH)
+                    },
+                    onCreateGear = {
+                        if (isLoggedIn) navController.navigate(AppRoutes.GEAR_NEW) else navController.navigate(AppRoutes.AUTH)
+                    },
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
                 )
             }
             composable(
@@ -176,7 +207,7 @@ private fun AuthenticatedApp(
                 val viewModel: ProfileViewModel = viewModel(factory = viewModelFactory {
                     ProfileViewModel(container.authRepository, container.themeRepository, container.configStore)
                 })
-                ProfileScreen(viewModel = viewModel)
+                ProfileScreen(viewModel = viewModel, onLogin = { navController.navigate(AppRoutes.AUTH) })
             }
         }
     }
