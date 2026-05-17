@@ -814,9 +814,9 @@ export default function App({ client }: AppProps) {
       <aside className="sidebar">
         <div className="brand-block">
           <div className="brand-logo">星</div>
-          <div>
-            <strong>寻径星野</strong>
-            <span>StellarTrail</span>
+          <div className="brand-wordmark" aria-label="寻径星野 StellarTrail">
+            <strong className="brand-wordmark-cn">寻径星野</strong>
+            <span className="brand-wordmark-en">StellarTrail</span>
           </div>
         </div>
         <nav aria-label="主导航">
