@@ -37,7 +37,8 @@ pub async fn build_state(config: ApiConfig) -> anyhow::Result<AppState> {
     let db = connect_database(&config.database).await?;
     migrate_database(&db).await?;
     seed_public_knots_from_content(&db, &content).await?;
-    let object_store = MinioObjectStore::from_config(&config.object_storage).await?;
+    let object_store =
+        MinioObjectStore::from_config(&config.minio, &config.object_storage.bucket).await?;
     let email_sender: Arc<dyn EmailSender> = if config.mail.enabled {
         Arc::new(SmtpEmailSender::from_config(&config.mail)?)
     } else {

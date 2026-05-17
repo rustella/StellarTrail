@@ -46,6 +46,7 @@ async fn test_app_with_content_dir(temp_dir: TempDir, content_dir: PathBuf) -> T
         content_dir,
         redis_cache: RedisCacheConfig::disabled(),
         upload: Default::default(),
+        minio: Default::default(),
         object_storage: Default::default(),
         knots_media_storage: Default::default(),
         admin: Default::default(),

@@ -10,7 +10,7 @@ use aws_config::BehaviorVersion;
 use aws_credential_types::Credentials;
 use aws_sdk_s3::{Client, config::Region, primitives::ByteStream};
 
-use crate::config::ObjectStorageConfig;
+use crate::config::MinioConfig;
 
 /// Safe metadata attached to object writes. Sensitive values and raw request data are intentionally excluded.
 #[derive(Clone, Debug)]
@@ -176,8 +176,8 @@ pub struct MinioObjectStore {
 }
 
 impl MinioObjectStore {
-    /// Builds a MinIO/S3 client from API configuration.
-    pub async fn from_config(config: &ObjectStorageConfig) -> anyhow::Result<Self> {
+    /// Builds a MinIO/S3 client from shared connection configuration and a default business bucket.
+    pub async fn from_config(config: &MinioConfig, default_bucket: &str) -> anyhow::Result<Self> {
         let credentials = Credentials::new(
             config.access_key_id.clone(),
             config.secret_access_key.clone(),
@@ -196,7 +196,7 @@ impl MinioObjectStore {
             .build();
         Ok(Self {
             client: Client::from_conf(s3_config),
-            bucket: config.bucket.clone(),
+            bucket: default_bucket.to_owned(),
         })
     }
 }

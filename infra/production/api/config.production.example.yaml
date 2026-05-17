@@ -28,26 +28,22 @@ upload:
   rate_limit_window_seconds: 3600
   max_images_per_window: 30
 
-object_storage:
+minio:
   endpoint: http://minio:9000
   region: us-east-1
-  bucket: stellartrail-uploads
   access_key_id: example-access-key
   secret_access_key: example-secret-key
   force_path_style: true
+
+object_storage:
+  bucket: stellartrail-uploads
 
 knots_media_storage:
   storage_profile: knots-public
-  endpoint: http://minio:9000
-  region: us-east-1
   bucket: stellartrail-knots-media
-  access_key_id: example-access-key
-  secret_access_key: example-secret-key
-  force_path_style: true
   public_base_url: https://assets.example.invalid/stellartrail-knots-media
   max_image_bytes: 32000000
   max_video_bytes: 80000000
-
 admin:
   user_ids: []
   emails: []
