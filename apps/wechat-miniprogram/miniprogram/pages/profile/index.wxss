@@ -1,3 +1,47 @@
 .container {
   padding-top: 40rpx;
 }
+
+.account-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+}
+
+.account-title {
+  color: var(--text-color);
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.account-desc {
+  margin-top: 8rpx;
+  color: var(--heading-muted-color);
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.account-hint {
+  margin-top: 6rpx;
+  color: var(--muted-color);
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
+.account-button {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 28rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 25rpx;
+  font-weight: 900;
+  line-height: 70rpx;
+}
+
+.account-button.danger {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}

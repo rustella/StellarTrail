@@ -8,5 +8,10 @@
     "declaration": false,
     "moduleResolution": "Node"
   },
-  "include": ["miniprogram/utils/gear-utils.ts"]
+  "include": [
+    "miniprogram/utils/gear-utils.ts",
+    "miniprogram/utils/skill-utils.ts",
+    "miniprogram/utils/api.ts",
+    "miniprogram/utils/auth-prompt.ts"
+  ]
 }

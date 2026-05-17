@@ -3,6 +3,8 @@ import {
   createGear,
   getErrorMessage,
   getGear,
+  hasAccessToken,
+  isLoginRequiredError,
   updateGear,
 } from "../../../utils/api";
 import {
@@ -16,11 +18,19 @@ import {
   type GearFormData,
   type GearStatus,
 } from "../../../utils/gear-utils";
+import {
+  getDefaultLoginPrompt,
+  hideLoginPrompt,
+  openLoginPageFromPrompt,
+  requireLoginForAction,
+  showLoginPrompt,
+} from "../../../utils/auth-prompt";
 
 Page({
   data: {
     mode: "create" as "create" | "edit",
     id: "",
+    templateId: "",
     form: createDefaultGearFormData(),
     categoryOptions: GEAR_CATEGORY_OPTIONS,
     categoryLabels: GEAR_CATEGORY_OPTIONS.map((item) => item.label),
@@ -31,12 +41,32 @@ Page({
     statusIndex: 0,
     loading: false,
     submitting: false,
+    requiresLogin: false,
     error: "",
+    loginPrompt: getDefaultLoginPrompt(),
     ...getThemeViewData(),
   },
 
   onLoad(options: Record<string, string | undefined>) {
     const id = options.id;
+    const templateId = options.template || "";
+    this.setData({ templateId });
+    if (!hasAccessToken()) {
+      this.setData({
+        requiresLogin: true,
+        mode: id ? "edit" : "create",
+        id: id || "",
+      });
+      wx.setNavigationBarTitle({ title: id ? "编辑装备" : "添加装备" });
+      showLoginPrompt(this, {
+        message: id
+          ? "登录后可以编辑和同步你的个人装备。"
+          : "登录后可以把装备保存到你的个人装备库。",
+        redirectUrl: `/pages/gears/form/index${id ? `?id=${encodeURIComponent(id)}` : templateId ? `?template=${encodeURIComponent(templateId)}` : ""}`,
+      });
+      return;
+    }
+    this.setData({ requiresLogin: false });
     if (id) {
       this.setData({ id, mode: "edit" });
       wx.setNavigationBarTitle({ title: "编辑装备" });
@@ -48,6 +78,12 @@ Page({
 
   onShow() {
     syncPageTheme(this);
+    if (this.data.requiresLogin && hasAccessToken()) {
+      this.setData({ requiresLogin: false });
+      if (this.data.id) {
+        this.loadGearForEdit(this.data.id);
+      }
+    }
   },
 
   async loadGearForEdit(id: string) {
@@ -57,6 +93,14 @@ Page({
       const form = gearToFormData(item);
       this.setForm(form);
     } catch (error) {
+      if (isLoginRequiredError(error)) {
+        this.setData({ requiresLogin: true, error: "" });
+        showLoginPrompt(this, {
+          message: "登录状态已过期，请重新登录后编辑装备。",
+          redirectUrl: `/pages/gears/form/index?id=${encodeURIComponent(id)}`,
+        });
+        return;
+      }
       this.setData({ error: getErrorMessage(error) });
     } finally {
       this.setData({ loading: false });
@@ -103,6 +147,17 @@ Page({
     if (this.data.submitting) {
       return;
     }
+    if (
+      !requireLoginForAction(this, {
+        message:
+          this.data.mode === "edit"
+            ? "登录后可以编辑和同步你的个人装备。"
+            : "登录后可以把装备保存到你的个人装备库。",
+        redirectUrl: `/pages/gears/form/index${this.data.id ? `?id=${encodeURIComponent(this.data.id)}` : ""}`,
+      })
+    ) {
+      return;
+    }
     let payload;
     try {
       payload = buildGearPayload(this.data.form);
@@ -124,6 +179,13 @@ Page({
       });
       wx.redirectTo({ url: `/pages/gears/detail/index?id=${item.id}` });
     } catch (error) {
+      if (isLoginRequiredError(error)) {
+        showLoginPrompt(this, {
+          message: "登录状态已过期，请重新登录后保存装备。",
+          redirectUrl: `/pages/gears/form/index${this.data.id ? `?id=${encodeURIComponent(this.data.id)}` : ""}`,
+        });
+        return;
+      }
       this.setData({ error: getErrorMessage(error) });
       wx.showToast({ title: getErrorMessage(error), icon: "none" });
     } finally {
@@ -133,5 +195,13 @@ Page({
 
   cancel() {
     wx.navigateBack();
+  },
+
+  loginPromptClose() {
+    hideLoginPrompt(this);
+  },
+
+  loginPromptGoLogin() {
+    openLoginPageFromPrompt(this);
   },
 });

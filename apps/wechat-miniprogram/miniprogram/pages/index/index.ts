@@ -1,8 +1,10 @@
 import {
   getErrorMessage,
   getGearStats,
-  listGears,
   hasAccessToken,
+  isLoginRequiredError,
+  listGearTemplates,
+  listGears,
   listKnots,
 } from "../../utils/api";
 import {
@@ -10,8 +12,15 @@ import {
   formatGearWeight,
   type GearStatsResponse,
   type GearSummary,
+  type GearTemplate,
 } from "../../utils/gear-utils";
 import { mapSkillCard, type SkillCard } from "../../utils/skill-utils";
+import {
+  getDefaultLoginPrompt,
+  hideLoginPrompt,
+  openLoginPageFromPrompt,
+  requireLoginForAction,
+} from "../../utils/auth-prompt";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 
 interface QuickAction {
@@ -41,6 +50,13 @@ interface ChecklistItem {
   description: string;
 }
 
+interface TemplateCard {
+  id: string;
+  title: string;
+  categoryText: string;
+  itemPreview: string;
+}
+
 const EMPTY_STATS: GearStatsResponse = {
   current_count: 0,
   archived_count: 0,
@@ -55,14 +71,14 @@ const QUICK_ACTIONS: QuickAction[] = [
     id: "gears",
     icon: "🎒",
     title: "装备库",
-    description: "查看、搜索、归档装备",
+    description: "模板清单与个人装备",
     target: "gears",
   },
   {
     id: "addGear",
     icon: "➕",
     title: "添加装备",
-    description: "快速记录新装备",
+    description: "登录后快速记录装备",
     target: "addGear",
   },
   {
@@ -104,13 +120,18 @@ Page({
     title: "寻径星野",
     quickActions: QUICK_ACTIONS,
     checklistItems: CHECKLIST_ITEMS,
+    isLoggedIn: hasAccessToken(),
     gearLoading: false,
     gearError: "",
     skillLoading: false,
     skillError: "",
+    templateLoading: false,
+    templateError: "",
     gearStatCards: buildGearStatCards(EMPTY_STATS),
     recentGears: [] as HomeGearCard[],
     featuredSkills: [] as SkillCard[],
+    gearTemplates: [] as TemplateCard[],
+    loginPrompt: getDefaultLoginPrompt(),
     ...getThemeViewData(),
   },
 
@@ -120,24 +141,27 @@ Page({
   },
 
   onPullDownRefresh() {
-    const tasks = [this.loadFeaturedSkills()];
-    if (hasAccessToken()) {
-      tasks.push(this.loadGearSummary());
-    }
-    Promise.all(tasks).finally(() => wx.stopPullDownRefresh());
+    Promise.all([
+      this.loadFeaturedSkills(),
+      this.loadGearTemplates(),
+      hasAccessToken() ? this.loadGearSummary() : Promise.resolve(),
+    ]).finally(() => wx.stopPullDownRefresh());
   },
 
   loadHomeDashboard() {
-    if (hasAccessToken()) {
+    const isLoggedIn = hasAccessToken();
+    this.setData({ isLoggedIn });
+    if (isLoggedIn) {
       this.loadGearSummary();
     } else {
       this.setData({
         gearLoading: false,
-        gearError: "登录后查看个人装备概览",
+        gearError: "",
         gearStatCards: buildGearStatCards(EMPTY_STATS),
         recentGears: [] as HomeGearCard[],
       });
     }
+    this.loadGearTemplates();
     this.loadFeaturedSkills();
   },
 
@@ -149,15 +173,43 @@ Page({
         listGears({ tab: "available", limit: 2, sort: "created_at_desc" }),
       ]);
       this.setData({
+        isLoggedIn: true,
         gearStatCards: buildGearStatCards(stats),
         recentGears: gears.items.map(mapHomeGearCard),
         gearLoading: false,
       });
     } catch (error) {
+      if (isLoginRequiredError(error)) {
+        this.setData({
+          isLoggedIn: false,
+          gearError: "",
+          gearLoading: false,
+          gearStatCards: buildGearStatCards(EMPTY_STATS),
+          recentGears: [] as HomeGearCard[],
+        });
+        return;
+      }
       this.setData({
         gearError: getErrorMessage(error),
         gearLoading: false,
         recentGears: [] as HomeGearCard[],
+      });
+    }
+  },
+
+  async loadGearTemplates() {
+    this.setData({ templateLoading: true, templateError: "" });
+    try {
+      const response = await listGearTemplates();
+      this.setData({
+        gearTemplates: response.items.slice(0, 2).map(mapTemplateCard),
+        templateLoading: false,
+      });
+    } catch (error) {
+      this.setData({
+        templateError: getErrorMessage(error),
+        templateLoading: false,
+        gearTemplates: [] as TemplateCard[],
       });
     }
   },
@@ -198,11 +250,26 @@ Page({
     }
   },
 
+  showLoginForGearSummary() {
+    requireLoginForAction(this, {
+      message: "登录后可以查看你的个人装备、重量和估值。",
+      redirectUrl: "/pages/index/index",
+    });
+  },
+
   goGears() {
     wx.switchTab({ url: "/pages/gears/index" });
   },
 
   goAddGear() {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以添加装备并同步到你的个人装备库。",
+        redirectUrl: "/pages/gears/form/index",
+      })
+    ) {
+      return;
+    }
     wx.navigateTo({ url: "/pages/gears/form/index" });
   },
 
@@ -212,6 +279,23 @@ Page({
 
   goProfile() {
     wx.switchTab({ url: "/pages/profile/index" });
+  },
+
+  goSkillDetail(event: WechatMiniprogram.BaseEvent) {
+    const id = event.currentTarget.dataset.id as string | undefined;
+    if (id) {
+      wx.navigateTo({
+        url: `/pages/skills/detail/index?id=${encodeURIComponent(id)}`,
+      });
+    }
+  },
+
+  loginPromptClose() {
+    hideLoginPrompt(this);
+  },
+
+  loginPromptGoLogin() {
+    openLoginPageFromPrompt(this);
   },
 });
 
@@ -242,5 +326,18 @@ function mapHomeGearCard(item: GearSummary): HomeGearCard {
     name: item.name,
     brandModelText: brandModelText || "未记录品牌型号",
     weightText: formatGearWeight(item.weight_g),
+  };
+}
+
+function mapTemplateCard(item: GearTemplate): TemplateCard {
+  const itemPreview = item.categories
+    .flatMap((category) => category.items)
+    .slice(0, 4)
+    .join(" · ");
+  return {
+    id: item.id,
+    title: item.title,
+    categoryText: `${item.categories.length} 组公告清单`,
+    itemPreview: itemPreview || "装备条目整理中",
   };
 }

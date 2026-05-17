@@ -3,6 +3,8 @@ import {
   archiveGear,
   getErrorMessage,
   getGear,
+  hasAccessToken,
+  isLoginRequiredError,
   restoreGear,
 } from "../../../utils/api";
 import {
@@ -17,6 +19,13 @@ import {
   type GearItem,
   type GearTab,
 } from "../../../utils/gear-utils";
+import {
+  getDefaultLoginPrompt,
+  hideLoginPrompt,
+  openLoginPageFromPrompt,
+  requireLoginForAction,
+  showLoginPrompt,
+} from "../../../utils/auth-prompt";
 
 interface DetailRow {
   label: string;
@@ -42,7 +51,9 @@ Page({
     tagList: [] as string[],
     groups: [] as DetailGroup[],
     loading: false,
+    requiresLogin: false,
     error: "",
+    loginPrompt: getDefaultLoginPrompt(),
     ...getThemeViewData(),
   },
 
@@ -58,6 +69,9 @@ Page({
 
   onShow() {
     syncPageTheme(this);
+    if (this.data.requiresLogin && hasAccessToken()) {
+      this.loadDetail();
+    }
   },
 
   onPullDownRefresh() {
@@ -68,11 +82,32 @@ Page({
     if (!this.data.id) {
       return;
     }
-    this.setData({ loading: true, error: "" });
+    if (!hasAccessToken()) {
+      this.setData({
+        requiresLogin: true,
+        loading: false,
+        error: "",
+        item: null,
+      });
+      showLoginPrompt(this, {
+        message: "登录后可以查看你的个人装备详情。",
+        redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+      });
+      return;
+    }
+    this.setData({ loading: true, requiresLogin: false, error: "" });
     try {
       const item = await getGear(this.data.id);
       this.setData(buildDetailData(item));
     } catch (error) {
+      if (isLoginRequiredError(error)) {
+        this.setData({ requiresLogin: true, item: null, error: "" });
+        showLoginPrompt(this, {
+          message: "登录状态已过期，请重新登录后查看装备详情。",
+          redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+        });
+        return;
+      }
       this.setData({ error: getErrorMessage(error) });
     } finally {
       this.setData({ loading: false });
@@ -80,10 +115,26 @@ Page({
   },
 
   goEdit() {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以编辑和同步你的个人装备。",
+        redirectUrl: `/pages/gears/form/index?id=${encodeURIComponent(this.data.id)}`,
+      })
+    ) {
+      return;
+    }
     wx.navigateTo({ url: `/pages/gears/form/index?id=${this.data.id}` });
   },
 
   archiveItem() {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以更新装备状态。",
+        redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+      })
+    ) {
+      return;
+    }
     wx.showModal({
       title: "移入历史装备？",
       content: "移入历史后不会出现在可用装备列表，可随时恢复。",
@@ -99,6 +150,13 @@ Page({
           wx.showToast({ title: "已移入历史", icon: "success" });
           wx.navigateBack();
         } catch (error) {
+          if (isLoginRequiredError(error)) {
+            showLoginPrompt(this, {
+              message: "登录状态已过期，请重新登录后更新装备状态。",
+              redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+            });
+            return;
+          }
           wx.showToast({ title: getErrorMessage(error), icon: "none" });
         }
       },
@@ -106,14 +164,37 @@ Page({
   },
 
   async restoreItem() {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以恢复历史装备。",
+        redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+      })
+    ) {
+      return;
+    }
     try {
       await restoreGear(this.data.id);
       wx.setStorageSync("stellartrail_gears_should_refresh", true);
       wx.showToast({ title: "已恢复", icon: "success" });
       this.loadDetail();
     } catch (error) {
+      if (isLoginRequiredError(error)) {
+        showLoginPrompt(this, {
+          message: "登录状态已过期，请重新登录后恢复装备。",
+          redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+        });
+        return;
+      }
       wx.showToast({ title: getErrorMessage(error), icon: "none" });
     }
+  },
+
+  loginPromptClose() {
+    hideLoginPrompt(this);
+  },
+
+  loginPromptGoLogin() {
+    openLoginPageFromPrompt(this);
   },
 });
 
@@ -121,6 +202,7 @@ function buildDetailData(item: GearItem) {
   const archived = Boolean(item.archived_at);
   return {
     item,
+    requiresLogin: false,
     categoryText: getGearCategoryLabel(item.category),
     statusText: getGearStatusLabel(item.status),
     statusTone: getStatusTone(item.status),

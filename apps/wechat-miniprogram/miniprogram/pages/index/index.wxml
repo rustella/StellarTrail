@@ -2,13 +2,13 @@
   <view class="hero-card">
     <view class="hero-eyebrow">寻径星野 · 出发前检查</view>
     <view class="hero-title">今天准备好出发了吗？</view>
-    <view class="hero-subtitle">先看装备状态，再补一项户外技能。</view>
+    <view class="hero-subtitle">先看装备模板，再补一项户外技能。</view>
     <view class="hero-status-row">
       <view class="hero-status-pill">
         <text class="hero-status-dot"></text>
-        <text>装备库已同步</text>
+        <text>{{isLoggedIn ? '个人装备已同步' : '游客可看公告清单'}}</text>
       </view>
-      <view class="hero-status-pill">技能精选已更新</view>
+      <view class="hero-status-pill">绳结详情免登录</view>
     </view>
     <view class="hero-actions">
       <button class="hero-button primary" bindtap="goGears">检查装备</button>
@@ -37,6 +37,14 @@
         <view class="section-title">装备概览</view>
       </view>
       <view class="section-link" bindtap="goGears">查看装备</view>
+    </view>
+
+    <view wx:if="{{!isLoggedIn}}" class="guest-inline">
+      <view>
+        <view class="guest-title">游客模式可浏览装备模板</view>
+        <view class="guest-desc">登录后再查看个人装备、重量和估值。</view>
+      </view>
+      <button bindtap="showLoginForGearSummary">去登录</button>
     </view>
 
     <view wx:if="{{gearError}}" class="state-card error">
@@ -68,10 +76,31 @@
           </view>
         </block>
       </view>
-      <view wx:elif="{{!gearLoading}}" class="empty-inline">
+      <view wx:elif="{{!gearLoading && isLoggedIn}}" class="empty-inline">
         还没有装备记录，先添加第一件户外装备吧。
       </view>
     </block>
+
+    <view class="template-mini-section">
+      <view class="template-mini-title">公告装备清单</view>
+      <view wx:if="{{templateLoading}}" class="empty-inline"
+        >正在加载模板...</view
+      >
+      <view wx:elif="{{templateError}}" class="empty-inline"
+        >{{templateError}}</view
+      >
+      <block wx:else>
+        <block wx:for="{{gearTemplates}}" wx:key="id">
+          <view class="template-mini-card">
+            <view>
+              <view class="template-mini-name">{{item.title}}</view>
+              <view class="template-mini-meta">{{item.categoryText}}</view>
+              <view class="template-mini-items">{{item.itemPreview}}</view>
+            </view>
+          </view>
+        </block>
+      </block>
+    </view>
   </view>
 
   <view class="section-card">
@@ -93,7 +122,11 @@
       >
       <view wx:elif="{{featuredSkills.length}}" class="skill-list">
         <block wx:for="{{featuredSkills}}" wx:key="id">
-          <view class="skill-card">
+          <view
+            class="skill-card"
+            data-id="{{item.id}}"
+            bindtap="goSkillDetail"
+          >
             <view class="skill-tags">
               <text class="skill-tag">{{item.categoryText}}</text>
               <text class="skill-tag {{item.difficultyTone}}"
@@ -121,5 +154,17 @@
         </view>
       </view>
     </block>
+  </view>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">暂不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
   </view>
 </view>

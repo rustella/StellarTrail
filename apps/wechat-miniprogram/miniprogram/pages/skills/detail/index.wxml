@@ -1,0 +1,53 @@
+<view class="skill-detail-page {{themeClass}}">
+  <view wx:if="{{error}}" class="state-card error">
+    <view>{{error}}</view>
+    <button bindtap="loadDetail">重试</button>
+  </view>
+
+  <view wx:elif="{{loading && !detail}}" class="state-card">正在加载绳结详情...</view>
+
+  <view wx:elif="{{!detail}}" class="state-card">暂无绳结详情</view>
+
+  <block wx:else>
+    <view class="detail-hero">
+      <view class="tag-row">
+        <text class="tag">{{categoriesText}}</text>
+        <text class="tag {{difficultyTone}}">{{difficultyText}}</text>
+      </view>
+      <view class="detail-title">{{detail.title}}</view>
+      <view class="detail-summary">{{detail.summary}}</view>
+      <view wx:if="{{typesText}}" class="detail-meta">{{typesText}}</view>
+    </view>
+
+    <view wx:if="{{media.length}}" class="media-card">
+      <view class="section-title">演示素材</view>
+      <block wx:for="{{media}}" wx:key="id">
+        <view class="media-item">
+          <image mode="widthFix" src="{{item.resolvedUrl}}" />
+          <view class="media-caption">
+            <text>{{item.mediaTypeText}}</text>
+            <text wx:if="{{item.attribution}}">{{item.attribution}}</text>
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <view wx:if="{{detail.description}}" class="info-card">
+      <view class="section-title">用途说明</view>
+      <view class="paragraph">{{detail.description}}</view>
+    </view>
+
+    <view class="info-card">
+      <view class="section-title">练习步骤</view>
+      <block wx:if="{{steps.length}}">
+        <block wx:for="{{steps}}" wx:key="*this">
+          <view class="step-row">
+            <view class="step-index">{{index + 1}}</view>
+            <view class="step-text">{{item}}</view>
+          </view>
+        </block>
+      </block>
+      <view wx:else class="paragraph muted">步骤整理中。</view>
+    </view>
+  </block>
+</view>

@@ -144,6 +144,22 @@ export interface ListGearsResponse {
   next_cursor?: string | null;
 }
 
+export interface GearTemplateCategory {
+  id: string;
+  name: string;
+  items: string[];
+}
+
+export interface GearTemplate {
+  id: string;
+  title: string;
+  categories: GearTemplateCategory[];
+}
+
+export interface ListGearTemplatesResponse {
+  items: GearTemplate[];
+}
+
 export interface WechatLoginResponse {
   access_token: string;
   expires_at: string;

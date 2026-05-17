@@ -268,3 +268,16 @@
   color: var(--status-info-text);
   background: var(--status-info-bg);
 }
+
+.login-required-title {
+  color: var(--text-color);
+  font-size: 31rpx;
+  font-weight: 900;
+}
+
+.login-required-desc {
+  margin-top: 10rpx;
+  color: var(--muted-color);
+  font-size: 25rpx;
+  line-height: 1.55;
+}

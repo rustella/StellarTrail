@@ -214,3 +214,32 @@ textarea {
   color: var(--brand-text-color);
   background: var(--brand-color);
 }
+
+.login-required-card {
+  margin-top: 80rpx;
+  text-align: center;
+}
+
+.login-required-title {
+  color: var(--text-color);
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.login-required-desc {
+  margin-top: 12rpx;
+  color: var(--muted-color);
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+.login-required-card button {
+  margin: 28rpx auto 0;
+  padding: 0 42rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 27rpx;
+  font-weight: 800;
+  line-height: 76rpx;
+}

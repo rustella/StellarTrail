@@ -478,3 +478,122 @@
   color: var(--status-info-text);
   background: var(--status-info-bg);
 }
+
+.guest-card,
+.template-card {
+  margin-top: 24rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: 30rpx;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.guest-card {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 26rpx;
+}
+
+.guest-icon {
+  flex: 0 0 auto;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 22rpx;
+  background: var(--brand-soft-bg);
+  font-size: 34rpx;
+  line-height: 64rpx;
+  text-align: center;
+}
+
+.guest-title,
+.template-section-title,
+.template-title,
+.template-category-name {
+  color: var(--text-color);
+  font-weight: 900;
+}
+
+.guest-title,
+.template-section-title {
+  font-size: 30rpx;
+}
+
+.guest-desc,
+.template-section-desc,
+.template-meta,
+.template-category-items {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.guest-card button,
+.template-card-head button {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 62rpx;
+}
+
+.template-section {
+  margin-top: 30rpx;
+}
+
+.template-card {
+  padding: 28rpx;
+}
+
+.template-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.template-title {
+  font-size: 31rpx;
+  line-height: 1.35;
+}
+
+.template-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 22rpx;
+}
+
+.template-preview text {
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.template-category-list {
+  margin-top: 18rpx;
+}
+
+.template-category {
+  padding: 18rpx 0;
+  border-top: 1rpx solid var(--soft-border-color);
+}
+
+.template-category-name {
+  font-size: 26rpx;
+}
+
+.gear-page.theme-dark .guest-card,
+.gear-page.theme-dark .template-card {
+  border-color: var(--border-color);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}

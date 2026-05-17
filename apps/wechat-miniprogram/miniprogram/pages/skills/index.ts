@@ -39,4 +39,11 @@ Page({
       });
     }
   },
+
+  goDetail(event: WechatMiniprogram.BaseEvent) {
+    const id = event.currentTarget.dataset.id as string | undefined;
+    if (id) {
+      wx.navigateTo({ url: `/pages/skills/detail/index?id=${encodeURIComponent(id)}` });
+    }
+  },
 });

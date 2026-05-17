@@ -3,7 +3,10 @@ import {
   archiveGear,
   getErrorMessage,
   getGearStats,
+  hasAccessToken,
+  isLoginRequiredError,
   listGearCategories,
+  listGearTemplates,
   listGears,
   restoreGear,
 } from "../../utils/api";
@@ -23,7 +26,17 @@ import {
   type GearStatus,
   type GearSummary,
   type GearTab,
+  type GearTemplate,
+  type GearTemplateCategory,
 } from "../../utils/gear-utils";
+import {
+  getDefaultLoginPrompt,
+  hideLoginPrompt,
+  loginPageUrl,
+  openLoginPageFromPrompt,
+  requireLoginForAction,
+  showLoginPrompt,
+} from "../../utils/auth-prompt";
 
 interface GearCard extends GearSummary {
   categoryText: string;
@@ -39,6 +52,17 @@ interface StatCard {
   label: string;
   value: string;
   hint: string;
+}
+
+interface TemplateCategoryView extends GearTemplateCategory {
+  itemText: string;
+}
+
+interface TemplateCard extends Omit<GearTemplate, "categories"> {
+  categories: TemplateCategoryView[];
+  categoryCountText: string;
+  itemCountText: string;
+  previewItems: string[];
 }
 
 const EMPTY_STATS: GearStatsResponse = {
@@ -68,11 +92,16 @@ Page({
     stats: EMPTY_STATS,
     statCards: buildStatCards(EMPTY_STATS),
     gears: [] as GearCard[],
+    templates: [] as TemplateCard[],
     nextCursor: null as string | null,
+    isLoggedIn: hasAccessToken(),
     loading: false,
     loadingMore: false,
+    templateLoading: false,
+    templateError: "",
     error: "",
     emptyText: "还没有装备，先添加第一件户外装备吧",
+    loginPrompt: getDefaultLoginPrompt(),
     ...getThemeViewData(),
   },
 
@@ -88,6 +117,10 @@ Page({
     if (shouldRefresh) {
       wx.removeStorageSync("stellartrail_gears_should_refresh");
       this.refreshPage();
+      return;
+    }
+    if (this.data.isLoggedIn !== hasAccessToken()) {
+      this.refreshPage();
     }
   },
 
@@ -100,6 +133,23 @@ Page({
   },
 
   async refreshPage() {
+    const isLoggedIn = hasAccessToken();
+    this.setData({ isLoggedIn, error: "" });
+    if (!isLoggedIn) {
+      this.setData({
+        loading: false,
+        loadingMore: false,
+        categories: [{ id: "all", label: "全部装备", count: 0 }],
+        stats: EMPTY_STATS,
+        statCards: buildStatCards(EMPTY_STATS),
+        gears: [] as GearCard[],
+        nextCursor: null,
+        emptyText: "登录后查看个人装备库",
+      });
+      await this.loadTemplates();
+      return;
+    }
+
     this.setData({ loading: true, error: "" });
     try {
       const tab = this.data.tab as GearTab;
@@ -121,14 +171,45 @@ Page({
             : "还没有装备，先添加第一件户外装备吧",
       });
     } catch (error) {
+      if (isLoginRequiredError(error)) {
+        this.setData({ isLoggedIn: false, error: "", loading: false });
+        showLoginPrompt(this, {
+          message: "登录状态已过期，请重新登录后查看个人装备。",
+          redirectUrl: "/pages/gears/index",
+        });
+        await this.loadTemplates();
+        return;
+      }
       this.setData({ error: getErrorMessage(error) });
     } finally {
       this.setData({ loading: false });
     }
   },
 
+  async loadTemplates() {
+    this.setData({ templateLoading: true, templateError: "" });
+    try {
+      const response = await listGearTemplates();
+      this.setData({
+        templates: response.items.map(mapTemplateCard),
+        templateLoading: false,
+      });
+    } catch (error) {
+      this.setData({
+        templateError: getErrorMessage(error),
+        templateLoading: false,
+        templates: [] as TemplateCard[],
+      });
+    }
+  },
+
   async loadMore() {
-    if (!this.data.nextCursor || this.data.loadingMore || this.data.loading) {
+    if (
+      !this.data.isLoggedIn ||
+      !this.data.nextCursor ||
+      this.data.loadingMore ||
+      this.data.loading
+    ) {
       return;
     }
     this.setData({ loadingMore: true, error: "" });
@@ -141,6 +222,15 @@ Page({
         nextCursor: response.next_cursor ?? null,
       });
     } catch (error) {
+      if (isLoginRequiredError(error)) {
+        this.setData({ isLoggedIn: false, loadingMore: false });
+        showLoginPrompt(this, {
+          message: "登录状态已过期，请重新登录后继续查看个人装备。",
+          redirectUrl: "/pages/gears/index",
+        });
+        await this.loadTemplates();
+        return;
+      }
       this.setData({ error: getErrorMessage(error) });
     } finally {
       this.setData({ loadingMore: false });
@@ -162,6 +252,9 @@ Page({
   },
 
   switchTab(event: WechatMiniprogram.BaseEvent) {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
     const tab = event.currentTarget.dataset.value as GearTab;
     if (!tab || tab === this.data.tab) {
       return;
@@ -178,12 +271,18 @@ Page({
   },
 
   selectCategory(event: WechatMiniprogram.BaseEvent) {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
     const id = event.currentTarget.dataset.id as "all" | GearCategory;
     this.setData({ selectedCategory: id, nextCursor: null, gears: [] });
     this.refreshPage();
   },
 
   onStatusChange(event: any) {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
     const index = Number(event.detail.value || 0);
     const option = GEAR_STATUS_FILTER_OPTIONS[index];
     this.setData({
@@ -196,6 +295,9 @@ Page({
   },
 
   onSortChange(event: any) {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
     const index = Number(event.detail.value || 0);
     const option = GEAR_SORT_OPTIONS[index];
     this.setData({
@@ -212,17 +314,51 @@ Page({
   },
 
   submitSearch() {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
     this.setData({ nextCursor: null, gears: [] });
     this.refreshPage();
   },
 
   clearSearch() {
+    if (!this.data.isLoggedIn) {
+      this.setData({ q: "" });
+      return;
+    }
     this.setData({ q: "", nextCursor: null, gears: [] });
     this.refreshPage();
   },
 
   goCreate() {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以把装备保存到你的个人装备库。",
+        redirectUrl: "/pages/gears/form/index",
+      })
+    ) {
+      return;
+    }
     wx.navigateTo({ url: "/pages/gears/form/index" });
+  },
+
+  goLogin() {
+    wx.navigateTo({ url: loginPageUrl("/pages/gears/index") });
+  },
+
+  useTemplate(event: WechatMiniprogram.BaseEvent) {
+    const id = event.currentTarget.dataset.id as string | undefined;
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以参考这份装备模板，保存到你的个人装备库。",
+        redirectUrl: "/pages/gears/form/index",
+      })
+    ) {
+      return;
+    }
+    wx.navigateTo({
+      url: `/pages/gears/form/index${id ? `?template=${encodeURIComponent(id)}` : ""}`,
+    });
   },
 
   goDetail(event: WechatMiniprogram.BaseEvent) {
@@ -235,6 +371,14 @@ Page({
   },
 
   goEdit(event: WechatMiniprogram.BaseEvent) {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以编辑和同步你的个人装备。",
+        redirectUrl: "/pages/gears/index",
+      })
+    ) {
+      return;
+    }
     const id = event.currentTarget.dataset.id;
     if (id) {
       wx.navigateTo({ url: `/pages/gears/form/index?id=${id}` });
@@ -242,6 +386,14 @@ Page({
   },
 
   archiveItem(event: WechatMiniprogram.BaseEvent) {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以更新装备状态。",
+        redirectUrl: "/pages/gears/index",
+      })
+    ) {
+      return;
+    }
     const id = event.currentTarget.dataset.id as string;
     wx.showModal({
       title: "移入历史装备？",
@@ -257,6 +409,13 @@ Page({
           wx.showToast({ title: "已移入历史", icon: "success" });
           this.refreshPage();
         } catch (error) {
+          if (isLoginRequiredError(error)) {
+            showLoginPrompt(this, {
+              message: "登录状态已过期，请重新登录后更新装备状态。",
+              redirectUrl: "/pages/gears/index",
+            });
+            return;
+          }
           wx.showToast({ title: getErrorMessage(error), icon: "none" });
         }
       },
@@ -264,14 +423,37 @@ Page({
   },
 
   async restoreItem(event: WechatMiniprogram.BaseEvent) {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以恢复历史装备。",
+        redirectUrl: "/pages/gears/index",
+      })
+    ) {
+      return;
+    }
     const id = event.currentTarget.dataset.id as string;
     try {
       await restoreGear(id);
       wx.showToast({ title: "已恢复", icon: "success" });
       this.refreshPage();
     } catch (error) {
+      if (isLoginRequiredError(error)) {
+        showLoginPrompt(this, {
+          message: "登录状态已过期，请重新登录后恢复装备。",
+          redirectUrl: "/pages/gears/index",
+        });
+        return;
+      }
       wx.showToast({ title: getErrorMessage(error), icon: "none" });
     }
+  },
+
+  loginPromptClose() {
+    hideLoginPrompt(this);
+  },
+
+  loginPromptGoLogin() {
+    openLoginPageFromPrompt(this);
   },
 });
 
@@ -288,6 +470,26 @@ function mapGearCard(item: GearSummary): GearCard {
       ? item.purchase_date.slice(0, 10)
       : "未记录",
     brandModelText: brandModel || "未填写品牌型号",
+  };
+}
+
+function mapTemplateCard(item: GearTemplate): TemplateCard {
+  const previewItems = item.categories
+    .flatMap((category) => category.items)
+    .slice(0, 6);
+  const count = item.categories.reduce(
+    (total, category) => total + category.items.length,
+    0,
+  );
+  return {
+    ...item,
+    categories: item.categories.map((category) => ({
+      ...category,
+      itemText: category.items.join(" / "),
+    })),
+    categoryCountText: `${item.categories.length} 组分类`,
+    itemCountText: `${count} 项装备建议`,
+    previewItems,
   };
 }
 
