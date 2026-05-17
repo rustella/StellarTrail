@@ -35,6 +35,9 @@ class DefaultAppContainer(context: Context) : AppContainer {
     override val apiClient: ApiClient = ApiClient(
         configProvider = { configStore.config.value },
         tokenProvider = { sessionStore.currentToken() },
+        refreshTokenProvider = { sessionStore.currentRefreshToken() },
+        sessionRefreshHandler = { sessionStore.save(it) },
+        sessionExpiredHandler = { sessionStore.clear() },
     )
     override val authRepository: AuthRepositoryContract = AuthRepository(AuthApi(apiClient), sessionStore)
     override val gearRepository: GearRepositoryContract = GearRepository(GearApi(apiClient))

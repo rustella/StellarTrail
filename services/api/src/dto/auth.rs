@@ -70,11 +70,19 @@ pub struct PasswordLoginRequest {
     pub captcha_answer: Option<String>,
 }
 
+/// Stable data boundary for `RefreshTokenRequest`, exposed by or reused within this module.
+#[derive(Debug, Deserialize)]
+pub struct RefreshTokenRequest {
+    pub refresh_token: String,
+}
+
 /// Stable data boundary for `LoginResponse`, exposed by or reused within this module.
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub access_token: String,
     pub expires_at: String,
+    pub refresh_token: String,
+    pub refresh_expires_at: String,
     pub user: LoginUserResponse,
 }
 

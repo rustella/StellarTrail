@@ -16,6 +16,7 @@ import kotlinx.serialization.json.Json
 interface SessionStore {
     val session: StateFlow<UserSession?>
     fun currentToken(): String?
+    fun currentRefreshToken(): String?
     fun save(response: LoginResponse)
     fun save(session: UserSession)
     fun clear()
@@ -40,6 +41,7 @@ class AndroidSessionStore(
     override val session: StateFlow<UserSession?> = _session.asStateFlow()
 
     override fun currentToken(): String? = _session.value?.accessToken
+    override fun currentRefreshToken(): String? = _session.value?.refreshToken
 
     override fun save(response: LoginResponse) = save(response.toSession())
 
@@ -66,6 +68,7 @@ class InMemorySessionStore(initial: UserSession? = null) : SessionStore {
     private val _session = MutableStateFlow(initial)
     override val session: StateFlow<UserSession?> = _session.asStateFlow()
     override fun currentToken(): String? = _session.value?.accessToken
+    override fun currentRefreshToken(): String? = _session.value?.refreshToken
     override fun save(response: LoginResponse) = save(response.toSession())
     override fun save(session: UserSession) {
         _session.value = session

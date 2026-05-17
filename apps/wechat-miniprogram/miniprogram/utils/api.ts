@@ -19,11 +19,16 @@ import type {
 } from "./skill-utils";
 
 const TOKEN_STORAGE_KEY = "stellartrail_access_token";
+const ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY =
+  "stellartrail_access_token_expires_at";
+const REFRESH_TOKEN_STORAGE_KEY = "stellartrail_refresh_token";
+const REFRESH_TOKEN_EXPIRES_AT_STORAGE_KEY =
+  "stellartrail_refresh_token_expires_at";
 const USER_STORAGE_KEY = "stellartrail_user";
 const API_BASE_URL_STORAGE_KEY = "stellartrail_api_base_url";
 
 let loginPromise: Promise<string> | null = null;
-
+let refreshPromise: Promise<string> | null = null;
 interface ApiRequestOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   data?: unknown;
@@ -94,8 +99,15 @@ export function getStoredUser(): WechatLoginResponse["user"] | null {
 
 export async function ensureAccessToken(): Promise<string> {
   const cached = wx.getStorageSync(TOKEN_STORAGE_KEY) as string | undefined;
-  if (cached) {
+  if (cached && !shouldRefreshAccessToken()) {
     return cached;
+  }
+  if (wx.getStorageSync(REFRESH_TOKEN_STORAGE_KEY)) {
+    try {
+      return await refreshAccessToken();
+    } catch {
+      clearLoginState();
+    }
   }
   throw new LoginRequiredError("登录后继续");
 }
@@ -124,13 +136,24 @@ async function runWechatLogin(): Promise<string> {
       } satisfies WechatLoginRequest,
     },
   );
-  wx.setStorageSync(TOKEN_STORAGE_KEY, response.access_token);
-  wx.setStorageSync(USER_STORAGE_KEY, response.user);
+  saveLoginResponse(response);
   return response.access_token;
+}
+
+export async function refreshAccessToken(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = refreshAccessTokenOnce().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
 }
 
 export function clearLoginState(): void {
   wx.removeStorageSync(TOKEN_STORAGE_KEY);
+  wx.removeStorageSync(ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY);
+  wx.removeStorageSync(REFRESH_TOKEN_STORAGE_KEY);
+  wx.removeStorageSync(REFRESH_TOKEN_EXPIRES_AT_STORAGE_KEY);
   wx.removeStorageSync(USER_STORAGE_KEY);
 }
 
@@ -240,6 +263,7 @@ export function getErrorMessage(error: unknown): string {
 async function requestJson<T>(
   path: string,
   options: ApiRequestOptions = {},
+  didRetryUnauthorized = false,
 ): Promise<T> {
   const token = options.auth ? await ensureAccessToken() : undefined;
   const header: Record<string, string> = {};
@@ -264,6 +288,24 @@ async function requestJson<T>(
           resolve(response.data as T);
           return;
         }
+        if (
+          response.statusCode === 401 &&
+          options.auth &&
+          !didRetryUnauthorized
+        ) {
+          void refreshAccessToken()
+            .then(() => requestJson<T>(path, options, true))
+            .then(resolve)
+            .catch((error) => {
+              clearLoginState();
+              reject(
+                error instanceof Error
+                  ? error
+                  : new Error("登录已过期，请重新登录"),
+              );
+            });
+          return;
+        }
         if (response.statusCode === 401) {
           clearLoginState();
           if (options.auth) {
@@ -282,6 +324,43 @@ async function requestJson<T>(
       },
     });
   });
+}
+
+function saveLoginResponse(response: WechatLoginResponse): void {
+  wx.setStorageSync(TOKEN_STORAGE_KEY, response.access_token);
+  wx.setStorageSync(ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY, response.expires_at);
+  wx.setStorageSync(REFRESH_TOKEN_STORAGE_KEY, response.refresh_token);
+  wx.setStorageSync(
+    REFRESH_TOKEN_EXPIRES_AT_STORAGE_KEY,
+    response.refresh_expires_at,
+  );
+  wx.setStorageSync(USER_STORAGE_KEY, response.user);
+}
+
+async function refreshAccessTokenOnce(): Promise<string> {
+  const refreshToken = wx.getStorageSync(REFRESH_TOKEN_STORAGE_KEY) as
+    | string
+    | undefined;
+  if (!refreshToken) {
+    throw new Error("登录已过期，请重新登录");
+  }
+  const response = await requestJson<WechatLoginResponse>("/api/auth/refresh", {
+    method: "POST",
+    data: { refresh_token: refreshToken },
+  });
+  saveLoginResponse(response);
+  return response.access_token;
+}
+
+function shouldRefreshAccessToken(): boolean {
+  const expiresAt = wx.getStorageSync(ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY) as
+    | string
+    | undefined;
+  if (!expiresAt) {
+    return false;
+  }
+  const timestamp = Date.parse(expiresAt);
+  return Number.isFinite(timestamp) && timestamp <= Date.now() + 60_000;
 }
 
 function getWechatLoginCode(): Promise<string> {

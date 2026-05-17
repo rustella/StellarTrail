@@ -11,12 +11,16 @@ describe("web session", () => {
     saveSession({
       accessToken: "token-123",
       expiresAt: "2026-06-01T00:00:00Z",
+      refreshToken: "refresh-123",
+      refreshExpiresAt: "2026-07-01T00:00:00Z",
       user: { id: "u1", nickname: "测试用户", avatar_url: null },
     });
 
     expect(loadSession()).toEqual({
       accessToken: "token-123",
       expiresAt: "2026-06-01T00:00:00Z",
+      refreshToken: "refresh-123",
+      refreshExpiresAt: "2026-07-01T00:00:00Z",
       user: { id: "u1", nickname: "测试用户", avatar_url: null },
     });
   });
@@ -29,6 +33,8 @@ describe("web session", () => {
     saveSession({
       accessToken: "token-123",
       expiresAt: "2026-06-01T00:00:00Z",
+      refreshToken: "refresh-123",
+      refreshExpiresAt: "2026-07-01T00:00:00Z",
       user: { id: "u1" },
     });
     clearSession();

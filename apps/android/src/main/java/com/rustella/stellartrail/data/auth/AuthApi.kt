@@ -7,6 +7,7 @@ import com.rustella.stellartrail.domain.auth.EmailVerificationCodeRequest
 import com.rustella.stellartrail.domain.auth.EmailVerificationCodeResponse
 import com.rustella.stellartrail.domain.auth.LoginResponse
 import com.rustella.stellartrail.domain.auth.PasswordLoginRequest
+import com.rustella.stellartrail.domain.auth.RefreshTokenRequest
 import com.rustella.stellartrail.domain.auth.RegisterRequest
 import com.rustella.stellartrail.domain.auth.WechatLoginRequest
 
@@ -22,6 +23,9 @@ class AuthApi(private val apiClient: ApiClient) {
 
     suspend fun loginWithPassword(request: PasswordLoginRequest): LoginResponse =
         apiClient.post("/api/auth/login", request)
+
+    suspend fun refresh(request: RefreshTokenRequest): LoginResponse =
+        apiClient.post("/api/auth/refresh", request)
 
     suspend fun loginWithWechatCode(request: WechatLoginRequest): LoginResponse =
         apiClient.post("/api/auth/wechat-login", request)

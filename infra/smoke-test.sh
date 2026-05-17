@@ -122,6 +122,8 @@ import sys
 
 data = json.load(open(sys.argv[1]))
 assert data.get("access_token"), data
+assert data.get("refresh_token"), data
+assert data.get("refresh_expires_at"), data
 user = data.get("user", {})
 assert user.get("username") == sys.argv[2], data
 assert user.get("email") == sys.argv[3], data
@@ -138,8 +140,23 @@ account, password = sys.argv[1:3]
 json.dump({"account": account, "password": password}, sys.stdout)
 PY
 curl -fsS   -H 'content-type: application/json'   -d "@$LOGIN_REQUEST"   "$BASE_URL/api/auth/login" > "$LOGIN_JSON"
-TOKEN="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); assert data.get("access_token"), data; assert data.get("user",{}).get("username") == sys.argv[2], data; print(data["access_token"])' "$LOGIN_JSON" "$USERNAME")"
-AUTH_HEADER="Authorization: Bearer $TOKEN"
+TOKEN="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); assert data.get("access_token"), data; assert data.get("refresh_token"), data; assert data.get("refresh_expires_at"), data; assert data.get("user",{}).get("username") == sys.argv[2], data; print(data["access_token"])' "$LOGIN_JSON" "$USERNAME")"
+REFRESH_TOKEN="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); print(data["refresh_token"])' "$LOGIN_JSON")"
+
+REFRESH_REQUEST="$TMP_DIR/refresh-request.json"
+REFRESH_JSON="$TMP_DIR/refresh.json"
+python3 - "$REFRESH_TOKEN" > "$REFRESH_REQUEST" <<'PY'
+import json
+import sys
+
+json.dump({"refresh_token": sys.argv[1]}, sys.stdout)
+PY
+curl -fsS   -H 'content-type: application/json'   -d "@$REFRESH_REQUEST"   "$BASE_URL/api/auth/refresh" > "$REFRESH_JSON"
+TOKEN="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); assert data.get("access_token"), data; assert data.get("refresh_token"), data; assert data["refresh_token"] != sys.argv[2], data; assert data.get("user",{}).get("username") == sys.argv[3], data; print(data["access_token"])' "$REFRESH_JSON" "$REFRESH_TOKEN" "$USERNAME")"
+REFRESH_REPLAY_BODY="$TMP_DIR/refresh-replay.json"
+REFRESH_REPLAY_STATUS="$(curl -sS -o "$REFRESH_REPLAY_BODY" -w '%{http_code}'   -H 'content-type: application/json'   -d "@$REFRESH_REQUEST"   "$BASE_URL/api/auth/refresh")"
+expect_status 401 "$REFRESH_REPLAY_STATUS" "$REFRESH_REPLAY_BODY"
+AUTH_HEADER="authorization: Bearer $TOKEN"
 
 echo "[smoke] gear categories through Redis-backed cache"
 curl -fsS -H "$AUTH_HEADER" "$BASE_URL/api/me/gears/categories"   | python3 -c 'import json,sys; data=json.load(sys.stdin); assert isinstance(data.get("items"), list), data; print({"items": len(data["items"])})'

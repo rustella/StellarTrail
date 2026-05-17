@@ -64,4 +64,63 @@ class ApiClientTest {
         assertEquals("请输入验证码", exception.message)
         assertTrue(exception.isCaptchaRequired)
     }
+
+    @Test
+    fun authenticatedRequestRefreshesOnceOnUnauthorizedAndRetries() = runTest {
+        val requests = mutableListOf<io.ktor.client.request.HttpRequestData>()
+        var accessToken = "expired-access-token"
+        var refreshToken = "old-refresh-token"
+        val engine = MockEngine { request ->
+            requests += request
+            when (request.url.encodedPath) {
+                "/api/me/gears/categories" -> {
+                    if (request.headers[HttpHeaders.Authorization] == "Bearer fresh-access-token") {
+                        respond(
+                            content = """{"status":"ok"}""",
+                            headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                        )
+                    } else {
+                        respond(
+                            content = """{"code":"unauthorized","message":"Unauthorized"}""",
+                            status = HttpStatusCode.Unauthorized,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                        )
+                    }
+                }
+                "/api/auth/refresh" -> respond(
+                    content = """{
+                        "access_token":"fresh-access-token",
+                        "expires_at":"2026-05-17T12:00:00Z",
+                        "refresh_token":"new-refresh-token",
+                        "refresh_expires_at":"2026-06-17T12:00:00Z",
+                        "user":{"id":"u1","username":"trail_alice"}
+                    }""".trimIndent(),
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+                else -> error("unexpected path ${request.url.encodedPath}")
+            }
+        }
+        val client = ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            tokenProvider = { accessToken },
+            refreshTokenProvider = { refreshToken },
+            sessionRefreshHandler = { response ->
+                accessToken = response.accessToken
+                refreshToken = response.refreshToken
+            },
+            httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+        )
+
+        val response = client.get<HealthResponse>("/api/me/gears/categories")
+
+        assertEquals("ok", response.status)
+        assertEquals(
+            listOf("/api/me/gears/categories", "/api/auth/refresh", "/api/me/gears/categories"),
+            requests.map { it.url.encodedPath },
+        )
+        assertEquals("Bearer expired-access-token", requests[0].headers[HttpHeaders.Authorization])
+        assertEquals("Bearer fresh-access-token", requests[2].headers[HttpHeaders.Authorization])
+        assertEquals("new-refresh-token", refreshToken)
+    }
+
 }

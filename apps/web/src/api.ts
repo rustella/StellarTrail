@@ -22,6 +22,10 @@ import type {
 
 export interface WebGearApi {
   setAccessToken(accessToken?: string): void;
+  setSessionTokens(accessToken?: string, refreshToken?: string): void;
+  setSessionRefreshHandler(
+    handler?: (response: WechatLoginResponse) => void,
+  ): void;
   meta(): Promise<MetaResponse>;
   loginWithWechatCode(
     request: WechatLoginRequest,

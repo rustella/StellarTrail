@@ -210,6 +210,90 @@ async fn local_mock_login_returns_token_and_user() {
 }
 
 #[tokio::test]
+async fn login_response_includes_refresh_token() {
+    let app = test_app().await;
+
+    let value = register_password_user(
+        &app.router,
+        "refresh_alice",
+        "refresh-alice@example.com",
+        "OutdoorPass123!",
+    )
+    .await;
+
+    assert!(value["access_token"].as_str().unwrap().len() > 20);
+    assert!(value["refresh_token"].as_str().unwrap().len() > 20);
+    assert_ne!(
+        value["access_token"].as_str().unwrap(),
+        value["refresh_token"].as_str().unwrap(),
+    );
+    assert!(value["expires_at"].as_str().unwrap().contains('T'));
+    assert!(value["refresh_expires_at"].as_str().unwrap().contains('T'));
+}
+
+#[tokio::test]
+async fn refresh_token_rotates_session_and_rejects_replay() {
+    let app = test_app().await;
+    let login_value = register_password_user(
+        &app.router,
+        "refresh_bob",
+        "refresh-bob@example.com",
+        "OutdoorPass123!",
+    )
+    .await;
+    let old_access_token = login_value["access_token"].as_str().unwrap().to_owned();
+    let old_refresh_token = login_value["refresh_token"].as_str().unwrap().to_owned();
+
+    let (refresh_status, refresh_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/refresh",
+        None,
+        json!({"refresh_token": old_refresh_token}),
+    )
+    .await;
+    assert_eq!(refresh_status, StatusCode::OK, "{refresh_value}");
+    let new_access_token = refresh_value["access_token"].as_str().unwrap();
+    let new_refresh_token = refresh_value["refresh_token"].as_str().unwrap();
+    assert_ne!(new_access_token, old_access_token);
+    assert_ne!(new_refresh_token, old_refresh_token);
+    assert_eq!(refresh_value["user"]["username"], "refresh_bob");
+
+    let (gear_status, gear_stats) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/stats",
+        Some(new_access_token),
+    )
+    .await;
+    assert_eq!(gear_status, StatusCode::OK, "{gear_stats}");
+
+    let (old_access_status, old_access_value) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/stats",
+        Some(&old_access_token),
+    )
+    .await;
+    assert_eq!(
+        old_access_status,
+        StatusCode::UNAUTHORIZED,
+        "{old_access_value}",
+    );
+
+    let (replay_status, replay_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/refresh",
+        None,
+        json!({"refresh_token": old_refresh_token}),
+    )
+    .await;
+    assert_eq!(replay_status, StatusCode::UNAUTHORIZED, "{replay_value}");
+    assert_eq!(replay_value["code"], "unauthorized");
+}
+
+#[tokio::test]
 async fn production_wechat_login_uses_code2session_client() {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
