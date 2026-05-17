@@ -87,7 +87,8 @@ export function setApiBaseUrl(baseUrl: string): void {
 }
 
 export function hasAccessToken(): boolean {
-  return Boolean(wx.getStorageSync(TOKEN_STORAGE_KEY));
+  const cached = wx.getStorageSync(TOKEN_STORAGE_KEY) as string | undefined;
+  return Boolean(cached);
 }
 
 export function getStoredUser(): WechatLoginResponse["user"] | null {

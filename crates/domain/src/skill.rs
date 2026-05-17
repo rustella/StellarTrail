@@ -142,7 +142,7 @@ pub struct KnotTaxonomyItem {
     pub title: String,
 }
 
-/// Public media metadata. Binary data is served separately from `/assets/*`.
+/// Public media metadata. Binary data is stored in object storage and exposed through a configured public URL.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct KnotMediaAsset {
     pub id: String,
@@ -151,6 +151,7 @@ pub struct KnotMediaAsset {
     pub mime_type: String,
     pub width: Option<i32>,
     pub height: Option<i32>,
+    pub size_bytes: i64,
     pub attribution: Option<String>,
     pub license_note: Option<String>,
 }

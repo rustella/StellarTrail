@@ -4,3 +4,5 @@ pub mod auth;
 pub mod feedback;
 pub mod gear;
 pub mod upload;
+
+pub mod knot_media;

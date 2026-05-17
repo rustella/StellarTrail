@@ -63,6 +63,8 @@ async fn test_app(max_images_per_window: u64) -> TestApp {
             secret_access_key: "test-secret".to_owned(),
             force_path_style: true,
         },
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
         public_api: PublicApiConfig::default(),
     };
     let state = AppState::new_with_cache_and_object_store(

@@ -96,8 +96,7 @@ export interface SkillContent {
   body_markdown: string;
 }
 
-export type PublicLocale = "zh-CN" | "en";
-export type SkillLocale = PublicLocale;
+export type SkillLocale = "zh-CN" | "en";
 
 export interface SkillCategorySummary {
   id: string;
@@ -124,15 +123,32 @@ export interface KnotTaxonomyItem {
   title: string;
 }
 
+export type KnotMediaAssetId =
+  | "thumbnail"
+  | "preview"
+  | "draw_gif"
+  | "turntable_gif"
+  | "draw_mp4"
+  | "turntable_mp4";
+
+export type KnotMediaType = KnotMediaAssetId;
+
 export interface KnotMediaAsset {
-  id: string;
-  media_type: string;
+  id: KnotMediaAssetId | string;
+  media_type: KnotMediaType | string;
   url: string;
   mime_type: string;
   width?: number | null;
   height?: number | null;
+  size_bytes: number;
   attribution?: string | null;
   license_note?: string | null;
+}
+
+export interface KnotMediaUploadResponse {
+  status: "uploaded";
+  knot_id: string;
+  media: KnotMediaAsset;
 }
 
 export interface KnotSummary {
@@ -153,7 +169,7 @@ export interface KnotListResponse {
   page: PageInfo;
 }
 
-export interface KnotDetail extends Omit<KnotSummary, "href"> {
+export interface KnotDetail extends KnotSummary {
   description?: string | null;
   steps: string[];
   locale: SkillLocale;

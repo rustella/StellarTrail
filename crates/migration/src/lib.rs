@@ -10,6 +10,7 @@ mod m20260516_000005_create_upload_images;
 mod m20260516_000006_create_user_feedback;
 mod m20260516_000007_create_knots_content;
 mod m20260516_000008_add_refresh_tokens;
+mod m20260517_000006_create_media_resources;
 
 /// SeaORM migrator implementation that runs all schema migrations in registration order.
 pub struct Migrator;
@@ -28,6 +29,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260516_000006_create_user_feedback::Migration),
             Box::new(m20260516_000007_create_knots_content::Migration),
             Box::new(m20260516_000008_add_refresh_tokens::Migration),
+            Box::new(m20260517_000006_create_media_resources::Migration),
         ]
     }
 }

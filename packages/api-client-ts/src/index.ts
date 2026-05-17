@@ -12,6 +12,8 @@ import type {
   HealthResponse,
   KnotDetail,
   KnotListResponse,
+  KnotMediaAssetId,
+  KnotMediaUploadResponse,
   ListKnotsRequest,
   ImportGearsRequest,
   ImportGearsResponse,
@@ -36,6 +38,18 @@ export interface ApiClientOptions {
   accessToken?: string;
   refreshToken?: string;
   onSessionRefresh?: (response: WechatLoginResponse) => void;
+}
+
+export interface AdminKnotMediaUploadInput {
+  knotId: string;
+  assetId: KnotMediaAssetId;
+  mediaType?: KnotMediaAssetId;
+  file: Blob;
+  filename?: string;
+  attribution?: string;
+  licenseNote?: string;
+  sourceName?: string;
+  sourcePath?: string;
 }
 
 export class StellarTrailApiClient {
@@ -118,6 +132,24 @@ export class StellarTrailApiClient {
       false,
       locale,
     );
+  }
+
+  async uploadKnotMedia(
+    input: AdminKnotMediaUploadInput,
+  ): Promise<KnotMediaUploadResponse> {
+    const form = new FormData();
+    form.set("media_type", input.mediaType ?? input.assetId);
+    form.set("file", input.file, input.filename ?? input.assetId);
+    if (input.attribution) form.set("attribution", input.attribution);
+    if (input.licenseNote) form.set("license_note", input.licenseNote);
+    if (input.sourceName) form.set("source_name", input.sourceName);
+    if (input.sourcePath) form.set("source_path", input.sourcePath);
+    const response = await this.request(
+      `/api/admin/skills/knots/${encodeURIComponent(input.knotId)}/media/${encodeURIComponent(input.assetId)}`,
+      { method: "PUT", body: form },
+      true,
+    );
+    return response.json() as Promise<KnotMediaUploadResponse>;
   }
 
   async listGearTemplates(): Promise<ContentListResponse<GearTemplate>> {

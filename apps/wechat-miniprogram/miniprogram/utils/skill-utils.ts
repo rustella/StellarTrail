@@ -33,6 +33,7 @@ export interface KnotMediaAsset {
   mime_type: string;
   width?: number | null;
   height?: number | null;
+  size_bytes: number;
   attribution?: string | null;
   license_note?: string | null;
 }
@@ -106,13 +107,22 @@ export function getSkillDifficultyTone(value?: string | null): string {
   return "danger";
 }
 
-export function mapSkillCard(item: KnotSummary): SkillCard {
+export function mapSkillCard(
+  item: SkillCategorySummary | KnotSummary,
+): SkillCard {
+  const isKnot = "media" in item;
   return {
     id: item.id,
     title: item.title,
-    categoryText: item.categories[0]?.title ?? "绳结",
-    difficultyText: getSkillDifficultyLabel(item.difficulty),
-    difficultyTone: getSkillDifficultyTone(item.difficulty),
+    categoryText: isKnot ? (item.categories[0]?.title ?? "绳结") : "户外技能",
+    difficultyText: isKnot
+      ? getSkillDifficultyLabel(item.difficulty)
+      : `${item.item_count} 个内容`,
+    difficultyTone: isKnot
+      ? getSkillDifficultyTone(item.difficulty)
+      : item.item_count > 0
+        ? "success"
+        : "warning",
     summary: item.summary,
   };
 }

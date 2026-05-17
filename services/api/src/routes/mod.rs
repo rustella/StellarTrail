@@ -1,5 +1,6 @@
 //! Route aggregation module that combines all API subroutes and provides a consistent 404 fallback.
 
+mod admin_knots;
 mod auth;
 mod content;
 mod feedback;
@@ -22,11 +23,13 @@ pub fn build_router(state: AppState) -> Router {
         .config()
         .upload
         .max_image_bytes
+        .max(state.config().knots_media_storage.max_video_bytes)
         .saturating_add(1_000_000) as usize;
     Router::new()
         .route("/healthz", get(health::healthz))
         .route("/api/meta", get(meta::meta))
         .merge(auth::routes())
+        .merge(admin_knots::routes())
         .merge(content::routes())
         .merge(skills::routes())
         .merge(gears::routes())

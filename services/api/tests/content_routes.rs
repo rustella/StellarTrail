@@ -11,7 +11,7 @@ use axum::{
 use serde_json::Value;
 use stellartrail_api::{
     build_state,
-    config::{ApiConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig},
+    config::{ApiConfig, RedisCacheConfig},
     routes::build_router,
 };
 use stellartrail_db::DatabaseConfig;
@@ -45,9 +45,11 @@ async fn test_app_with_content_dir(temp_dir: TempDir, content_dir: PathBuf) -> T
         media_base_url: "/assets".to_owned(),
         content_dir,
         redis_cache: RedisCacheConfig::disabled(),
-        upload: UploadConfig::default(),
-        object_storage: ObjectStorageConfig::default(),
-        public_api: PublicApiConfig::default(),
+        upload: Default::default(),
+        object_storage: Default::default(),
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
+        public_api: Default::default(),
     };
     let state = build_state(config).await.unwrap();
     TestApp {

@@ -1,4 +1,4 @@
-//! Object storage abstraction for private feedback images. Production uses S3-compatible MinIO; tests use in-memory storage.
+//! Object storage abstraction for private feedback images and public skill media. Production uses S3-compatible MinIO; tests use in-memory storage.
 
 use std::{
     collections::HashMap,
@@ -20,10 +20,32 @@ pub struct ObjectMetadata {
     pub image_type: String,
 }
 
+impl ObjectMetadata {
+    fn into_map(self) -> HashMap<String, String> {
+        HashMap::from([
+            ("original_filename".to_owned(), self.original_filename),
+            ("sha256".to_owned(), self.sha256),
+            ("image_type".to_owned(), self.image_type),
+        ])
+    }
+}
+
+/// Generic object write request for feedback images and Knots3D media.
+#[derive(Clone, Debug)]
+pub struct PutObjectRequest {
+    pub bucket: Option<String>,
+    pub object_key: String,
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+    pub metadata: HashMap<String, String>,
+    pub cache_control: Option<String>,
+}
+
 /// Result of writing an object.
 #[derive(Clone, Debug)]
 pub struct PutObjectResult {
     pub etag: Option<String>,
+    pub size_bytes: u64,
 }
 
 /// Object bytes returned after a private owner check.
@@ -36,17 +58,37 @@ pub struct ObjectBytes {
 /// Object storage trait used by routes and services.
 #[async_trait]
 pub trait ObjectStore: Send + Sync {
+    async fn put_object(&self, request: PutObjectRequest) -> anyhow::Result<PutObjectResult>;
+
+    async fn get_object(&self, object_key: &str) -> anyhow::Result<Option<ObjectBytes>>;
+
+    async fn delete_object(&self, object_key: &str) -> anyhow::Result<()>;
+
     async fn put_image(
         &self,
         object_key: &str,
         content_type: &str,
         bytes: Vec<u8>,
         metadata: ObjectMetadata,
-    ) -> anyhow::Result<PutObjectResult>;
+    ) -> anyhow::Result<PutObjectResult> {
+        self.put_object(PutObjectRequest {
+            bucket: None,
+            object_key: object_key.to_owned(),
+            content_type: content_type.to_owned(),
+            bytes,
+            metadata: metadata.into_map(),
+            cache_control: None,
+        })
+        .await
+    }
 
-    async fn get_image(&self, object_key: &str) -> anyhow::Result<Option<ObjectBytes>>;
+    async fn get_image(&self, object_key: &str) -> anyhow::Result<Option<ObjectBytes>> {
+        self.get_object(object_key).await
+    }
 
-    async fn delete_image(&self, object_key: &str) -> anyhow::Result<()>;
+    async fn delete_image(&self, object_key: &str) -> anyhow::Result<()> {
+        self.delete_object(object_key).await
+    }
 }
 
 /// Test-only in-memory object store.
@@ -58,10 +100,12 @@ pub struct InMemoryObjectStore {
 /// Stored object snapshot exposed to tests for behavioral assertions.
 #[derive(Clone, Debug)]
 pub struct StoredObject {
+    pub bucket: Option<String>,
     pub object_key: String,
     pub content_type: String,
     pub bytes: Vec<u8>,
-    pub metadata: ObjectMetadata,
+    pub metadata: HashMap<String, String>,
+    pub cache_control: Option<String>,
 }
 
 impl InMemoryObjectStore {
@@ -83,26 +127,30 @@ impl InMemoryObjectStore {
 
 #[async_trait]
 impl ObjectStore for InMemoryObjectStore {
-    async fn put_image(
-        &self,
-        object_key: &str,
-        content_type: &str,
-        bytes: Vec<u8>,
-        metadata: ObjectMetadata,
-    ) -> anyhow::Result<PutObjectResult> {
+    async fn put_object(&self, request: PutObjectRequest) -> anyhow::Result<PutObjectResult> {
+        let size_bytes = request.bytes.len() as u64;
+        let storage_key = match &request.bucket {
+            Some(bucket) => format!("{bucket}/{}", request.object_key),
+            None => request.object_key.clone(),
+        };
         self.inner.lock().unwrap().insert(
-            object_key.to_owned(),
+            storage_key,
             StoredObject {
-                object_key: object_key.to_owned(),
-                content_type: content_type.to_owned(),
-                bytes,
-                metadata,
+                bucket: request.bucket,
+                object_key: request.object_key,
+                content_type: request.content_type,
+                bytes: request.bytes,
+                metadata: request.metadata,
+                cache_control: request.cache_control,
             },
         );
-        Ok(PutObjectResult { etag: None })
+        Ok(PutObjectResult {
+            etag: None,
+            size_bytes,
+        })
     }
 
-    async fn get_image(&self, object_key: &str) -> anyhow::Result<Option<ObjectBytes>> {
+    async fn get_object(&self, object_key: &str) -> anyhow::Result<Option<ObjectBytes>> {
         Ok(self
             .inner
             .lock()
@@ -114,7 +162,7 @@ impl ObjectStore for InMemoryObjectStore {
             }))
     }
 
-    async fn delete_image(&self, object_key: &str) -> anyhow::Result<()> {
+    async fn delete_object(&self, object_key: &str) -> anyhow::Result<()> {
         self.inner.lock().unwrap().remove(object_key);
         Ok(())
     }
@@ -155,31 +203,30 @@ impl MinioObjectStore {
 
 #[async_trait]
 impl ObjectStore for MinioObjectStore {
-    async fn put_image(
-        &self,
-        object_key: &str,
-        content_type: &str,
-        bytes: Vec<u8>,
-        metadata: ObjectMetadata,
-    ) -> anyhow::Result<PutObjectResult> {
-        let response = self
+    async fn put_object(&self, request: PutObjectRequest) -> anyhow::Result<PutObjectResult> {
+        let size_bytes = request.bytes.len() as u64;
+        let bucket = request.bucket.unwrap_or_else(|| self.bucket.clone());
+        let mut put = self
             .client
             .put_object()
-            .bucket(&self.bucket)
-            .key(object_key)
-            .content_type(content_type)
-            .metadata("sha256", metadata.sha256)
-            .metadata("image_type", metadata.image_type)
-            .metadata("original_filename", metadata.original_filename)
-            .body(ByteStream::from(bytes))
-            .send()
-            .await?;
+            .bucket(bucket)
+            .key(request.object_key)
+            .content_type(request.content_type)
+            .body(ByteStream::from(request.bytes));
+        if let Some(cache_control) = request.cache_control {
+            put = put.cache_control(cache_control);
+        }
+        for (key, value) in request.metadata {
+            put = put.metadata(key, value);
+        }
+        let response = put.send().await?;
         Ok(PutObjectResult {
             etag: response.e_tag().map(ToOwned::to_owned),
+            size_bytes,
         })
     }
 
-    async fn get_image(&self, object_key: &str) -> anyhow::Result<Option<ObjectBytes>> {
+    async fn get_object(&self, object_key: &str) -> anyhow::Result<Option<ObjectBytes>> {
         let response = match self
             .client
             .get_object()
@@ -208,7 +255,7 @@ impl ObjectStore for MinioObjectStore {
         }))
     }
 
-    async fn delete_image(&self, object_key: &str) -> anyhow::Result<()> {
+    async fn delete_object(&self, object_key: &str) -> anyhow::Result<()> {
         self.client
             .delete_object()
             .bucket(&self.bucket)
