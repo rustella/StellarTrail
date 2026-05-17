@@ -143,7 +143,6 @@ commands:
       docker compose --env-file infra/production/site/.env.example -f infra/production/site/docker-compose.yml config >/dev/null
       docker compose --env-file infra/production/web/.env.example -f infra/production/web/docker-compose.yml config >/dev/null
       docker compose --env-file infra/production/api/.env.example -f infra/production/api/docker-compose.yml config >/dev/null
-      docker compose --env-file infra/production/api-deps/.env.example -f infra/production/api-deps/docker-compose.yml config >/dev/null
     when_to_run: Run after changing production Docker, Traefik, domain, or deployment configuration.
   git_check_ignore_production_config:
     description: Confirm real production config files stay ignored while examples remain trackable.

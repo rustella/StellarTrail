@@ -169,8 +169,7 @@ COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=1543
 - `infra/production/traefik/docker-compose.yml`：唯一公网入口，暴露 80/443，并通过 Let’s Encrypt 自动申请和续期证书。
 - `infra/production/site/docker-compose.yml`：官网，`site.example.invalid` 为 canonical；`www.example.invalid` 通过 Traefik 301 到 apex。
 - `infra/production/web/docker-compose.yml`：Web App，域名 `app.example.invalid`。
-- `infra/production/api/docker-compose.yml`：后端 API，域名 `api.example.invalid`，根目录 `config.yaml` 挂载到容器 `/app/config.yaml:ro`。
-- `infra/production/api-deps/docker-compose.yml`：API 依赖组件 PostgreSQL、Redis、MinIO；`assets.example.invalid` 只通过 Traefik 指向 MinIO API，MinIO console 不直接公网暴露。
+- `infra/production/api/docker-compose.yml`：后端 API 与私有依赖组件 PostgreSQL、Redis、MinIO；API 可通过 Docker 服务名 `postgres`、`redis`、`minio` 访问组件，根目录 `config.yaml` 挂载到容器 `/app/config.yaml:ro`；`assets.example.invalid` 只通过 Traefik 指向 MinIO API，MinIO console 不直接公网暴露。
 - `infra/production/domains.example.yaml` 与 `infra/production/api/config.production.example.yaml`：可提交的非敏感域名 / API 配置示例。
 
 真实 `.env`、`config.yaml`、ACME storage 和生产密钥文件必须保留在生产服务器或安全渠道中，仓库 `.gitignore` 会忽略这些文件；只提交 `.env.example`、`config.example.yaml` 和 `*.example.yaml`。

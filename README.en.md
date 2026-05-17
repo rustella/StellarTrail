@@ -169,8 +169,7 @@ Production deployment config is split under `infra/production/`, with `/www/serv
 - `infra/production/traefik/docker-compose.yml`: the only public edge entrypoint, exposing 80/443 and using Let’s Encrypt for automatic certificate issuance and renewal.
 - `infra/production/site/docker-compose.yml`: official site; `site.example.invalid` is canonical and `www.example.invalid` redirects to the apex with HTTP 301.
 - `infra/production/web/docker-compose.yml`: Web App on `app.example.invalid`.
-- `infra/production/api/docker-compose.yml`: API service on `api.example.invalid`, mounting root `config.yaml` to `/app/config.yaml:ro`.
-- `infra/production/api-deps/docker-compose.yml`: API dependencies PostgreSQL, Redis, and MinIO; `assets.example.invalid` reaches only the MinIO API through Traefik, while the MinIO console is not publicly exposed.
+- `infra/production/api/docker-compose.yml`: API service plus private PostgreSQL, Redis, and MinIO dependencies; the API reaches them through Docker service names `postgres`, `redis`, and `minio`, root `config.yaml` is mounted to `/app/config.yaml:ro`, and `assets.example.invalid` reaches only the MinIO API through Traefik while the MinIO console stays private.
 - `infra/production/domains.example.yaml` and `infra/production/api/config.production.example.yaml`: committed non-sensitive domain and API config examples.
 
 Real `.env`, `config.yaml`, ACME storage, and production secret files must stay on the production server or in a secure channel. The repository `.gitignore` ignores those files; commit only `.env.example`, `config.example.yaml`, and `*.example.yaml`.
