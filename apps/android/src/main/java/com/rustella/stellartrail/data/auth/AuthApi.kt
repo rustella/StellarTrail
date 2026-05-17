@@ -1,0 +1,28 @@
+package com.rustella.stellartrail.data.auth
+
+import com.rustella.stellartrail.core.network.ApiClient
+import com.rustella.stellartrail.domain.auth.CaptchaChallengeRequest
+import com.rustella.stellartrail.domain.auth.CaptchaChallengeResponse
+import com.rustella.stellartrail.domain.auth.EmailVerificationCodeRequest
+import com.rustella.stellartrail.domain.auth.EmailVerificationCodeResponse
+import com.rustella.stellartrail.domain.auth.LoginResponse
+import com.rustella.stellartrail.domain.auth.PasswordLoginRequest
+import com.rustella.stellartrail.domain.auth.RegisterRequest
+import com.rustella.stellartrail.domain.auth.WechatLoginRequest
+
+class AuthApi(private val apiClient: ApiClient) {
+    suspend fun sendEmailVerificationCode(request: EmailVerificationCodeRequest): EmailVerificationCodeResponse =
+        apiClient.post("/api/auth/email-verification-code", request)
+
+    suspend fun createCaptcha(request: CaptchaChallengeRequest): CaptchaChallengeResponse =
+        apiClient.post("/api/auth/captcha", request)
+
+    suspend fun register(request: RegisterRequest): LoginResponse =
+        apiClient.post("/api/auth/register", request)
+
+    suspend fun loginWithPassword(request: PasswordLoginRequest): LoginResponse =
+        apiClient.post("/api/auth/login", request)
+
+    suspend fun loginWithWechatCode(request: WechatLoginRequest): LoginResponse =
+        apiClient.post("/api/auth/wechat-login", request)
+}
