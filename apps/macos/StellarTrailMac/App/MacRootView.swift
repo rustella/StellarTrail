@@ -4,6 +4,7 @@ enum MacSidebarItem: String, CaseIterable, Identifiable {
     case home
     case gear
     case skills
+    case skillKnots = "skill-knots"
     case profile
     case authLogin = "auth-login"
     case authRegister = "auth-register"
@@ -15,6 +16,7 @@ enum MacSidebarItem: String, CaseIterable, Identifiable {
         case .home: return "首页"
         case .gear: return "装备"
         case .skills: return "技能"
+        case .skillKnots: return "绳结"
         case .profile: return "我的"
         case .authLogin: return "登录"
         case .authRegister: return "注册"
@@ -26,6 +28,7 @@ enum MacSidebarItem: String, CaseIterable, Identifiable {
         case .home: return "house.fill"
         case .gear: return "backpack.fill"
         case .skills: return "figure.hiking"
+        case .skillKnots: return "point.3.connected.trianglepath.dotted"
         case .profile: return "person.crop.circle.fill"
         case .authLogin: return "person.badge.key.fill"
         case .authRegister: return "person.badge.plus.fill"
@@ -37,6 +40,7 @@ struct MacRootView: View {
     @ObservedObject var environment: MacAppEnvironment
     @ObservedObject private var sessionStore: SessionStore
     @State private var selection: MacSidebarItem?
+    @State private var skillsExpanded = true
     @State private var guestBrowsing = false
 
     init(environment: MacAppEnvironment) {
@@ -76,7 +80,12 @@ struct MacRootView: View {
                 Section("寻径星野") {
                     sidebarLink(.home)
                     sidebarLink(.gear)
-                    sidebarLink(.skills)
+                    DisclosureGroup(isExpanded: $skillsExpanded) {
+                        sidebarLink(.skillKnots)
+                            .padding(.leading, 8)
+                    } label: {
+                        Label(MacSidebarItem.skills.title, systemImage: MacSidebarItem.skills.systemImage)
+                    }
                 }
                 Section("账号") {
                     sidebarLink(.profile)
@@ -101,6 +110,8 @@ struct MacRootView: View {
         case .gear:
             MacGearView(environment: environment)
         case .skills:
+            MacSkillsView(environment: environment)
+        case .skillKnots:
             MacSkillsView(environment: environment)
         case .profile:
             MacProfileView(
@@ -176,7 +187,11 @@ struct MacRootView: View {
         guard let index = arguments.firstIndex(of: "--stellartrail-screenshot-page"), arguments.indices.contains(index + 1) else {
             return .home
         }
-        return MacSidebarItem(rawValue: arguments[index + 1]) ?? .home
+        let rawValue = arguments[index + 1]
+        if rawValue == MacSidebarItem.skills.rawValue {
+            return .skillKnots
+        }
+        return MacSidebarItem(rawValue: rawValue) ?? .home
     }
 }
 
