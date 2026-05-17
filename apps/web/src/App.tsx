@@ -1112,7 +1112,7 @@ export default function App({ client }: AppProps) {
           <div className="brand-logo">
             <img
               className="brand-logo-image"
-              src="/stellartrail-icon.svg"
+              src="/stellartrail-icon.png"
               alt="寻径星野产品图标"
             />
           </div>

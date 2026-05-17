@@ -1,11 +1,11 @@
 # StellarTrail icon assets
 
-This directory contains the editable master icon and common handoff exports generated from the attached night-mountain artwork.
+This directory contains raster icon exports generated directly from the user-supplied night-mountain artwork. The bitmap artwork is the source of truth; SVG/vector redraw exports are intentionally not included.
 
-## Master and source
+## Source
 
-- `stellartrail-icon.svg`: editable vector master for app, web, and marketing use.
-- `source-app-icon.png`: original 144×144 source image supplied in the task.
+- `source-app-icon.png`: original attached image (634×596).
+- Raster exports are generated from a square crop of the original artwork (594×594, crop box `(6, 2, 600, 596)`).
 
 ## Raster exports
 
@@ -19,6 +19,6 @@ Additional formats:
 
 ## Platform copies
 
-- Web/PWA files live under `apps/web/public/` and are linked from `apps/web/index.html`.
-- Android launcher resources live under `apps/android/src/main/res/` with vector, adaptive, and density PNG variants.
-- Mini Program handoff copies live under `apps/wechat-miniprogram/miniprogram/assets/icons/`.
+- Web/PWA raster files live under `apps/web/public/` and are linked from `apps/web/index.html`.
+- Android launcher resources live under `apps/android/src/main/res/` with PNG density assets and adaptive icon XML pointing at the PNG foreground.
+- Mini Program raster copies live under `apps/wechat-miniprogram/miniprogram/assets/icons/`.

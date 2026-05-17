@@ -1,11 +1,12 @@
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 const PUBLIC_DIR = resolve(process.cwd(), "public");
-const PRODUCT_ICON = resolve(PUBLIC_DIR, "stellartrail-icon.svg");
+const PRODUCT_ICON = resolve(PUBLIC_DIR, "stellartrail-icon.png");
 const FAVICON_SVG = resolve(PUBLIC_DIR, "favicon.svg");
+const LEGACY_SVG_ALIAS = resolve(PUBLIC_DIR, "stellartrail-icon.svg");
 const FAVICON_ICO = resolve(PUBLIC_DIR, "favicon.ico");
 const FAVICON_16 = resolve(PUBLIC_DIR, "icons/favicon-16.png");
 const FAVICON_32 = resolve(PUBLIC_DIR, "icons/favicon-32.png");
@@ -48,22 +49,14 @@ function parseIcoSizes(path: string) {
 }
 
 describe("web product icon asset", () => {
-  it("ships a crisp SVG icon based on the mountain trail artwork", () => {
-    const icon = readFileSync(PRODUCT_ICON, "utf8");
-    const favicon = readFileSync(FAVICON_SVG, "utf8");
-    const size = statSync(PRODUCT_ICON).size;
-
-    expect(icon).toContain('viewBox="0 0 144 144"');
-    expect(icon).toContain('id="night-sky"');
-    expect(icon).toContain('id="mountains"');
-    expect(icon).toContain('id="trail"');
-    expect(icon).toContain('id="compass-star"');
-    expect(icon).not.toMatch(/<text\b/i);
-    expect(favicon).toBe(icon);
-    expect(size).toBeGreaterThan(3000);
+  it("ships a raster PNG icon generated from the supplied artwork", () => {
+    expectPngDimensions(PRODUCT_ICON, 512, 512);
+    expect(statSync(PRODUCT_ICON).size).toBeGreaterThan(20000);
+    expect(existsSync(FAVICON_SVG)).toBe(false);
+    expect(existsSync(LEGACY_SVG_ALIAS)).toBe(false);
   });
 
-  it("ships raster favicon fallbacks for browsers that cannot use SVG icons", () => {
+  it("ships raster favicon fallbacks for browsers and app installs", () => {
     expectPngDimensions(FAVICON_16, 16, 16);
     expectPngDimensions(FAVICON_32, 32, 32);
     expectPngDimensions(FAVICON_48, 48, 48);
@@ -120,14 +113,11 @@ describe("web product icon asset", () => {
     );
   });
 
-  it("uses the optimized icon set as the browser product icon", () => {
+  it("uses the raster icon set as the browser product icon", () => {
     const html = readFileSync(INDEX_HTML, "utf8");
 
     expect(html).toContain(
       '<link rel="icon" href="/favicon.ico" sizes="any" />',
-    );
-    expect(html).toContain(
-      '<link rel="icon" type="image/svg+xml" href="/favicon.svg" />',
     );
     expect(html).toContain('href="/icons/favicon-32.png"');
     expect(html).toContain('href="/icons/favicon-48.png"');
@@ -138,5 +128,7 @@ describe("web product icon asset", () => {
       '<link rel="manifest" href="/manifest.webmanifest" />',
     );
     expect(html).toContain('<meta name="theme-color" content="#0f172a" />');
+    expect(html).not.toContain("image/svg+xml");
+    expect(html).not.toContain("favicon.svg");
   });
 });
