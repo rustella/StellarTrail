@@ -5,6 +5,7 @@ protocol AuthRepositorying {
     func sendEmailVerificationCode(email: String) async throws -> EmailVerificationCodeResponse
     func register(_ request: RegisterRequest) async throws -> LoginResponse
     func login(account: String, password: String, captchaTicket: String?, captchaAnswer: String?) async throws -> LoginResponse
+    func wechatLogin(code: String, profile: WechatLoginProfile?) async throws -> LoginResponse
     func captcha(account: String) async throws -> CaptchaChallengeResponse
 }
 
@@ -55,6 +56,13 @@ final class AuthRepository: AuthRepositorying {
     func login(account: String, password: String, captchaTicket: String?, captchaAnswer: String?) async throws -> LoginResponse {
         let request = PasswordLoginRequest(account: account, password: password, captchaTicket: captchaTicket, captchaAnswer: captchaAnswer)
         let response: LoginResponse = try await client.send(try APIRequest.post("/api/auth/login", body: request), requiresAuth: false)
+        sessionStore.replace(with: response)
+        return response
+    }
+
+    func wechatLogin(code: String, profile: WechatLoginProfile?) async throws -> LoginResponse {
+        let request = WechatLoginRequest(code: code, profile: profile)
+        let response: LoginResponse = try await client.send(try APIRequest.post("/api/auth/wechat-login", body: request), requiresAuth: false)
         sessionStore.replace(with: response)
         return response
     }

@@ -44,6 +44,11 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
+    func switchMode(_ mode: AuthMode) {
+        self.mode = mode
+        message = nil
+    }
+
     func sendVerificationCode() async {
         guard let email = email.nilIfBlank else {
             message = "请先填写邮箱"
@@ -72,6 +77,21 @@ final class AuthViewModel: ObservableObject {
             captchaTicket = response.captchaTicket
             captchaSvg = response.imageSvg
             message = response.debugAnswer.map { "请完成验证码，本地调试答案：\($0)" } ?? "请完成验证码后继续"
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+
+    func loginWithWechat() async {
+        loading = true
+        defer { loading = false }
+        do {
+            let response = try await repository.wechatLogin(
+                code: "macos-local-user",
+                profile: WechatLoginProfile(nickname: "macOS 本地用户", avatarUrl: nil)
+            )
+            sessionStore.replace(with: response)
+            completed = true
         } catch {
             message = error.localizedDescription
         }
