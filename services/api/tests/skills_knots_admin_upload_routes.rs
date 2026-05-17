@@ -9,8 +9,8 @@ use serde_json::{Value, json};
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
     config::{
-        AdminConfig, ApiConfig, KnotsMediaStorageConfig, ObjectStorageConfig, PublicApiConfig,
-        RedisCacheConfig, UploadConfig,
+        AdminConfig, ApiConfig, CorsConfig, KnotsMediaStorageConfig, ObjectStorageConfig,
+        PublicApiConfig, RedisCacheConfig, UploadConfig,
     },
     migrate_database,
     object_store::InMemoryObjectStore,
@@ -118,6 +118,7 @@ async fn test_app() -> TestApp {
             usernames: vec!["admin_upload".to_owned()],
         },
         public_api: PublicApiConfig::default(),
+        cors: CorsConfig::default(),
     };
     let state = AppState::new_with_cache_and_object_store(
         config,

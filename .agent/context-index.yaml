@@ -58,6 +58,15 @@ topics:
       - .agent/commands.yaml
       - .github/workflows/rust-ci.yml
       - .github/workflows/frontend-ci.yml
+  infra_deployment:
+    summary: Load when changing Docker Compose, Dockerfiles, Traefik routing, production domains, or deployment config.
+    read:
+      - .agent/commands.yaml
+      - infra/test/docker-compose.yml
+      - infra/production/domains.example.yaml
+      - infra/production/traefik/docker-compose.yml
+      - infra/production/api/docker-compose.yml
+      - infra/production/api-deps/docker-compose.yml
   agent_context:
     summary: Load when changing .agent, AGENTS.md, CLAUDE.md, or context indexes.
     read:
@@ -138,3 +147,12 @@ tasks:
       - .agent/checklists/doc-sync.md
       - .agent/knowledge/README.md
       - .agent/commands.yaml
+  infra_change:
+    keywords: [infra, docker, compose, traefik, production, deployment]
+    read:
+      - .agent/commands.yaml
+      - README.md
+      - README.en.md
+      - infra/test/docker-compose.yml
+      - infra/production/domains.example.yaml
+    checklist: .agent/checklists/doc-sync.md

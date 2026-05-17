@@ -1,0 +1,21 @@
+# Non-sensitive production domain routing contract for StellarTrail.
+# Copy values into Traefik labels, API config.yaml CORS allowlist, and smoke tests.
+site:
+  canonical_origin: https://site.example.invalid
+  redirect_origins:
+    - https://www.example.invalid
+web:
+  origin: https://app.example.invalid
+api:
+  origin: https://api.example.invalid
+assets:
+  origin: https://assets.example.invalid
+allowlist:
+  api_cors_origins:
+    - https://app.example.invalid
+    - https://site.example.invalid
+    - https://www.example.invalid
+  asset_cors_origins:
+    - https://app.example.invalid
+    - https://site.example.invalid
+    - https://www.example.invalid

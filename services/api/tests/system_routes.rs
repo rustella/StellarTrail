@@ -5,7 +5,7 @@ use axum::{
 };
 use serde_json::Value;
 use stellartrail_api::{
-    config::{ApiConfig, RedisCacheConfig},
+    config::{ApiConfig, CorsConfig, RedisCacheConfig},
     migrate_database,
     routes::build_router,
     state::AppState,
@@ -42,6 +42,7 @@ async fn test_app() -> TestApp {
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),
+        cors: CorsConfig::default(),
     };
     TestApp {
         router: build_router(AppState::new(config, db)),

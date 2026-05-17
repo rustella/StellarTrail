@@ -9,6 +9,5 @@ WORKDIR /app
 COPY --from=builder /app/target/release/stellartrail-api /usr/local/bin/stellartrail-api
 COPY --from=builder /app/content /app/content
 RUN command -v curl >/dev/null && test -f /etc/ssl/certs/ca-certificates.crt
-ENV APP_HOST=0.0.0.0 APP_PORT=8080
 EXPOSE 8080
 CMD ["stellartrail-api"]

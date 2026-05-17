@@ -70,7 +70,7 @@ source_roots:
   - path: docs
     role: Product, architecture, API, and content schema documentation.
   - path: infra
-    role: Docker and local deployment configuration.
+    role: Docker integration-test and production deployment configuration.
   - path: scripts
     role: Development helper scripts.
 
@@ -99,6 +99,11 @@ generated_or_local_paths:
   - dist
   - .idea
   - .env
+  - config.yaml
+  - "config.*.yaml"
+  - "infra/production/**/.env"
+  - "infra/production/**/config.yaml"
+  - "infra/production/traefik/acme.json"
   - stellartrail.db
   - "*.sqlite"
   - "*.sqlite3"
@@ -123,6 +128,8 @@ validation:
     - cargo_check_workspace
     - cargo_test_workspace
     - cargo_clippy_workspace
+    - docker_compose_test_config
+    - docker_compose_production_config
     - git_diff_check
 
 freshness:

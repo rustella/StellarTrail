@@ -16,7 +16,7 @@ use axum::{
 use sea_orm::{ConnectionTrait, Statement};
 use serde_json::{Value, json};
 use stellartrail_api::{
-    config::{ApiConfig, RedisCacheConfig},
+    config::{ApiConfig, CorsConfig, RedisCacheConfig},
     migrate_database,
     routes::build_router,
     services::wechat::{WechatCodeSession, WechatCodeSessionClient},
@@ -55,6 +55,7 @@ async fn test_app() -> TestApp {
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),
+        cors: CorsConfig::default(),
     };
     TestApp {
         router: build_router(AppState::new(config, db.clone())),
@@ -337,6 +338,7 @@ async fn production_wechat_login_uses_code2session_client() {
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),
+        cors: CorsConfig::default(),
     };
     let wechat_client = RecordingWechatCodeSessionClient::default();
     let calls = Arc::clone(&wechat_client.calls);

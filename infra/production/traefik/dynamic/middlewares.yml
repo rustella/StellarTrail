@@ -1,0 +1,16 @@
+http:
+  middlewares:
+    redirect-www-to-apex:
+      redirectRegex:
+        regex: '^https?://www\.example\.invalid/(.*)'
+        replacement: "https://site.example.invalid/${1}"
+        permanent: true
+    security-headers:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: strict-origin-when-cross-origin
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true

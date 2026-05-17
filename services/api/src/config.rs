@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::Context;
+use axum::http::HeaderValue;
 use serde::Deserialize;
 use stellartrail_db::{DatabaseConfig, DatabaseKind};
 
@@ -25,6 +26,7 @@ struct FileConfig {
     knots_media_storage: FileKnotsMediaStorageConfig,
     admin: FileAdminConfig,
     public_api: FilePublicApiConfig,
+    cors: FileCorsConfig,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -122,6 +124,13 @@ struct FilePublicApiConfig {
     trusted_proxy_cidrs: Option<Vec<String>>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct FileCorsConfig {
+    allowed_origins: Option<Vec<String>>,
+    allow_credentials: Option<bool>,
+}
+
 impl FileConfig {
     fn load_from_env() -> anyhow::Result<Self> {
         let Some(path) = config_path_from_env()? else {
@@ -187,6 +196,13 @@ impl Default for PublicApiConfig {
             trusted_proxy_cidrs: Vec::new(),
         }
     }
+}
+
+/// Browser CORS allowlist for public web origins routed through Traefik.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct CorsConfig {
+    pub allowed_origins: Vec<String>,
+    pub allow_credentials: bool,
 }
 
 impl RedisCacheConfig {
@@ -301,6 +317,7 @@ pub struct ApiConfig {
     pub knots_media_storage: KnotsMediaStorageConfig,
     pub admin: AdminConfig,
     pub public_api: PublicApiConfig,
+    pub cors: CorsConfig,
 }
 
 impl ApiConfig {
@@ -317,6 +334,7 @@ impl ApiConfig {
             knots_media_storage: file_knots_media_storage,
             admin: file_admin,
             public_api: file_public_api,
+            cors: file_cors,
         } = FileConfig::load_from_env()?;
 
         let app_env = config_string_env("APP_ENV", app.env, "local");
@@ -528,6 +546,16 @@ impl ApiConfig {
         };
         validate_public_api_config(&public_api)?;
 
+        let cors = CorsConfig {
+            allowed_origins: config_list_env("CORS_ALLOWED_ORIGINS", file_cors.allowed_origins),
+            allow_credentials: config_bool_env(
+                "CORS_ALLOW_CREDENTIALS",
+                file_cors.allow_credentials,
+                false,
+            )?,
+        };
+        validate_cors_config(&cors)?;
+
         Ok(Self {
             app_env,
             host,
@@ -545,6 +573,7 @@ impl ApiConfig {
             knots_media_storage,
             admin,
             public_api,
+            cors,
         })
     }
 
@@ -660,6 +689,28 @@ fn validate_knots_media_storage_config(config: &KnotsMediaStorageConfig) -> anyh
     }
     if config.max_video_bytes == 0 {
         anyhow::bail!("KNOTS_MEDIA_MAX_VIDEO_BYTES must be greater than 0");
+    }
+    Ok(())
+}
+
+fn validate_cors_config(config: &CorsConfig) -> anyhow::Result<()> {
+    for origin in &config.allowed_origins {
+        if origin.trim() != origin || origin.is_empty() {
+            anyhow::bail!("CORS_ALLOWED_ORIGINS entries must not be empty or padded");
+        }
+        let Some(origin_host) = origin
+            .strip_prefix("https://")
+            .or_else(|| origin.strip_prefix("http://"))
+        else {
+            anyhow::bail!("CORS_ALLOWED_ORIGINS entries must start with http:// or https://");
+        };
+        if origin_host.is_empty() || origin_host.contains('/') {
+            anyhow::bail!(
+                "CORS_ALLOWED_ORIGINS entries must be origins without paths, queries, or fragments"
+            );
+        }
+        HeaderValue::from_str(origin)
+            .with_context(|| format!("CORS origin {origin} must be a valid header value"))?;
     }
     Ok(())
 }
@@ -846,6 +897,11 @@ public_api:
   trust_proxy_headers: true
   trusted_proxy_cidrs:
     - 10.0.0.0/8
+cors:
+  allowed_origins:
+    - https://app.example.invalid
+    - https://www.example.invalid
+  allow_credentials: true
 "#,
         )
         .unwrap();
@@ -885,6 +941,14 @@ public_api:
             config.public_api.trusted_proxy_cidrs,
             vec!["10.0.0.0/8".to_owned()]
         );
+        assert_eq!(
+            config.cors.allowed_origins,
+            vec![
+                "https://app.example.invalid".to_owned(),
+                "https://www.example.invalid".to_owned(),
+            ]
+        );
+        assert!(config.cors.allow_credentials);
 
         restore_env(saved);
     }
@@ -917,6 +981,11 @@ public_api:
             env::set_var("DATABASE_URL", "sqlite://env-config.db");
             env::set_var("WECHAT_MOCK_LOGIN", "false");
             env::set_var("PUBLIC_API_MAX_LIST_LIMIT", "40");
+            env::set_var(
+                "CORS_ALLOWED_ORIGINS",
+                "https://app.example.invalid, https://site.example.invalid, https://www.example.invalid",
+            );
+            env::set_var("CORS_ALLOW_CREDENTIALS", "true");
         }
 
         let config = ApiConfig::from_env().unwrap();
@@ -926,6 +995,15 @@ public_api:
         assert_eq!(config.database.url, "sqlite://env-config.db");
         assert!(!config.wechat_mock_login);
         assert_eq!(config.public_api.max_list_limit, 40);
+        assert_eq!(
+            config.cors.allowed_origins,
+            vec![
+                "https://app.example.invalid".to_owned(),
+                "https://site.example.invalid".to_owned(),
+                "https://www.example.invalid".to_owned(),
+            ]
+        );
+        assert!(config.cors.allow_credentials);
 
         restore_env(saved);
     }
@@ -1020,6 +1098,22 @@ public_api:
     }
 
     #[test]
+    fn from_env_rejects_cors_origins_with_paths() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("CORS_ALLOWED_ORIGINS", "https://app.example.invalid/path");
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(error.contains("CORS_ALLOWED_ORIGINS"), "{error}");
+        restore_env(saved);
+    }
+
+    #[test]
     fn from_env_rejects_zero_upload_limits() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = snapshot_env(CONFIG_KEYS);
@@ -1069,6 +1163,8 @@ public_api:
         "PUBLIC_API_MAX_OFFSET",
         "TRUST_PROXY_HEADERS",
         "TRUSTED_PROXY_CIDRS",
+        "CORS_ALLOWED_ORIGINS",
+        "CORS_ALLOW_CREDENTIALS",
         "MINIO_ROOT_USER",
         "KNOTS_MEDIA_STORAGE_PROFILE",
         "KNOTS_MEDIA_ENDPOINT",

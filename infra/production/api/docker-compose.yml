@@ -1,0 +1,30 @@
+services:
+  api:
+    build:
+      context: ../../..
+      dockerfile: infra/production/api/Dockerfile
+    image: ${STELLARTAIL_API_IMAGE:-ghcr.io/rustella/stellartrail-api:latest}
+    restart: unless-stopped
+    environment:
+      RUST_LOG: ${RUST_LOG:-stellartrail_api=info,tower_http=info}
+    volumes:
+      - ${STELLARTAIL_DEPLOY_ROOT:-/www/service/stellartail}/config.yaml:/app/config.yaml:ro
+    networks:
+      - edge
+      - backend
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
+      traefik.http.routers.api.rule: Host(`api.example.invalid`)
+      traefik.http.routers.api.entrypoints: websecure
+      traefik.http.routers.api.tls.certresolver: letsencrypt
+      traefik.http.routers.api.middlewares: security-headers@file
+      traefik.http.services.api.loadbalancer.server.port: "8080"
+
+networks:
+  edge:
+    name: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
+    external: true
+  backend:
+    name: ${STELLARTAIL_BACKEND_NETWORK:-stellartail-backend}
+    external: true

@@ -129,6 +129,30 @@ commands:
     command: git diff --check
     when_to_run: Run before handoff or commit.
     side_effects: Read-only.
+  docker_compose_test_config:
+    description: Validate the local integration-test Docker Compose file after infra changes.
+    cwd: .
+    command: docker compose -f infra/test/docker-compose.yml config
+    when_to_run: Run after changing infra/test/docker-compose.yml, Dockerfiles, or integration-test wiring.
+  docker_compose_production_config:
+    description: Validate production split Compose files with their checked-in example env files.
+    cwd: .
+    command: |
+      set -euo pipefail
+      docker compose --env-file infra/production/traefik/.env.example -f infra/production/traefik/docker-compose.yml config >/dev/null
+      docker compose --env-file infra/production/site/.env.example -f infra/production/site/docker-compose.yml config >/dev/null
+      docker compose --env-file infra/production/web/.env.example -f infra/production/web/docker-compose.yml config >/dev/null
+      docker compose --env-file infra/production/api/.env.example -f infra/production/api/docker-compose.yml config >/dev/null
+      docker compose --env-file infra/production/api-deps/.env.example -f infra/production/api-deps/docker-compose.yml config >/dev/null
+    when_to_run: Run after changing production Docker, Traefik, domain, or deployment configuration.
+  git_check_ignore_production_config:
+    description: Confirm real production config files stay ignored while examples remain trackable.
+    cwd: .
+    command: |
+      set -euo pipefail
+      git check-ignore -v config.yaml config.production.yaml infra/production/api/.env infra/production/api/config.yaml infra/production/traefik/acme.json
+      git check-ignore -q infra/production/api/.env.example && exit 1 || true
+    when_to_run: Run after changing .gitignore or production config file naming.
   android_assemble_debug:
     description: Build the Android debug APK.
     cwd: .

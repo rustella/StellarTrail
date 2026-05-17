@@ -71,3 +71,10 @@ public_api:
   max_offset: 10000
   trust_proxy_headers: false
   trusted_proxy_cidrs: []
+
+
+cors:
+  # Browser origins that may call the API directly. Production should include
+  # https://app.example.invalid, https://site.example.invalid, and https://www.example.invalid.
+  allowed_origins: []
+  allow_credentials: false
