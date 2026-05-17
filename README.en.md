@@ -9,6 +9,7 @@
   <img alt="Rust" src="https://img.shields.io/badge/API-Rust%20%2B%20Axum-orange" />
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/Client-WeChat%20Mini%20Program-07C160" />
   <img alt="Android" src="https://img.shields.io/badge/Client-Android%20%2B%20Compose-3DDC84" />
+  <img alt="iOS" src="https://img.shields.io/badge/Client-iOS%20%2B%20SwiftUI-000000" />
   <img alt="Content Driven" src="https://img.shields.io/badge/Content-YAML%20%2B%20Markdown-8A2BE2" />
 </p>
 
@@ -22,7 +23,7 @@
 
 StellarTrail serves hikers, campers, and lightweight outdoor users in China. The product is designed around one preparation loop: choose a route, understand difficulty, seasonality and risks, generate a packing checklist, compare it with the user's gear library, and learn the related outdoor skills.
 
-The current entry point is a **WeChat Mini Program**. A **Rust API service** provides backend capabilities. Phase one focuses on **personal gear library management**, while routes, mountains, skills, and gear templates remain follow-up content directions.
+The current entry point is a **WeChat Mini Program**. Native **Android** and **iOS** clients share the same core gear and skills experience. A **Rust API service** provides backend capabilities. Phase one focuses on **personal gear library management**, while routes, mountains, skills, and gear templates remain follow-up content directions.
 
 | Module            | Current goal                                             |
 | ----------------- | -------------------------------------------------------- |
@@ -63,6 +64,7 @@ Routes, trips, skills, realtime navigation, social feeds, guided-trip marketplac
 StellarTrail/
   apps/
     android/                # Android native client (Kotlin + Jetpack Compose)
+    ios/                    # iOS native client (Swift + SwiftUI)
     web/                    # Web App
     wechat-miniprogram/     # WeChat Mini Program client
   services/
@@ -116,7 +118,7 @@ curl http://127.0.0.1:8080/healthz
 curl http://127.0.0.1:8080/api/meta
 ```
 
-Knot media is uploaded through MinIO/S3-compatible object storage. Public read APIs return only DB-backed media URLs and no longer derive knot media paths from `/assets/*`. After configuring the admin allowlist (`ADMIN_USER_IDS`, `ADMIN_EMAILS`, or `ADMIN_USERNAMES`), use `npm run knots:upload-media -- --dry-run` to inspect the Knots3D plan and the same script to call the admin upload API.
+Knot media is uploaded through MinIO/S3-compatible object storage. Public read APIs return only DB-backed media URLs and no longer derive knot media paths from `/assets/*`. The API now keeps one shared `minio` connection configuration, while feedback images and knot media use separate business buckets through `object_storage.bucket` and `knots_media_storage.bucket`. After configuring the admin allowlist (`ADMIN_USER_IDS`, `ADMIN_EMAILS`, or `ADMIN_USERNAMES`), use `npm run knots:upload-media -- --dry-run` to inspect the Knots3D plan and the same script to call the admin upload API.
 
 Currently implemented endpoints:
 

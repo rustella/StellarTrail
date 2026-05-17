@@ -32,6 +32,7 @@ stack:
     platforms:
       - WeChat Mini Program
       - Android
+      - iOS
       - web
     language: TypeScript
     node: "22+"
@@ -47,6 +48,8 @@ stack:
 source_roots:
   - path: apps/android
     role: Android native client.
+  - path: apps/ios
+    role: iOS native SwiftUI client.
   - path: apps/wechat-miniprogram
     role: WeChat Mini Program client.
   - path: apps/web
@@ -76,6 +79,8 @@ source_roots:
 
 entrypoints:
   android_app: apps/android/src/main/java/com/rustella/stellartrail/MainActivity.kt
+  ios_app: apps/ios/StellarTrail/App/StellarTrailApp.swift
+  ios_project_definition: apps/ios/project.yml
   api_server: services/api/src/main.rs
   api_state: services/api/src/state.rs
   api_routes: services/api/src/routes/mod.rs
@@ -130,6 +135,8 @@ validation:
     - cargo_clippy_workspace
     - docker_compose_test_config
     - docker_compose_production_config
+    - ios_xcodegen_generate
+    - ios_test_simulator
     - git_diff_check
 
 freshness:

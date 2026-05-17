@@ -3,7 +3,7 @@
 ## Runtime
 
 ```text
-WeChat Mini Program
+WeChat Mini Program / Android / iOS
         |
         | HTTPS JSON API
         v
@@ -33,7 +33,8 @@ crates/importer -> AppState in-memory public catalog
 - `crates/db`：SeaORM 连接、repository、用户会话和装备持久化。
 - `crates/migration`：`users`、`sessions`、邮箱验证码、密码登录字段和 `user_gear_items` 迁移。
 - `crates/importer`：解析 `content/` 下 YAML/Markdown，在 API 启动时加载为内存只读 catalog。
-- `packages/shared-types` / `packages/api-client-ts`：小程序侧复用 DTO 和 API client。
+- `packages/shared-types` / `packages/api-client-ts`：小程序、Web 和移动端对齐 DTO 与客户端调用语义。
+- `apps/ios`：SwiftUI 原生端，使用 MVVM、repository、URLSession/Codable 和 Keychain 会话存储复用同一套装备与技能体验。
 
 ## Database strategy
 
