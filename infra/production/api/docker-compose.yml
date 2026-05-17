@@ -35,7 +35,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-stellartrail}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/production/api/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run infra/production/api/compose-from-config.sh so database.url in config.yaml is exported}
       POSTGRES_DB: ${POSTGRES_DB:-stellartrail}
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -57,15 +57,15 @@ services:
     image: ${REDIS_IMAGE:-redis:7-alpine}
     restart: unless-stopped
     command:
-      [
-        "redis-server",
-        "--appendonly",
-        "yes",
-        "--requirepass",
-        "$${REDIS_PASSWORD}",
-      ]
+      - /bin/sh
+      - -c
+      - |
+        if [ -n "$${REDIS_PASSWORD:-}" ]; then
+          exec redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}"
+        fi
+        exec redis-server --appendonly yes
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in infra/production/api/.env}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:
       - redis-data:/data
     networks:
@@ -73,7 +73,11 @@ services:
     expose:
       - "6379"
     healthcheck:
-      test: ["CMD-SHELL", 'redis-cli -a "$${REDIS_PASSWORD}" ping']
+      test:
+        [
+          "CMD-SHELL",
+          'if [ -n "$${REDIS_PASSWORD:-}" ]; then redis-cli -a "$${REDIS_PASSWORD}" ping; else redis-cli ping; fi',
+        ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -84,8 +88,8 @@ services:
     command:
       ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in infra/production/api/.env}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in infra/production/api/.env}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?run infra/production/api/compose-from-config.sh so minio.access_key_id in config.yaml is exported}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?run infra/production/api/compose-from-config.sh so minio.secret_access_key in config.yaml is exported}
     volumes:
       - minio-data:/data
     networks:
@@ -113,8 +117,8 @@ services:
       minio:
         condition: service_healthy
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in infra/production/api/.env}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in infra/production/api/.env}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?run infra/production/api/compose-from-config.sh so minio.access_key_id in config.yaml is exported}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?run infra/production/api/compose-from-config.sh so minio.secret_access_key in config.yaml is exported}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-stellartrail-uploads}
       KNOTS_MEDIA_BUCKET: ${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
     networks:

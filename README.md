@@ -106,7 +106,7 @@ cargo run -p stellartrail-api --bin migrate -- up
 cargo run -p stellartrail-api
 ```
 
-API 默认监听 `127.0.0.1:8080`。启动时会先加载 `.env`，再读取根目录 `config.yaml`（存在时）或 `CONFIG_PATH` 指定的 YAML 文件，最后由环境变量覆盖 YAML 配置。默认数据库地址为 `sqlite://stellartrail.db`。本地可通过 `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true` 启用 mock 登录；正式微信登录需设置 `WECHAT_MOCK_LOGIN=false`、`WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`。邮箱验证码生产投递通过 SMTP：设置 `MAIL_ENABLED=true`、`MAIL_SMTP_HOST=smtp.example.invalid`、`MAIL_SMTP_USERNAME=[REDACTED]`，并通过 `.env`、被忽略的 `config.yaml` 或 secret manager 注入 `MAIL_SMTP_PASSWORD` 和发件人地址。邮箱验证码现在用于注册、邮箱验证码登录和找回密码。如需启用 Redis 缓存，设置 `REDIS_URL=redis://127.0.0.1:6379/0`；`REDIS_GEAR_CACHE_TTL_SECONDS` 控制装备读取缓存 TTL。`config.example.yaml` 会提交到 Git，实际 `config.yaml` / `config.*.yaml` 会被忽略。
+API 默认监听 `127.0.0.1:8080`。启动时会先加载 `.env`，再读取根目录 `config.yaml`（存在时）或 `CONFIG_PATH` 指定的 YAML 文件，最后由环境变量覆盖 YAML 配置。默认数据库地址为 `sqlite://stellartrail.db`。本地可通过 `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true` 启用 mock 登录；正式微信登录需设置 `WECHAT_MOCK_LOGIN=false`、`WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`。邮箱验证码生产投递通过 SMTP：设置 `MAIL_ENABLED=true`、`MAIL_SMTP_HOST=smtp.example.invalid`、`MAIL_SMTP_USERNAME=[REDACTED]`，并通过被忽略的 `config.yaml` 或 secret manager 注入 `MAIL_SMTP_PASSWORD` 和发件人地址。邮箱验证码现在用于注册、邮箱验证码登录和找回密码。如需启用 Redis 缓存，设置 `REDIS_URL=redis://127.0.0.1:6379/0`；`REDIS_GEAR_CACHE_TTL_SECONDS` 控制装备读取缓存 TTL。`config.example.yaml` 会提交到 Git，实际 `config.yaml` / `config.*.yaml` 会被忽略。
 
 可用以下接口做本地冒烟验证：
 
@@ -168,10 +168,10 @@ COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=1543
 - `infra/production/traefik/docker-compose.yml`：唯一公网入口，暴露 80/443，并通过 Let’s Encrypt 自动申请和续期证书。
 - `infra/production/site/docker-compose.yml`：官网，`site.example.invalid` 为 canonical；`www.example.invalid` 通过 Traefik 301 到 apex。
 - `infra/production/web/docker-compose.yml`：Web App，域名 `app.example.invalid`。
-- `infra/production/api/docker-compose.yml`：后端 API 与私有依赖组件 PostgreSQL、Redis、MinIO；API 可通过 Docker 服务名 `postgres`、`redis`、`minio` 访问组件，根目录 `config.yaml` 挂载到容器 `/app/config.yaml:ro`；`assets.example.invalid` 只通过 Traefik 指向 MinIO API，MinIO console 不直接公网暴露。
+- `infra/production/api/docker-compose.yml`：后端 API 与私有依赖组件 PostgreSQL、Redis、MinIO；API 可通过 Docker 服务名 `postgres`、`redis`、`minio` 访问组件，根目录 `config.yaml` 挂载到容器 `/app/config.yaml:ro`，并通过 `infra/production/api/compose-from-config.sh` 派生 PostgreSQL、Redis、MinIO 的 Compose 运行变量；`assets.example.invalid` 只通过 Traefik 指向 MinIO API，MinIO console 不直接公网暴露。
 - `infra/production/domains.example.yaml` 与 `infra/production/api/config.production.example.yaml`：可提交的非敏感域名 / API 配置示例。
 
-真实 `.env`、`config.yaml`、ACME storage 和生产密钥文件必须保留在生产服务器或安全渠道中，仓库 `.gitignore` 会忽略这些文件；只提交 `.env.example`、`config.example.yaml` 和 `*.example.yaml`。
+生产 API 不再使用 `infra/production/api/.env`；真实 `config.yaml`、ACME storage 和生产密钥文件必须保留在生产服务器或安全渠道中，仓库 `.gitignore` 会忽略这些文件；API 配置只提交 `config.example.yaml` 和 `*.example.yaml`。
 
 ### 6. 打开微信小程序
 

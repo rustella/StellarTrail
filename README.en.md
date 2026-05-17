@@ -105,7 +105,7 @@ cargo run -p stellartrail-api --bin migrate -- up
 cargo run -p stellartrail-api
 ```
 
-The API listens on `127.0.0.1:8080` by default. Startup loads `.env`, then reads root `config.yaml` when present or the YAML file named by `CONFIG_PATH`, and finally lets environment variables override YAML values. The default database URL is `sqlite://stellartrail.db`. Local mock login is enabled with `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true`; real WeChat login requires `WECHAT_MOCK_LOGIN=false`, `WECHAT_APP_ID`, and `WECHAT_APP_SECRET`. Production email-code delivery uses SMTP: set `MAIL_ENABLED=true`, `MAIL_SMTP_HOST=smtp.example.invalid`, `MAIL_SMTP_USERNAME=[REDACTED]`, and inject `MAIL_SMTP_PASSWORD` plus the sender address through `.env`, ignored `config.yaml`, or a secret manager. Email codes now cover registration, email-code login, and password reset. To enable Redis caching, set `REDIS_URL=redis://127.0.0.1:6379/0`; `REDIS_GEAR_CACHE_TTL_SECONDS` controls the gear read cache TTL. `config.example.yaml` is committed, while real `config.yaml` / `config.*.yaml` files are ignored by Git.
+The API listens on `127.0.0.1:8080` by default. Startup loads `.env`, then reads root `config.yaml` when present or the YAML file named by `CONFIG_PATH`, and finally lets environment variables override YAML values. The default database URL is `sqlite://stellartrail.db`. Local mock login is enabled with `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true`; real WeChat login requires `WECHAT_MOCK_LOGIN=false`, `WECHAT_APP_ID`, and `WECHAT_APP_SECRET`. Production email-code delivery uses SMTP: set `MAIL_ENABLED=true`, `MAIL_SMTP_HOST=smtp.example.invalid`, `MAIL_SMTP_USERNAME=[REDACTED]`, and inject `MAIL_SMTP_PASSWORD` plus the sender address through ignored `config.yaml` or a secret manager. Email codes now cover registration, email-code login, and password reset. To enable Redis caching, set `REDIS_URL=redis://127.0.0.1:6379/0`; `REDIS_GEAR_CACHE_TTL_SECONDS` controls the gear read cache TTL. `config.example.yaml` is committed, while real `config.yaml` / `config.*.yaml` files are ignored by Git.
 
 Use these endpoints for local smoke testing:
 
@@ -167,10 +167,10 @@ Production deployment config is split under `infra/production/`, with `/www/serv
 - `infra/production/traefik/docker-compose.yml`: the only public edge entrypoint, exposing 80/443 and using Let’s Encrypt for automatic certificate issuance and renewal.
 - `infra/production/site/docker-compose.yml`: official site; `site.example.invalid` is canonical and `www.example.invalid` redirects to the apex with HTTP 301.
 - `infra/production/web/docker-compose.yml`: Web App on `app.example.invalid`.
-- `infra/production/api/docker-compose.yml`: API service plus private PostgreSQL, Redis, and MinIO dependencies; the API reaches them through Docker service names `postgres`, `redis`, and `minio`, root `config.yaml` is mounted to `/app/config.yaml:ro`, and `assets.example.invalid` reaches only the MinIO API through Traefik while the MinIO console stays private.
+- `infra/production/api/docker-compose.yml`: API service plus private PostgreSQL, Redis, and MinIO dependencies; the API reaches them through Docker service names `postgres`, `redis`, and `minio`, root `config.yaml` is mounted to `/app/config.yaml:ro`, `infra/production/api/compose-from-config.sh` derives PostgreSQL, Redis, and MinIO Compose runtime variables from that YAML, and `assets.example.invalid` reaches only the MinIO API through Traefik while the MinIO console stays private.
 - `infra/production/domains.example.yaml` and `infra/production/api/config.production.example.yaml`: committed non-sensitive domain and API config examples.
 
-Real `.env`, `config.yaml`, ACME storage, and production secret files must stay on the production server or in a secure channel. The repository `.gitignore` ignores those files; commit only `.env.example`, `config.example.yaml`, and `*.example.yaml`.
+The production API no longer uses `infra/production/api/.env`; real `config.yaml`, ACME storage, and production secret files must stay on the production server or in a secure channel. The repository `.gitignore` ignores those files; commit only API `config.example.yaml` and `*.example.yaml`.
 
 ### 6. Open the WeChat Mini Program
 

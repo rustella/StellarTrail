@@ -1,5 +1,8 @@
 # Production example for the API root config.yaml file.
 # Keep the real /www/service/stellartail/config.yaml out of Git.
+# Run infra/production/api/compose-from-config.sh instead of keeping an
+# infra/production/api/.env file; the wrapper derives Docker Compose secrets
+# for PostgreSQL, Redis, and MinIO from this same config.yaml.
 app:
   env: production
   host: 0.0.0.0
