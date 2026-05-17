@@ -614,6 +614,48 @@ impl AuthRepository {
         Ok(result.rows_affected() > 0)
     }
 
+    /// Binds an email address to a user that does not already have one.
+    ///
+    /// The conditional update keeps the operation safe for WeChat-created users
+    /// with null email fields while preserving the unique email invariant. If the
+    /// account already has an email or another active account owns the target
+    /// email, this returns `Ok(None)` without changing any row.
+    pub async fn bind_user_email(
+        &self,
+        user_id: &str,
+        email: &str,
+    ) -> Result<Option<UserRecord>, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                r#"UPDATE users
+                   SET email = ?, updated_at = ?
+                   WHERE id = ?
+                     AND email IS NULL
+                     AND deleted_at IS NULL
+                     AND NOT EXISTS (
+                       SELECT 1 FROM users AS existing
+                       WHERE existing.email = ?
+                         AND existing.id <> ?
+                         AND existing.deleted_at IS NULL
+                     )"#,
+                vec![
+                    email.to_owned().into(),
+                    now.into(),
+                    user_id.to_owned().into(),
+                    email.to_owned().into(),
+                    user_id.to_owned().into(),
+                ],
+            ))
+            .await?;
+        if result.rows_affected() == 0 {
+            return Ok(None);
+        }
+        self.find_user_by_id(user_id).await
+    }
+
     /// Revokes every active session for a user, including outstanding refresh tokens.
     pub async fn revoke_user_sessions(&self, user_id: &str) -> Result<u64, DbErr> {
         let now = now_rfc3339();
@@ -798,6 +840,59 @@ mod tests {
             Some(hash_token("new").as_str())
         );
         assert_eq!(found.failed_login_attempts, 0);
+    }
+
+    /// Verifies a WeChat-created user can bind an unused email exactly once.
+    #[tokio::test]
+    async fn binds_email_to_wechat_user_once() {
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        Migrator::up(&db, None).await.unwrap();
+        let repo = AuthRepository::new(db);
+        let user = repo
+            .upsert_mock_user("mock:bind-email", Some("微信用户".to_owned()), None)
+            .await
+            .unwrap();
+        assert!(user.email.is_none());
+
+        let updated = repo
+            .bind_user_email(&user.id, "bound-repo@example.com")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(updated.email.as_deref(), Some("bound-repo@example.com"));
+
+        let second_bind = repo
+            .bind_user_email(&user.id, "another-repo@example.com")
+            .await
+            .unwrap();
+        assert!(second_bind.is_none());
+    }
+
+    /// Verifies email binding preserves the unique email invariant.
+    #[tokio::test]
+    async fn bind_email_rejects_email_owned_by_another_user() {
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        Migrator::up(&db, None).await.unwrap();
+        let repo = AuthRepository::new(db);
+        repo.create_password_user("taken_repo", "taken-repo@example.com", &hash_token("old"))
+            .await
+            .unwrap();
+        let user = repo
+            .upsert_mock_user("mock:bind-email-taken", Some("微信用户".to_owned()), None)
+            .await
+            .unwrap();
+
+        let result = repo
+            .bind_user_email(&user.id, "taken-repo@example.com")
+            .await
+            .unwrap();
+        assert!(result.is_none());
+        let unchanged = repo
+            .find_user_by_email("taken-repo@example.com")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_ne!(unchanged.id, user.id);
     }
 
     /// Verifies password reset revokes both access and refresh credentials from older sessions.

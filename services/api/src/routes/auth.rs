@@ -6,14 +6,15 @@
 //! service layer makes the route table easy to audit for public authentication
 //! surface area.
 
-use axum::{Json, Router, routing::post};
+use axum::{Json, Router, http::HeaderMap, routing::post};
 
 use crate::{
     dto::auth::{
-        CaptchaChallengeRequest, CaptchaChallengeResponse, EmailLoginCodeRequest,
-        EmailLoginRequest, EmailVerificationCodeRequest, EmailVerificationCodeResponse,
-        LoginResponse, PasswordLoginRequest, PasswordResetCodeRequest, PasswordResetRequest,
-        RefreshTokenRequest, RegisterRequest, WechatLoginRequest,
+        BindEmailCodeRequest, BindEmailRequest, BindEmailResponse, CaptchaChallengeRequest,
+        CaptchaChallengeResponse, EmailLoginCodeRequest, EmailLoginRequest,
+        EmailVerificationCodeRequest, EmailVerificationCodeResponse, LoginResponse,
+        PasswordLoginRequest, PasswordResetCodeRequest, PasswordResetRequest, RefreshTokenRequest,
+        RegisterRequest, WechatLoginRequest,
     },
     error::ApiError,
     services::auth_service,
@@ -23,8 +24,8 @@ use crate::{
 /// Builds the authentication router mounted by the API application.
 ///
 /// Login, registration, captcha, and refresh routes are all unauthenticated by
-/// design because they establish or renew a session. Private application data
-/// remains protected by the `/api/me/*` handlers outside this router.
+/// design because they establish or renew a session. The authenticated email-binding
+/// handlers still require Bearer Token before changing `/api/me/*` account data.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/auth/wechat-login", post(wechat_login))
@@ -39,6 +40,8 @@ pub fn routes() -> Router<AppState> {
             post(send_password_reset_code),
         )
         .route("/api/auth/password-reset", post(password_reset))
+        .route("/api/me/email-binding-code", post(send_bind_email_code))
+        .route("/api/me/email-binding", post(bind_email))
         .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(password_login))
         // Refresh is intentionally public: the refresh token itself is the credential.
@@ -97,6 +100,28 @@ async fn password_reset(
     Json(payload): Json<PasswordResetRequest>,
 ) -> Result<Json<LoginResponse>, ApiError> {
     let response = auth_service::password_reset(&state, payload).await?;
+    Ok(Json(response))
+}
+
+/// Generates an email verification code for binding an email to the current account.
+async fn send_bind_email_code(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<BindEmailCodeRequest>,
+) -> Result<Json<EmailVerificationCodeResponse>, ApiError> {
+    let user = auth_service::authenticate(&headers, &state).await?;
+    let response = auth_service::send_bind_email_code(&state, &user, payload.email).await?;
+    Ok(Json(response))
+}
+
+/// Binds a verified email address to the current account.
+async fn bind_email(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<BindEmailRequest>,
+) -> Result<Json<BindEmailResponse>, ApiError> {
+    let user = auth_service::authenticate(&headers, &state).await?;
+    let response = auth_service::bind_email(&state, user, payload).await?;
     Ok(Json(response))
 }
 

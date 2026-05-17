@@ -941,6 +941,206 @@ async fn password_reset_updates_password_revokes_old_sessions_and_rejects_replay
 }
 
 #[tokio::test]
+async fn wechat_user_can_bind_email_then_reset_password() {
+    let app = test_app().await;
+
+    let (wechat_status, wechat_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/wechat-login",
+        None,
+        json!({"code": "bind-email-user", "profile": {"nickname": "微信用户"}}),
+    )
+    .await;
+    assert_eq!(wechat_status, StatusCode::OK, "{wechat_value}");
+    assert!(wechat_value["user"]["email"].is_null());
+    let user_id = wechat_value["user"]["id"].as_str().unwrap().to_owned();
+    let access_token = wechat_value["access_token"].as_str().unwrap().to_owned();
+
+    let (missing_reset_code_status, missing_reset_code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/password-reset-code",
+        None,
+        json!({"email": "bound-wechat@example.com"}),
+    )
+    .await;
+    assert_eq!(
+        missing_reset_code_status,
+        StatusCode::OK,
+        "{missing_reset_code_value}"
+    );
+    assert!(missing_reset_code_value.get("debug_code").is_none());
+
+    let (register_code_status, register_code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/email-verification-code",
+        None,
+        json!({"email": "bound-wechat@example.com"}),
+    )
+    .await;
+    assert_eq!(
+        register_code_status,
+        StatusCode::OK,
+        "{register_code_value}"
+    );
+    let register_code = register_code_value["debug_code"].as_str().unwrap();
+    let (wrong_purpose_status, wrong_purpose_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/email-binding",
+        Some(&access_token),
+        json!({
+            "email": "bound-wechat@example.com",
+            "email_verification_code": register_code
+        }),
+    )
+    .await;
+    assert_eq!(
+        wrong_purpose_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{wrong_purpose_value}"
+    );
+
+    let (bind_code_status, bind_code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/email-binding-code",
+        Some(&access_token),
+        json!({"email": "Bound-WeChat@Example.COM"}),
+    )
+    .await;
+    assert_eq!(bind_code_status, StatusCode::OK, "{bind_code_value}");
+    assert_eq!(bind_code_value["email"], "bound-wechat@example.com");
+    let bind_code = bind_code_value["debug_code"].as_str().unwrap().to_owned();
+
+    let (bind_status, bind_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/email-binding",
+        Some(&access_token),
+        json!({
+            "email": "bound-wechat@example.com",
+            "email_verification_code": bind_code
+        }),
+    )
+    .await;
+    assert_eq!(bind_status, StatusCode::OK, "{bind_value}");
+    assert_eq!(bind_value["user"]["id"], user_id);
+    assert_eq!(bind_value["user"]["email"], "bound-wechat@example.com");
+
+    let (already_bound_status, already_bound_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/email-binding-code",
+        Some(&access_token),
+        json!({"email": "bound-wechat@example.com"}),
+    )
+    .await;
+    assert_eq!(
+        already_bound_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{already_bound_value}"
+    );
+
+    let (reset_code_status, reset_code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/password-reset-code",
+        None,
+        json!({"email": "bound-wechat@example.com"}),
+    )
+    .await;
+    assert_eq!(reset_code_status, StatusCode::OK, "{reset_code_value}");
+    let reset_code = reset_code_value["debug_code"].as_str().unwrap().to_owned();
+
+    let (reset_status, reset_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/password-reset",
+        None,
+        json!({
+            "email": "bound-wechat@example.com",
+            "email_verification_code": reset_code,
+            "password": "BoundOutdoorPass123!",
+            "confirm_password": "BoundOutdoorPass123!"
+        }),
+    )
+    .await;
+    assert_eq!(reset_status, StatusCode::OK, "{reset_value}");
+    assert_eq!(reset_value["user"]["id"], user_id);
+    assert_eq!(reset_value["user"]["email"], "bound-wechat@example.com");
+
+    let (password_login_status, password_login_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/login",
+        None,
+        json!({"account": "bound-wechat@example.com", "password": "BoundOutdoorPass123!"}),
+    )
+    .await;
+    assert_eq!(
+        password_login_status,
+        StatusCode::OK,
+        "{password_login_value}"
+    );
+    assert_eq!(password_login_value["user"]["id"], user_id);
+}
+
+#[tokio::test]
+async fn bind_email_requires_auth_and_rejects_taken_email() {
+    let app = test_app().await;
+    register_password_user(
+        &app.router,
+        "taken_owner",
+        "taken@example.com",
+        "OutdoorPass123!",
+    )
+    .await;
+
+    let (unauthorized_status, unauthorized_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/email-binding-code",
+        None,
+        json!({"email": "new-wechat@example.com"}),
+    )
+    .await;
+    assert_eq!(
+        unauthorized_status,
+        StatusCode::UNAUTHORIZED,
+        "{unauthorized_value}"
+    );
+
+    let (wechat_status, wechat_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/wechat-login",
+        None,
+        json!({"code": "bind-email-taken", "profile": {"nickname": "微信用户"}}),
+    )
+    .await;
+    assert_eq!(wechat_status, StatusCode::OK, "{wechat_value}");
+    let access_token = wechat_value["access_token"].as_str().unwrap().to_owned();
+
+    let (taken_status, taken_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/email-binding-code",
+        Some(&access_token),
+        json!({"email": "taken@example.com"}),
+    )
+    .await;
+    assert_eq!(
+        taken_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{taken_value}"
+    );
+    assert_eq!(taken_value["code"], "validation_failed");
+}
+
+#[tokio::test]
 async fn login_and_reset_code_requests_do_not_reveal_missing_email() {
     let app = test_app().await;
 
@@ -1064,4 +1264,80 @@ async fn production_email_login_and_reset_codes_send_mail_and_hide_debug_code() 
     assert_eq!(sent[0].subject, "寻径星野登录验证码");
     assert_eq!(sent[1].subject, "寻径星野找回密码验证码");
     assert!(sent.iter().all(|message| message.code.len() == 6));
+}
+
+#[tokio::test]
+async fn production_bind_email_code_sends_mail_and_hides_debug_code() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+    let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
+    let db = connect_database(&database).await.unwrap();
+    migrate_database(&db).await.unwrap();
+    let repo = AuthRepository::new(db.clone());
+    let user = repo
+        .upsert_mock_user("mock:prod-bind-email", Some("微信用户".to_owned()), None)
+        .await
+        .unwrap();
+    let access_token = "x";
+    repo.create_session(
+        &user.id,
+        &hash_token(access_token),
+        time::OffsetDateTime::now_utc() + time::Duration::hours(2),
+        &hash_token("r"),
+        time::OffsetDateTime::now_utc() + time::Duration::days(30),
+    )
+    .await
+    .unwrap();
+    let config = ApiConfig {
+        app_env: "production".to_owned(),
+        host: "127.0.0.1".to_owned(),
+        port: 0,
+        database,
+        wechat_mock_login: false,
+        wechat_app_id: None,
+        wechat_app_secret: None,
+        redis_cache: RedisCacheConfig::disabled(),
+        upload: Default::default(),
+        minio: Default::default(),
+        object_storage: Default::default(),
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
+        public_api: Default::default(),
+        cors: CorsConfig::default(),
+        mail: MailConfig {
+            enabled: true,
+            smtp_host: "smtp.example.invalid".to_owned(),
+            smtp_port: 465,
+            smtp_tls: MailSmtpTls::Implicit,
+            smtp_username: "sender@example.test".to_owned(),
+            smtp_password: "x".to_owned(),
+            from: "StellarTrail <sender@example.test>".to_owned(),
+            verification_subject: "寻径星野邮箱验证码".to_owned(),
+        },
+    };
+    let sender = RecordingEmailSender::default();
+    let sent = Arc::clone(&sender.sent);
+    let router = build_router(AppState::new_with_email_sender(
+        config,
+        db,
+        Arc::new(sender),
+    ));
+
+    let (status, value) = send_json(
+        &router,
+        "POST",
+        "/api/me/email-binding-code",
+        Some(access_token),
+        json!({"email": "prod-bind-wechat@example.com"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{value}");
+    assert_eq!(value["email"], "prod-bind-wechat@example.com");
+    assert!(value.get("debug_code").is_none(), "{value}");
+
+    let sent = sent.lock().unwrap();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].subject, "寻径星野绑定邮箱验证码");
+    assert_eq!(sent[0].to, "prod-bind-wechat@example.com");
+    assert_eq!(sent[0].code.len(), 6);
 }

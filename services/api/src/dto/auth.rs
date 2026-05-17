@@ -56,6 +56,25 @@ pub struct PasswordResetRequest {
     pub confirm_password: String,
 }
 
+/// Request body for issuing a one-time email code used to bind an email to the current account.
+#[derive(Debug, Deserialize)]
+pub struct BindEmailCodeRequest {
+    pub email: String,
+}
+
+/// Request body for binding an email to the current account after ownership verification.
+#[derive(Debug, Deserialize)]
+pub struct BindEmailRequest {
+    pub email: String,
+    pub email_verification_code: String,
+}
+
+/// Response returned after the current account successfully binds an email.
+#[derive(Debug, Serialize)]
+pub struct BindEmailResponse {
+    pub user: LoginUserResponse,
+}
+
 /// Response describing when the email verification code expires.
 ///
 /// Local environments may include `debug_code` so integration tests can complete

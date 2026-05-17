@@ -18,6 +18,8 @@ POST /api/auth/email-login-code
 POST /api/auth/email-login
 POST /api/auth/password-reset-code
 POST /api/auth/password-reset
+POST /api/me/email-binding-code
+POST /api/me/email-binding
 POST /api/auth/register
 POST /api/auth/login
 POST /api/auth/refresh
@@ -145,6 +147,41 @@ POST /api/auth/password-reset
   "email_verification_code": "123456"
 }
 ```
+
+微信一键登录创建的账号初始可以没有邮箱。登录后可以先发送绑定邮箱验证码，再用同一用途的验证码绑定邮箱；注册、登录或找回密码验证码不能混用：
+
+```json
+POST /api/me/email-binding-code
+Authorization: Bearer ***
+{
+  "email": "alice@example.com"
+}
+```
+
+```json
+POST /api/me/email-binding
+Authorization: Bearer ***
+{
+  "email": "alice@example.com",
+  "email_verification_code": "123456"
+}
+```
+
+成功响应：
+
+```json
+{
+  "user": {
+    "id": "user-id",
+    "username": null,
+    "email": "alice@example.com",
+    "nickname": "微信用户",
+    "avatar_url": null
+  }
+}
+```
+
+若当前账号已经绑定邮箱，或目标邮箱已被其他账号使用，会返回 `validation_failed`。绑定成功后，可继续使用找回密码流程为该账号设置密码。
 
 登录、注册、邮箱验证码登录、找回密码成功响应会返回短期 `access_token` 和长期 `refresh_token`。服务端只保存 token hash，不保存明文 token；客户端后续私有请求使用：
 

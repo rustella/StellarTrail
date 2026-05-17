@@ -306,6 +306,15 @@ export interface PasswordResetRequest {
   confirm_password: string;
 }
 
+export interface BindEmailCodeRequest {
+  email: string;
+}
+
+export interface BindEmailRequest {
+  email: string;
+  email_verification_code: string;
+}
+
 export interface RegisterRequest {
   username: string;
   email: string;
@@ -337,21 +346,27 @@ export interface RefreshTokenRequest {
   refresh_token: string;
 }
 
+export interface AuthUserResponse {
+  id: string;
+  username?: string | null;
+  email?: string | null;
+  nickname?: string | null;
+  avatar_url?: string | null;
+}
+
 export interface WechatLoginResponse {
   access_token: string;
   expires_at: string;
   refresh_token: string;
   refresh_expires_at: string;
-  user: {
-    id: string;
-    username?: string | null;
-    email?: string | null;
-    nickname?: string | null;
-    avatar_url?: string | null;
-  };
+  user: AuthUserResponse;
 }
 
 export type LoginResponse = WechatLoginResponse;
+
+export interface BindEmailResponse {
+  user: AuthUserResponse;
+}
 
 export interface ImportGearsRequest {
   dry_run?: boolean;

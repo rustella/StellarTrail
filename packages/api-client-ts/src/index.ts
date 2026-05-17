@@ -1,4 +1,7 @@
 import type {
+  BindEmailCodeRequest,
+  BindEmailRequest,
+  BindEmailResponse,
   CaptchaChallengeRequest,
   CaptchaChallengeResponse,
   ContentListResponse,
@@ -66,7 +69,10 @@ export class StellarTrailApiClient {
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
-    this.assetsBaseUrl = (options.assetsBaseUrl ?? options.baseUrl).replace(/\/$/, "");
+    this.assetsBaseUrl = (options.assetsBaseUrl ?? options.baseUrl).replace(
+      /\/$/,
+      "",
+    );
     this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
     this.accessToken = options.accessToken;
     this.refreshToken = options.refreshToken;
@@ -214,6 +220,20 @@ export class StellarTrailApiClient {
     );
     this.applyLoginResponse(response);
     return response;
+  }
+
+  async sendBindEmailCode(
+    request: BindEmailCodeRequest,
+  ): Promise<EmailVerificationCodeResponse> {
+    return this.post<EmailVerificationCodeResponse>(
+      "/api/me/email-binding-code",
+      request,
+      true,
+    );
+  }
+
+  async bindEmail(request: BindEmailRequest): Promise<BindEmailResponse> {
+    return this.post<BindEmailResponse>("/api/me/email-binding", request, true);
   }
 
   async createCaptcha(

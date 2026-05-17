@@ -146,6 +146,8 @@ POST /api/auth/email-login-code
 POST /api/auth/email-login
 POST /api/auth/password-reset-code
 POST /api/auth/password-reset
+POST /api/me/email-binding-code
+POST /api/me/email-binding
 POST /api/auth/register
 POST /api/auth/login
 POST /api/auth/refresh

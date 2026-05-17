@@ -15,9 +15,9 @@ use time::{Duration, OffsetDateTime, format_description::well_known::Iso8601};
 
 use crate::{
     dto::auth::{
-        CaptchaChallengeResponse, EmailLoginRequest, EmailVerificationCodeResponse,
-        LoginProfileRequest, LoginResponse, LoginUserResponse, PasswordLoginRequest,
-        PasswordResetRequest, RegisterRequest,
+        BindEmailRequest, BindEmailResponse, CaptchaChallengeResponse, EmailLoginRequest,
+        EmailVerificationCodeResponse, LoginProfileRequest, LoginResponse, LoginUserResponse,
+        PasswordLoginRequest, PasswordResetRequest, RegisterRequest,
     },
     email::VerificationEmail,
     error::ApiError,
@@ -28,9 +28,11 @@ use crate::{
 const EMAIL_CODE_PURPOSE_REGISTER: &str = "register";
 const EMAIL_CODE_PURPOSE_EMAIL_LOGIN: &str = "email_login";
 const EMAIL_CODE_PURPOSE_PASSWORD_RESET: &str = "password_reset";
+const EMAIL_CODE_PURPOSE_BIND_EMAIL: &str = "bind_email";
 const EMAIL_CODE_EXPIRES_MINUTES: i64 = 10;
 const EMAIL_LOGIN_SUBJECT: &str = "寻径星野登录验证码";
 const PASSWORD_RESET_SUBJECT: &str = "寻径星野找回密码验证码";
+const BIND_EMAIL_SUBJECT: &str = "寻径星野绑定邮箱验证码";
 const CAPTCHA_EXPIRES_MINUTES: i64 = 5;
 const LOGIN_CAPTCHA_THRESHOLD: i32 = 3;
 // Access tokens are intentionally short-lived because clients can renew them
@@ -128,6 +130,26 @@ pub async fn send_password_reset_code(
         EMAIL_CODE_PURPOSE_PASSWORD_RESET,
         PASSWORD_RESET_SUBJECT,
         true,
+    )
+    .await
+}
+
+/// Generates a one-time email verification code for binding an email to the current account.
+pub async fn send_bind_email_code(
+    state: &AppState,
+    user: &UserRecord,
+    email: String,
+) -> Result<EmailVerificationCodeResponse, ApiError> {
+    let email = validate_email(email)?;
+    ensure_user_can_bind_email(user, &email)?;
+    let repo = AuthRepository::new(state.db().clone());
+    ensure_email_available_for_binding(&repo, user, &email).await?;
+    send_email_code_for_purpose(
+        state,
+        email,
+        EMAIL_CODE_PURPOSE_BIND_EMAIL,
+        BIND_EMAIL_SUBJECT,
+        false,
     )
     .await
 }
@@ -254,6 +276,47 @@ pub async fn password_reset(
     }
     repo.revoke_user_sessions(&user.id).await?;
     issue_login_for_user(&repo, user).await
+}
+
+/// Binds a verified email address to the current account.
+///
+/// This is primarily used by accounts created through WeChat one-tap login, whose
+/// initial user row has no email or password credentials. Once an email is bound,
+/// the same password-reset flow can set a password for that account.
+pub async fn bind_email(
+    state: &AppState,
+    user: UserRecord,
+    payload: BindEmailRequest,
+) -> Result<BindEmailResponse, ApiError> {
+    let email = validate_email(payload.email)?;
+    let verification_code = validate_verification_code(payload.email_verification_code)?;
+    ensure_user_can_bind_email(&user, &email)?;
+
+    let repo = AuthRepository::new(state.db().clone());
+    ensure_email_available_for_binding(&repo, &user, &email).await?;
+    let code_ok = repo
+        .consume_email_verification_code(
+            &email,
+            EMAIL_CODE_PURPOSE_BIND_EMAIL,
+            &hash_token(&verification_code),
+        )
+        .await?;
+    if !code_ok {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "email_verification_code",
+            "is invalid or expired",
+        )]));
+    }
+
+    let Some(updated_user) = repo.bind_user_email(&user.id, &email).await? else {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "email",
+            "has already been registered",
+        )]));
+    };
+    Ok(BindEmailResponse {
+        user: login_user_response(updated_user),
+    })
 }
 
 /// Completes email/username registration by validating the code and password, creating the user, and issuing a session.
@@ -531,14 +594,48 @@ fn login_response(user: UserRecord, token_pair: TokenPair) -> Result<LoginRespon
             .refresh_expires_at
             .format(&Iso8601::DEFAULT)
             .map_err(ApiError::internal)?,
-        user: LoginUserResponse {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            nickname: user.nickname,
-            avatar_url: user.avatar_url,
-        },
+        user: login_user_response(user),
     })
+}
+
+fn login_user_response(user: UserRecord) -> LoginUserResponse {
+    LoginUserResponse {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        nickname: user.nickname,
+        avatar_url: user.avatar_url,
+    }
+}
+
+fn ensure_user_can_bind_email(user: &UserRecord, email: &str) -> Result<(), ApiError> {
+    if let Some(existing_email) = user.email.as_deref() {
+        let message = if existing_email == email {
+            "is already bound to this account"
+        } else {
+            "account already has a bound email"
+        };
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "email", message,
+        )]));
+    }
+    Ok(())
+}
+
+async fn ensure_email_available_for_binding(
+    repo: &AuthRepository,
+    user: &UserRecord,
+    email: &str,
+) -> Result<(), ApiError> {
+    if let Some(existing_user) = repo.find_user_by_email(email).await? {
+        if existing_user.id != user.id {
+            return Err(ApiError::Validation(vec![FieldViolation::new(
+                "email",
+                "has already been registered",
+            )]));
+        }
+    }
+    Ok(())
 }
 
 /// Parses the Bearer token from the Authorization header and looks up the corresponding active user.
