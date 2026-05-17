@@ -99,13 +99,20 @@ final class SkillsViewModel: ObservableObject {
     }
 
     func openKnot(_ id: String) async {
+        let switchingKnot = state.selectedKnotID != id
         state.selectedKnotID = id
         state.detailLoading = true
         state.detailError = nil
+        if switchingKnot {
+            state.selectedKnot = nil
+        }
         do {
-            state.selectedKnot = try await repository.knotDetail(id: id)
+            let detail = try await repository.knotDetail(id: id)
+            guard state.selectedKnotID == id else { return }
+            state.selectedKnot = detail
             state.detailLoading = false
         } catch {
+            guard state.selectedKnotID == id else { return }
             state.detailLoading = false
             state.detailError = error.localizedDescription
         }

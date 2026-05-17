@@ -259,6 +259,7 @@ private struct MacKnotDetailPane: View {
                 }
                 if let knot {
                     MacKnotHeroViewer(knot: knot)
+                        .id(knot.id)
 
                     TrailSurfaceCard {
                         TrailSectionTitle(title: "用途说明")
@@ -388,6 +389,11 @@ private struct MacKnotHeroViewer: View {
             } else {
                 player.pause()
             }
+        }
+        .onDisappear {
+            player.pause()
+            player.replaceCurrentItem(with: nil)
+            playing = false
         }
         .onReceive(NotificationCenter.default.publisher(for: .AVPlayerItemDidPlayToEndTime)) { notification in
             guard let currentItem = player.currentItem,
