@@ -3,19 +3,25 @@ package com.rustella.stellartrail.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rustella.stellartrail.domain.gear.GearSummary
@@ -35,79 +41,69 @@ import com.rustella.stellartrail.ui.common.HeroCard
 import com.rustella.stellartrail.ui.common.HeroSoftButton
 import com.rustella.stellartrail.ui.common.LoadingState
 import com.rustella.stellartrail.ui.common.MetricTile
-import com.rustella.stellartrail.ui.common.NoticeCard
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SectionTitle
-import com.rustella.stellartrail.ui.common.StatCard
+import com.rustella.stellartrail.ui.common.SoftPillButton
 import com.rustella.stellartrail.ui.common.SurfaceCard
 import com.rustella.stellartrail.ui.common.TagList
+import com.rustella.stellartrail.ui.common.currentTrailPalette
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
     onOpenGears: () -> Unit,
+    onCreateGear: () -> Unit,
     onOpenSkills: () -> Unit,
+    onOpenProfile: () -> Unit,
     onOpenGear: (String) -> Unit,
     onLogin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val quickActions = HomeQuickAction.defaults(state.isLoggedIn)
+    val openAction: (HomeActionTarget) -> Unit = { target ->
+        when (target) {
+            HomeActionTarget.Gears -> onOpenGears()
+            HomeActionTarget.NewGear -> onCreateGear()
+            HomeActionTarget.Skills -> onOpenSkills()
+            HomeActionTarget.Profile -> onOpenProfile()
+            HomeActionTarget.Login -> onLogin()
+        }
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
             HeroCard(
                 eyebrow = "寻径星野 · 出发前检查",
                 title = "今天准备好出发了吗？",
-                subtitle = "先核对出行清单，再补一项户外技能。这里沿用微信真机的轻卡片、圆角和柔和品牌色。",
+                subtitle = "跟着清单确认背包、技能和个人设置，轻松开始下一段路线。",
                 chips = listOf(if (state.isLoggedIn) "我的装备已保存" else "可先浏览清单", "绳结教学可直接看"),
                 actions = {
-                    HeroButton("检查装备", onOpenGears)
+                    HeroButton("查看装备", onOpenGears)
                     HeroSoftButton("学习技能", onOpenSkills)
                 },
             )
         }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FeatureTile("🎒", "装备清单", "按周末轻徒步、露营等场景检查。", onOpenGears, Modifier.weight(1f))
-                FeatureTile("🪢", "绳结技能", "直接查看步骤，出发前复习。", onOpenSkills, Modifier.weight(1f))
-            }
-        }
+        item { QuickActionGrid(actions = quickActions, onAction = openAction) }
         if (state.error != null) item { ErrorState(state.error!!, onRetry = { viewModel.load(state.isLoggedIn) }) }
         if (state.loading) item { LoadingState() }
-        item { SectionTitle("装备概览", "登录后同步自己的库存、重量与估值；登录前先看参考清单。") }
-        if (!state.isLoggedIn) {
-            item {
-                NoticeCard(
-                    title = "可以先查看出行清单",
-                    body = "登录后再管理自己的装备、重量和估值。",
-                    action = { PrimaryPillButton("去登录", onLogin) },
-                )
+        item {
+            GearOverviewCard(
+                overview = HomeGearOverview.from(state.stats, state.isLoggedIn),
+                onOpenGears = onOpenGears,
+                onLogin = onLogin,
+            )
+        }
+        if (state.isLoggedIn && state.recentGears.isNotEmpty()) {
+            item { SectionTitle("最近装备", "快速查看近期更新。") }
+            items(state.recentGears, key = { it.id }) { gear ->
+                GearPreviewCard(gear = gear, onClick = { onOpenGear(gear.id) })
             }
         }
-        if (state.isLoggedIn) {
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("可用装备", state.stats.currentCount.toString(), Modifier.weight(1f), hint = "当前库存")
-                    StatCard("历史装备", state.stats.archivedCount.toString(), Modifier.weight(1f), hint = "归档记录")
-                }
-            }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("总重量", formatWeight(state.stats.totalWeightG), Modifier.weight(1f), hint = "轻量优先")
-                    StatCard("总价值", formatPrice(state.stats.totalValueCents), Modifier.weight(1f), hint = "预算参考")
-                }
-            }
-            if (state.recentGears.isNotEmpty()) {
-                item { SectionTitle("最近装备", "快速查看近期更新。") }
-                items(state.recentGears, key = { it.id }) { gear ->
-                    GearPreviewCard(gear = gear, onClick = { onOpenGear(gear.id) })
-                }
-            }
-        }
-        item { SectionTitle("出行装备参考", "来自微信端同款公开清单，先按场景准备，再登录保存。") }
+        item { SectionTitle("出行装备参考", "按场景准备背包，登录后保存自己的清单。") }
         if (!state.loading && state.templates.isEmpty()) {
             item { EmptyState("暂无装备参考", "稍后刷新或检查网络。") }
         }
@@ -123,6 +119,84 @@ fun HomeScreen(
             SkillPreviewCard(skill = skill, onClick = onOpenSkills)
         }
         item { PrimaryPillButton("学习技能", onOpenSkills, Modifier.fillMaxWidth()) }
+    }
+}
+
+@Composable
+private fun QuickActionGrid(actions: List<HomeQuickAction>, onAction: (HomeActionTarget) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        actions.chunked(2).forEach { rowActions ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                rowActions.forEach { action ->
+                    FeatureTile(
+                        icon = action.icon,
+                        title = action.title,
+                        body = action.body,
+                        onClick = { onAction(action.target) },
+                        modifier = Modifier.weight(1f),
+                        compact = true,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GearOverviewCard(overview: HomeGearOverview, onOpenGears: () -> Unit, onLogin: () -> Unit) {
+    val palette = currentTrailPalette()
+    SurfaceCard(contentPadding = PaddingValues(16.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Badge(overview.eyebrow, tone = BadgeTone.Info)
+                Text(overview.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            }
+            SoftPillButton("查看装备", onOpenGears)
+        }
+        if (overview.promptTitle != null && overview.promptBody != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(palette.warningBackground)
+                    .padding(12.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(overview.promptTitle, color = palette.warningText, fontWeight = FontWeight.ExtraBold)
+                        Text(overview.promptBody, color = palette.warningText, style = MaterialTheme.typography.bodySmall)
+                    }
+                    PrimaryPillButton("去登录", onLogin)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            overview.stats.forEach { stat ->
+                OverviewStatTile(stat = stat, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverviewStatTile(stat: HomeOverviewStat, modifier: Modifier = Modifier) {
+    val palette = currentTrailPalette()
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(palette.controlBackground)
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            stat.value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(stat.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

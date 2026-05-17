@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,6 +33,7 @@ import com.rustella.stellartrail.feature.gear.list.GearListViewModel
 import com.rustella.stellartrail.feature.home.HomeViewModel
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
 import com.rustella.stellartrail.feature.skills.SkillsViewModel
+import com.rustella.stellartrail.ui.common.currentTrailPalette
 import com.rustella.stellartrail.ui.common.viewModelFactory
 import com.rustella.stellartrail.ui.navigation.AppRoutes
 import com.rustella.stellartrail.ui.navigation.topLevelDestinations
@@ -78,8 +80,9 @@ private fun AuthenticatedApp(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (currentRoute in topLevelDestinations.map { it.route }) {
+                val palette = currentTrailPalette()
                 NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = palette.footerBackground,
                     tonalElevation = 0.dp,
                 ) {
                     topLevelDestinations.forEach { destination ->
@@ -97,9 +100,9 @@ private fun AuthenticatedApp(
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = StellarTrailDesignColors.Light.brandSoft,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor = if (palette == StellarTrailDesignColors.Light) Color.Transparent else palette.brandSoft,
+                                unselectedIconColor = palette.textMuted,
+                                unselectedTextColor = palette.textMuted,
                             ),
                         )
                     }
@@ -126,7 +129,11 @@ private fun AuthenticatedApp(
                 HomeScreen(
                     viewModel = viewModel,
                     onOpenGears = { navController.navigate(AppRoutes.GEARS) },
+                    onCreateGear = {
+                        if (isLoggedIn) navController.navigate(AppRoutes.GEAR_NEW) else navController.navigate(AppRoutes.AUTH)
+                    },
                     onOpenSkills = { navController.navigate(AppRoutes.SKILLS) },
+                    onOpenProfile = { navController.navigate(AppRoutes.PROFILE) },
                     onOpenGear = { id ->
                         if (isLoggedIn) navController.navigate(AppRoutes.gearDetail(id)) else navController.navigate(AppRoutes.AUTH)
                     },
