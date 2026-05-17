@@ -243,6 +243,20 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps outdoor skills as the second main navigation item", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    const navigation = await screen.findByRole("navigation", {
+      name: "主导航",
+    });
+
+    expect(
+      Array.from(navigation.children).map((item) => item.textContent?.trim()),
+    ).toEqual(["装备库", "户外技能", "路线清单 · 待接入"]);
+  });
+
   it("opens the outdoor skills knots page from the sidebar", async () => {
     const client = buildClient();
     render(<App client={client} />);
