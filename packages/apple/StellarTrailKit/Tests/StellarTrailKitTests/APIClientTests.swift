@@ -1,5 +1,6 @@
 import XCTest
-@testable import StellarTrail
+import Foundation
+@testable import StellarTrailKit
 
 @MainActor
 final class APIClientTests: XCTestCase {

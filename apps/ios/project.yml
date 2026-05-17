@@ -19,6 +19,7 @@ targets:
       - path: StellarTrail
         excludes:
           - Resources/**
+      - path: ../../packages/apple/StellarTrailKit/Sources/StellarTrailKit
     resources:
       - path: StellarTrail/Resources
         excludes:
