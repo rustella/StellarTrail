@@ -1,0 +1,70 @@
+<view class="register-page {{themeClass}}">
+  <view class="register-card hero">
+    <view class="eyebrow">寻径星野账号</view>
+    <view class="title">创建账号</view>
+    <view class="subtitle">注册后可以保存装备清单，在不同入口继续管理。</view>
+  </view>
+
+  <view class="register-card form-card">
+    <view class="section-title">账号信息</view>
+    <view wx:if="{{error}}" class="error-text">{{error}}</view>
+    <view wx:if="{{notice}}" class="notice-text">{{notice}}</view>
+
+    <label class="field-label">账号</label>
+    <input
+      class="field-input"
+      placeholder="账号"
+      value="{{username}}"
+      data-field="username"
+      bindinput="onFieldInput"
+    />
+
+    <label class="field-label">邮箱</label>
+    <input
+      class="field-input"
+      placeholder="邮箱"
+      value="{{email}}"
+      data-field="email"
+      bindinput="onFieldInput"
+    />
+
+    <label class="field-label">邮箱验证码</label>
+    <view class="code-row">
+      <input
+        class="field-input code-input"
+        placeholder="邮箱验证码"
+        value="{{emailCode}}"
+        data-field="emailCode"
+        bindinput="onFieldInput"
+      />
+      <button class="code-button" loading="{{codeLoading}}" bindtap="sendCode">
+        {{codeButtonText}}
+      </button>
+    </view>
+
+    <label class="field-label">密码</label>
+    <input
+      class="field-input"
+      placeholder="密码"
+      password="{{true}}"
+      value="{{password}}"
+      data-field="password"
+      bindinput="onFieldInput"
+    />
+
+    <label class="field-label">确认密码</label>
+    <input
+      class="field-input"
+      placeholder="确认密码"
+      password="{{true}}"
+      value="{{confirmPassword}}"
+      data-field="confirmPassword"
+      bindinput="onFieldInput"
+    />
+
+    <button class="primary" loading="{{loading}}" bindtap="register">
+      注册并登录
+    </button>
+    <button class="secondary" bindtap="goLogin">返回登录</button>
+  </view>
+</view>

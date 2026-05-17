@@ -14,7 +14,7 @@
       >
     </view>
     <button wx:if="{{!loggedIn}}" class="account-button" bindtap="goLogin">
-      去登录
+      登录 / 注册
     </button>
     <button wx:else class="account-button danger" bindtap="logout">退出</button>
   </view>
