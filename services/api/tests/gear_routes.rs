@@ -8,7 +8,7 @@ use axum::{
 use serde_json::{Value, json};
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
-    config::{ApiConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig},
+    config::{ApiConfig, RedisCacheConfig},
     migrate_database,
     routes::build_router,
     state::AppState,
@@ -44,9 +44,11 @@ async fn test_app_with_cache(cache: Cache) -> TestApp {
         content_assets_dir: temp_dir.path().join("assets"),
         media_base_url: "/assets".to_owned(),
         redis_cache: RedisCacheConfig::disabled(),
-        upload: UploadConfig::default(),
-        object_storage: ObjectStorageConfig::default(),
-        public_api: PublicApiConfig::default(),
+        upload: Default::default(),
+        object_storage: Default::default(),
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
+        public_api: Default::default(),
     };
     TestApp {
         router: build_router(AppState::new_with_cache(config, db, cache)),

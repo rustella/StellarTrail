@@ -1,27 +1,23 @@
 //! Knot repository for DB-backed outdoor skill metadata imported from Knots3D.
 
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, QueryResult, TransactionTrait};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, TransactionTrait};
 use stellartrail_domain::skill::{
     KnotDetail, KnotListResponse, KnotMediaAsset, KnotSeed, KnotSummary, KnotTaxonomyItem, Locale,
     PageInfo, SkillCategorySummary,
 };
 
-use super::statement;
+use super::{MediaResourceRepository, statement};
 
 /// Persistence object for skill categories and knot metadata.
 #[derive(Clone)]
 pub struct KnotRepository {
     db: DatabaseConnection,
-    media_base_url: String,
 }
 
 impl KnotRepository {
     /// Creates a repository using the shared application database connection.
-    pub fn new(db: DatabaseConnection, media_base_url: impl Into<String>) -> Self {
-        Self {
-            db,
-            media_base_url: normalize_media_base(media_base_url.into()),
-        }
+    pub fn new(db: DatabaseConnection, _media_base_url: impl Into<String>) -> Self {
+        Self { db }
     }
 
     /// Replaces all imported knots in a single transaction.
@@ -340,7 +336,7 @@ impl KnotRepository {
             difficulty,
             categories: fetch_categories(&self.db, id, locale).await?,
             types: fetch_types(&self.db, id, locale).await?,
-            media: fetch_media(&self.db, id, &self.media_base_url).await?,
+            media: fetch_media(&self.db, id).await?,
             locale,
         }))
     }
@@ -461,51 +457,10 @@ async fn fetch_taxonomy(
     Ok(items)
 }
 
-async fn fetch_media(
-    db: &DatabaseConnection,
-    knot_id: &str,
-    media_base_url: &str,
-) -> Result<Vec<KnotMediaAsset>, DbErr> {
-    let rows = db
-        .query_all(statement(
-            db.get_database_backend(),
-            "SELECT asset_id, media_type, path, mime_type, width, height, attribution, license_note \
-             FROM knot_media_assets WHERE knot_id = ? ORDER BY asset_id ASC",
-            vec![knot_id.to_owned().into()],
-        ))
-        .await?;
-    rows.into_iter()
-        .map(|row| map_media(row, media_base_url))
-        .collect()
-}
-
-fn map_media(row: QueryResult, media_base_url: &str) -> Result<KnotMediaAsset, DbErr> {
-    let path: String = row.try_get("", "path")?;
-    Ok(KnotMediaAsset {
-        id: row.try_get("", "asset_id")?,
-        media_type: row.try_get("", "media_type")?,
-        url: format!(
-            "{}/{}",
-            media_base_url.trim_end_matches('/'),
-            path.trim_start_matches('/')
-        ),
-        mime_type: row.try_get("", "mime_type")?,
-        width: row.try_get("", "width")?,
-        height: row.try_get("", "height")?,
-        attribution: row.try_get("", "attribution")?,
-        license_note: row.try_get("", "license_note")?,
-    })
-}
-
-fn normalize_media_base(media_base_url: String) -> String {
-    let trimmed = media_base_url.trim();
-    if trimmed.is_empty() {
-        "/assets".to_owned()
-    } else if trimmed == "/" {
-        String::new()
-    } else {
-        trimmed.trim_end_matches('/').to_owned()
-    }
+async fn fetch_media(db: &DatabaseConnection, knot_id: &str) -> Result<Vec<KnotMediaAsset>, DbErr> {
+    MediaResourceRepository::new(db.clone())
+        .list_knot_media_assets(knot_id)
+        .await
 }
 
 fn insert_ignore_sql(table: &str, column: &str) -> String {

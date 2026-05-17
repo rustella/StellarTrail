@@ -65,12 +65,15 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-stellartrail-local-secret}
       MINIO_API_HOST_PORT: ${MINIO_API_HOST_PORT:-19000}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-stellartrail-uploads}
+      KNOTS_MEDIA_BUCKET: ${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         mc alias set local "http://host.docker.internal:$${MINIO_API_HOST_PORT}" "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
         mc mb -p "local/$${OBJECT_STORAGE_BUCKET}" || true
         mc anonymous set none "local/$${OBJECT_STORAGE_BUCKET}"
+        mc mb -p "local/$${KNOTS_MEDIA_BUCKET}" || true
+        mc anonymous set download "local/$${KNOTS_MEDIA_BUCKET}"
 
   api:
     build:
@@ -118,6 +121,19 @@ services:
       OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:-stellartrail-local}
       OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:-stellartrail-local-secret}
       OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
+      KNOTS_MEDIA_STORAGE_PROFILE: ${KNOTS_MEDIA_STORAGE_PROFILE:-knots-public}
+      KNOTS_MEDIA_ENDPOINT: http://host.docker.internal:${MINIO_API_HOST_PORT:-19000}
+      KNOTS_MEDIA_REGION: ${KNOTS_MEDIA_REGION:-us-east-1}
+      KNOTS_MEDIA_BUCKET: ${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
+      KNOTS_MEDIA_ACCESS_KEY_ID: ${KNOTS_MEDIA_ACCESS_KEY_ID:-stellartrail-local}
+      KNOTS_MEDIA_SECRET_ACCESS_KEY: ${KNOTS_MEDIA_SECRET_ACCESS_KEY:-stellartrail-local-secret}
+      KNOTS_MEDIA_FORCE_PATH_STYLE: "true"
+      KNOTS_MEDIA_PUBLIC_BASE_URL: http://127.0.0.1:${MINIO_API_HOST_PORT:-19000}/${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
+      KNOTS_MEDIA_MAX_IMAGE_BYTES: ${KNOTS_MEDIA_MAX_IMAGE_BYTES:-32000000}
+      KNOTS_MEDIA_MAX_VIDEO_BYTES: ${KNOTS_MEDIA_MAX_VIDEO_BYTES:-80000000}
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      ADMIN_USERNAMES: ${ADMIN_USERNAMES:-}
     ports:
       - "${API_HOST_PORT:-18080}:8080"
     healthcheck:

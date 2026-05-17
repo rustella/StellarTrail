@@ -14,6 +14,7 @@ pub enum ApiError {
         parameter: Option<String>,
     },
     Unauthorized,
+    Forbidden,
     InvalidCredentials,
     CaptchaRequired,
     NotFound,
@@ -21,6 +22,7 @@ pub enum ApiError {
     PayloadTooLarge {
         max_bytes: u64,
     },
+    UnsupportedMediaType(String),
     RateLimited {
         retry_after_seconds: u64,
     },
@@ -116,6 +118,14 @@ impl IntoResponse for ApiError {
                 None,
                 None,
             ),
+            Self::Forbidden => (
+                StatusCode::FORBIDDEN,
+                "forbidden",
+                "administrator permission is required".to_owned(),
+                None,
+                None,
+                None,
+            ),
             Self::InvalidCredentials => (
                 StatusCode::UNAUTHORIZED,
                 "invalid_credentials",
@@ -155,6 +165,14 @@ impl IntoResponse for ApiError {
                 StatusCode::PAYLOAD_TOO_LARGE,
                 "payload_too_large",
                 format!("file must be at most {max_bytes} bytes"),
+                None,
+                None,
+                None,
+            ),
+            Self::UnsupportedMediaType(message) => (
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                "unsupported_media_type",
+                message,
                 None,
                 None,
                 None,

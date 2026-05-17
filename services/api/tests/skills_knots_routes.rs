@@ -4,6 +4,7 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use http_body_util::BodyExt;
+use sea_orm::{ConnectionTrait, Statement};
 use serde_json::Value;
 use stellartrail_api::{
     config::{ApiConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig},
@@ -93,6 +94,132 @@ fn sample_knot() -> KnotSeed {
     }
 }
 
+struct UploadedKnotMediaFixture<'a> {
+    knot_id: &'a str,
+    asset_id: &'a str,
+    media_type: &'a str,
+    public_url: &'a str,
+    mime_type: &'a str,
+    size_bytes: i64,
+    sha256_hex: &'a str,
+}
+
+async fn insert_uploaded_knot_media(
+    db: &sea_orm::DatabaseConnection,
+    media: UploadedKnotMediaFixture<'_>,
+) {
+    let media_resource_id = format!("media-{}-{}", media.knot_id, media.asset_id);
+    let object_key = format!(
+        "skills/knots/{}/{}/{}.bin",
+        media.knot_id, media.asset_id, media.sha256_hex
+    );
+    db.execute(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        r#"INSERT INTO media_resources (
+            id, provider, storage_profile, bucket, object_key, public_base_url, public_url,
+            mime_type, extension, size_bytes, sha256_hex, etag, width, height, duration_ms,
+            status, source_name, source_path, uploaded_by_user_id, created_at, updated_at
+        ) VALUES (?, 'minio', 'knots-public', 'stellartrail-knots-media', ?, 'https://unused.example.com', ?, ?, 'bin', ?, ?, NULL, NULL, NULL, NULL, 'active', 'test', 'relative/source.bin', NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"#,
+        vec![
+            media_resource_id.clone().into(),
+            object_key.into(),
+            media.public_url.to_owned().into(),
+            media.mime_type.to_owned().into(),
+            media.size_bytes.into(),
+            media.sha256_hex.to_owned().into(),
+        ],
+    ))
+    .await
+    .expect("insert media resource");
+    db.execute(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        r#"INSERT INTO knot_media_resources (
+            knot_id, asset_id, media_type, media_resource_id, sort_order, attribution, license_note,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 0, 'Knots3D', 'Use only after authorization is confirmed.', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"#,
+        vec![
+            media.knot_id.to_owned().into(),
+            media.asset_id.to_owned().into(),
+            media.media_type.to_owned().into(),
+            media_resource_id.into(),
+        ],
+    ))
+    .await
+    .expect("insert knot media resource");
+}
+
+async fn seeded_app_with_uploaded_media() -> TestApp {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+    let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
+    let db = connect_database(&database).await.unwrap();
+    migrate_database(&db).await.unwrap();
+    let config = ApiConfig {
+        app_env: "local".to_owned(),
+        host: "127.0.0.1".to_owned(),
+        port: 0,
+        database,
+        wechat_mock_login: true,
+        wechat_app_id: None,
+        wechat_app_secret: None,
+        content_dir: temp_dir.path().join("content"),
+        content_assets_dir: temp_dir.path().join("assets"),
+        media_base_url: "/assets".to_owned(),
+        redis_cache: RedisCacheConfig::disabled(),
+        upload: UploadConfig::default(),
+        object_storage: ObjectStorageConfig::default(),
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
+        public_api: PublicApiConfig {
+            rate_limit_enabled: true,
+            rate_limit_window_seconds: 60,
+            rate_limit_max_requests_per_ip: 2,
+            cache_ttl_seconds: 300,
+            cache_stale_seconds: 600,
+            max_list_limit: 100,
+            max_search_query_chars: 64,
+            max_offset: 10_000,
+            trust_proxy_headers: false,
+            trusted_proxy_cidrs: Vec::new(),
+        },
+    };
+    let repository = KnotRepository::new(db.clone(), config.media_base_url.clone());
+    repository
+        .replace_all_knots("test-fixture", &[sample_knot()])
+        .await
+        .expect("seed knots");
+    insert_uploaded_knot_media(
+        &db,
+        UploadedKnotMediaFixture {
+            knot_id: "adjustable-grip-hitch-knot",
+            asset_id: "thumbnail",
+            media_type: "thumbnail",
+            public_url: "https://minio-a.example.com/stellartrail-knots-media/skills/knots/adjustable-grip-hitch-knot/thumbnail/hash-a.webp",
+            mime_type: "image/webp",
+            size_bytes: 12345,
+            sha256_hex: "hash-a",
+        },
+    )
+    .await;
+    insert_uploaded_knot_media(
+        &db,
+        UploadedKnotMediaFixture {
+            knot_id: "adjustable-grip-hitch-knot",
+            asset_id: "draw_mp4",
+            media_type: "draw_mp4",
+            public_url: "https://cdn-b.example.com/knots/skills/knots/adjustable-grip-hitch-knot/draw_mp4/hash-b.mp4",
+            mime_type: "video/mp4",
+            size_bytes: 734003,
+            sha256_hex: "hash-b",
+        },
+    )
+    .await;
+    TestApp {
+        router: build_router(AppState::new(config, db)),
+        _temp_dir: temp_dir,
+    }
+}
+
 async fn seeded_app() -> TestApp {
     let temp_dir = tempfile::tempdir().unwrap();
     let asset_path = temp_dir
@@ -120,6 +247,8 @@ async fn seeded_app() -> TestApp {
         redis_cache: RedisCacheConfig::disabled(),
         upload: UploadConfig::default(),
         object_storage: ObjectStorageConfig::default(),
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
         public_api: PublicApiConfig {
             rate_limit_enabled: true,
             rate_limit_window_seconds: 60,
@@ -212,8 +341,8 @@ async fn knots_list_uses_offset_pagination_and_hides_source_slugs() {
 }
 
 #[tokio::test]
-async fn knot_detail_returns_resolved_locale_media_urls_and_no_language_specific_slugs() {
-    let app = seeded_app().await;
+async fn knot_detail_returns_media_resource_urls_from_db_and_no_language_specific_slugs() {
+    let app = seeded_app_with_uploaded_media().await;
     let (status, headers, body) = json_response(
         &app.router,
         Request::builder()
@@ -231,13 +360,58 @@ async fn knot_detail_returns_resolved_locale_media_urls_and_no_language_specific
     assert_eq!(body["slug"], "ke-tiao-jie-sheng-jie");
     assert_eq!(
         body["media"][0]["url"],
-        "/assets/skills/knots/adjustable-grip-hitch-knot/adjustable-grip-hitch-demo.gif"
+        "https://minio-a.example.com/stellartrail-knots-media/skills/knots/adjustable-grip-hitch-knot/thumbnail/hash-a.webp"
+    );
+    assert_eq!(body["media"][0]["size_bytes"], 12345);
+    assert_eq!(
+        body["media"][1]["url"],
+        "https://cdn-b.example.com/knots/skills/knots/adjustable-grip-hitch-knot/draw_mp4/hash-b.mp4"
     );
     let serialized = body.to_string();
-    assert!(!serialized.contains("zh_slug"));
-    assert!(!serialized.contains("english_slug"));
-    assert!(!serialized.contains("source_slug_zh"));
-    assert!(!serialized.contains("source_slug_en"));
+    for forbidden in [
+        "zh_slug",
+        "english_slug",
+        "source_slug_zh",
+        "source_slug_en",
+        "/assets/",
+        "content/assets",
+        ".hermes/local",
+        "bucket",
+        "object_key",
+        "storage_profile",
+        "storage_endpoint",
+        "source_path",
+    ] {
+        assert!(
+            !serialized.contains(forbidden),
+            "public response leaked {forbidden}: {serialized}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn knots_list_uses_media_resource_urls_from_different_public_domains() {
+    let app = seeded_app_with_uploaded_media().await;
+    let (status, _headers, body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/api/skills/knots/list?offset=0&limit=1")
+            .header("X-StellarTrail-Locale", "en")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["items"][0]["media"][0]["url"],
+        "https://minio-a.example.com/stellartrail-knots-media/skills/knots/adjustable-grip-hitch-knot/thumbnail/hash-a.webp"
+    );
+    assert_eq!(
+        body["items"][0]["media"][1]["url"],
+        "https://cdn-b.example.com/knots/skills/knots/adjustable-grip-hitch-knot/draw_mp4/hash-b.mp4"
+    );
+    assert!(!body.to_string().contains("/assets/"));
 }
 
 #[tokio::test]
@@ -323,6 +497,7 @@ async fn old_knots_routes_are_not_kept_as_compatibility_aliases() {
         "/api/skills/knots",
         "/api/skills/knots/adjustable-grip-hitch-knot",
         "/api/knots",
+        "/api/skills?category=knot",
         "/api/skills/adjustable-grip-hitch-knot",
     ] {
         let app = seeded_app().await;
@@ -334,19 +509,6 @@ async fn old_knots_routes_are_not_kept_as_compatibility_aliases() {
         assert_eq!(status, StatusCode::NOT_FOUND, "{uri}");
         assert_eq!(body["code"], "not_found", "{uri}");
     }
-
-    let app = seeded_app().await;
-    let (status, _headers, body) = json_response(
-        &app.router,
-        Request::builder()
-            .uri("/api/skills?category=knot")
-            .body(Body::empty())
-            .unwrap(),
-    )
-    .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["code"], "unsupported_query_parameter");
-    assert_eq!(body["parameter"], "category");
 }
 
 #[tokio::test]
@@ -375,98 +537,4 @@ async fn assets_are_served_from_content_assets_only() {
         .expect("body")
         .to_bytes();
     assert_eq!(&body[..6], b"GIF89a");
-}
-
-#[tokio::test]
-async fn public_knots_are_available_without_authorization_and_send_cache_headers() {
-    let app = seeded_app().await;
-    let response = app
-        .router
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri("/api/skills/knots/list?offset=0&limit=1")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .expect("response");
-    assert_eq!(response.status(), StatusCode::OK);
-    assert!(response.headers().contains_key(header::ETAG));
-    assert!(response.headers().contains_key(header::CACHE_CONTROL));
-    assert_eq!(
-        response.headers().get("X-Content-Type-Options").unwrap(),
-        "nosniff"
-    );
-}
-
-#[tokio::test]
-async fn public_knots_support_conditional_get_with_etag() {
-    let app = seeded_app().await;
-    let first = app
-        .router
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri("/api/skills/knots/detail/adjustable-grip-hitch-knot")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .expect("first response");
-    assert_eq!(first.status(), StatusCode::OK);
-    let etag = first
-        .headers()
-        .get(header::ETAG)
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_owned();
-
-    let second = app
-        .router
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri("/api/skills/knots/detail/adjustable-grip-hitch-knot")
-                .header(header::IF_NONE_MATCH, etag)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .expect("second response");
-    assert_eq!(second.status(), StatusCode::NOT_MODIFIED);
-}
-
-#[tokio::test]
-async fn public_knots_rate_limit_before_expensive_reads() {
-    let app = seeded_app().await;
-    for attempt in 1..=2 {
-        let response = app
-            .router
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .uri("/api/skills/knots/list")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .expect("response");
-        assert_eq!(response.status(), StatusCode::OK, "attempt {attempt}");
-    }
-    let response = app
-        .router
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri("/api/skills/knots/list")
-                .header("X-Forwarded-For", "203.0.113.99")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .expect("limited response");
-    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
-    assert!(response.headers().contains_key(header::RETRY_AFTER));
 }

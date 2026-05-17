@@ -97,6 +97,46 @@ impl Default for ObjectStorageConfig {
     }
 }
 
+/// Public Knots3D media object storage configuration. Public URLs can point at a different MinIO/CDN domain than the API.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct KnotsMediaStorageConfig {
+    pub storage_profile: String,
+    pub endpoint: String,
+    pub region: String,
+    pub bucket: String,
+    pub access_key_id: String,
+    pub secret_access_key: String,
+    pub force_path_style: bool,
+    pub public_base_url: String,
+    pub max_image_bytes: u64,
+    pub max_video_bytes: u64,
+}
+
+impl Default for KnotsMediaStorageConfig {
+    fn default() -> Self {
+        Self {
+            storage_profile: "knots-public".to_owned(),
+            endpoint: "http://127.0.0.1:19000".to_owned(),
+            region: "us-east-1".to_owned(),
+            bucket: "stellartrail-knots-media".to_owned(),
+            access_key_id: String::new(),
+            secret_access_key: String::new(),
+            force_path_style: true,
+            public_base_url: "http://127.0.0.1:19000/stellartrail-knots-media".to_owned(),
+            max_image_bytes: 32_000_000,
+            max_video_bytes: 80_000_000,
+        }
+    }
+}
+
+/// Allowlist used by administrator-only routes.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct AdminConfig {
+    pub user_ids: Vec<String>,
+    pub emails: Vec<String>,
+    pub usernames: Vec<String>,
+}
+
 /// Runtime API configuration containing environment, bind address, database, auth providers, cache, upload, and content directory settings.
 #[derive(Clone, Debug)]
 pub struct ApiConfig {
@@ -113,6 +153,8 @@ pub struct ApiConfig {
     pub redis_cache: RedisCacheConfig,
     pub upload: UploadConfig,
     pub object_storage: ObjectStorageConfig,
+    pub knots_media_storage: KnotsMediaStorageConfig,
+    pub admin: AdminConfig,
     pub public_api: PublicApiConfig,
 }
 
@@ -166,6 +208,54 @@ impl ApiConfig {
                 .unwrap_or(default_storage.secret_access_key),
             force_path_style: optional_bool_env("OBJECT_STORAGE_FORCE_PATH_STYLE")?.unwrap_or(true),
         };
+        let default_knots_storage = KnotsMediaStorageConfig::default();
+        let knots_media_bucket =
+            optional_env("KNOTS_MEDIA_BUCKET").unwrap_or(default_knots_storage.bucket);
+        let knots_media_endpoint =
+            optional_env("KNOTS_MEDIA_ENDPOINT").unwrap_or_else(|| object_storage.endpoint.clone());
+        let knots_media_public_base_url = optional_env("KNOTS_MEDIA_PUBLIC_BASE_URL")
+            .unwrap_or_else(|| {
+                format!(
+                    "{}/{}",
+                    knots_media_endpoint.trim_end_matches('/'),
+                    knots_media_bucket
+                )
+            });
+        let knots_media_storage = KnotsMediaStorageConfig {
+            storage_profile: optional_env("KNOTS_MEDIA_STORAGE_PROFILE")
+                .unwrap_or(default_knots_storage.storage_profile),
+            endpoint: knots_media_endpoint,
+            region: optional_env("KNOTS_MEDIA_REGION")
+                .unwrap_or_else(|| object_storage.region.clone()),
+            bucket: knots_media_bucket,
+            access_key_id: optional_env("KNOTS_MEDIA_ACCESS_KEY_ID")
+                .unwrap_or_else(|| object_storage.access_key_id.clone()),
+            secret_access_key: optional_env("KNOTS_MEDIA_SECRET_ACCESS_KEY")
+                .unwrap_or_else(|| object_storage.secret_access_key.clone()),
+            force_path_style: optional_bool_env("KNOTS_MEDIA_FORCE_PATH_STYLE")?
+                .unwrap_or(object_storage.force_path_style),
+            public_base_url: knots_media_public_base_url.trim_end_matches('/').to_owned(),
+            max_image_bytes: optional_u64_env(
+                "KNOTS_MEDIA_MAX_IMAGE_BYTES",
+                default_knots_storage.max_image_bytes,
+            )?,
+            max_video_bytes: optional_u64_env(
+                "KNOTS_MEDIA_MAX_VIDEO_BYTES",
+                default_knots_storage.max_video_bytes,
+            )?,
+        };
+        validate_knots_media_storage_config(&knots_media_storage)?;
+        let admin = AdminConfig {
+            user_ids: optional_csv_env("ADMIN_USER_IDS"),
+            emails: optional_csv_env("ADMIN_EMAILS")
+                .into_iter()
+                .map(|value| value.to_ascii_lowercase())
+                .collect(),
+            usernames: optional_csv_env("ADMIN_USERNAMES")
+                .into_iter()
+                .map(|value| value.to_ascii_lowercase())
+                .collect(),
+        };
 
         let public_api = PublicApiConfig {
             rate_limit_enabled: optional_bool_env("PUBLIC_API_RATE_LIMIT_ENABLED")?.unwrap_or(true),
@@ -210,6 +300,8 @@ impl ApiConfig {
             redis_cache,
             upload,
             object_storage,
+            knots_media_storage,
+            admin,
             public_api,
         })
     }
@@ -253,6 +345,38 @@ fn optional_usize_env(name: &str, default: usize) -> anyhow::Result<usize> {
         Some(value) => Ok(value.parse::<usize>()?),
         None => Ok(default),
     }
+}
+
+fn optional_csv_env(name: &str) -> Vec<String> {
+    optional_env(name)
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn validate_knots_media_storage_config(config: &KnotsMediaStorageConfig) -> anyhow::Result<()> {
+    if config.storage_profile.trim().is_empty() {
+        anyhow::bail!("KNOTS_MEDIA_STORAGE_PROFILE must not be empty");
+    }
+    if config.bucket.trim().is_empty() {
+        anyhow::bail!("KNOTS_MEDIA_BUCKET must not be empty");
+    }
+    if config.public_base_url.trim().is_empty() {
+        anyhow::bail!("KNOTS_MEDIA_PUBLIC_BASE_URL must not be empty");
+    }
+    if config.max_image_bytes == 0 {
+        anyhow::bail!("KNOTS_MEDIA_MAX_IMAGE_BYTES must be greater than 0");
+    }
+    if config.max_video_bytes == 0 {
+        anyhow::bail!("KNOTS_MEDIA_MAX_VIDEO_BYTES must be greater than 0");
+    }
+    Ok(())
 }
 
 fn validate_public_api_config(config: &PublicApiConfig) -> anyhow::Result<()> {
@@ -299,9 +423,9 @@ mod tests {
     #[test]
     fn from_env_reads_wechat_credentials() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let saved = snapshot_env(&CONFIG_KEYS);
+        let saved = snapshot_env(CONFIG_KEYS);
         unsafe {
-            clear_env(&CONFIG_KEYS);
+            clear_env(CONFIG_KEYS);
             env::set_var("APP_ENV", "production");
             env::set_var("APP_HOST", "127.0.0.1");
             env::set_var("APP_PORT", "8080");
@@ -330,9 +454,9 @@ mod tests {
     #[test]
     fn from_env_reads_redis_cache_config() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let saved = snapshot_env(&CONFIG_KEYS);
+        let saved = snapshot_env(CONFIG_KEYS);
         unsafe {
-            clear_env(&CONFIG_KEYS);
+            clear_env(CONFIG_KEYS);
             env::set_var("APP_ENV", "local");
             env::set_var("APP_HOST", "127.0.0.1");
             env::set_var("APP_PORT", "8080");
@@ -363,9 +487,9 @@ mod tests {
     #[test]
     fn from_env_reads_upload_and_object_storage_config() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let saved = snapshot_env(&CONFIG_KEYS);
+        let saved = snapshot_env(CONFIG_KEYS);
         unsafe {
-            clear_env(&CONFIG_KEYS);
+            clear_env(CONFIG_KEYS);
             env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
             env::set_var("UPLOAD_MAX_IMAGE_BYTES", "123456");
             env::set_var("UPLOAD_RATE_LIMIT_WINDOW_SECONDS", "60");
@@ -400,9 +524,9 @@ mod tests {
     #[test]
     fn from_env_reads_public_api_config() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let saved = snapshot_env(&CONFIG_KEYS);
+        let saved = snapshot_env(CONFIG_KEYS);
         unsafe {
-            clear_env(&CONFIG_KEYS);
+            clear_env(CONFIG_KEYS);
             env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
             env::set_var("PUBLIC_API_RATE_LIMIT_ENABLED", "true");
             env::set_var("PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS", "30");
@@ -437,9 +561,9 @@ mod tests {
     #[test]
     fn from_env_rejects_trusting_proxy_headers_without_trusted_cidrs() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let saved = snapshot_env(&CONFIG_KEYS);
+        let saved = snapshot_env(CONFIG_KEYS);
         unsafe {
-            clear_env(&CONFIG_KEYS);
+            clear_env(CONFIG_KEYS);
             env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
             env::set_var("TRUST_PROXY_HEADERS", "true");
         }
@@ -453,9 +577,9 @@ mod tests {
     #[test]
     fn from_env_rejects_zero_upload_limits() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let saved = snapshot_env(&CONFIG_KEYS);
+        let saved = snapshot_env(CONFIG_KEYS);
         unsafe {
-            clear_env(&CONFIG_KEYS);
+            clear_env(CONFIG_KEYS);
             env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
             env::set_var("UPLOAD_MAX_IMAGE_BYTES", "0");
         }
@@ -466,7 +590,7 @@ mod tests {
         restore_env(saved);
     }
 
-    const CONFIG_KEYS: [&str; 33] = [
+    const CONFIG_KEYS: &[&str] = &[
         "APP_ENV",
         "APP_HOST",
         "APP_PORT",
@@ -500,8 +624,20 @@ mod tests {
         "TRUST_PROXY_HEADERS",
         "TRUSTED_PROXY_CIDRS",
         "MINIO_ROOT_USER",
+        "KNOTS_MEDIA_STORAGE_PROFILE",
+        "KNOTS_MEDIA_ENDPOINT",
+        "KNOTS_MEDIA_REGION",
+        "KNOTS_MEDIA_BUCKET",
+        "KNOTS_MEDIA_ACCESS_KEY_ID",
+        "KNOTS_MEDIA_SECRET_ACCESS_KEY",
+        "KNOTS_MEDIA_FORCE_PATH_STYLE",
+        "KNOTS_MEDIA_PUBLIC_BASE_URL",
+        "KNOTS_MEDIA_MAX_IMAGE_BYTES",
+        "KNOTS_MEDIA_MAX_VIDEO_BYTES",
+        "ADMIN_USER_IDS",
+        "ADMIN_EMAILS",
+        "ADMIN_USERNAMES",
     ];
-
     fn snapshot_env(keys: &[&'static str]) -> Vec<(&'static str, Option<String>)> {
         keys.iter().map(|key| (*key, env::var(key).ok())).collect()
     }

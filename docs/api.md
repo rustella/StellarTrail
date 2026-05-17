@@ -149,7 +149,7 @@ GET /api/mountains/:id
 GET /api/routes
 GET /api/routes/:id
 GET /api/skills
-GET /api/skills/knots/list?offset=0&limit=20&category=<slug>&q=<query>
+GET /api/skills/knots/list?offset=0&limit=20
 GET /api/skills/knots/detail/:id
 GET /assets/*
 GET /api/gear-templates
@@ -160,7 +160,9 @@ GET /api/gear-templates/:id
 
 ### Outdoor skills / knots
 
-一期户外技能只有绳结。服务端通过 `import-knots3d` 将 `.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json` 导入数据库；JSON 响应只返回 metadata 与媒体 URL，GIF/MP4/WebP 等二进制由 `/assets/*` 静态资源接口返回。
+一期户外技能只有绳结。服务端通过 `import-knots3d` 将 `.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json` 导入数据库；绳结媒体不再从 `/assets/*` 或本地静态目录拼 URL。管理员使用 `PUT /api/admin/skills/knots/:knot_id/media/:asset_id` 上传 GIF/MP4/WebP/PNG 等二进制到 MinIO/S3-compatible object storage，服务端把 `media_resources` 与 `knot_media_resources` 元数据写入数据库。公开读接口只返回 DB 中 active media 的 `url`/`mime_type`/`size_bytes` 等公共字段，允许这些 URL 指向与 API 不同域名的 MinIO/CDN。
+
+核心媒体 `asset_id` / `media_type`：`thumbnail`、`preview`、`draw_gif`、`turntable_gif`、`draw_mp4`、`turntable_mp4`。Knots3D 全量一期验收目标为 `225 knots × 6 core media = 1350`。
 
 语言不使用 query 参数，统一通过请求头：
 
@@ -172,7 +174,58 @@ X-StellarTrail-Locale: en
 
 未显式传 `X-StellarTrail-Locale` 时会尝试 `Accept-Language`，再 fallback 到 `zh-CN`。`?locale=...` 会返回 `400 unsupported_query_parameter`。分页参数为 `offset`/`limit`，响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
 
-公开技能/绳结接口不需要登录，但必须保持只读 allowlist，不开放 `/api/me/*`。响应包含 `Cache-Control`、`ETag` 和 `Content-Language`；服务端限制 `limit`、`offset`、`q` 长度，默认按客户端 IP 做固定窗口限流。生产中 `TRUST_PROXY_HEADERS` 默认应保持关闭，只有在直接上游为可信反向代理且配置 `TRUSTED_PROXY_CIDRS` 后才允许使用 `X-Forwarded-For` / `X-Real-IP`。
+### Admin knot media upload
+
+管理员上传接口需要 Bearer Token，且当前用户必须命中 `ADMIN_USER_IDS`、`ADMIN_EMAILS` 或 `ADMIN_USERNAMES` allowlist。该接口是批量导入 Knots3D 媒体的唯一写入入口：脚本不得绕过 API 直接写 MinIO 或 DB。
+
+```http
+PUT /api/admin/skills/knots/:knot_id/media/:asset_id
+Authorization: Bearer <admin-token>
+Content-Type: multipart/form-data
+```
+
+Multipart 字段：
+
+| 字段           | 必填 | 说明                                                    |
+| -------------- | ---- | ------------------------------------------------------- |
+| `file`         | 是   | 媒体二进制；MIME 与文件 magic 会按 `asset_id` 校验。    |
+| `media_type`   | 是   | 必须与 `asset_id` 一致。                                |
+| `attribution`  | 否   | 默认建议 `Knots 3D`。                                   |
+| `license_note` | 否   | 授权说明；版权未确认时不要上传到生产 public bucket。    |
+| `source_name`  | 否   | 来源名称。                                              |
+| `source_path`  | 否   | 本地素材相对路径，仅存内部 metadata，不在公开响应暴露。 |
+
+成功响应：
+
+```json
+{
+  "status": "uploaded",
+  "knot_id": "adjustable-grip-hitch-knot",
+  "media": {
+    "id": "draw_gif",
+    "media_type": "draw_gif",
+    "url": "https://cdn.example.com/skills/knots/adjustable-grip-hitch-knot/draw_gif/<sha256>.gif",
+    "mime_type": "image/gif",
+    "width": null,
+    "height": null,
+    "size_bytes": 123456,
+    "attribution": "Knots 3D",
+    "license_note": "Use only after authorization is confirmed."
+  }
+}
+```
+
+本地批量上传/验证：
+
+```bash
+STELLARTRAIL_API_BASE_URL=http://127.0.0.1:8080 STELLARTRAIL_ADMIN_TOKEN=<admin-token> KNOTS3D_METADATA_PATH=.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json npm run knots:upload-media -- --concurrency 4
+
+# 只打印计划，不写入：
+npm run knots:upload-media -- --dry-run
+
+# 上传后只通过公开读接口校验 225×6 媒体完整性：
+npm run knots:upload-media -- --verify-only
+```
 
 ## Cache / performance
 

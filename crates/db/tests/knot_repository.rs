@@ -84,7 +84,7 @@ async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offs
     let config = DatabaseConfig::new(temp_db_url("repo")).expect("db config");
     let db = connect_database(&config).await.expect("connect");
     Migrator::up(&db, None).await.expect("migrate");
-    let repo = KnotRepository::new(db, "/assets");
+    let repo = KnotRepository::new(db.clone(), "/assets");
     repo.replace_all_knots("unit-test", &[seed()])
         .await
         .expect("seed");
@@ -106,6 +106,33 @@ async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offs
     assert_eq!(page.items[0].title, "Adjustable Grip Hitch");
     assert_eq!(page.items[0].slug, "adjustable-grip-hitch-knot");
 
+    db.execute(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        r#"INSERT INTO media_resources (
+            id, provider, storage_profile, bucket, object_key, public_base_url, public_url,
+            mime_type, extension, size_bytes, sha256_hex, etag, width, height, duration_ms,
+            status, source_name, source_path, uploaded_by_user_id, created_at, updated_at
+        ) VALUES (?, 'minio', 'knots-public', 'stellartrail-knots-media', ?, 'https://media.example.test', ?, 'image/webp', 'webp', 12345, ?, NULL, 320, 180, NULL, 'active', 'unit-test', 'relative/source.webp', NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"#,
+        vec![
+            "media-adjustable-grip-hitch-thumbnail".to_owned().into(),
+            "skills/knots/adjustable-grip-hitch-knot/thumbnail/hash.webp".to_owned().into(),
+            "https://media.example.test/skills/knots/adjustable-grip-hitch-knot/thumbnail/hash.webp".to_owned().into(),
+            "0123456789abcdef".to_owned().into(),
+        ],
+    ))
+    .await
+    .expect("insert media resource");
+    db.execute(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        r#"INSERT INTO knot_media_resources (
+            knot_id, asset_id, media_type, media_resource_id, sort_order, attribution, license_note,
+            created_at, updated_at
+        ) VALUES ('adjustable-grip-hitch-knot', 'thumbnail', 'thumbnail', 'media-adjustable-grip-hitch-thumbnail', 0, 'Knots3D', 'authorization required', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"#,
+        vec![],
+    ))
+    .await
+    .expect("insert knot media resource");
+
     let detail = repo
         .get_knot_detail("adjustable-grip-hitch-knot", Locale::ZhCn)
         .await
@@ -115,7 +142,31 @@ async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offs
     assert_eq!(detail.categories[0].title, "露营");
     assert_eq!(
         detail.media[0].url,
-        "/assets/skills/knots/adjustable-grip-hitch-knot/thumbnail.webp"
+        "https://media.example.test/skills/knots/adjustable-grip-hitch-knot/thumbnail/hash.webp"
+    );
+    assert_eq!(detail.media[0].size_bytes, 12345);
+    assert_eq!(detail.media[0].id, "thumbnail");
+}
+
+#[tokio::test]
+async fn repository_ignores_legacy_knot_media_assets_when_no_media_resources_exist() {
+    let config = DatabaseConfig::new(temp_db_url("legacy-media")).expect("db config");
+    let db = connect_database(&config).await.expect("connect");
+    Migrator::up(&db, None).await.expect("migrate");
+    let repo = KnotRepository::new(db.clone(), "/assets");
+    repo.replace_all_knots("unit-test", &[seed()])
+        .await
+        .expect("seed");
+
+    let detail = repo
+        .get_knot_detail("adjustable-grip-hitch-knot", Locale::ZhCn)
+        .await
+        .expect("query")
+        .expect("detail");
+    assert!(
+        detail.media.is_empty(),
+        "legacy /assets media must not be returned: {:?}",
+        detail.media
     );
 }
 
@@ -139,9 +190,9 @@ async fn knots_migration_down_preserves_shared_skill_categories() {
     .await
     .expect("insert shared category localization");
 
-    // Roll back the refresh-token migration plus the knots migration so this test remains
+    // Roll back media resources, refresh tokens, and knots content so this test remains
     // pinned to the knots down behavior as later migrations are appended.
-    Migrator::down(&db, Some(2))
+    Migrator::down(&db, Some(3))
         .await
         .expect("roll back knots migration");
 

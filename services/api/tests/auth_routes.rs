@@ -8,7 +8,7 @@ use axum::{
 use sea_orm::{ConnectionTrait, Statement};
 use serde_json::{Value, json};
 use stellartrail_api::{
-    config::{ApiConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig},
+    config::{ApiConfig, RedisCacheConfig},
     migrate_database,
     routes::build_router,
     services::wechat::{WechatCodeSession, WechatCodeSessionClient},
@@ -42,9 +42,11 @@ async fn test_app() -> TestApp {
         content_assets_dir: temp_dir.path().join("assets"),
         media_base_url: "/assets".to_owned(),
         redis_cache: RedisCacheConfig::disabled(),
-        upload: UploadConfig::default(),
-        object_storage: ObjectStorageConfig::default(),
-        public_api: PublicApiConfig::default(),
+        upload: Default::default(),
+        object_storage: Default::default(),
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
+        public_api: Default::default(),
     };
     TestApp {
         router: build_router(AppState::new(config, db.clone())),
@@ -312,9 +314,11 @@ async fn production_wechat_login_uses_code2session_client() {
         content_assets_dir: temp_dir.path().join("assets"),
         media_base_url: "/assets".to_owned(),
         redis_cache: RedisCacheConfig::disabled(),
-        upload: UploadConfig::default(),
-        object_storage: ObjectStorageConfig::default(),
-        public_api: PublicApiConfig::default(),
+        upload: Default::default(),
+        object_storage: Default::default(),
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
+        public_api: Default::default(),
     };
     let wechat_client = RecordingWechatCodeSessionClient::default();
     let calls = Arc::clone(&wechat_client.calls);
