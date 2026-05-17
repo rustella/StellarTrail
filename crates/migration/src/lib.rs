@@ -1,4 +1,9 @@
-//! Database migration crate entrypoint registering all StellarTrail schema migrations in order.
+//! SeaORM migration registry for the StellarTrail schema.
+//!
+//! Migrations are registered in chronological order so local SQLite tests,
+//! containerized PostgreSQL integration tests, and production deployments all
+//! apply the same schema sequence. New migrations should be appended to this
+//! list instead of inserted between already-released entries.
 
 use sea_orm_migration::prelude::*;
 
@@ -12,14 +17,21 @@ mod m20260516_000007_create_knots_content;
 mod m20260516_000008_add_refresh_tokens;
 mod m20260517_000006_create_media_resources;
 
-/// SeaORM migrator implementation that runs all schema migrations in registration order.
+/// Concrete SeaORM migrator used by the API server and test suites.
+///
+/// Keeping the registration point centralized makes it obvious which schema
+/// revisions are part of a release and prevents tests from accidentally running
+/// a different migration set than the API binary.
 pub struct Migrator;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
-    /// Runs the `migrations` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Returns every schema migration in the exact order it must be applied.
+    ///
+    /// The vector order is part of the database contract: later migrations may
+    /// depend on columns, indexes, or tables created by earlier entries.
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        // Migration order is the schema evolution order, so new migrations must be appended to the end of the list.
+        // Append new migrations at the end to preserve deployed revision order.
         vec![
             Box::new(m20260516_000001_create_users_sessions::Migration),
             Box::new(m20260516_000002_create_user_gear_items::Migration),

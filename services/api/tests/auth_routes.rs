@@ -1,3 +1,11 @@
+//! Integration tests for authentication routes and session renewal behavior.
+//!
+//! These tests exercise the public HTTP boundary instead of calling service
+//! functions directly. That keeps coverage close to real clients: JSON payloads
+//! are serialized through Axum, access tokens are sent as bearer headers, and
+//! refresh-token replay is verified through the same route that Web, WeChat, and
+//! Android clients use.
+
 use std::sync::{Arc, Mutex};
 
 use axum::{
@@ -211,10 +219,13 @@ async fn local_mock_login_returns_token_and_user() {
     assert_eq!(value["user"]["nickname"], "测试用户");
 }
 
+/// Verifies every password-login response includes both access and refresh credentials.
 #[tokio::test]
 async fn login_response_includes_refresh_token() {
     let app = test_app().await;
 
+    // Registration returns the same login response shape as password and WeChat
+    // login, so it is the shortest path for asserting the token contract.
     let value = register_password_user(
         &app.router,
         "refresh_alice",
@@ -233,6 +244,7 @@ async fn login_response_includes_refresh_token() {
     assert!(value["refresh_expires_at"].as_str().unwrap().contains('T'));
 }
 
+/// Verifies refresh-token rotation returns new credentials and rejects old-token replay.
 #[tokio::test]
 async fn refresh_token_rotates_session_and_rejects_replay() {
     let app = test_app().await;
@@ -246,6 +258,8 @@ async fn refresh_token_rotates_session_and_rejects_replay() {
     let old_access_token = login_value["access_token"].as_str().unwrap().to_owned();
     let old_refresh_token = login_value["refresh_token"].as_str().unwrap().to_owned();
 
+    // The refresh endpoint does not require an Authorization header; the refresh
+    // token itself is the credential and is rotated on success.
     let (refresh_status, refresh_value) = send_json(
         &app.router,
         "POST",
@@ -261,6 +275,8 @@ async fn refresh_token_rotates_session_and_rejects_replay() {
     assert_ne!(new_refresh_token, old_refresh_token);
     assert_eq!(refresh_value["user"]["username"], "refresh_bob");
 
+    // The new access token must be immediately usable for private APIs that
+    // still require bearer authentication.
     let (gear_status, gear_stats) = send_empty(
         &app.router,
         "GET",
@@ -283,6 +299,8 @@ async fn refresh_token_rotates_session_and_rejects_replay() {
         "{old_access_value}",
     );
 
+    // Reusing the old refresh token proves the conditional rotation guard: the
+    // stored refresh hash no longer matches after the first successful refresh.
     let (replay_status, replay_value) = send_json(
         &app.router,
         "POST",

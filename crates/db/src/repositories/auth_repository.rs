@@ -1,4 +1,11 @@
-//! Authentication repository wrapping persistence for users, sessions, email verification codes, and image captcha challenges.
+//! Persistence boundary for StellarTrail authentication data.
+//!
+//! This repository centralizes raw SQL for users, opaque access-token sessions,
+//! refresh-token rotation, email verification codes, and captcha challenges. The
+//! service layer passes only token hashes into this module; plaintext access and
+//! refresh tokens are never stored in the database. Keeping all session queries
+//! here also makes revocation, expiry, and deleted-user checks auditable in one
+//! place.
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr};
 
@@ -9,7 +16,7 @@ use uuid::Uuid;
 
 const USER_SELECT: &str = "id, wechat_openid, username, email, password_hash, nickname, avatar_url, failed_login_attempts, created_at, updated_at";
 
-/// Stable data boundary for `UserRecord`, exposed by or reused within this module.
+/// Database projection for an application user returned by authentication queries.
 #[derive(Clone, Debug)]
 pub struct UserRecord {
     pub id: String,
@@ -24,26 +31,37 @@ pub struct UserRecord {
     pub updated_at: String,
 }
 
-/// Active refresh-token lookup result used to rotate the owning session and return the user payload.
+/// Minimal session projection needed after a refresh-token lookup.
+///
+/// The lookup returns the session id so the caller can rotate exactly that row,
+/// and it returns a user snapshot so the response can be built without a second
+/// database round trip.
 #[derive(Clone, Debug)]
 pub struct RefreshSessionRecord {
     pub session_id: String,
     pub user: UserRecord,
 }
 
-/// Authentication persistence object that centralizes SQL for users, sessions, and verification challenges.
+/// Repository wrapper around a SeaORM connection for authentication storage.
+///
+/// Methods in this type deliberately use parameterized statements instead of
+/// interpolating user input, because most call sites handle credentials or
+/// account identifiers supplied directly by clients.
 #[derive(Clone)]
 pub struct AuthRepository {
     db: DatabaseConnection,
 }
 
 impl AuthRepository {
-    /// Runs the `new` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Creates a repository bound to the provided database connection.
     pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
-    /// Runs the `upsert mock user` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Creates or updates a local mock WeChat user for development-only login.
+    ///
+    /// This delegates to the normal WeChat upsert path so tests and local smoke
+    /// flows exercise the same user/session schema as real code2session login.
     pub async fn upsert_mock_user(
         &self,
         wechat_openid: &str,
@@ -54,7 +72,11 @@ impl AuthRepository {
             .await
     }
 
-    /// Runs the `upsert wechat user` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Creates a user for a WeChat `openid` or updates the existing display profile.
+    ///
+    /// The `openid` is treated as the stable identity key. When a user already
+    /// exists, only non-security profile fields are updated, preserving existing
+    /// sessions, password credentials, and audit timestamps.
     pub async fn upsert_wechat_user(
         &self,
         wechat_openid: &str,
@@ -112,7 +134,10 @@ impl AuthRepository {
         Ok(user)
     }
 
-    /// Runs the `create password user` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Inserts a password-based account after service-layer validation succeeds.
+    ///
+    /// The caller is responsible for hashing the password before it reaches the
+    /// repository so this function never sees or persists plaintext passwords.
     pub async fn create_password_user(
         &self,
         username: &str,
@@ -143,7 +168,12 @@ impl AuthRepository {
             .ok_or_else(|| DbErr::Custom("created user not found".to_owned()))
     }
 
-    /// Runs the `create session` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Persists a new opaque access-token session with its paired refresh token hash.
+    ///
+    /// Both token arguments must already be SHA-256 digests of client-visible
+    /// random tokens. The database stores the access expiry and refresh expiry
+    /// separately so a short-lived access token can be renewed until the longer
+    /// refresh window closes or the session is revoked.
     pub async fn create_session(
         &self,
         user_id: &str,
@@ -154,12 +184,16 @@ impl AuthRepository {
     ) -> Result<String, DbErr> {
         let id = Uuid::new_v4().to_string();
         let now = now_rfc3339();
+        // Persist timestamps as RFC3339 strings to match the existing session
+        // schema and keep SQLite/PostgreSQL behavior consistent in tests.
         let expires_at = expires_at
             .format(&Iso8601::DEFAULT)
             .map_err(|err| DbErr::Custom(err.to_string()))?;
         let refresh_expires_at = refresh_expires_at
             .format(&Iso8601::DEFAULT)
             .map_err(|err| DbErr::Custom(err.to_string()))?;
+        // Insert both token hashes in the same row so revoking a session disables
+        // the access token and the refresh token together.
         self.db
             .execute(statement(
                 self.db.get_database_backend(),
@@ -180,7 +214,11 @@ impl AuthRepository {
         Ok(id)
     }
 
-    /// Runs the `create email verification code` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Stores a hashed email verification code for a specific account action.
+    ///
+    /// The plaintext code is returned only to the service layer in local test
+    /// environments; this repository stores a digest so leaked rows cannot be
+    /// used to complete registration.
     pub async fn create_email_verification_code(
         &self,
         email: &str,
@@ -190,6 +228,8 @@ impl AuthRepository {
     ) -> Result<String, DbErr> {
         let id = Uuid::new_v4().to_string();
         let now = now_rfc3339();
+        // The update statement below is the replay guard: it succeeds only while
+        // the stored refresh hash still matches the hash presented by the client.
         let expires_at = expires_at
             .format(&Iso8601::DEFAULT)
             .map_err(|err| DbErr::Custom(err.to_string()))?;
@@ -253,6 +293,8 @@ impl AuthRepository {
                 vec![now.into(), id.into()],
             ))
             .await?;
+        // A zero-row update means the refresh token was expired, revoked,
+        // deleted-user-bound, or already rotated by another request.
         Ok(result.rows_affected() > 0)
     }
 
@@ -354,12 +396,18 @@ impl AuthRepository {
         row.map(|row| map_user(&row)).transpose()
     }
 
-    /// Finds an active refresh token together with its session id while allowing the access token to be expired.
+    /// Looks up a refresh-token hash that is still eligible for rotation.
+    ///
+    /// Refresh lookup intentionally ignores the access-token expiry because the
+    /// purpose of this query is to recover from an expired access token. It still
+    /// rejects revoked sessions, expired refresh windows, and deleted users.
     pub async fn find_session_by_refresh_token_hash(
         &self,
         refresh_token_hash: &str,
     ) -> Result<Option<RefreshSessionRecord>, DbErr> {
         let now = now_rfc3339();
+        // Refresh-token lookup uses the refresh hash and refresh expiry only;
+        // the access token may already be expired when clients call this path.
         let row = self
             .db
             .query_one(statement(
@@ -387,7 +435,12 @@ impl AuthRepository {
         .transpose()
     }
 
-    /// Atomically rotates the stored access and refresh token hashes for one active session.
+    /// Atomically replaces the access and refresh token hashes for one active session.
+    ///
+    /// The `old_refresh_token_hash` appears in the `WHERE` clause, so only the
+    /// first request using a given refresh token can update the row. Concurrent
+    /// or replayed refresh calls affect zero rows and are treated as unauthorized
+    /// by the service layer.
     pub async fn rotate_session_tokens(
         &self,
         session_id: &str,
@@ -398,12 +451,16 @@ impl AuthRepository {
         refresh_expires_at: OffsetDateTime,
     ) -> Result<bool, DbErr> {
         let now = now_rfc3339();
+        // The update statement below is the replay guard: it succeeds only while
+        // the stored refresh hash still matches the hash presented by the client.
         let expires_at = expires_at
             .format(&Iso8601::DEFAULT)
             .map_err(|err| DbErr::Custom(err.to_string()))?;
         let refresh_expires_at = refresh_expires_at
             .format(&Iso8601::DEFAULT)
             .map_err(|err| DbErr::Custom(err.to_string()))?;
+        // Rotate the access and refresh token hashes in one write so clients
+        // never observe a new access token paired with an old refresh token.
         let result = self
             .db
             .execute(statement(
@@ -435,6 +492,8 @@ impl AuthRepository {
                 ],
             ))
             .await?;
+        // A zero-row update means the refresh token was expired, revoked,
+        // deleted-user-bound, or already rotated by another request.
         Ok(result.rows_affected() > 0)
     }
 
@@ -456,7 +515,7 @@ impl AuthRepository {
         row.map(|row| map_user(&row)).transpose()
     }
 
-    /// Runs the `find user by username` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Finds a non-deleted user by normalized username for password login and uniqueness checks.
     pub async fn find_user_by_username(&self, username: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
@@ -469,7 +528,7 @@ impl AuthRepository {
         row.map(|row| map_user(&row)).transpose()
     }
 
-    /// Runs the `find user by email` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Finds a non-deleted user by normalized email for password login and registration checks.
     pub async fn find_user_by_email(&self, email: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
@@ -518,7 +577,7 @@ impl AuthRepository {
         Ok(())
     }
 
-    /// Runs the `find user by openid` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Finds a non-deleted user by WeChat `openid` during code2session login.
     async fn find_user_by_openid(&self, wechat_openid: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
@@ -531,7 +590,7 @@ impl AuthRepository {
         row.map(|row| map_user(&row)).transpose()
     }
 
-    /// Runs the `find user by id` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Reloads a non-deleted user by primary key after an insert or profile update.
     async fn find_user_by_id(&self, user_id: &str) -> Result<Option<UserRecord>, DbErr> {
         let row = self
             .db
@@ -547,14 +606,22 @@ impl AuthRepository {
     }
 }
 
-/// Computes a SHA-256 digest for access tokens so the database stores only non-reusable token hashes.
+/// Computes a SHA-256 digest for opaque access or refresh tokens before persistence.
+///
+/// The digest is deterministic for lookups but the original bearer credential is
+/// not recoverable from the stored value, which limits the blast radius of a
+/// database leak.
 pub fn hash_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     hex::encode(hasher.finalize())
 }
 
-/// Runs the `map user` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Converts a SQL row containing `USER_SELECT` columns into the repository user projection.
+///
+/// All authentication queries use the same projection so response construction
+/// stays consistent across WeChat login, password login, access-token lookup,
+/// and refresh-token lookup.
 fn map_user(row: &sea_orm::QueryResult) -> Result<UserRecord, DbErr> {
     Ok(UserRecord {
         id: row.try_get("", "id")?,
@@ -570,7 +637,7 @@ fn map_user(row: &sea_orm::QueryResult) -> Result<UserRecord, DbErr> {
     })
 }
 
-/// Runs the `now rfc3339` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Formats the current UTC time in the same RFC3339 representation stored by session tables.
 fn now_rfc3339() -> String {
     OffsetDateTime::now_utc()
         .format(&Iso8601::DEFAULT)
@@ -583,7 +650,7 @@ mod tests {
     use sea_orm_migration::prelude::MigratorTrait;
     use stellartrail_migration::Migrator;
 
-    /// Runs the `creates session and finds user by token hash` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Verifies that a newly created access-token session can be resolved back to its user.
     #[tokio::test]
     async fn creates_session_and_finds_user_by_token_hash() {
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
