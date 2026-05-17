@@ -17,14 +17,12 @@ import type {
   ListKnotsRequest,
   ImportGearsRequest,
   ImportGearsResponse,
-  MountainContent,
   ListGearsRequest,
   ListGearsResponse,
   MetaResponse,
   PasswordLoginRequest,
   RefreshTokenRequest,
   RegisterRequest,
-  RouteContent,
   SkillCategoriesResponse,
   SkillLocale,
   UpdateGearRequest,
@@ -93,22 +91,6 @@ export class StellarTrailApiClient {
 
   async meta(): Promise<MetaResponse> {
     return this.get("/api/meta");
-  }
-
-  async listMountains(): Promise<ContentListResponse<MountainContent>> {
-    return this.get("/api/mountains");
-  }
-
-  async getMountain(id: string): Promise<MountainContent> {
-    return this.get(`/api/mountains/${encodeURIComponent(id)}`);
-  }
-
-  async listRoutes(): Promise<ContentListResponse<RouteContent>> {
-    return this.get("/api/routes");
-  }
-
-  async getRoute(id: string): Promise<RouteContent> {
-    return this.get(`/api/routes/${encodeURIComponent(id)}`);
   }
 
   async listSkills(locale?: SkillLocale): Promise<SkillCategoriesResponse> {

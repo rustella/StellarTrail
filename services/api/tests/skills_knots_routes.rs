@@ -164,9 +164,6 @@ async fn seeded_app_with_uploaded_media() -> TestApp {
         wechat_mock_login: true,
         wechat_app_id: None,
         wechat_app_secret: None,
-        content_dir: temp_dir.path().join("content"),
-        content_assets_dir: temp_dir.path().join("assets"),
-        media_base_url: "/assets".to_owned(),
         redis_cache: RedisCacheConfig::disabled(),
         upload: UploadConfig::default(),
         minio: Default::default(),
@@ -188,7 +185,7 @@ async fn seeded_app_with_uploaded_media() -> TestApp {
         cors: CorsConfig::default(),
         mail: Default::default(),
     };
-    let repository = KnotRepository::new(db.clone(), config.media_base_url.clone());
+    let repository = KnotRepository::new(db.clone());
     repository
         .replace_all_knots("test-fixture", &[sample_knot()])
         .await
@@ -246,9 +243,6 @@ async fn seeded_app() -> TestApp {
         wechat_mock_login: true,
         wechat_app_id: None,
         wechat_app_secret: None,
-        content_dir: temp_dir.path().join("content"),
-        content_assets_dir: temp_dir.path().join("assets"),
-        media_base_url: "/assets".to_owned(),
         redis_cache: RedisCacheConfig::disabled(),
         upload: UploadConfig::default(),
         minio: Default::default(),
@@ -270,7 +264,7 @@ async fn seeded_app() -> TestApp {
         cors: CorsConfig::default(),
         mail: Default::default(),
     };
-    let repository = KnotRepository::new(db.clone(), config.media_base_url.clone());
+    let repository = KnotRepository::new(db.clone());
     repository
         .replace_all_knots("test-fixture", &[sample_knot()])
         .await
@@ -520,29 +514,17 @@ async fn old_knots_routes_are_not_kept_as_compatibility_aliases() {
 }
 
 #[tokio::test]
-async fn assets_are_served_from_content_assets_only() {
+async fn legacy_assets_path_is_not_registered() {
     let app = seeded_app().await;
-    let response = app
-        .router
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri("/assets/skills/knots/adjustable-grip-hitch-knot/adjustable-grip-hitch-demo.gif")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .expect("response");
-    assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(
-        response.headers().get(header::CONTENT_TYPE).unwrap(),
-        "image/gif"
-    );
-    let body = response
-        .into_body()
-        .collect()
-        .await
-        .expect("body")
-        .to_bytes();
-    assert_eq!(&body[..6], b"GIF89a");
+    let (status, _headers, body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/assets/skills/knots/adjustable-grip-hitch-knot/adjustable-grip-hitch-demo.gif")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["code"], "not_found");
 }

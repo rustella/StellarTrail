@@ -16,7 +16,7 @@ pub struct KnotRepository {
 
 impl KnotRepository {
     /// Creates a repository using the shared application database connection.
-    pub fn new(db: DatabaseConnection, _media_base_url: impl Into<String>) -> Self {
+    pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 

@@ -3,37 +3,35 @@
 ## Runtime
 
 ```text
-WeChat Mini Program / Android / iOS
+WeChat Mini Program / Android / iOS / Web
         |
         | HTTPS JSON API
         v
 Rust API service (axum, Rust 2024)
         |
-        | repository boundary (SeaORM) + content catalog loader
+        | repository boundary (SeaORM)
         v
 SQLite / PostgreSQL
         ^
         |
 optional Redis cache (read-through gear API cache)
 
-content/ YAML + Markdown
-        |
-        v
-crates/importer -> AppState in-memory public catalog
+Knots3D metadata import CLI -> DB
+MinIO / S3-compatible object storage -> public media URLs stored in DB
 ```
 
 ## Phase-one scope
 
-第一期核心仍是装备库管理；本轮补齐只读内容目录 API，用于把已有山峰、路线、技能和装备模板种子内容暴露给前端，不进入路线导航、社区或交易等复杂能力。
+第一期核心是装备库管理、DB-backed 装备模板、账号登录和绳结公共技能。路线、山峰、行程和导航模块尚未开始实现；服务端不注册 `/api/mountains*` 或 `/api/routes*`，也不再通过 repo-local `content/` 文件树启动加载公共内容。
 
 服务端分层：
 
-- `services/api`：HTTP 路由、DTO、mock 登录、认证、错误响应、Redis read-through cache、装备导入导出和只读内容 API。
-- `crates/domain`：装备分类、状态、共享状态、山峰/路线/技能枚举和校验规则。
-- `crates/db`：SeaORM 连接、repository、用户会话和装备持久化。
-- `crates/migration`：`users`、`sessions`、邮箱验证码、密码登录字段和 `user_gear_items` 迁移。
-- `crates/importer`：解析 `content/` 下 YAML/Markdown，在 API 启动时加载为内存只读 catalog。
-- `packages/shared-types` / `packages/api-client-ts`：小程序、Web 和移动端对齐 DTO 与客户端调用语义。
+- `services/api`：HTTP 路由、DTO、mock 登录、认证、错误响应、Redis read-through cache、装备导入导出、绳结公开读接口、装备模板公开读接口和管理员绳结媒体上传接口。
+- `crates/domain`：装备、装备模板、技能、用户和反馈等领域模型、枚举和校验规则。
+- `crates/db`：SeaORM 连接、repository、用户会话、装备、绳结、媒体资源和装备模板持久化。
+- `crates/migration`：数据库 schema 迁移。
+- `crates/importer`：Knots3D metadata 解析边界；导入结果写 DB，不被 API 启动直接读取为内存 catalog。
+- `packages/shared-types` / `packages/api-client-ts`：客户端复用 DTO 和 API client。
 - `apps/ios`：SwiftUI 原生端，使用 MVVM、repository、URLSession/Codable 和 Keychain 会话存储复用同一套装备与技能体验。
 
 ## Database strategy
@@ -44,9 +42,12 @@ crates/importer -> AppState in-memory public catalog
 
 `users` 支持微信 openid 与邮箱/用户名登录并存；密码按当前需求以 SHA-256 十六进制摘要保存，连续密码错误会累计失败次数并触发验证码门槛。`user_gear_items` 使用软删除字段 `archived_at` 支撑“可用装备 / 历史装备”。金额以分为单位保存为 `purchase_price_cents`，重量以克为单位保存为 `weight_g`。
 
-## Public content catalog
+## Public data
 
-`ApiConfig::content_dir` 默认读取 `CONTENT_DIR=content`。`build_state` 会通过 `crates/importer` 解析山峰、路线、非绳结技能 Markdown front matter 和装备模板，并将 `ContentCatalog` 放入 `AppState`。公共接口包括 `/api/mountains*`、`/api/routes*`、`/api/skills*` 和 `/api/gear-templates*`。当前 catalog 是启动时加载的只读内存数据，不写入 DB。
+- 绳结内容通过 `import-knots3d` 将 `.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json` 导入数据库。
+- 绳结媒体通过管理员上传接口写入 MinIO/S3-compatible object storage，并把 public URL 与 metadata 写入 `media_resources` / `knot_media_resources`。
+- 装备模板由 API 启动 seed 逻辑向 `gear_templates`、`gear_template_categories` 和 `gear_template_items` 幂等写入默认系统模板。
+- repo-local `content/assets`、`content/skills`、`content/mountains`、`content/routes` 和 `content/gear-templates` 已删除；公开 API 不从这些路径读取，也不通过 `/assets/*` 直接服务媒体。
 
 ## Cache strategy
 

@@ -72,7 +72,7 @@ async fn test_app() -> TestApp {
     let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
     let db = connect_database(&database).await.unwrap();
     migrate_database(&db).await.unwrap();
-    KnotRepository::new(db.clone(), "/assets")
+    KnotRepository::new(db.clone())
         .replace_all_knots("admin-upload-test", &[sample_knot()])
         .await
         .unwrap();
@@ -87,9 +87,6 @@ async fn test_app() -> TestApp {
         wechat_mock_login: true,
         wechat_app_id: None,
         wechat_app_secret: None,
-        content_dir: temp_dir.path().join("content"),
-        content_assets_dir: temp_dir.path().join("assets"),
-        media_base_url: "/assets".to_owned(),
         redis_cache: RedisCacheConfig::disabled(),
         upload: UploadConfig::default(),
         minio: Default::default(),

@@ -10,23 +10,17 @@ app:
   port: 8080
 
 database:
-  # Supported prefixes: sqlite://, postgres://, postgresql://, mysql://
+  # Supported prefixes: sqlite://, postgres://, postgresql://.
   url: sqlite://stellartrail.db
 
 wechat:
-  # Keep mock_login true for local development. Set false outside local mock environments.
   mock_login: true
-  app_id:
-  app_secret:
-
-content:
-  dir: content
-  assets_dir: content/assets
-  media_base_url: /assets
+  app_id: null
+  app_secret: null
 
 redis:
-  # Leave url empty to disable server-side cache.
-  url:
+  # Leave null/empty to disable Redis-backed read-through cache.
+  url: null
   key_prefix: stellartrail
   gear_cache_ttl_seconds: 30
 
@@ -35,30 +29,33 @@ upload:
   rate_limit_window_seconds: 3600
   max_images_per_window: 30
 
+# Shared MinIO/S3-compatible connection used by private feedback uploads and
+# public Knots3D media buckets.
 minio:
   endpoint: http://127.0.0.1:19000
   region: us-east-1
-  access_key_id:
-  secret_access_key:
+  access_key_id: null
+  secret_access_key: null
   force_path_style: true
 
+# Private image uploads for feedback.
 object_storage:
   bucket: stellartrail-uploads
 
+# Public Knots3D media objects. Public URLs are stored in DB media_resources.
 knots_media_storage:
   storage_profile: knots-public
   bucket: stellartrail-knots-media
   public_base_url: http://127.0.0.1:19000/stellartrail-knots-media
   max_image_bytes: 32000000
   max_video_bytes: 80000000
+
 admin:
   user_ids: []
   emails: []
   usernames: []
 
 mail:
-  # Set true in production after providing SMTP credentials. Local development keeps
-  # this false so /api/auth/email-verification-code returns debug_code for tests.
   enabled: false
   smtp_host: smtp.example.invalid
   smtp_port: 465
@@ -82,7 +79,8 @@ public_api:
   trusted_proxy_cidrs: []
 
 cors:
-  # Browser origins that may call the API directly. Production should include
-  # https://app.example.invalid, https://site.example.invalid, and https://www.example.invalid.
-  allowed_origins: []
-  allow_credentials: false
+  allowed_origins:
+    - https://app.example.invalid
+    - https://site.example.invalid
+    - https://www.example.invalid
+  allow_credentials: true

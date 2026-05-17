@@ -24,7 +24,7 @@ topics:
       - crates/migration/src/lib.rs
       - crates/migration/src/lib.rs
   domain_model:
-    summary: Load when changing gear, mountain, route, skill, user models, or validation rules.
+    summary: Load when changing gear, gear-template, skill, user, or validation models.
     read:
       - crates/domain/src/lib.rs
       - crates/domain/src/gear.rs
@@ -53,14 +53,13 @@ topics:
       - packages/shared-types/src/index.ts
       - docs/api.md
       - .agent/commands.yaml
-  content_import:
-    summary: Load when changing seed content, content schema, or importer behavior.
+  public_data_import:
+    summary: Load when changing gear-template DB seed, public data docs, Knots3D metadata import, or media object-storage behavior.
     read:
       - docs/content-schema.md
-      - content/mountains/wugongshan.yaml
-      - content/routes/wugongshan-classic-2d1n.yaml
-      - content/gear-templates/backpacking-basic.yaml
+      - crates/domain/src/gear_template.rs
       - crates/importer/src/lib.rs
+      - crates/db/src/repositories/gear_template_repository.rs
   testing_and_ci:
     summary: Load when confirming validation commands, CI rules, or test entry points.
     read:
@@ -143,11 +142,13 @@ tasks:
       - apps/wechat-miniprogram/miniprogram/app.json
       - .agent/commands.yaml
     checklist: .agent/checklists/self-review.md
-  content_or_importer_change:
-    keywords: [content, yaml, markdown, importer, seed]
+  public_data_or_importer_change:
+    keywords: [public-data, gear-template, knots, importer, seed, object-storage]
     read:
       - docs/content-schema.md
       - crates/importer/src/lib.rs
+      - crates/domain/src/gear_template.rs
+      - crates/db/src/repositories/gear_template_repository.rs
       - .agent/commands.yaml
     checklist: .agent/checklists/doc-sync.md
   code_review:

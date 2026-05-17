@@ -3,6 +3,7 @@
 pub mod auth_repository;
 pub mod feedback_repository;
 pub mod gear_repository;
+pub mod gear_template_repository;
 pub mod knot_repository;
 pub mod media_resource_repository;
 pub mod upload_image_repository;
@@ -10,6 +11,7 @@ pub mod upload_image_repository;
 pub use auth_repository::{AuthRepository, UserRecord, hash_token};
 pub use feedback_repository::{FeedbackRecord, FeedbackRepository};
 pub use gear_repository::{GearRepository, ListGearOptions};
+pub use gear_template_repository::GearTemplateRepository;
 pub use knot_repository::KnotRepository;
 pub use media_resource_repository::{
     KnotMediaLinkDraft, MediaResourceDraft, MediaResourceRecord, MediaResourceRepository,

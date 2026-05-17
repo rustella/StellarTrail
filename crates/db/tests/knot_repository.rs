@@ -84,7 +84,7 @@ async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offs
     let config = DatabaseConfig::new(temp_db_url("repo")).expect("db config");
     let db = connect_database(&config).await.expect("connect");
     Migrator::up(&db, None).await.expect("migrate");
-    let repo = KnotRepository::new(db.clone(), "/assets");
+    let repo = KnotRepository::new(db.clone());
     repo.replace_all_knots("unit-test", &[seed()])
         .await
         .expect("seed");
@@ -153,7 +153,7 @@ async fn repository_ignores_legacy_knot_media_assets_when_no_media_resources_exi
     let config = DatabaseConfig::new(temp_db_url("legacy-media")).expect("db config");
     let db = connect_database(&config).await.expect("connect");
     Migrator::up(&db, None).await.expect("migrate");
-    let repo = KnotRepository::new(db.clone(), "/assets");
+    let repo = KnotRepository::new(db.clone());
     repo.replace_all_knots("unit-test", &[seed()])
         .await
         .expect("seed");
@@ -190,10 +190,11 @@ async fn knots_migration_down_preserves_shared_skill_categories() {
     .await
     .expect("insert shared category localization");
 
-    // Roll back media resources, refresh-token metadata, and knots content. This
-    // keeps the assertion pinned to the knots migration's down behavior even as
-    // later, unrelated migrations are appended to the global migrator sequence.
-    Migrator::down(&db, Some(3))
+    // Roll back gear templates, media resources, refresh-token metadata, and
+    // knots content. This keeps the assertion pinned to the knots migration's
+    // down behavior even as later, unrelated migrations are appended to the
+    // global migrator sequence.
+    Migrator::down(&db, Some(4))
         .await
         .expect("roll back knots migration");
 

@@ -19,7 +19,6 @@ struct FileConfig {
     app: FileAppConfig,
     database: FileDatabaseConfig,
     wechat: FileWechatConfig,
-    content: FileContentConfig,
     redis: FileRedisCacheConfig,
     upload: FileUploadConfig,
     minio: FileMinioConfig,
@@ -51,14 +50,6 @@ struct FileWechatConfig {
     mock_login: Option<bool>,
     app_id: Option<String>,
     app_secret: Option<String>,
-}
-
-#[derive(Clone, Debug, Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct FileContentConfig {
-    dir: Option<String>,
-    assets_dir: Option<String>,
-    media_base_url: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -382,9 +373,6 @@ pub struct ApiConfig {
     pub wechat_mock_login: bool,
     pub wechat_app_id: Option<String>,
     pub wechat_app_secret: Option<String>,
-    pub content_dir: PathBuf,
-    pub content_assets_dir: PathBuf,
-    pub media_base_url: String,
     pub redis_cache: RedisCacheConfig,
     pub upload: UploadConfig,
     pub minio: MinioConfig,
@@ -403,7 +391,6 @@ impl ApiConfig {
             app,
             database,
             wechat,
-            content,
             redis,
             upload: file_upload,
             minio: file_minio,
@@ -424,12 +411,6 @@ impl ApiConfig {
             config_bool_env("WECHAT_MOCK_LOGIN", wechat.mock_login, app_env == "local")?;
         let wechat_app_id = config_optional_string_env("WECHAT_APP_ID", wechat.app_id);
         let wechat_app_secret = config_optional_string_env("WECHAT_APP_SECRET", wechat.app_secret);
-        let content_dir = config_string_env("CONTENT_DIR", content.dir, "content");
-        let content_assets_dir =
-            config_optional_string_env("CONTENT_ASSETS_DIR", content.assets_dir)
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from(&content_dir).join("assets"));
-        let media_base_url = config_string_env("MEDIA_BASE_URL", content.media_base_url, "/assets");
         let redis_cache = RedisCacheConfig {
             url: config_optional_string_env("REDIS_URL", redis.url),
             key_prefix: config_string_env("REDIS_KEY_PREFIX", redis.key_prefix, "stellartrail"),
@@ -667,9 +648,6 @@ impl ApiConfig {
             wechat_mock_login,
             wechat_app_id,
             wechat_app_secret,
-            content_dir: PathBuf::from(content_dir),
-            content_assets_dir,
-            media_base_url,
             redis_cache,
             upload,
             minio,
@@ -964,9 +942,6 @@ mod tests {
             env::set_var("WECHAT_MOCK_LOGIN", "false");
             env::set_var("WECHAT_APP_ID", " wx-app-id ");
             env::set_var("WECHAT_APP_SECRET", " wx-secret ");
-            env::set_var("CONTENT_DIR", "content");
-            env::set_var("CONTENT_ASSETS_DIR", "content/assets");
-            env::set_var("MEDIA_BASE_URL", "/assets");
         }
 
         let config = ApiConfig::from_env().unwrap();
@@ -975,8 +950,6 @@ mod tests {
         assert!(!config.wechat_mock_login);
         assert_eq!(config.wechat_app_id.as_deref(), Some("wx-app-id"));
         assert_eq!(config.wechat_app_secret.as_deref(), Some("wx-secret"));
-        assert_eq!(config.content_assets_dir, PathBuf::from("content/assets"));
-        assert_eq!(config.media_base_url, "/assets");
         assert_eq!(config.upload, UploadConfig::default());
 
         restore_env(saved);
@@ -993,9 +966,6 @@ mod tests {
             env::set_var("APP_PORT", "8080");
             env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
             env::set_var("WECHAT_MOCK_LOGIN", "true");
-            env::set_var("CONTENT_DIR", "content");
-            env::remove_var("CONTENT_ASSETS_DIR");
-            env::remove_var("MEDIA_BASE_URL");
             env::set_var("REDIS_URL", " redis://127.0.0.1:6379/2 ");
             env::set_var("REDIS_KEY_PREFIX", " stellartrail-test ");
             env::set_var("REDIS_GEAR_CACHE_TTL_SECONDS", "45");
@@ -1009,8 +979,6 @@ mod tests {
         );
         assert_eq!(config.redis_cache.key_prefix, "stellartrail-test");
         assert_eq!(config.redis_cache.gear_ttl_seconds, 45);
-        assert_eq!(config.content_assets_dir, PathBuf::from("content/assets"));
-        assert_eq!(config.media_base_url, "/assets");
 
         restore_env(saved);
     }
@@ -1043,10 +1011,6 @@ wechat:
   mock_login: false
   app_id: yaml-app
   app_secret: x
-content:
-  dir: content-prod
-  assets_dir: content-prod/assets
-  media_base_url: https://cdn.example.invalid/assets
 redis:
   url: redis://127.0.0.1:6379/4
   key_prefix: yaml-prefix
@@ -1119,12 +1083,6 @@ mail:
         assert!(!config.wechat_mock_login);
         assert_eq!(config.wechat_app_id.as_deref(), Some("yaml-app"));
         assert_eq!(config.wechat_app_secret.as_deref(), Some("x"));
-        assert_eq!(config.content_dir, PathBuf::from("content-prod"));
-        assert_eq!(
-            config.content_assets_dir,
-            PathBuf::from("content-prod/assets")
-        );
-        assert_eq!(config.media_base_url, "https://cdn.example.invalid/assets");
         assert_eq!(config.redis_cache.key_prefix, "yaml-prefix");
         assert_eq!(config.upload.max_image_bytes, 111111);
         assert_eq!(config.minio.endpoint, "http://minio.example.invalid");
@@ -1400,9 +1358,6 @@ public_api:
         "WECHAT_MOCK_LOGIN",
         "WECHAT_APP_ID",
         "WECHAT_APP_SECRET",
-        "CONTENT_DIR",
-        "CONTENT_ASSETS_DIR",
-        "MEDIA_BASE_URL",
         "REDIS_URL",
         "REDIS_KEY_PREFIX",
         "REDIS_GEAR_CACHE_TTL_SECONDS",

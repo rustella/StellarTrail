@@ -15,26 +15,26 @@ At the start of each task:
 
 ## Product scope
 
-StellarTrail is an outdoor product for China-focused hiking and mountain scenarios. The first phase prioritizes the WeChat Mini Program and the Rust API. The core MVP loop is: choose a route, inspect difficulty, seasonality, and risks, generate a gear checklist, compare it with the user's gear inventory, and learn related outdoor skills.
+StellarTrail is an outdoor product for China-focused hiking scenarios. The first phase prioritizes the WeChat Mini Program and the Rust API, centered on account access, personal gear inventory, DB-backed gear templates, and knot skills. Route and mountain modules are future work until explicitly restarted.
 
 Do not expand the product into real-time navigation, social networking, e-commerce, complex track editing, or an all-purpose route encyclopedia unless the task explicitly asks for it.
 
 ## Technology and directory boundaries
 
 - Android app: `apps/android`, with Kotlin, Jetpack Compose, Material 3, Home, Gear, Skills, and Profile surfaces.
-- WeChat Mini Program: `apps/wechat-miniprogram`, with Home, Routes, Gear, Skills, and Profile tabs.
+- WeChat Mini Program: `apps/wechat-miniprogram`, with Home, Gear, Skills, Profile, and placeholder/future route surfaces.
 - Web app: `apps/web`.
 - Rust API: `services/api`, using Axum and Tokio.
 - Rust crates: `crates/domain`, `crates/db`, `crates/importer`, and `crates/migration`.
 - TypeScript packages: `packages/shared-types` and `packages/api-client-ts`.
-- Seed content: `content/{mountains,routes,skills,gear-templates}` in YAML and Markdown.
+- Public data: gear templates are seeded into DB at API startup; knots are imported from Knots3D metadata into DB; media is served through MinIO/object storage URLs stored in DB.
 - Documentation: `docs/`, including API, architecture, content schema, and MVP notes.
 
 ## Hard rules
 
 1. Inspect the real repository before editing; do not copy assumptions from other projects.
 2. Protect existing uncommitted changes. This repository can contain large in-progress MVP diffs.
-3. API code orchestrates HTTP, DTOs, and authentication; domain code owns business models and validation; db code owns repositories and connections; migration code owns schema; importer code owns content parsing and import boundaries.
+3. API code orchestrates HTTP, DTOs, authentication, startup seed, and object-storage writes; domain code owns business models and validation; db code owns repositories and connections; migration code owns schema; importer code owns Knots3D metadata parsing and import boundaries.
 4. All content in `AGENTS.md`, `CLAUDE.md`, and `.agent/**` must be written in English.
 5. Code comments across the repository should be written in English. Server-side Rust code under `services/api` and `crates/{domain,db,importer,migration}` should use detailed rustdoc and inline comments for module responsibilities, public items, important private functions, authentication, database access, caching, state transitions, external calls, and migration DDL.
 6. Do not commit real tokens, secrets, personal credentials, or connection strings. `.env.example` may only contain example values.
@@ -49,7 +49,7 @@ Do not expand the product into real-time navigation, social networking, e-commer
 | Understand architecture or module boundaries | `.agent/knowledge/architecture.md`, `.agent/knowledge/codebase_map.md` | `docs/architecture.md`, `README.md` |
 | Backend API, DB, or migration changes | `.agent/knowledge/architecture.md`, `.agent/commands.yaml` | `docs/api.md`, `services/api`, `crates/{domain,db,migration}` |
 | WeChat Mini Program or TypeScript client changes | `.agent/knowledge/codebase_map.md`, `.agent/commands.yaml` | `apps/wechat-miniprogram`, `packages/*` |
-| Content or importer changes | `.agent/knowledge/architecture.md`, `.agent/commands.yaml` | `content/*`, `docs/content-schema.md`, `crates/importer` |
+| Public data or importer changes | `.agent/knowledge/architecture.md`, `.agent/commands.yaml` | `docs/content-schema.md`, `crates/importer`, `crates/db`, `crates/migration` |
 | Review or self-review | `.agent/agents/code-reviewer.md`, `.agent/checklists/self-review.md` | `git diff`, related docs |
 | Refactor planning | `.agent/agents/refactor-planner.md`, `.agent/checklists/preflight.md` | `.agent/knowledge/*`, related code |
 | Agent context changes | `.agent/checklists/doc-sync.md` | `.agent/context-index.yaml`, `.agent/commands.yaml` |
