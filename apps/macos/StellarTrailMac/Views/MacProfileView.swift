@@ -3,10 +3,18 @@ import SwiftUI
 struct MacProfileView: View {
     @ObservedObject var environment: MacAppEnvironment
     @StateObject private var viewModel: ProfileViewModel
+    private let onRequestLogin: () -> Void
+    private let onRequestRegister: () -> Void
 
-    init(environment: MacAppEnvironment) {
+    init(
+        environment: MacAppEnvironment,
+        onRequestLogin: @escaping () -> Void = {},
+        onRequestRegister: @escaping () -> Void = {}
+    ) {
         self.environment = environment
         _viewModel = StateObject(wrappedValue: ProfileViewModel(settingsStore: environment.settingsStore, sessionStore: environment.sessionStore))
+        self.onRequestLogin = onRequestLogin
+        self.onRequestRegister = onRequestRegister
     }
 
     var body: some View {
@@ -33,6 +41,11 @@ struct MacProfileView: View {
                 } else {
                     TrailSurfaceCard {
                         TrailSectionTitle(title: "登录后保存自己的准备进度", subtitle: "当前仍可浏览首页、装备参考和技能内容。")
+                        HStack(spacing: 10) {
+                            TrailPrimaryButton(title: "账号登录", action: onRequestLogin)
+                            TrailSoftButton(title: "注册账号", action: onRequestRegister)
+                        }
+                        .frame(maxWidth: 420)
                     }
                 }
 

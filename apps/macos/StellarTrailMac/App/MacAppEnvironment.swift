@@ -33,10 +33,10 @@ final class MacAppEnvironment: ObservableObject {
         let arguments = ProcessInfo.processInfo.arguments
         let screenshotMode = arguments.contains("--stellartrail-screenshot-fixtures")
         let settingsStore = AppSettingsStore()
-        let sessionStore = SessionStore(keychainStore: KeychainStore(service: "com.rustella.stellartrail.macos.session"))
 
         if screenshotMode {
             let fixture = FixtureRepository()
+            let sessionStore = SessionStore(keychainStore: InMemoryKeychainStore())
             sessionStore.replace(with: Session.fixture)
             return MacAppEnvironment(
                 settingsStore: settingsStore,
@@ -49,6 +49,7 @@ final class MacAppEnvironment: ObservableObject {
             )
         }
 
+        let sessionStore = SessionStore(keychainStore: KeychainStore(service: "com.rustella.stellartrail.macos.session"))
         let client = APIClient(settingsStore: settingsStore, sessionStore: sessionStore)
         return MacAppEnvironment(
             settingsStore: settingsStore,

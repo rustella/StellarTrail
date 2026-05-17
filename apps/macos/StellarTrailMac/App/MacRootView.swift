@@ -35,9 +35,42 @@ enum MacSidebarItem: String, CaseIterable, Identifiable {
 
 struct MacRootView: View {
     @ObservedObject var environment: MacAppEnvironment
-    @State private var selection: MacSidebarItem? = MacRootView.initialSelection()
+    @ObservedObject private var sessionStore: SessionStore
+    @State private var selection: MacSidebarItem?
+    @State private var guestBrowsing = false
+
+    init(environment: MacAppEnvironment) {
+        self.environment = environment
+        _sessionStore = ObservedObject(wrappedValue: environment.sessionStore)
+        _selection = State(initialValue: MacRootView.initialSelection())
+    }
 
     var body: some View {
+        Group {
+            if shouldShowAuthGate {
+                authView(mode: .login)
+            } else if let authMode = selectedAuthMode {
+                authView(mode: authMode)
+            } else {
+                navigationShell
+            }
+        }
+        .trailTheme(settingsStore: environment.settingsStore)
+        .onAppear(perform: normalizeSelection)
+        .onChange(of: sessionStore.currentSession != nil) { _, isLoggedIn in
+            if isLoggedIn {
+                guestBrowsing = false
+                if selection == nil || selection?.isAuthItem == true {
+                    selection = .home
+                }
+            } else {
+                guestBrowsing = false
+                selection = nil
+            }
+        }
+    }
+
+    private var navigationShell: some View {
         NavigationSplitView {
             List(selection: $selection) {
                 Section("寻径星野") {
@@ -47,15 +80,12 @@ struct MacRootView: View {
                 }
                 Section("账号") {
                     sidebarLink(.profile)
-                    sidebarLink(.authLogin)
-                    sidebarLink(.authRegister)
                 }
             }
             .navigationTitle("StellarTrail")
             .listStyle(.sidebar)
         } detail: {
-            detailView
-                .trailTheme(settingsStore: environment.settingsStore)
+            selectedDetailView
         }
     }
 
@@ -64,7 +94,7 @@ struct MacRootView: View {
     }
 
     @ViewBuilder
-    private var detailView: some View {
+    private var selectedDetailView: some View {
         switch selection ?? .home {
         case .home:
             MacHomeView(environment: environment)
@@ -73,11 +103,71 @@ struct MacRootView: View {
         case .skills:
             MacSkillsView(environment: environment)
         case .profile:
-            MacProfileView(environment: environment)
+            MacProfileView(
+                environment: environment,
+                onRequestLogin: {
+                    guestBrowsing = false
+                    selection = .authLogin
+                },
+                onRequestRegister: {
+                    guestBrowsing = false
+                    selection = .authRegister
+                }
+            )
         case .authLogin:
-            MacAuthPageView(environment: environment, mode: .login)
+            MacAuthPageView(environment: environment, mode: .login) {
+                guestBrowsing = true
+                selection = .home
+            } onAuthenticated: {
+                guestBrowsing = false
+                selection = .home
+            }
         case .authRegister:
-            MacAuthPageView(environment: environment, mode: .register)
+            MacAuthPageView(environment: environment, mode: .register) {
+                guestBrowsing = true
+                selection = .home
+            } onAuthenticated: {
+                guestBrowsing = false
+                selection = .home
+            }
+        }
+    }
+
+    private func authView(mode: AuthMode) -> some View {
+        MacAuthPageView(
+            environment: environment,
+            mode: mode,
+            onContinueAsGuest: {
+                guestBrowsing = true
+                selection = .home
+            },
+            onAuthenticated: {
+                guestBrowsing = false
+                selection = .home
+            }
+        )
+    }
+
+    private var shouldShowAuthGate: Bool {
+        sessionStore.currentSession == nil && !guestBrowsing && selection?.isAuthItem != true
+    }
+
+    private var selectedAuthMode: AuthMode? {
+        switch selection {
+        case .authLogin:
+            return .login
+        case .authRegister:
+            return .register
+        default:
+            return nil
+        }
+    }
+
+    private func normalizeSelection() {
+        if sessionStore.currentSession == nil && selection?.isAuthItem != true {
+            selection = nil
+        } else if sessionStore.currentSession != nil && selection == nil {
+            selection = .home
         }
     }
 
@@ -87,5 +177,11 @@ struct MacRootView: View {
             return .home
         }
         return MacSidebarItem(rawValue: arguments[index + 1]) ?? .home
+    }
+}
+
+private extension MacSidebarItem {
+    var isAuthItem: Bool {
+        self == .authLogin || self == .authRegister
     }
 }
