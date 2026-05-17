@@ -10,6 +10,39 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import type { WebGearApi } from "./api";
 
+const sampleKnotSummary = {
+  id: "adjustable-grip-hitch-knot",
+  slug: "ke-tiao-jie-sheng-jie",
+  title: "可调节绳结",
+  summary: "调节绳索上的张力。",
+  difficulty: "beginner",
+  categories: [
+    { id: "camping-knots", slug: "lu-ying-sheng-jie", title: "露营绳结" },
+  ],
+  types: [{ id: "hitch-knots", slug: "jie-sheng", title: "系结" }],
+  media: [
+    {
+      id: "thumbnail",
+      media_type: "thumbnail",
+      url: "https://cdn.example.com/knots/thumb.webp",
+      mime_type: "image/webp",
+      width: 640,
+      height: 360,
+      size_bytes: 12345,
+      attribution: "Knots3D",
+      license_note: null,
+    },
+  ],
+  href: "/api/skills/knots/detail/adjustable-grip-hitch-knot",
+};
+
+const sampleKnotDetail = {
+  ...sampleKnotSummary,
+  description: "适合风绳和营绳张力调节。",
+  steps: ["将绳头绕过主绳。", "收紧后检查受力。"],
+  locale: "zh-CN" as const,
+};
+
 function buildClient(): WebGearApi {
   return {
     setAccessToken: vi.fn(),
@@ -65,6 +98,24 @@ function buildClient(): WebGearApi {
         avatar_url: null,
       },
     }),
+    listSkills: vi.fn().mockResolvedValue({
+      items: [
+        {
+          id: "knots",
+          slug: "knots",
+          title: "绳结",
+          summary: "户外、露营、钓鱼、航海等场景常用绳结技能。",
+          item_count: 1,
+          href: "/api/skills/knots/list",
+        },
+      ],
+    }),
+    listKnots: vi.fn().mockResolvedValue({
+      locale: "zh-CN",
+      items: [sampleKnotSummary],
+      page: { offset: 0, limit: 24, next_offset: null },
+    }),
+    getKnotDetail: vi.fn().mockResolvedValue(sampleKnotDetail),
     listGearCategories: vi.fn().mockResolvedValue({
       items: [
         { id: "all", label: "全部装备", count: 2 },
@@ -189,6 +240,32 @@ describe("App", () => {
     expect(screen.getByText("全部装备")).toBeInTheDocument();
     expect(
       screen.getByText("NITECORE SUMMIT 20000 超薄充电宝 · SUMMIT 20000"),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the outdoor skills knots page from the sidebar", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "户外技能" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "户外技能" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("可调节绳结")).toBeInTheDocument();
+    expect(client.listKnots).toHaveBeenCalledWith(
+      { offset: 0, limit: 24 },
+      "zh-CN",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
     ).toBeInTheDocument();
   });
 

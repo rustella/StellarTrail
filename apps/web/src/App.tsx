@@ -14,6 +14,7 @@ import type {
 } from "@stellartrail/shared-types";
 
 import { createWebGearApi, type WebGearApi } from "./api";
+import KnotsPage from "./KnotsPage";
 import {
   CATEGORY_OPTIONS,
   SORT_OPTIONS,
@@ -44,6 +45,7 @@ type ViewMode = "table" | "cards";
 type ThemeMode = "light" | "dark";
 type FormMode = "create" | "edit";
 type AuthMode = "wechat" | "password" | "register";
+type ActivePage = "gear" | "knots";
 
 interface PasswordLoginState {
   account: string;
@@ -162,6 +164,7 @@ export default function App({ client }: AppProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [theme, setTheme] = useState<ThemeMode>(() => loadThemePreference());
   const [authMode, setAuthMode] = useState<AuthMode>("wechat");
+  const [activePage, setActivePage] = useState<ActivePage>("gear");
   const [passwordLogin, setPasswordLogin] =
     useState<PasswordLoginState>(emptyPasswordLogin);
   const [registerForm, setRegisterForm] =
@@ -817,11 +820,23 @@ export default function App({ client }: AppProps) {
           </div>
         </div>
         <nav aria-label="主导航">
-          <a className="active" href="#gear">
+          <button
+            type="button"
+            className={activePage === "gear" ? "active" : ""}
+            aria-current={activePage === "gear" ? "page" : undefined}
+            onClick={() => setActivePage("gear")}
+          >
             装备库
-          </a>
+          </button>
           <span>路线清单 · 待接入</span>
-          <span>户外技能 · 待接入</span>
+          <button
+            type="button"
+            className={activePage === "knots" ? "active" : ""}
+            aria-current={activePage === "knots" ? "page" : undefined}
+            onClick={() => setActivePage("knots")}
+          >
+            户外技能
+          </button>
         </nav>
         <div
           className="sidebar-global-actions"
@@ -838,182 +853,188 @@ export default function App({ client }: AppProps) {
         </div>
       </aside>
 
-      <main className="dashboard" id="gear">
-        <header className="page-header">
-          <div>
-            <p className="eyebrow">
-              {meta ? `${meta.env} · ${meta.database_kind}` : "local · api"}
-            </p>
-            <h1>装备管理</h1>
-            <p className="muted">
-              管理您的户外装备库，追踪装备状态、重量和价值。
-            </p>
-          </div>
-          <div className="toolbar">
-            <button
-              className={
-                viewMode === "table" ? "segmented active" : "segmented"
-              }
-              onClick={() => setViewMode("table")}
-            >
-              表格视图
-            </button>
-            <button
-              className={
-                viewMode === "cards" ? "segmented active" : "segmented"
-              }
-              onClick={() => setViewMode("cards")}
-            >
-              卡片视图
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() => void loadDashboard()}
-              disabled={loading}
-            >
-              刷新
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={submitting}
-            >
-              导入
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() => void exportCsv()}
-              disabled={submitting}
-            >
-              导出
-            </button>
-            <button className="primary-button" onClick={openCreateForm}>
-              添加装备
-            </button>
-            <input
-              ref={fileInputRef}
-              className="hidden-input"
-              type="file"
-              accept="application/json,.json"
-              onChange={(event) =>
-                void importJson(event.currentTarget.files?.[0])
-              }
-            />
-          </div>
-        </header>
-
-        {error ? (
-          <div className="notice" role="status">
-            {error}
-          </div>
-        ) : null}
-
-        <section className="tabs" aria-label="装备状态分组">
-          <button
-            className={tab === "available" ? "active" : ""}
-            onClick={() => setTab("available")}
-          >
-            可用装备
-          </button>
-          <button
-            className={tab === "history" ? "active" : ""}
-            onClick={() => setTab("history")}
-          >
-            历史装备
-          </button>
-        </section>
-
-        <section className="stats-grid" aria-label="装备统计">
-          <StatCard
-            label="当前装备数量"
-            value={`${stats.current_count} 件`}
-            hint={`历史 ${stats.archived_count} 件`}
-          />
-          <StatCard
-            label="装备价值"
-            value={formatCurrency(stats.total_value_cents)}
-            hint={formatCompactCurrency(stats.total_value_cents)}
-          />
-          <StatCard
-            label="总重量"
-            value={formatWeight(stats.total_weight_g)}
-            hint="用于路线打包估算"
-          />
-        </section>
-
-        <section className="filter-panel">
-          <div className="category-chips" aria-label="分类筛选">
-            {categories.map((item) => (
+      {activePage === "gear" ? (
+        <main className="dashboard" id="gear">
+          <header className="page-header">
+            <div>
+              <p className="eyebrow">
+                {meta ? `${meta.env} · ${meta.database_kind}` : "local · api"}
+              </p>
+              <h1>装备管理</h1>
+              <p className="muted">
+                管理您的户外装备库，追踪装备状态、重量和价值。
+              </p>
+            </div>
+            <div className="toolbar">
               <button
-                key={item.id}
-                className={category === item.id ? "chip active" : "chip"}
-                onClick={() => setCategory(item.id)}
+                className={
+                  viewMode === "table" ? "segmented active" : "segmented"
+                }
+                onClick={() => setViewMode("table")}
               >
-                {item.label}
-                <span>{item.count}</span>
+                表格视图
               </button>
-            ))}
-          </div>
-          <div className="filter-row">
-            <input
-              aria-label="搜索装备"
-              placeholder="搜索装备名称、品牌、型号"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            <select
-              aria-label="状态筛选"
-              value={status}
-              onChange={(event) =>
-                setStatus(event.target.value as GearStatusFilter)
-              }
-            >
-              <option value="">全部状态</option>
-              {STATUS_OPTIONS.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="排序"
-              value={sort}
-              onChange={(event) => setSort(event.target.value as GearSort)}
-            >
-              {SORT_OPTIONS.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </section>
+              <button
+                className={
+                  viewMode === "cards" ? "segmented active" : "segmented"
+                }
+                onClick={() => setViewMode("cards")}
+              >
+                卡片视图
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => void loadDashboard()}
+                disabled={loading}
+              >
+                刷新
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={submitting}
+              >
+                导入
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => void exportCsv()}
+                disabled={submitting}
+              >
+                导出
+              </button>
+              <button className="primary-button" onClick={openCreateForm}>
+                添加装备
+              </button>
+              <input
+                ref={fileInputRef}
+                className="hidden-input"
+                type="file"
+                accept="application/json,.json"
+                onChange={(event) =>
+                  void importJson(event.currentTarget.files?.[0])
+                }
+              />
+            </div>
+          </header>
 
-        <section className="content-card" aria-busy={loading}>
-          {viewMode === "table" ? (
-            <GearTable
-              items={gears}
-              tab={tab}
-              onOpen={openDetail}
-              onEdit={openEditForm}
-              onArchive={archiveGear}
-              onRestore={restoreGear}
-            />
-          ) : (
-            <GearCards
-              items={gears}
-              tab={tab}
-              onOpen={openDetail}
-              onEdit={openEditForm}
-              onArchive={archiveGear}
-              onRestore={restoreGear}
-            />
-          )}
-          {!loading && gears.length === 0 ? (
-            <EmptyState onCreate={openCreateForm} />
+          {error ? (
+            <div className="notice" role="status">
+              {error}
+            </div>
           ) : null}
-        </section>
-      </main>
+
+          <section className="tabs" aria-label="装备状态分组">
+            <button
+              className={tab === "available" ? "active" : ""}
+              onClick={() => setTab("available")}
+            >
+              可用装备
+            </button>
+            <button
+              className={tab === "history" ? "active" : ""}
+              onClick={() => setTab("history")}
+            >
+              历史装备
+            </button>
+          </section>
+
+          <section className="stats-grid" aria-label="装备统计">
+            <StatCard
+              label="当前装备数量"
+              value={`${stats.current_count} 件`}
+              hint={`历史 ${stats.archived_count} 件`}
+            />
+            <StatCard
+              label="装备价值"
+              value={formatCurrency(stats.total_value_cents)}
+              hint={formatCompactCurrency(stats.total_value_cents)}
+            />
+            <StatCard
+              label="总重量"
+              value={formatWeight(stats.total_weight_g)}
+              hint="用于路线打包估算"
+            />
+          </section>
+
+          <section className="filter-panel">
+            <div className="category-chips" aria-label="分类筛选">
+              {categories.map((item) => (
+                <button
+                  key={item.id}
+                  className={category === item.id ? "chip active" : "chip"}
+                  onClick={() => setCategory(item.id)}
+                >
+                  {item.label}
+                  <span>{item.count}</span>
+                </button>
+              ))}
+            </div>
+            <div className="filter-row">
+              <input
+                aria-label="搜索装备"
+                placeholder="搜索装备名称、品牌、型号"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              <select
+                aria-label="状态筛选"
+                value={status}
+                onChange={(event) =>
+                  setStatus(event.target.value as GearStatusFilter)
+                }
+              >
+                <option value="">全部状态</option>
+                {STATUS_OPTIONS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="排序"
+                value={sort}
+                onChange={(event) => setSort(event.target.value as GearSort)}
+              >
+                {SORT_OPTIONS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </section>
+
+          <section className="content-card" aria-busy={loading}>
+            {viewMode === "table" ? (
+              <GearTable
+                items={gears}
+                tab={tab}
+                onOpen={openDetail}
+                onEdit={openEditForm}
+                onArchive={archiveGear}
+                onRestore={restoreGear}
+              />
+            ) : (
+              <GearCards
+                items={gears}
+                tab={tab}
+                onOpen={openDetail}
+                onEdit={openEditForm}
+                onArchive={archiveGear}
+                onRestore={restoreGear}
+              />
+            )}
+            {!loading && gears.length === 0 ? (
+              <EmptyState onCreate={openCreateForm} />
+            ) : null}
+          </section>
+        </main>
+      ) : (
+        <main className="dashboard" id="skills">
+          <KnotsPage api={api} />
+        </main>
+      )}
 
       {isFormOpen ? (
         <GearFormModal

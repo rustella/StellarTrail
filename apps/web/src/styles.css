@@ -346,10 +346,18 @@ td small {
 }
 
 .sidebar nav a,
+.sidebar nav button,
 .sidebar nav span {
   padding: 12px 14px;
   border-radius: 14px;
   text-decoration: none;
+}
+
+.sidebar nav button {
+  border: 0;
+  color: var(--text-color);
+  background: transparent;
+  text-align: left;
 }
 
 .sidebar nav .active {
@@ -470,7 +478,9 @@ td small {
 .filter-panel,
 .content-card,
 .gear-card,
-.empty-state {
+.knot-card,
+.empty-state,
+.knots-summary-card {
   border: 1px solid var(--border-color);
   border-radius: 24px;
   background: var(--surface-color);
@@ -774,4 +784,160 @@ dd {
   .filter-row select {
     max-width: none;
   }
+}
+
+.knots-page {
+  display: grid;
+  gap: 16px;
+}
+
+.knots-hero {
+  align-items: stretch;
+}
+
+.knots-summary-card {
+  display: grid;
+  min-width: 220px;
+  gap: 8px;
+  padding: 22px;
+}
+
+.knots-summary-card strong {
+  font-size: 28px;
+}
+
+.knots-summary-card small,
+.knot-card-body > span:not(.knot-card-meta):not(.knot-tags),
+.knot-detail-media figcaption {
+  color: var(--muted-color);
+}
+
+.knots-search {
+  display: grid;
+  gap: 10px;
+}
+
+.knots-search label {
+  color: var(--muted-color);
+  font-weight: 800;
+}
+
+.knots-content {
+  display: grid;
+  gap: 16px;
+}
+
+.knot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.knot-card {
+  overflow: hidden;
+}
+
+.knot-card-button {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.knot-card-button img,
+.knot-media-placeholder {
+  width: 100%;
+  height: 148px;
+  object-fit: cover;
+  background: var(--soft-control-bg);
+}
+
+.knot-media-placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--brand-color);
+  font-size: 42px;
+}
+
+.knot-card-body {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.knot-card-body strong {
+  font-size: 19px;
+}
+
+.knot-card-meta,
+.knot-tags,
+.knot-media-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.knot-card-meta span,
+.knot-tags span,
+.knot-media-list a {
+  border-radius: 999px;
+  padding: 5px 10px;
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.knot-card-meta span:first-child {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}
+
+.load-more-row {
+  display: flex;
+  justify-content: center;
+}
+
+.knots-state {
+  margin: 16px 0 0;
+}
+
+.knot-detail-drawer {
+  width: 440px;
+}
+
+.knot-detail-drawer section {
+  display: grid;
+  gap: 8px;
+}
+
+.knot-detail-drawer h3 {
+  margin: 0;
+}
+
+.knot-detail-media {
+  margin: 0;
+}
+
+.knot-detail-media img {
+  width: 100%;
+  border-radius: 18px;
+  background: var(--soft-control-bg);
+}
+
+.knot-detail-media figcaption {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.knot-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 22px;
 }
