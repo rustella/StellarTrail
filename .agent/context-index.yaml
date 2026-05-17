@@ -1,32 +1,140 @@
+version: 1
 topics:
-  server-rust-comments:
-    description: Repository-wide English code comment rules plus server Rust rustdoc requirements and critical inline comment expectations.
+  architecture:
+    summary: Load when understanding product scope, service layering, data flow, and module boundaries.
     read:
-      - .agent/AGENTS.md
-      - .agent/manifest.yaml
-  backend-architecture:
-    description: Server entrypoints, routes, services, domain models, database repositories, and migrations.
+      - .agent/knowledge/architecture.md
+      - .agent/knowledge/codebase_map.md
+      - docs/architecture.md
+      - README.md
+  backend_api:
+    summary: Load when changing Rust API routes, authentication, gear APIs, skills APIs, error responses, or startup behavior.
     read:
-      - services/api/src/lib.rs
-      - services/api/src/routes/mod.rs
-      - services/api/src/services/auth_service.rs
-      - services/api/src/services/gear_service.rs
-      - crates/domain/src/gear.rs
-      - crates/db/src/repositories/auth_repository.rs
-      - crates/db/src/repositories/gear_repository.rs
-      - crates/migration/src/lib.rs
-
-tasks:
-  backend-code-change:
-    description: Load the comment rules and run Rust verification commands when changing server Rust code.
-    read:
-      - .agent/AGENTS.md
-      - .agent/manifest.yaml
+      - .agent/knowledge/architecture.md
       - .agent/commands.yaml
-  agent-rule-update:
-    description: Validate YAML and relative path references after updating .agent rules.
+      - docs/api.md
+      - services/api/src/main.rs
+      - services/api/src/state.rs
+      - services/api/src/routes/mod.rs
+  db_and_migration:
+    summary: Load when changing database configuration, repositories, schema migrations, or persistence tests.
+    read:
+      - .agent/knowledge/architecture.md
+      - crates/db/src/lib.rs
+      - crates/migration/src/lib.rs
+      - crates/migration/src/lib.rs
+  domain_model:
+    summary: Load when changing gear, mountain, route, skill, user models, or validation rules.
+    read:
+      - crates/domain/src/lib.rs
+      - crates/domain/src/gear.rs
+      - docs/api.md
+  android_client:
+    summary: Load when changing the Android Kotlin/Compose app, Android API client, Android tests, or Gradle configuration.
+    read:
+      - apps/android/build.gradle.kts
+      - apps/android/src/main/java/com/rustella/stellartrail/MainActivity.kt
+      - packages/shared-types/src/index.ts
+      - docs/api.md
+      - .agent/commands.yaml
+  wechat_miniprogram:
+    summary: Load when changing Mini Program pages, tabs, styles, or client calls.
+    read:
+      - .agent/knowledge/codebase_map.md
+      - apps/wechat-miniprogram/miniprogram/app.json
+      - packages/api-client-ts/src/index.ts
+      - packages/shared-types/src/index.ts
+  content_import:
+    summary: Load when changing seed content, content schema, or importer behavior.
+    read:
+      - docs/content-schema.md
+      - content/mountains/wugongshan.yaml
+      - content/routes/wugongshan-classic-2d1n.yaml
+      - content/gear-templates/backpacking-basic.yaml
+      - crates/importer/src/lib.rs
+  testing_and_ci:
+    summary: Load when confirming validation commands, CI rules, or test entry points.
+    read:
+      - .agent/commands.yaml
+      - .github/workflows/rust-ci.yml
+      - .github/workflows/frontend-ci.yml
+  agent_context:
+    summary: Load when changing .agent, AGENTS.md, CLAUDE.md, or context indexes.
     read:
       - .agent/AGENTS.md
       - .agent/manifest.yaml
       - .agent/context-index.yaml
+      - .agent/checklists/doc-sync.md
+
+tasks:
+  understand_repo:
+    keywords: [overview, architecture, modules, codebase, map]
+    read:
+      - .agent/knowledge/architecture.md
+      - .agent/knowledge/codebase_map.md
+    checklist: .agent/checklists/preflight.md
+  android_feature_or_bugfix:
+    keywords: [android, kotlin, compose, gradle, mobile]
+    read:
+      - apps/android/build.gradle.kts
+      - apps/android/src/main/java/com/rustella/stellartrail/MainActivity.kt
+      - packages/shared-types/src/index.ts
+      - docs/api.md
+      - .agent/commands.yaml
+    related_topics:
+      - android_client
+      - domain_model
+      - testing_and_ci
+    checklist: .agent/checklists/self-review.md
+  backend_feature_or_bugfix:
+    keywords: [api, auth, gear, skills, rust, axum, bugfix]
+    read:
+      - .agent/knowledge/architecture.md
+      - docs/api.md
+      - .agent/commands.yaml
+    related_topics:
+      - backend_api
+      - domain_model
+      - db_and_migration
+    checklist: .agent/checklists/self-review.md
+  db_schema_change:
+    keywords: [migration, schema, repository, seaorm, sqlite, postgres]
+    read:
+      - .agent/knowledge/architecture.md
+      - crates/migration/src/lib.rs
+      - crates/db/src/lib.rs
+      - .agent/commands.yaml
+    checklist: .agent/checklists/self-review.md
+  frontend_change:
+    keywords: [miniprogram, wechat, web, tab, typescript, client]
+    read:
+      - .agent/knowledge/codebase_map.md
+      - apps/wechat-miniprogram/miniprogram/app.json
+      - .agent/commands.yaml
+    checklist: .agent/checklists/self-review.md
+  content_or_importer_change:
+    keywords: [content, yaml, markdown, importer, seed]
+    read:
+      - docs/content-schema.md
+      - crates/importer/src/lib.rs
+      - .agent/commands.yaml
+    checklist: .agent/checklists/doc-sync.md
+  code_review:
+    keywords: [review, pr, mr, self-review]
+    read:
+      - .agent/agents/code-reviewer.md
+      - .agent/checklists/self-review.md
+      - .agent/knowledge/codebase_map.md
+  refactor_planning:
+    keywords: [refactor, planning, plan, rfc, split]
+    read:
+      - .agent/agents/refactor-planner.md
+      - .agent/knowledge/architecture.md
+      - .agent/knowledge/codebase_map.md
+    checklist: .agent/checklists/preflight.md
+  doc_sync:
+    keywords: [docs, readme, sync, drift, agent]
+    read:
+      - .agent/checklists/doc-sync.md
+      - .agent/knowledge/README.md
       - .agent/commands.yaml
