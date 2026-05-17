@@ -71,7 +71,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     id: "gears",
     icon: "🎒",
     title: "装备库",
-    description: "模板清单与个人装备",
+    description: "出行清单与我的装备",
     target: "gears",
   },
   {
@@ -92,7 +92,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     id: "profile",
     icon: "⚙️",
     title: "个人设置",
-    description: "黑夜模式与登录状态",
+    description: "黑夜模式与账号",
     target: "profile",
   },
 ];
@@ -111,7 +111,7 @@ const CHECKLIST_ITEMS: ChecklistItem[] = [
   {
     icon: "✚",
     title: "急救与应急联系人",
-    description: "复习急救知识并同步行程信息",
+    description: "复习急救知识并告知行程信息",
   },
 ];
 
@@ -252,7 +252,7 @@ Page({
 
   showLoginForGearSummary() {
     requireLoginForAction(this, {
-      message: "登录后可以查看你的个人装备、重量和估值。",
+      message: "登录后可以查看自己的装备、重量和估值。",
       redirectUrl: "/pages/index/index",
     });
   },
@@ -264,7 +264,7 @@ Page({
   goAddGear() {
     if (
       !requireLoginForAction(this, {
-        message: "登录后可以添加装备并同步到你的个人装备库。",
+        message: "登录后就能把这件装备保存到自己的清单里。",
         redirectUrl: "/pages/gears/form/index",
       })
     ) {
@@ -337,7 +337,7 @@ function mapTemplateCard(item: GearTemplate): TemplateCard {
   return {
     id: item.id,
     title: item.title,
-    categoryText: `${item.categories.length} 组公告清单`,
-    itemPreview: itemPreview || "装备条目整理中",
+    categoryText: `${item.categories.length} 组出行建议`,
+    itemPreview: itemPreview || "清单内容整理中",
   };
 }

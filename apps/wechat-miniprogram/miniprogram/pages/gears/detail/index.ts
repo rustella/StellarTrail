@@ -90,7 +90,7 @@ Page({
         item: null,
       });
       showLoginPrompt(this, {
-        message: "登录后可以查看你的个人装备详情。",
+        message: "登录后可以查看自己的装备详情。",
         redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
       });
       return;
@@ -117,7 +117,7 @@ Page({
   goEdit() {
     if (
       !requireLoginForAction(this, {
-        message: "登录后可以编辑和同步你的个人装备。",
+        message: "登录后可以编辑自己的装备。",
         redirectUrl: `/pages/gears/form/index?id=${encodeURIComponent(this.data.id)}`,
       })
     ) {
@@ -129,7 +129,7 @@ Page({
   archiveItem() {
     if (
       !requireLoginForAction(this, {
-        message: "登录后可以更新装备状态。",
+        message: "登录后可以归档或恢复自己的装备。",
         redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
       })
     ) {
@@ -166,7 +166,7 @@ Page({
   async restoreItem() {
     if (
       !requireLoginForAction(this, {
-        message: "登录后可以恢复历史装备。",
+        message: "登录后可以把历史装备恢复到可用列表。",
         redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
       })
     ) {

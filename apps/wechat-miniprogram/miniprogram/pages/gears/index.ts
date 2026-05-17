@@ -144,7 +144,7 @@ Page({
         statCards: buildStatCards(EMPTY_STATS),
         gears: [] as GearCard[],
         nextCursor: null,
-        emptyText: "登录后查看个人装备库",
+        emptyText: "登录后查看我的装备",
       });
       await this.loadTemplates();
       return;
@@ -174,7 +174,7 @@ Page({
       if (isLoginRequiredError(error)) {
         this.setData({ isLoggedIn: false, error: "", loading: false });
         showLoginPrompt(this, {
-          message: "登录状态已过期，请重新登录后查看个人装备。",
+          message: "登录状态已过期，请重新登录后查看自己的装备。",
           redirectUrl: "/pages/gears/index",
         });
         await this.loadTemplates();
@@ -225,7 +225,7 @@ Page({
       if (isLoginRequiredError(error)) {
         this.setData({ isLoggedIn: false, loadingMore: false });
         showLoginPrompt(this, {
-          message: "登录状态已过期，请重新登录后继续查看个人装备。",
+          message: "登录状态已过期，请重新登录后继续查看自己的装备。",
           redirectUrl: "/pages/gears/index",
         });
         await this.loadTemplates();
@@ -333,7 +333,7 @@ Page({
   goCreate() {
     if (
       !requireLoginForAction(this, {
-        message: "登录后可以把装备保存到你的个人装备库。",
+        message: "登录后就能把这件装备保存到自己的清单里。",
         redirectUrl: "/pages/gears/form/index",
       })
     ) {
@@ -350,7 +350,7 @@ Page({
     const id = event.currentTarget.dataset.id as string | undefined;
     if (
       !requireLoginForAction(this, {
-        message: "登录后可以参考这份装备模板，保存到你的个人装备库。",
+        message: "登录后就能把这份清单保存到自己的装备里。",
         redirectUrl: "/pages/gears/form/index",
       })
     ) {
@@ -373,7 +373,7 @@ Page({
   goEdit(event: WechatMiniprogram.BaseEvent) {
     if (
       !requireLoginForAction(this, {
-        message: "登录后可以编辑和同步你的个人装备。",
+        message: "登录后可以编辑自己的装备。",
         redirectUrl: "/pages/gears/index",
       })
     ) {
@@ -388,7 +388,7 @@ Page({
   archiveItem(event: WechatMiniprogram.BaseEvent) {
     if (
       !requireLoginForAction(this, {
-        message: "登录后可以更新装备状态。",
+        message: "登录后可以归档或恢复自己的装备。",
         redirectUrl: "/pages/gears/index",
       })
     ) {
@@ -425,7 +425,7 @@ Page({
   async restoreItem(event: WechatMiniprogram.BaseEvent) {
     if (
       !requireLoginForAction(this, {
-        message: "登录后可以恢复历史装备。",
+        message: "登录后可以把历史装备恢复到可用列表。",
         redirectUrl: "/pages/gears/index",
       })
     ) {
@@ -488,7 +488,7 @@ function mapTemplateCard(item: GearTemplate): TemplateCard {
       itemText: category.items.join(" / "),
     })),
     categoryCountText: `${item.categories.length} 组分类`,
-    itemCountText: `${count} 项装备建议`,
+    itemCountText: `${count} 件装备参考`,
     previewItems,
   };
 }

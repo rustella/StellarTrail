@@ -1,7 +1,7 @@
 <view class="container {{themeClass}}">
   <view class="card">
     <view class="title">我的寻径星野</view>
-    <view class="subtitle">微信登录、装备统计、技能学习和个人设置。</view>
+    <view class="subtitle">管理装备、学习技能，也可以切换黑夜模式。</view>
   </view>
 
   <view class="card account-card">
@@ -9,8 +9,8 @@
       <view class="account-title">账号状态</view>
       <view class="account-desc">{{userDisplay}}</view>
       <view class="account-hint"
-        >{{loggedIn ? '可同步个人装备库。' :
-        '游客可浏览装备模板、公告清单和绳结详情。'}}</view
+        >{{loggedIn ? '可以管理自己的装备清单。' :
+        '未登录也可以先看出行装备参考和绳结教学。'}}</view
       >
     </view>
     <button wx:if="{{!loggedIn}}" class="account-button" bindtap="goLogin">
@@ -23,8 +23,7 @@
     <view>
       <view class="theme-settings-title">黑夜模式</view>
       <view class="theme-settings-desc"
-        >参考 Web 端紫色星空/银河暗色主题，切换后会应用到小程序页面、导航栏和
-        TabBar。</view
+        >开启后切换为紫色星空暗色界面，夜间浏览更舒服。</view
       >
     </view>
     <button

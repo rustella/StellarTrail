@@ -37,7 +37,7 @@ Page({
   logout() {
     wx.showModal({
       title: "退出登录？",
-      content: "退出后仍可浏览装备模板、公告清单和绳结详情。",
+      content: "退出后仍可浏览出行装备参考和绳结教学。",
       confirmText: "退出",
       confirmColor: "#dc2626",
       success: (result) => {
@@ -59,7 +59,7 @@ Page({
 function buildUserDisplay(): string {
   const user = getStoredUser();
   if (!user) {
-    return "游客模式";
+    return "未登录";
   }
   return user.nickname || user.username || user.email || "微信用户";
 }

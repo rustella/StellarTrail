@@ -28,7 +28,7 @@ export function getDefaultLoginPrompt(): LoginPromptViewData {
   return {
     visible: false,
     title: "登录后继续",
-    message: "登录后可以同步你的个人装备。",
+    message: "登录后可以保存和管理自己的装备。",
     redirectUrl: "/pages/profile/index",
   };
 }

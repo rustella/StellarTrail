@@ -130,7 +130,7 @@ async function runWechatLogin(): Promise<string> {
       data: {
         code,
         profile: {
-          nickname: "小程序本地用户",
+          nickname: "寻径星野用户",
           avatar_url: null,
         },
       } satisfies WechatLoginRequest,
@@ -320,7 +320,7 @@ async function requestJson<T>(
         reject(new Error(readErrorMessage(response.data, response.statusCode)));
       },
       fail: (error) => {
-        reject(new Error(error.errMsg || "网络请求失败，请检查 API 服务"));
+        reject(new Error(error.errMsg || "网络请求失败，请稍后再试"));
       },
     });
   });
