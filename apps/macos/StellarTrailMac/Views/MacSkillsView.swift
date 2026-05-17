@@ -258,39 +258,6 @@ private struct MacKnotDetailPane: View {
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-
-                    TrailSurfaceCard {
-                        TrailSectionTitle(title: "练习步骤")
-                        if knot.steps.isEmpty {
-                            Text("暂时还没有分步说明。")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            VStack(alignment: .leading, spacing: 12) {
-                                ForEach(Array(knot.steps.enumerated()), id: \.offset) { index, step in
-                                    HStack(alignment: .top, spacing: 12) {
-                                        Text("\(index + 1)")
-                                            .font(.caption.weight(.heavy))
-                                            .foregroundStyle(.white)
-                                            .frame(width: 26, height: 26)
-                                            .background(Color.accentColor, in: Circle())
-                                        Text(step)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if !knot.media.isEmpty {
-                        TrailSurfaceCard {
-                            TrailSectionTitle(title: "素材")
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 128), spacing: 10)], spacing: 10) {
-                                ForEach(knot.media) { asset in
-                                    MacKnotMediaTile(asset: asset)
-                                }
-                            }
-                        }
-                    }
                 } else if !loading {
                     TrailSurfaceCard {
                         TrailSectionTitle(title: "选择一个绳结", subtitle: "左侧列表会只显示绳结内容，点击条目后这里查看高清图、打法和旋转演示。")
@@ -559,30 +526,6 @@ private struct MacAVPlayerView: NSViewRepresentable {
 
     func updateNSView(_ nsView: AVPlayerView, context: Context) {
         nsView.player = player
-    }
-}
-
-private struct MacKnotMediaTile: View {
-    let asset: KnotMediaAsset
-
-    var body: some View {
-        Link(destination: URL(string: asset.url) ?? URL(string: "https://api.example.invalid")!) {
-            HStack(spacing: 8) {
-                Image(systemName: asset.mimeType.hasPrefix("video/") ? "film" : "photo")
-                    .frame(width: 22)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(asset.displayName)
-                        .font(.caption.weight(.bold))
-                    Text(ByteCountFormatter.string(fromByteCount: Int64(asset.sizeBytes), countStyle: .file))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        }
-        .buttonStyle(.plain)
     }
 }
 
