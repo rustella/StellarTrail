@@ -1,0 +1,110 @@
+package com.rustella.stellartrail.feature.gear.list
+
+import com.rustella.stellartrail.data.gear.GearRepositoryContract
+import com.rustella.stellartrail.domain.gear.CreateGearRequest
+import com.rustella.stellartrail.domain.gear.GearCategoriesResponse
+import com.rustella.stellartrail.domain.gear.GearItem
+import com.rustella.stellartrail.domain.gear.GearStatsResponse
+import com.rustella.stellartrail.domain.gear.GearTab
+import com.rustella.stellartrail.domain.gear.GearTemplate
+import com.rustella.stellartrail.domain.gear.GearTemplateCategory
+import com.rustella.stellartrail.domain.gear.ListGearTemplatesResponse
+import com.rustella.stellartrail.domain.gear.ListGearsRequest
+import com.rustella.stellartrail.domain.gear.ListGearsResponse
+import com.rustella.stellartrail.domain.gear.UpdateGearRequest
+import com.rustella.stellartrail.feature.home.EMPTY_STATS
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class GearListViewModelTest {
+    private val dispatcher = StandardTestDispatcher()
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun guestGearListUsesPublicTemplatesAndBlocksPrivateActions() = runTest {
+        val repository = FakeGearRepository()
+        val viewModel = GearListViewModel(repository)
+
+        viewModel.refresh(isLoggedIn = false)
+        advanceUntilIdle()
+        viewModel.loadMore()
+        viewModel.archive("gear-1")
+        viewModel.restore("gear-1")
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertFalse(state.isLoggedIn)
+        assertEquals(1, repository.templateCalls)
+        assertEquals(0, repository.privateGearCalls)
+        assertEquals("周末轻徒步清单", state.templates.single().title)
+        assertTrue(state.gears.isEmpty())
+        assertEquals(EMPTY_STATS, state.stats)
+    }
+
+    private class FakeGearRepository : GearRepositoryContract {
+        var templateCalls = 0
+        var privateGearCalls = 0
+
+        override suspend fun listTemplates(): ListGearTemplatesResponse {
+            templateCalls += 1
+            return ListGearTemplatesResponse(
+                items = listOf(
+                    GearTemplate(
+                        id = "weekend-hike",
+                        title = "周末轻徒步清单",
+                        categories = listOf(
+                            GearTemplateCategory("carry", "背负与收纳", listOf("20L 背包", "收纳袋")),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        override suspend fun listCategories(tab: GearTab): GearCategoriesResponse {
+            privateGearCalls += 1
+            return GearCategoriesResponse(emptyList())
+        }
+
+        override suspend fun stats(tab: GearTab): GearStatsResponse {
+            privateGearCalls += 1
+            return EMPTY_STATS
+        }
+
+        override suspend fun list(request: ListGearsRequest): ListGearsResponse {
+            privateGearCalls += 1
+            return ListGearsResponse(emptyList(), nextCursor = "next")
+        }
+
+        override suspend fun get(id: String): GearItem = error("unused")
+        override suspend fun create(request: CreateGearRequest): GearItem = error("unused")
+        override suspend fun update(id: String, request: UpdateGearRequest): GearItem = error("unused")
+        override suspend fun archive(id: String) {
+            privateGearCalls += 1
+        }
+        override suspend fun restore(id: String): GearItem {
+            privateGearCalls += 1
+            error("unused")
+        }
+    }
+}

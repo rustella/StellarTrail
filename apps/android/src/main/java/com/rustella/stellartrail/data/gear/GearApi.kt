@@ -8,10 +8,13 @@ import com.rustella.stellartrail.domain.gear.GearStatsResponse
 import com.rustella.stellartrail.domain.gear.GearTab
 import com.rustella.stellartrail.domain.gear.ListGearsRequest
 import com.rustella.stellartrail.domain.gear.ListGearsResponse
+import com.rustella.stellartrail.domain.gear.ListGearTemplatesResponse
 import com.rustella.stellartrail.domain.gear.UpdateGearRequest
 import com.rustella.stellartrail.domain.gear.apiValue
 
 class GearApi(private val apiClient: ApiClient) {
+    suspend fun listTemplates(): ListGearTemplatesResponse = apiClient.get("/api/gear-templates")
+
     suspend fun listCategories(tab: GearTab): GearCategoriesResponse =
         apiClient.get("/api/me/gears/categories", query = mapOf("tab" to tab.apiValue()))
 

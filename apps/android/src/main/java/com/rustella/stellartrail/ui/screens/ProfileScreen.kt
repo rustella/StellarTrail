@@ -26,15 +26,17 @@ import com.rustella.stellartrail.core.theme.ThemeMode
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
 import com.rustella.stellartrail.ui.common.Badge
 import com.rustella.stellartrail.ui.common.BadgeTone
+import com.rustella.stellartrail.ui.common.HeroButton
 import com.rustella.stellartrail.ui.common.HeroCard
 import com.rustella.stellartrail.ui.common.MetadataRow
+import com.rustella.stellartrail.ui.common.NoticeCard
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SectionTitle
 import com.rustella.stellartrail.ui.common.SoftPillButton
 import com.rustella.stellartrail.ui.common.SurfaceCard
 
 @Composable
-fun ProfileScreen(viewModel: ProfileViewModel, modifier: Modifier = Modifier) {
+fun ProfileScreen(viewModel: ProfileViewModel, onLogin: () -> Unit, modifier: Modifier = Modifier) {
     val session by viewModel.session.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val config by viewModel.config.collectAsStateWithLifecycle()
@@ -50,23 +52,37 @@ fun ProfileScreen(viewModel: ProfileViewModel, modifier: Modifier = Modifier) {
         HeroCard(
             eyebrow = "寻径星野账号",
             title = "我的",
-            subtitle = "管理账号、主题和本地调试配置，保持与微信端一致的轻卡片界面。",
+            subtitle = "管理登录状态、主题和本地调试地址，保持与微信端一致的轻卡片界面。",
+            chips = listOf(theme.label(), if (session == null) "待登录" else "已登录"),
+            actions = {
+                if (session == null) {
+                    HeroButton("去登录", onLogin)
+                }
+            },
         )
-        SurfaceCard {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Badge("已登录")
-                Badge(theme.label(), tone = BadgeTone.Info)
-            }
-            Text(
-                session?.user?.nickname ?: session?.user?.username ?: "已登录用户",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
+        if (session == null) {
+            NoticeCard(
+                title = "登录后保存自己的准备进度",
+                body = "当前仍可浏览首页、装备参考和技能内容。",
+                action = { PrimaryPillButton("去登录", onLogin) },
             )
-            MetadataRow("用户 ID", session?.user?.id.orEmpty())
-            MetadataRow("邮箱", session?.user?.email ?: "未绑定")
+        } else {
+            SurfaceCard {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Badge("已登录")
+                    Badge(theme.label(), tone = BadgeTone.Info)
+                }
+                Text(
+                    session?.user?.nickname ?: session?.user?.username ?: "已登录用户",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+                MetadataRow("用户 ID", session?.user?.id.orEmpty())
+                MetadataRow("邮箱", session?.user?.email ?: "未绑定")
+            }
         }
         SurfaceCard {
-            SectionTitle("主题", "Android 端默认使用微信端品牌配色，不再被动态取色冲淡。")
+            SectionTitle("主题", "所有移动端默认共享微信端品牌配色，避免被动态取色冲淡。")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ThemeMode.entries.forEach { mode ->
                     FilterChip(
@@ -79,11 +95,11 @@ fun ProfileScreen(viewModel: ProfileViewModel, modifier: Modifier = Modifier) {
         }
         if (viewModel.canEditBaseUrl) {
             SurfaceCard {
-                SectionTitle("调试 API 地址")
+                SectionTitle("本地调试地址")
                 OutlinedTextField(
                     value = baseUrl,
                     onValueChange = { baseUrl = it },
-                    label = { Text("Base URL") },
+                    label = { Text("地址") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -93,7 +109,9 @@ fun ProfileScreen(viewModel: ProfileViewModel, modifier: Modifier = Modifier) {
                 }
             }
         }
-        SoftPillButton("退出登录", viewModel::logout, Modifier.fillMaxWidth())
+        if (session != null) {
+            SoftPillButton("退出登录", viewModel::logout, Modifier.fillMaxWidth())
+        }
     }
 }
 

@@ -7,9 +7,11 @@ import com.rustella.stellartrail.domain.gear.GearStatsResponse
 import com.rustella.stellartrail.domain.gear.GearTab
 import com.rustella.stellartrail.domain.gear.ListGearsRequest
 import com.rustella.stellartrail.domain.gear.ListGearsResponse
+import com.rustella.stellartrail.domain.gear.ListGearTemplatesResponse
 import com.rustella.stellartrail.domain.gear.UpdateGearRequest
 
 interface GearRepositoryContract {
+    suspend fun listTemplates(): ListGearTemplatesResponse
     suspend fun listCategories(tab: GearTab): GearCategoriesResponse
     suspend fun stats(tab: GearTab): GearStatsResponse
     suspend fun list(request: ListGearsRequest): ListGearsResponse
@@ -21,6 +23,7 @@ interface GearRepositoryContract {
 }
 
 class GearRepository(private val api: GearApi) : GearRepositoryContract {
+    override suspend fun listTemplates(): ListGearTemplatesResponse = api.listTemplates()
     override suspend fun listCategories(tab: GearTab): GearCategoriesResponse = api.listCategories(tab)
     override suspend fun stats(tab: GearTab): GearStatsResponse = api.stats(tab)
     override suspend fun list(request: ListGearsRequest): ListGearsResponse = api.list(request)

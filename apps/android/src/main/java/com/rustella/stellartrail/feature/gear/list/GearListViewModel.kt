@@ -11,6 +11,7 @@ import com.rustella.stellartrail.domain.gear.GearStatsResponse
 import com.rustella.stellartrail.domain.gear.GearStatus
 import com.rustella.stellartrail.domain.gear.GearSummary
 import com.rustella.stellartrail.domain.gear.GearTab
+import com.rustella.stellartrail.domain.gear.GearTemplate
 import com.rustella.stellartrail.domain.gear.ListGearsRequest
 import com.rustella.stellartrail.feature.home.EMPTY_STATS
 import kotlinx.coroutines.async
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class GearListUiState(
+    val isLoggedIn: Boolean = false,
     val tab: GearTab = GearTab.AVAILABLE,
     val selectedCategory: GearCategory? = null,
     val selectedStatus: GearStatus? = null,
@@ -29,6 +31,7 @@ data class GearListUiState(
     val categories: GearCategoriesResponse = GearCategoriesResponse(emptyList()),
     val stats: GearStatsResponse = EMPTY_STATS,
     val gears: List<GearSummary> = emptyList(),
+    val templates: List<GearTemplate> = emptyList(),
     val nextCursor: String? = null,
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
@@ -39,20 +42,43 @@ class GearListViewModel(private val repository: GearRepositoryContract) : ViewMo
     private val _state = MutableStateFlow(GearListUiState())
     val state: StateFlow<GearListUiState> = _state.asStateFlow()
 
-    fun refresh() {
+    fun refresh(isLoggedIn: Boolean = true) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, gears = emptyList(), nextCursor = null) }
+            _state.update {
+                it.copy(
+                    isLoggedIn = isLoggedIn,
+                    loading = true,
+                    error = null,
+                    gears = emptyList(),
+                    templates = if (isLoggedIn) it.templates else emptyList(),
+                    nextCursor = null,
+                )
+            }
             try {
+                if (!isLoggedIn) {
+                    val templates = repository.listTemplates().items
+                    _state.update {
+                        it.copy(
+                            categories = GearCategoriesResponse(emptyList()),
+                            stats = EMPTY_STATS,
+                            gears = emptyList(),
+                            templates = templates,
+                        )
+                    }
+                    return@launch
+                }
                 val request = buildRequest(cursor = null)
                 val categories = async { repository.listCategories(request.tab) }
                 val stats = async { repository.stats(request.tab) }
                 val list = async { repository.list(request) }
+                val templates = async { repository.listTemplates() }
                 val response = list.await()
                 _state.update {
                     it.copy(
                         categories = categories.await(),
                         stats = stats.await(),
                         gears = response.items,
+                        templates = templates.await().items,
                         nextCursor = response.nextCursor,
                     )
                 }
@@ -66,7 +92,7 @@ class GearListViewModel(private val repository: GearRepositoryContract) : ViewMo
 
     fun loadMore() {
         val cursor = _state.value.nextCursor ?: return
-        if (_state.value.loadingMore || _state.value.loading) return
+        if (_state.value.loadingMore || _state.value.loading || !_state.value.isLoggedIn) return
         viewModelScope.launch {
             _state.update { it.copy(loadingMore = true, error = null) }
             try {
@@ -82,33 +108,34 @@ class GearListViewModel(private val repository: GearRepositoryContract) : ViewMo
 
     fun setTab(tab: GearTab) {
         _state.update { it.copy(tab = tab, selectedCategory = null, selectedStatus = null) }
-        refresh()
+        refresh(_state.value.isLoggedIn)
     }
 
     fun setCategory(category: GearCategory?) {
         _state.update { it.copy(selectedCategory = category) }
-        refresh()
+        refresh(_state.value.isLoggedIn)
     }
 
     fun setStatus(status: GearStatus?) {
         _state.update { it.copy(selectedStatus = status) }
-        refresh()
+        refresh(_state.value.isLoggedIn)
     }
 
     fun setSort(sort: GearSort) {
         _state.update { it.copy(sort = sort) }
-        refresh()
+        refresh(_state.value.isLoggedIn)
     }
 
     fun updateQuery(value: String) = _state.update { it.copy(query = value) }
 
-    fun submitSearch() = refresh()
+    fun submitSearch() = refresh(_state.value.isLoggedIn)
 
     fun archive(id: String) {
+        if (!_state.value.isLoggedIn) return
         viewModelScope.launch {
             try {
                 repository.archive(id)
-                refresh()
+                refresh(true)
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }
             }
@@ -116,10 +143,11 @@ class GearListViewModel(private val repository: GearRepositoryContract) : ViewMo
     }
 
     fun restore(id: String) {
+        if (!_state.value.isLoggedIn) return
         viewModelScope.launch {
             try {
                 repository.restore(id)
-                refresh()
+                refresh(true)
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }
             }
