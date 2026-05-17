@@ -128,16 +128,38 @@ fn section_description(language: Option<&Value>) -> Option<String> {
 }
 
 fn section_steps(language: Option<&Value>) -> Vec<String> {
+    // Knots3D page sections are narrative metadata such as Usage, Warning, Related,
+    // and ABOK. Their headings are not tying instructions, so only trust an
+    // explicit step-like array when the metadata exporter provides one.
     language
-        .and_then(|value| value.get("sections"))
+        .and_then(|value| value.get("steps"))
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .filter_map(|section| section.get("heading").and_then(Value::as_str))
-        .map(str::trim)
-        .filter(|heading| !heading.is_empty())
-        .map(ToOwned::to_owned)
+        .filter_map(step_text)
         .collect()
+}
+
+fn step_text(step: &Value) -> Option<String> {
+    match step {
+        Value::String(value) => trimmed_text(value),
+        Value::Object(_) => step
+            .get("text")
+            .or_else(|| step.get("description"))
+            .or_else(|| step.get("instruction"))
+            .and_then(Value::as_str)
+            .and_then(trimmed_text),
+        _ => None,
+    }
+}
+
+fn trimmed_text(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_owned())
+    }
 }
 
 fn parse_categories(item: &Value) -> Vec<KnotCategorySeed> {

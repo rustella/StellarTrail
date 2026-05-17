@@ -60,3 +60,95 @@ fn parses_compact_knots3d_metadata_into_internal_seed_without_public_slug_leakag
             .any(|m| m.path == "skills/knots/adjustable-grip-hitch-knot/thumbnail.webp")
     );
 }
+
+#[test]
+fn ignores_knots3d_section_headings_when_no_explicit_steps_exist() {
+    let raw = r#"
+    {
+      "items": [
+        {
+          "id": "ashleys-bend-knot",
+          "english_slug": "ashleys-bend-knot",
+          "zh_slug": "a-shi-li-jie",
+          "english_name": "Ashley's Bend",
+          "chinese_name": "阿什利结",
+          "english_summary": "Join two lines of stiff, slippery material.",
+          "chinese_summary": "连接两条坚硬、光滑材质的绳索。",
+          "languages": {
+            "zh-CN": {
+              "sections": [
+                {"heading": "用途", "text": "阿什利结用于连接两条绳子。"},
+                {"heading": "警告 ⚠️", "text": "和经验丰富的指导人员验证绑扎技术。"},
+                {"heading": "相关", "text": ""},
+                {"heading": "ABOK", "text": ""}
+              ]
+            },
+            "en": {
+              "sections": [
+                {"heading": "Usage", "text": "Join two ropes."},
+                {"heading": "Warning ⚠️", "text": "Verify tying technique."}
+              ]
+            }
+          }
+        }
+      ]
+    }
+    "#;
+
+    let seeds = parse_knots3d_metadata(raw).expect("parse");
+    let zh = seeds[0]
+        .localizations
+        .iter()
+        .find(|localization| localization.locale == Locale::ZhCn)
+        .expect("zh localization");
+
+    assert_eq!(
+        zh.description.as_deref(),
+        Some("阿什利结用于连接两条绳子。")
+    );
+    assert!(zh.steps.is_empty());
+}
+
+#[test]
+fn parses_explicit_knots3d_steps_when_present() {
+    let raw = r#"
+    {
+      "items": [
+        {
+          "id": "practice-knot",
+          "english_slug": "practice-knot",
+          "english_name": "Practice Knot",
+          "languages": {
+            "zh-CN": {
+              "steps": [
+                " 绕出一个绳圈。 ",
+                {"text": "将绳头穿过绳圈。"},
+                {"instruction": "收紧并检查受力。"},
+                ""
+              ]
+            },
+            "en": {
+              "steps": ["Make a loop."]
+            }
+          }
+        }
+      ]
+    }
+    "#;
+
+    let seeds = parse_knots3d_metadata(raw).expect("parse");
+    let zh = seeds[0]
+        .localizations
+        .iter()
+        .find(|localization| localization.locale == Locale::ZhCn)
+        .expect("zh localization");
+
+    assert_eq!(
+        zh.steps,
+        vec![
+            "绕出一个绳圈。".to_owned(),
+            "将绳头穿过绳圈。".to_owned(),
+            "收紧并检查受力。".to_owned(),
+        ]
+    );
+}

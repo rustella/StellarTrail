@@ -3752,6 +3752,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "sea-orm-migration",
+ "serde_json",
 ]
 
 [[package]]
