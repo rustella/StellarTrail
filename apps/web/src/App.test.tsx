@@ -319,7 +319,7 @@ describe("App", () => {
     });
 
     expect(icon).toHaveClass("brand-logo-image");
-    expect(icon).toHaveAttribute("src", "/stellartrail-icon.png");
+    expect(icon).toHaveAttribute("src", "/app-icon.png");
     expect(screen.queryByText("星")).not.toBeInTheDocument();
   });
 

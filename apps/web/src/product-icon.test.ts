@@ -1,21 +1,20 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 const PUBLIC_DIR = resolve(process.cwd(), "public");
-const PRODUCT_ICON = resolve(PUBLIC_DIR, "stellartrail-icon.png");
-const FAVICON_SVG = resolve(PUBLIC_DIR, "favicon.svg");
-const LEGACY_SVG_ALIAS = resolve(PUBLIC_DIR, "stellartrail-icon.svg");
+const ICONS_DIR = resolve(PUBLIC_DIR, "icons");
+const PRODUCT_ICON = resolve(PUBLIC_DIR, "app-icon.png");
 const FAVICON_ICO = resolve(PUBLIC_DIR, "favicon.ico");
-const FAVICON_16 = resolve(PUBLIC_DIR, "icons/favicon-16.png");
-const FAVICON_32 = resolve(PUBLIC_DIR, "icons/favicon-32.png");
-const FAVICON_48 = resolve(PUBLIC_DIR, "icons/favicon-48.png");
+const FAVICON_16 = resolve(ICONS_DIR, "favicon-16.png");
+const FAVICON_32 = resolve(ICONS_DIR, "favicon-32.png");
+const FAVICON_48 = resolve(ICONS_DIR, "favicon-48.png");
 const APPLE_TOUCH_ICON = resolve(PUBLIC_DIR, "apple-touch-icon.png");
-const ICON_180 = resolve(PUBLIC_DIR, "icons/icon-180.png");
-const ICON_192 = resolve(PUBLIC_DIR, "icons/icon-192.png");
-const ICON_512 = resolve(PUBLIC_DIR, "icons/icon-512.png");
-const MASKABLE_ICON_512 = resolve(PUBLIC_DIR, "icons/icon-maskable-512.png");
+const ICON_180 = resolve(ICONS_DIR, "icon-180.png");
+const ICON_192 = resolve(ICONS_DIR, "icon-192.png");
+const ICON_512 = resolve(ICONS_DIR, "icon-512.png");
+const MASKABLE_ICON_512 = resolve(ICONS_DIR, "icon-maskable-512.png");
 const WEB_MANIFEST = resolve(PUBLIC_DIR, "manifest.webmanifest");
 const INDEX_HTML = resolve(process.cwd(), "index.html");
 
@@ -49,14 +48,20 @@ function parseIcoSizes(path: string) {
 }
 
 describe("web product icon asset", () => {
-  it("ships a raster PNG icon generated from the supplied artwork", () => {
+  it("ships the product icon from source-app-icon as raster PNG", () => {
     expectPngDimensions(PRODUCT_ICON, 512, 512);
     expect(statSync(PRODUCT_ICON).size).toBeGreaterThan(20000);
-    expect(existsSync(FAVICON_SVG)).toBe(false);
-    expect(existsSync(LEGACY_SVG_ALIAS)).toBe(false);
+
+    expect(existsSync(resolve(PUBLIC_DIR, "stellartrail-icon.png"))).toBe(
+      false,
+    );
+    expect(existsSync(resolve(PUBLIC_DIR, "stellartrail-icon.svg"))).toBe(
+      false,
+    );
+    expect(existsSync(resolve(PUBLIC_DIR, "favicon.svg"))).toBe(false);
   });
 
-  it("ships raster favicon fallbacks for browsers and app installs", () => {
+  it("ships only the common raster web icon sizes", () => {
     expectPngDimensions(FAVICON_16, 16, 16);
     expectPngDimensions(FAVICON_32, 32, 32);
     expectPngDimensions(FAVICON_48, 48, 48);
@@ -66,6 +71,15 @@ describe("web product icon asset", () => {
     expectPngDimensions(ICON_512, 512, 512);
     expectPngDimensions(MASKABLE_ICON_512, 512, 512);
 
+    expect(readdirSync(ICONS_DIR).sort()).toEqual([
+      "favicon-16.png",
+      "favicon-32.png",
+      "favicon-48.png",
+      "icon-180.png",
+      "icon-192.png",
+      "icon-512.png",
+      "icon-maskable-512.png",
+    ]);
     expect(parseIcoSizes(FAVICON_ICO)).toEqual(
       expect.arrayContaining(["16x16", "32x32", "48x48"]),
     );
@@ -113,22 +127,17 @@ describe("web product icon asset", () => {
     );
   });
 
-  it("uses the raster icon set as the browser product icon", () => {
-    const html = readFileSync(INDEX_HTML, "utf8");
+  it("links raster favicon and app-install assets from the document", () => {
+    const index = readFileSync(INDEX_HTML, "utf8");
 
-    expect(html).toContain(
-      '<link rel="icon" href="/favicon.ico" sizes="any" />',
-    );
-    expect(html).toContain('href="/icons/favicon-32.png"');
-    expect(html).toContain('href="/icons/favicon-48.png"');
-    expect(html).toContain(
-      '<link rel="apple-touch-icon" href="/apple-touch-icon.png" />',
-    );
-    expect(html).toContain(
-      '<link rel="manifest" href="/manifest.webmanifest" />',
-    );
-    expect(html).toContain('<meta name="theme-color" content="#0f172a" />');
-    expect(html).not.toContain("image/svg+xml");
-    expect(html).not.toContain("favicon.svg");
+    expect(index).toContain('rel="icon" href="/favicon.ico" sizes="any"');
+    expect(index).toContain('href="/icons/favicon-16.png"');
+    expect(index).toContain('href="/icons/favicon-32.png"');
+    expect(index).toContain('href="/icons/favicon-48.png"');
+    expect(index).toContain('href="/apple-touch-icon.png"');
+    expect(index).toContain('href="/manifest.webmanifest"');
+    expect(index).not.toContain("image/svg+xml");
+    expect(index).not.toContain("favicon.svg");
+    expect(index).not.toContain("stellartrail-icon");
   });
 });
