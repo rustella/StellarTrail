@@ -7,6 +7,7 @@
     "pages/skills/index",
     "pages/skills/detail/index",
     "pages/profile/index",
+    "pages/register/index",
     "pages/login/index"
   ],
   "window": {

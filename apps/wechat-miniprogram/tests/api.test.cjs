@@ -98,3 +98,154 @@ test("authenticated requests refresh once on 401 and retry with the new access t
   assert.equal(storage.get("stellartrail_access_token"), "access-new");
   assert.equal(storage.get("stellartrail_refresh_token"), "refresh-new");
 });
+
+
+test("loginWithPassword persists access and refresh tokens", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      method: options.method,
+      data: options.data,
+      authorization: options.header && options.header.authorization,
+    });
+    assert.equal(options.url, "https://api.example.test/api/auth/login");
+    options.success({ statusCode: 200, data: loginResponse("access-pass", "refresh-pass") });
+  });
+  const { loginWithPassword } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(
+    loginWithPassword({ account: "trail_alice", password: "OutdoorPass123!" }),
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "POST");
+  assert.deepEqual(calls[0].data, {
+    account: "trail_alice",
+    password: "OutdoorPass123!",
+  });
+  assert.equal(calls[0].authorization, undefined);
+  assert.equal(storage.get("stellartrail_access_token"), "access-pass");
+  assert.equal(storage.get("stellartrail_refresh_token"), "refresh-pass");
+});
+
+test("registerWithPassword persists the returned session", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({ url: options.url, method: options.method, data: options.data });
+    assert.equal(options.url, "https://api.example.test/api/auth/register");
+    options.success({ statusCode: 200, data: loginResponse("access-register", "refresh-register") });
+  });
+  const { registerWithPassword } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(
+    registerWithPassword({
+      username: "trail_bob",
+      email: "bob@example.com",
+      password: "OutdoorPass123!",
+      confirm_password: "OutdoorPass123!",
+      email_verification_code: "123456",
+    }),
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "POST");
+  assert.deepEqual(calls[0].data, {
+    username: "trail_bob",
+    email: "bob@example.com",
+    password: "OutdoorPass123!",
+    confirm_password: "OutdoorPass123!",
+    email_verification_code: "123456",
+  });
+  assert.equal(storage.get("stellartrail_access_token"), "access-register");
+  assert.equal(storage.get("stellartrail_refresh_token"), "refresh-register");
+});
+
+test("email code and captcha helpers call public auth endpoints", async () => {
+  const calls = [];
+  installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      method: options.method,
+      data: options.data,
+      authorization: options.header && options.header.authorization,
+    });
+    if (options.url.endsWith("/api/auth/email-verification-code")) {
+      options.success({
+        statusCode: 200,
+        data: {
+          email: "bob@example.com",
+          expires_at: "2026-06-01T02:10:00Z",
+          debug_code: "123456",
+        },
+      });
+      return;
+    }
+    if (options.url.endsWith("/api/auth/captcha")) {
+      options.success({
+        statusCode: 200,
+        data: {
+          captcha_ticket: "ticket-1",
+          captcha_type: "image",
+          image_svg: "<svg />",
+          expires_at: "2026-06-01T02:05:00Z",
+          debug_answer: "7K2Q",
+        },
+      });
+      return;
+    }
+    options.success({ statusCode: 404, data: { message: "not found" } });
+  });
+  const { createCaptcha, sendEmailVerificationCode } = require("../.tmp-test/utils/api.js");
+
+  const email = await sendEmailVerificationCode("bob@example.com");
+  const captcha = await createCaptcha("trail_bob");
+
+  assert.equal(email.debug_code, "123456");
+  assert.equal(captcha.captcha_ticket, "ticket-1");
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.example.test/api/auth/email-verification-code",
+      method: "POST",
+      data: { email: "bob@example.com" },
+      authorization: undefined,
+    },
+    {
+      url: "https://api.example.test/api/auth/captcha",
+      method: "POST",
+      data: { account: "trail_bob" },
+      authorization: undefined,
+    },
+  ]);
+});
+
+test("captcha required errors keep status code and response code", async () => {
+  installWxMock((options) => {
+    assert.equal(options.url, "https://api.example.test/api/auth/login");
+    options.success({
+      statusCode: 428,
+      data: {
+        code: "captcha_required",
+        message: "请完成验证码后再试",
+        captcha: { captcha_type: "image", endpoint: "/api/auth/captcha" },
+      },
+    });
+  });
+  const {
+    isApiResponseError,
+    isCaptchaRequiredError,
+    loginWithPassword,
+  } = require("../.tmp-test/utils/api.js");
+
+  await assert.rejects(
+    () => loginWithPassword({ account: "trail_bob", password: "bad-pass" }),
+    (error) => {
+      assert.equal(isApiResponseError(error), true);
+      assert.equal(isCaptchaRequiredError(error), true);
+      assert.equal(error.statusCode, 428);
+      assert.equal(error.code, "captcha_required");
+      assert.equal(error.captcha.endpoint, "/api/auth/captcha");
+      return true;
+    },
+  );
+});

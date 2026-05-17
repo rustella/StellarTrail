@@ -44,6 +44,62 @@ interface WechatLoginRequest {
   };
 }
 
+export interface EmailVerificationCodeRequest {
+  email: string;
+}
+
+export interface EmailVerificationCodeResponse {
+  email: string;
+  expires_at: string;
+  debug_code?: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+  confirm_password: string;
+  email_verification_code: string;
+}
+
+export interface CaptchaChallengeRequest {
+  account: string;
+}
+
+export interface CaptchaChallengeResponse {
+  captcha_ticket: string;
+  captcha_type: "image";
+  image_svg: string;
+  expires_at: string;
+  debug_answer?: string;
+}
+
+export interface PasswordLoginRequest {
+  account: string;
+  password: string;
+  captcha_ticket?: string | null;
+  captcha_answer?: string | null;
+}
+
+export interface ApiResponseCaptchaRequirement {
+  type?: string;
+  captcha_type?: string;
+  endpoint?: string;
+}
+
+export interface ApiResponseFieldViolation {
+  field?: string;
+  message?: string;
+}
+
+interface ApiErrorBody {
+  code?: string;
+  message?: string;
+  fields?: ApiResponseFieldViolation[];
+  captcha?: ApiResponseCaptchaRequirement;
+  parameter?: string;
+}
+
 export class LoginRequiredError extends Error {
   readonly code = "LOGIN_REQUIRED";
 
@@ -61,6 +117,44 @@ export function isLoginRequiredError(
     (typeof error === "object" &&
       error !== null &&
       (error as { code?: unknown }).code === "LOGIN_REQUIRED")
+  );
+}
+
+export class ApiResponseError extends Error {
+  readonly statusCode: number;
+  readonly code?: string;
+  readonly fields?: ApiResponseFieldViolation[];
+  readonly captcha?: ApiResponseCaptchaRequirement;
+  readonly parameter?: string;
+  readonly responseData: unknown;
+
+  constructor(statusCode: number, data: unknown) {
+    super(readErrorMessage(data, statusCode));
+    this.name = "ApiResponseError";
+    this.statusCode = statusCode;
+    this.responseData = data;
+    if (isApiErrorBody(data)) {
+      this.code = data.code;
+      this.fields = data.fields;
+      this.captcha = data.captcha;
+      this.parameter = data.parameter;
+    }
+  }
+}
+
+export function isApiResponseError(error: unknown): error is ApiResponseError {
+  return (
+    error instanceof ApiResponseError ||
+    (typeof error === "object" &&
+      error !== null &&
+      typeof (error as { statusCode?: unknown }).statusCode === "number")
+  );
+}
+
+export function isCaptchaRequiredError(error: unknown): boolean {
+  return (
+    isApiResponseError(error) &&
+    (error.statusCode === 428 || error.code === "captcha_required")
   );
 }
 
@@ -120,6 +214,49 @@ export async function loginWithWechat(): Promise<string> {
     });
   }
   return loginPromise;
+}
+
+export async function loginWithPassword(
+  request: PasswordLoginRequest,
+): Promise<string> {
+  const response = await requestJson<WechatLoginResponse>("/api/auth/login", {
+    method: "POST",
+    data: normalizePasswordLoginRequest(request),
+  });
+  saveLoginResponse(response);
+  return response.access_token;
+}
+
+export async function registerWithPassword(
+  request: RegisterRequest,
+): Promise<string> {
+  const response = await requestJson<WechatLoginResponse>(
+    "/api/auth/register",
+    {
+      method: "POST",
+      data: request,
+    },
+  );
+  saveLoginResponse(response);
+  return response.access_token;
+}
+
+export function sendEmailVerificationCode(
+  email: string,
+): Promise<EmailVerificationCodeResponse> {
+  return requestJson("/api/auth/email-verification-code", {
+    method: "POST",
+    data: { email } satisfies EmailVerificationCodeRequest,
+  });
+}
+
+export function createCaptcha(
+  account: string,
+): Promise<CaptchaChallengeResponse> {
+  return requestJson("/api/auth/captcha", {
+    method: "POST",
+    data: { account } satisfies CaptchaChallengeRequest,
+  });
 }
 
 async function runWechatLogin(): Promise<string> {
@@ -252,6 +389,10 @@ export async function getKnotDetail(
 }
 
 export function getErrorMessage(error: unknown): string {
+  if (isApiResponseError(error)) {
+    const fieldMessage = error.fields?.find((field) => field.message)?.message;
+    return fieldMessage || error.message;
+  }
   if (error instanceof Error) {
     return error.message;
   }
@@ -307,18 +448,16 @@ async function requestJson<T>(
             });
           return;
         }
-        if (response.statusCode === 401) {
+        if (response.statusCode === 401 && options.auth) {
           clearLoginState();
-          if (options.auth) {
-            reject(new LoginRequiredError("登录状态已过期，请重新登录"));
-            return;
-          }
+          reject(new LoginRequiredError("登录状态已过期，请重新登录"));
+          return;
         }
         if (response.statusCode === 403 && options.auth) {
           reject(new LoginRequiredError("当前账号暂无权限，请重新登录后再试"));
           return;
         }
-        reject(new Error(readErrorMessage(response.data, response.statusCode)));
+        reject(new ApiResponseError(response.statusCode, response.data));
       },
       fail: (error) => {
         reject(new Error(error.errMsg || "网络请求失败，请稍后再试"));
@@ -336,6 +475,21 @@ function saveLoginResponse(response: WechatLoginResponse): void {
     response.refresh_expires_at,
   );
   wx.setStorageSync(USER_STORAGE_KEY, response.user);
+}
+
+function normalizePasswordLoginRequest(
+  request: PasswordLoginRequest,
+): PasswordLoginRequest {
+  return {
+    account: request.account,
+    password: request.password,
+    ...(request.captcha_ticket
+      ? { captcha_ticket: request.captcha_ticket }
+      : {}),
+    ...(request.captcha_answer
+      ? { captcha_answer: request.captcha_answer }
+      : {}),
+  };
 }
 
 async function refreshAccessTokenOnce(): Promise<string> {
@@ -395,11 +549,16 @@ function queryString(params: object): string {
 }
 
 function readErrorMessage(data: unknown, statusCode: number): string {
-  if (typeof data === "object" && data !== null && "message" in data) {
-    const message = (data as { message?: unknown }).message;
-    if (typeof message === "string" && message) {
-      return message;
-    }
+  if (
+    isApiErrorBody(data) &&
+    typeof data.message === "string" &&
+    data.message
+  ) {
+    return data.message;
   }
   return `请求失败（${statusCode}）`;
+}
+
+function isApiErrorBody(data: unknown): data is ApiErrorBody {
+  return typeof data === "object" && data !== null;
 }

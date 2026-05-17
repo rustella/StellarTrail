@@ -17,12 +17,86 @@
         >{{loggedIn ? '已登录' : '未登录'}}</view
       >
     </view>
+  </view>
+
+  <view class="login-card auth-card">
+    <view class="section-title">选择登录方式</view>
+    <view class="auth-tabs" aria-label="选择登录方式">
+      <button
+        class="auth-tab {{loginMode === 'wechat' ? 'active' : ''}}"
+        bindtap="switchToWechat"
+      >
+        微信一键登录
+      </button>
+      <button
+        class="auth-tab {{loginMode === 'password' ? 'active' : ''}}"
+        bindtap="switchToPassword"
+      >
+        账号密码登录
+      </button>
+    </view>
 
     <view wx:if="{{error}}" class="error-text">{{error}}</view>
 
-    <button class="primary" loading="{{loading}}" bindtap="login">
-      {{loggedIn ? '重新登录' : '微信一键登录'}}
-    </button>
+    <view wx:if="{{loginMode === 'wechat'}}" class="auth-panel">
+      <view class="panel-desc"
+        >使用微信身份快速进入，之后可以保存和管理自己的装备。</view
+      >
+      <button class="primary" loading="{{loading}}" bindtap="loginWechat">
+        {{loggedIn ? '重新登录' : '微信一键登录'}}
+      </button>
+    </view>
+
+    <view wx:else class="auth-panel">
+      <label class="field-label">账号或邮箱</label>
+      <input
+        class="field-input"
+        placeholder="账号或邮箱"
+        value="{{account}}"
+        data-field="account"
+        bindinput="onFieldInput"
+      />
+      <label class="field-label">密码</label>
+      <input
+        class="field-input"
+        placeholder="密码"
+        password="{{true}}"
+        value="{{password}}"
+        data-field="password"
+        bindinput="onFieldInput"
+      />
+
+      <view wx:if="{{captchaTicket}}" class="captcha-box">
+        <view class="captcha-head">
+          <view class="field-label">图形验证码</view>
+          <button
+            class="text-button"
+            loading="{{captchaLoading}}"
+            bindtap="refreshCaptcha"
+          >
+            换一张
+          </button>
+        </view>
+        <image
+          class="captcha-image"
+          src="{{captchaImageSrc}}"
+          mode="aspectFit"
+        />
+        <input
+          class="field-input"
+          placeholder="图形验证码"
+          value="{{captchaAnswer}}"
+          data-field="captchaAnswer"
+          bindinput="onFieldInput"
+        />
+      </view>
+
+      <button class="primary" loading="{{loading}}" bindtap="loginWithAccount">
+        账号密码登录
+      </button>
+      <button class="link-button" bindtap="goRegister">注册账号</button>
+    </view>
+
     <button class="secondary" bindtap="skip">暂不登录</button>
   </view>
 </view>

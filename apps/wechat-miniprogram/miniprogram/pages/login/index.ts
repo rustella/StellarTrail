@@ -1,17 +1,16 @@
 import {
+  createCaptcha,
   getErrorMessage,
   getStoredUser,
   hasAccessToken,
+  isCaptchaRequiredError,
+  loginWithPassword,
   loginWithWechat,
 } from "../../utils/api";
+import { decodeRedirect, navigateToRedirect } from "../../utils/navigation";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 
-const TAB_PAGES = new Set([
-  "/pages/index/index",
-  "/pages/gears/index",
-  "/pages/skills/index",
-  "/pages/profile/index",
-]);
+type LoginMode = "wechat" | "password";
 
 Page({
   data: {
@@ -19,7 +18,14 @@ Page({
     loggedIn: hasAccessToken(),
     userDisplay: buildUserDisplay(),
     loading: false,
+    captchaLoading: false,
     error: "",
+    loginMode: "wechat" as LoginMode,
+    account: "",
+    password: "",
+    captchaAnswer: "",
+    captchaTicket: "",
+    captchaImageSrc: "",
     ...getThemeViewData(),
   },
 
@@ -39,16 +45,33 @@ Page({
     });
   },
 
-  async login() {
+  switchToWechat() {
+    this.setData({ loginMode: "wechat", error: "" });
+  },
+
+  switchToPassword() {
+    this.setData({ loginMode: "password", error: "" });
+  },
+
+  onFieldInput(event: WechatMiniprogram.Input) {
+    const field = event.currentTarget.dataset.field as
+      | "account"
+      | "password"
+      | "captchaAnswer";
+    if (!field) {
+      return;
+    }
+    this.setData({ [field]: event.detail.value });
+  },
+
+  async loginWechat() {
     if (this.data.loading) {
       return;
     }
     this.setData({ loading: true, error: "" });
     try {
       await loginWithWechat();
-      this.setData({ loggedIn: true, userDisplay: buildUserDisplay() });
-      wx.showToast({ title: "登录成功", icon: "success" });
-      navigateToRedirect(this.data.redirect);
+      this.afterLoginSuccess();
     } catch (error) {
       this.setData({ error: getErrorMessage(error) });
     } finally {
@@ -56,39 +79,96 @@ Page({
     }
   },
 
+  async loginWithAccount() {
+    if (this.data.loading) {
+      return;
+    }
+    const account = this.data.account.trim();
+    const password = this.data.password;
+    const captchaAnswer = this.data.captchaAnswer.trim();
+    if (!account) {
+      this.setData({ error: "请填写账号或邮箱" });
+      return;
+    }
+    if (!password) {
+      this.setData({ error: "请填写密码" });
+      return;
+    }
+    if (this.data.captchaTicket && !captchaAnswer) {
+      this.setData({ error: "请填写图形验证码" });
+      return;
+    }
+
+    this.setData({ loading: true, error: "" });
+    try {
+      await loginWithPassword({
+        account,
+        password,
+        captcha_ticket: this.data.captchaTicket || undefined,
+        captcha_answer: captchaAnswer || undefined,
+      });
+      this.afterLoginSuccess();
+    } catch (error) {
+      if (isCaptchaRequiredError(error)) {
+        await this.refreshCaptcha(account, "请先完成图形验证");
+      } else {
+        this.setData({ error: getErrorMessage(error) });
+      }
+    } finally {
+      this.setData({ loading: false });
+    }
+  },
+
+  async refreshCaptcha(account?: string, message = "已刷新图形验证码") {
+    const targetAccount = (account ?? this.data.account).trim();
+    if (!targetAccount) {
+      this.setData({ error: "请先填写账号或邮箱" });
+      return;
+    }
+    if (this.data.captchaLoading) {
+      return;
+    }
+    this.setData({ captchaLoading: true, error: "" });
+    try {
+      const captcha = await createCaptcha(targetAccount);
+      this.setData({
+        captchaTicket: captcha.captcha_ticket,
+        captchaImageSrc: toSvgDataUri(captcha.image_svg),
+        captchaAnswer: "",
+        error: message,
+      });
+    } catch (error) {
+      this.setData({ error: getErrorMessage(error) });
+    } finally {
+      this.setData({ captchaLoading: false });
+    }
+  },
+
+  goRegister() {
+    wx.navigateTo({
+      url: `/pages/register/index?redirect=${encodeURIComponent(this.data.redirect)}`,
+    });
+  },
+
   skip() {
     navigateToRedirect(this.data.redirect || "/pages/index/index");
   },
-});
 
-function decodeRedirect(value?: string): string {
-  if (!value) {
-    return "/pages/profile/index";
-  }
-  try {
-    const decoded = decodeURIComponent(value);
-    return decoded.startsWith("/pages/") ? decoded : "/pages/profile/index";
-  } catch {
-    return "/pages/profile/index";
-  }
-}
+  afterLoginSuccess() {
+    this.setData({ loggedIn: true, userDisplay: buildUserDisplay() });
+    wx.showToast({ title: "登录成功", icon: "success" });
+    navigateToRedirect(this.data.redirect);
+  },
+});
 
 function buildUserDisplay(): string {
   const user = getStoredUser();
   if (!user) {
     return "未登录";
   }
-  return user.nickname || user.username || user.email || "微信用户";
+  return user.nickname || user.username || user.email || "寻径星野用户";
 }
 
-function navigateToRedirect(redirect: string): void {
-  const [path] = redirect.split("?");
-  if (TAB_PAGES.has(path)) {
-    wx.switchTab({ url: path });
-    return;
-  }
-  wx.redirectTo({
-    url: redirect,
-    fail: () => wx.switchTab({ url: "/pages/index/index" }),
-  });
+function toSvgDataUri(svg: string): string {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

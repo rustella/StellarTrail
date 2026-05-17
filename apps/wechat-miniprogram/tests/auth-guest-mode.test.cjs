@@ -18,6 +18,8 @@ global.wx = {
     loginCalled = true;
     throw new Error("wx.login should not be called in guest API paths");
   },
+  switchTab: (options) => options.success && options.success({}),
+  redirectTo: (options) => options.success && options.success({}),
   request: (options) => {
     requests.push(options);
     if (options.url.includes("/api/skills/knots/detail/")) {
@@ -98,4 +100,26 @@ test("login prompt encodes the current page as login redirect", () => {
     loginPageUrl("/pages/gears/form/index?template=backpacking-basic"),
     "/pages/login/index?redirect=%2Fpages%2Fgears%2Fform%2Findex%3Ftemplate%3Dbackpacking-basic",
   );
+});
+
+
+test("navigation helper rejects external redirects and switches tab pages", () => {
+  const calls = [];
+  global.wx.switchTab = (options) => calls.push({ type: "switchTab", url: options.url });
+  global.wx.redirectTo = (options) => calls.push({ type: "redirectTo", url: options.url });
+  const { decodeRedirect, navigateToRedirect } = require("../.tmp-test/utils/navigation.js");
+
+  assert.equal(decodeRedirect(encodeURIComponent("https://example.com")), "/pages/profile/index");
+  assert.equal(
+    decodeRedirect(encodeURIComponent("/pages/gears/detail/index?id=g1")),
+    "/pages/gears/detail/index?id=g1",
+  );
+
+  navigateToRedirect("/pages/profile/index");
+  navigateToRedirect("/pages/gears/detail/index?id=g1");
+
+  assert.deepEqual(calls, [
+    { type: "switchTab", url: "/pages/profile/index" },
+    { type: "redirectTo", url: "/pages/gears/detail/index?id=g1" },
+  ]);
 });
