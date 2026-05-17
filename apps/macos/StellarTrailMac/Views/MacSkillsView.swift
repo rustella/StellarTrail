@@ -332,25 +332,31 @@ private struct MacKnotHeroViewer: View {
     var body: some View {
         TrailSurfaceCard(padding: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                ZStack(alignment: .bottom) {
-                    Color.black
-                    viewerContent
-                        .scaleEffect(x: mirrored ? -1 : 1, y: 1)
-                        .rotationEffect(.degrees(rotation))
-                        .animation(.easeInOut(duration: 0.18), value: mirrored)
-                        .animation(.easeInOut(duration: 0.18), value: rotation)
-                    viewerControls
-                        .padding(14)
-                }
-                .frame(minHeight: 360, idealHeight: 460)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if mode == .still {
-                        mode = .tying
+                VStack(spacing: 0) {
+                    ZStack {
+                        Color.black
+                        viewerContent
+                            .scaleEffect(x: mirrored ? -1 : 1, y: 1)
+                            .rotationEffect(.degrees(rotation))
+                            .animation(.easeInOut(duration: 0.18), value: mirrored)
+                            .animation(.easeInOut(duration: 0.18), value: rotation)
                     }
-                    playing.toggle()
+                    .frame(minHeight: 360, idealHeight: 460)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if mode == .still {
+                            mode = .tying
+                        }
+                        playing.toggle()
+                    }
+
+                    viewerControls
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.black)
                 }
+                .background(Color.black)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .firstTextBaseline) {
