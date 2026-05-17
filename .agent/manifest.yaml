@@ -5,7 +5,7 @@ project:
   repository: https://github.com/rustella/StellarTrail
   default_branch: main
   current_focus: phase-one gear inventory MVP
-  description: Outdoor route knowledge, gear preparation, and offline skills for China-focused hiking scenarios. The current implementation prioritizes the WeChat Mini Program and the Rust API.
+  description: Outdoor gear preparation and offline skills for China-focused hiking scenarios. The current implementation prioritizes the WeChat Mini Program and the Rust API; route and mountain modules are future work.
 
 read_order:
   - AGENTS.md
@@ -36,10 +36,10 @@ stack:
       - web
     language: TypeScript
     node: "22+"
-  content:
-    formats:
-      - YAML
-      - Markdown
+  public_data:
+    gear_templates: DB-backed API startup seed
+    knots: Knots3D metadata imported into DB
+    media: MinIO/S3-compatible object storage URLs stored in DB
   databases:
     local: SQLite
     production_recommended: PostgreSQL
@@ -61,17 +61,15 @@ source_roots:
   - path: crates/db
     role: Database configuration, connections, and repositories.
   - path: crates/importer
-    role: Content parsing and import boundaries.
+    role: Knots3D metadata parsing and import boundaries.
   - path: crates/migration
     role: Database schema migrations.
   - path: packages/api-client-ts
     role: TypeScript API client.
   - path: packages/shared-types
     role: Shared TypeScript DTO types.
-  - path: content
-    role: Seed content for mountains, routes, skills, and gear templates.
   - path: docs
-    role: Product, architecture, API, and content schema documentation.
+    role: Product, architecture, API, and public-data documentation.
   - path: infra
     role: Docker integration-test and production deployment configuration.
   - path: scripts
@@ -143,5 +141,5 @@ freshness:
   last_updated: "2026-05-17"
   source: Repository files, current channel context, and explicit user language and branch-policy requirements.
   known_gaps:
-    - Full database-backed content import remains follow-up work unless already implemented in the current MVP branch.
-    - Placeholder scripts should not be treated as production import or client generation validation until they are implemented.
+    - Route and mountain modules remain future work until explicitly restarted.
+    - Placeholder API-client generation should not be treated as delivery validation until OpenAPI export and generation are implemented.

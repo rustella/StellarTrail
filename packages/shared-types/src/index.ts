@@ -8,92 +8,8 @@ export interface MetaResponse {
   database_kind: "sqlite" | "postgres" | "mysql";
 }
 
-export type DifficultyLevel =
-  | "leisure"
-  | "beginner"
-  | "intermediate"
-  | "advanced"
-  | "technical";
-
 export interface ContentListResponse<T> {
   items: T[];
-}
-
-export interface MountainContent {
-  id: string;
-  name: string;
-  aliases: string[];
-  province: string;
-  city?: string | null;
-  area?: string | null;
-  elevation_m?: number | null;
-  lat?: number | null;
-  lng?: number | null;
-  summary: string;
-  best_seasons: string[];
-  difficulty_level: DifficultyLevel;
-  status: string;
-}
-
-export type RoutePointType =
-  | "start"
-  | "end"
-  | "camp"
-  | "water"
-  | "supply"
-  | "danger"
-  | "viewpoint"
-  | "exit";
-
-export interface RoutePoint {
-  type: RoutePointType;
-  name: string;
-  description?: string | null;
-  sort_order: number;
-}
-
-export interface RouteGearSuggestion {
-  gear_category: string;
-  gear_name: string;
-  required_level: string;
-  reason?: string | null;
-}
-
-export interface RouteSkillLink {
-  skill_id: string;
-  reason?: string | null;
-}
-
-export interface RouteContent extends RouteSummary {
-  mountain_id?: string | null;
-  city?: string | null;
-  route_type: string;
-  descent_m?: number | null;
-  transport_info?: string | null;
-  permit_info?: string | null;
-  risk_summary?: string | null;
-  status: string;
-  points: RoutePoint[];
-  gear_suggestions: RouteGearSuggestion[];
-  skill_links: RouteSkillLink[];
-}
-
-export type SkillCategory =
-  | "knot"
-  | "camping"
-  | "first_aid"
-  | "packing"
-  | "navigation"
-  | "weather";
-
-export interface SkillContent {
-  id: string;
-  title: string;
-  category: SkillCategory;
-  difficulty_level: DifficultyLevel;
-  summary: string;
-  related_gear_categories: string[];
-  body_markdown: string;
 }
 
 export type SkillLocale = "zh-CN" | "en";
@@ -192,18 +108,6 @@ export interface GearTemplate {
   id: string;
   title: string;
   categories: GearTemplateCategory[];
-}
-
-export interface RouteSummary {
-  id: string;
-  title: string;
-  province: string;
-  difficulty_level: DifficultyLevel;
-  distance_m?: number;
-  ascent_m?: number;
-  duration_min?: number;
-  best_seasons: string[];
-  summary: string;
 }
 
 export type GearCategory =

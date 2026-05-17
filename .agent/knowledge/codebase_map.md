@@ -28,7 +28,7 @@
 - `services/api/tests/`: integration and route tests.
 - `crates/domain/src/`: domain models and validation.
 - `crates/db/src/`: database configuration and repositories.
-- `crates/importer/src/`: content parsing and importer boundaries.
+- `crates/importer/src/`: Knots3D metadata parsing and importer boundaries.
 - `crates/migration/src/`: schema migrations.
 
 ## Packages
@@ -36,12 +36,10 @@
 - `packages/shared-types/src/index.ts`: shared DTO and API-facing TypeScript types.
 - `packages/api-client-ts/src/index.ts`: TypeScript client helpers.
 
-## Content and docs
+## Public data and docs
 
-- `content/mountains/`: mountain seed content.
-- `content/routes/`: route seed content.
-- `content/skills/`: skill and knot content.
-- `content/gear-templates/`: gear template seed content.
+- Gear templates: DB-backed system seed under domain/API/DB/migration code.
+- Knot skills: Knots3D metadata imported through `crates/importer`; media URLs are stored in DB and backed by MinIO/object storage.
 - `docs/api.md`: API contract notes.
 - `docs/architecture.md`: architecture documentation.
 - `docs/content-schema.md`: content schema documentation.

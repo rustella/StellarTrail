@@ -13,11 +13,6 @@ wechat:
   app_id: example-wechat-app-id
   app_secret: example-wechat-app-secret
 
-content:
-  dir: /app/content
-  assets_dir: /app/content/assets
-  media_base_url: https://assets.stellartail.cn
-
 redis:
   url: redis://redis:6379/0
   key_prefix: stellartrail:prod

@@ -1,10 +1,9 @@
-//! Application state module that stores configuration, database connection, content catalog, WeChat client, cache, object storage, and public API helpers for routes.
+//! Application state module that stores configuration, database connection, WeChat client, cache, object storage, email sender, and DB-backed public API helpers for routes.
 
 use std::sync::Arc;
 
 use sea_orm::DatabaseConnection;
-use stellartrail_db::repositories::KnotRepository;
-use stellartrail_importer::ContentCatalog;
+use stellartrail_db::repositories::{GearTemplateRepository, KnotRepository};
 
 use crate::{
     cache::Cache,
@@ -27,67 +26,48 @@ pub struct AppState {
 struct AppStateInner {
     config: ApiConfig,
     db: DatabaseConnection,
-    content: ContentCatalog,
     wechat_client: Arc<dyn WechatCodeSessionClient>,
     cache: Cache,
     object_store: Arc<dyn ObjectStore>,
     email_sender: Arc<dyn EmailSender>,
     knot_repository: KnotRepository,
+    gear_template_repository: GearTemplateRepository,
     public_rate_limiter: InMemoryPublicRateLimiter,
     public_response_cache: InMemoryPublicResponseCache,
 }
 
 impl AppState {
-    /// Creates app state with default content, disabled cache, and test in-memory object store.
+    /// Creates app state with disabled cache and test in-memory object store.
     pub fn new(config: ApiConfig, db: DatabaseConnection) -> Self {
-        Self::new_with_content(config, db, ContentCatalog::default())
+        Self::new_with_cache(config, db, Cache::disabled())
     }
 
-    /// Creates app state with default content, a custom cache, and test in-memory object store.
+    /// Creates app state with a custom cache and test in-memory object store.
     pub fn new_with_cache(config: ApiConfig, db: DatabaseConnection, cache: Cache) -> Self {
-        Self::new_with_content_and_cache(config, db, ContentCatalog::default(), cache)
+        Self::new_with_wechat_client_cache_object_store_and_email_sender(
+            config,
+            db,
+            Arc::new(CurlWechatCodeSessionClient),
+            cache,
+            Arc::new(InMemoryObjectStore::default()),
+            Arc::new(NoopEmailSender),
+        )
     }
 
-    /// Creates app state with default content, custom cache, and custom object store.
+    /// Creates app state with custom cache and custom object store.
     pub fn new_with_cache_and_object_store(
         config: ApiConfig,
         db: DatabaseConnection,
         cache: Cache,
         object_store: Arc<dyn ObjectStore>,
     ) -> Self {
-        Self::new_with_content_and_wechat_client_cache_and_object_store(
+        Self::new_with_wechat_client_cache_object_store_and_email_sender(
             config,
             db,
-            ContentCatalog::default(),
             Arc::new(CurlWechatCodeSessionClient),
             cache,
             object_store,
-        )
-    }
-
-    /// Creates app state with provided content, disabled cache, and test in-memory object store.
-    pub fn new_with_content(
-        config: ApiConfig,
-        db: DatabaseConnection,
-        content: ContentCatalog,
-    ) -> Self {
-        Self::new_with_content_and_cache(config, db, content, Cache::disabled())
-    }
-
-    /// Creates app state with provided content/cache and test in-memory object store.
-    pub fn new_with_content_and_cache(
-        config: ApiConfig,
-        db: DatabaseConnection,
-        content: ContentCatalog,
-        cache: Cache,
-    ) -> Self {
-        Self::new_with_content_and_wechat_client_cache_and_object_store(
-            config,
-            db,
-            content,
-            Arc::new(CurlWechatCodeSessionClient),
-            cache,
-            Arc::new(InMemoryObjectStore::default()),
+            Arc::new(NoopEmailSender),
         )
     }
 
@@ -97,24 +77,25 @@ impl AppState {
         db: DatabaseConnection,
         wechat_client: Arc<dyn WechatCodeSessionClient>,
     ) -> Self {
-        Self::new_with_content_and_wechat_client(
+        Self::new_with_wechat_client_cache_object_store_and_email_sender(
             config,
             db,
-            ContentCatalog::default(),
             wechat_client,
+            Cache::disabled(),
+            Arc::new(InMemoryObjectStore::default()),
+            Arc::new(NoopEmailSender),
         )
     }
 
-    /// Creates app state with default content, default WeChat client, disabled cache, and custom email sender.
+    /// Creates app state with default dependencies and custom transactional email sender.
     pub fn new_with_email_sender(
         config: ApiConfig,
         db: DatabaseConnection,
         email_sender: Arc<dyn EmailSender>,
     ) -> Self {
-        Self::new_with_content_and_wechat_client_cache_object_store_and_email_sender(
+        Self::new_with_wechat_client_cache_object_store_and_email_sender(
             config,
             db,
-            ContentCatalog::default(),
             Arc::new(CurlWechatCodeSessionClient),
             Cache::disabled(),
             Arc::new(InMemoryObjectStore::default()),
@@ -122,53 +103,17 @@ impl AppState {
         )
     }
 
-    /// Creates app state with custom content and WeChat client.
-    pub fn new_with_content_and_wechat_client(
+    /// Creates app state with every dependency injected explicitly except email sender.
+    pub fn new_with_wechat_client_cache_and_object_store(
         config: ApiConfig,
         db: DatabaseConnection,
-        content: ContentCatalog,
-        wechat_client: Arc<dyn WechatCodeSessionClient>,
-    ) -> Self {
-        Self::new_with_content_and_wechat_client_and_cache(
-            config,
-            db,
-            content,
-            wechat_client,
-            Cache::disabled(),
-        )
-    }
-
-    /// Creates app state with custom content, WeChat client, cache, and test in-memory object store.
-    pub fn new_with_content_and_wechat_client_and_cache(
-        config: ApiConfig,
-        db: DatabaseConnection,
-        content: ContentCatalog,
-        wechat_client: Arc<dyn WechatCodeSessionClient>,
-        cache: Cache,
-    ) -> Self {
-        Self::new_with_content_and_wechat_client_cache_and_object_store(
-            config,
-            db,
-            content,
-            wechat_client,
-            cache,
-            Arc::new(InMemoryObjectStore::default()),
-        )
-    }
-
-    /// Creates app state with every dependency injected explicitly.
-    pub fn new_with_content_and_wechat_client_cache_and_object_store(
-        config: ApiConfig,
-        db: DatabaseConnection,
-        content: ContentCatalog,
         wechat_client: Arc<dyn WechatCodeSessionClient>,
         cache: Cache,
         object_store: Arc<dyn ObjectStore>,
     ) -> Self {
-        Self::new_with_content_and_wechat_client_cache_object_store_and_email_sender(
+        Self::new_with_wechat_client_cache_object_store_and_email_sender(
             config,
             db,
-            content,
             wechat_client,
             cache,
             object_store,
@@ -177,26 +122,26 @@ impl AppState {
     }
 
     /// Creates app state with every dependency injected explicitly, including the transactional email sender.
-    pub fn new_with_content_and_wechat_client_cache_object_store_and_email_sender(
+    pub fn new_with_wechat_client_cache_object_store_and_email_sender(
         config: ApiConfig,
         db: DatabaseConnection,
-        content: ContentCatalog,
         wechat_client: Arc<dyn WechatCodeSessionClient>,
         cache: Cache,
         object_store: Arc<dyn ObjectStore>,
         email_sender: Arc<dyn EmailSender>,
     ) -> Self {
-        let knot_repository = KnotRepository::new(db.clone(), config.media_base_url.clone());
+        let knot_repository = KnotRepository::new(db.clone());
+        let gear_template_repository = GearTemplateRepository::new(db.clone());
         Self {
             inner: Arc::new(AppStateInner {
                 config,
                 db,
-                content,
                 wechat_client,
                 cache,
                 object_store,
                 email_sender,
                 knot_repository,
+                gear_template_repository,
                 public_rate_limiter: InMemoryPublicRateLimiter::default(),
                 public_response_cache: InMemoryPublicResponseCache::default(),
             }),
@@ -211,11 +156,6 @@ impl AppState {
     /// Returns the database connection.
     pub fn db(&self) -> &DatabaseConnection {
         &self.inner.db
-    }
-
-    /// Returns the content catalog.
-    pub fn content(&self) -> &ContentCatalog {
-        &self.inner.content
     }
 
     /// Returns the WeChat code2session client.
@@ -241,6 +181,11 @@ impl AppState {
     /// Returns the DB-backed public knot repository.
     pub fn knot_repository(&self) -> &KnotRepository {
         &self.inner.knot_repository
+    }
+
+    /// Returns the DB-backed public gear template repository.
+    pub fn gear_template_repository(&self) -> &GearTemplateRepository {
+        &self.inner.gear_template_repository
     }
 
     /// Returns the in-memory fallback public API limiter.

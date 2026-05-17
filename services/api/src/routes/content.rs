@@ -1,4 +1,4 @@
-//! Public content routes that read the seeded content catalog and expose mountains, routes, skills, and gear templates.
+//! Public DB-backed gear template routes.
 
 use axum::{
     Json, Router,
@@ -6,7 +6,7 @@ use axum::{
     routing::get,
 };
 use serde::Serialize;
-use stellartrail_importer::{GearTemplate, MountainContent, RouteContent};
+use stellartrail_domain::gear_template::GearTemplate;
 
 use crate::{error::ApiError, state::AppState};
 
@@ -16,79 +16,31 @@ struct ListResponse<T> {
     items: Vec<T>,
 }
 
-/// Runs the `routes` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Builds DB-backed public content routes that remain in scope for the initial MVP.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/mountains", get(list_mountains))
-        .route("/api/mountains/:id", get(get_mountain))
-        .route("/api/routes", get(list_routes))
-        .route("/api/routes/:id", get(get_route))
         .route("/api/gear-templates", get(list_gear_templates))
         .route("/api/gear-templates/:id", get(get_gear_template))
 }
 
-/// Runs the `list mountains` server-side flow while preserving input validation, error propagation, and state invariants.
-async fn list_mountains(State(state): State<AppState>) -> Json<ListResponse<MountainContent>> {
-    Json(ListResponse {
-        items: state.content().mountains.clone(),
-    })
-}
-
-/// Runs the `get mountain` server-side flow while preserving input validation, error propagation, and state invariants.
-async fn get_mountain(
+/// Lists active DB-backed gear templates.
+async fn list_gear_templates(
     State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<MountainContent>, ApiError> {
-    state
-        .content()
-        .mountains
-        .iter()
-        .find(|item| item.id == id)
-        .cloned()
-        .map(Json)
-        .ok_or(ApiError::NotFound)
+) -> Result<Json<ListResponse<GearTemplate>>, ApiError> {
+    Ok(Json(ListResponse {
+        items: state.gear_template_repository().list_templates().await?,
+    }))
 }
 
-/// Runs the `list routes` server-side flow while preserving input validation, error propagation, and state invariants.
-async fn list_routes(State(state): State<AppState>) -> Json<ListResponse<RouteContent>> {
-    Json(ListResponse {
-        items: state.content().routes.clone(),
-    })
-}
-
-/// Runs the `get route` server-side flow while preserving input validation, error propagation, and state invariants.
-async fn get_route(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<RouteContent>, ApiError> {
-    state
-        .content()
-        .routes
-        .iter()
-        .find(|item| item.id == id)
-        .cloned()
-        .map(Json)
-        .ok_or(ApiError::NotFound)
-}
-
-/// Runs the `list gear templates` server-side flow while preserving input validation, error propagation, and state invariants.
-async fn list_gear_templates(State(state): State<AppState>) -> Json<ListResponse<GearTemplate>> {
-    Json(ListResponse {
-        items: state.content().gear_templates.clone(),
-    })
-}
-
-/// Runs the `get gear template` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Returns one active DB-backed gear template by id.
 async fn get_gear_template(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<GearTemplate>, ApiError> {
     state
-        .content()
-        .gear_templates
-        .iter()
-        .find(|item| item.id == id)
-        .cloned()
+        .gear_template_repository()
+        .get_template(&id)
+        .await?
         .map(Json)
         .ok_or(ApiError::NotFound)
 }

@@ -1,13 +1,13 @@
 {
-  "images" : [
+  "images": [
     {
-      "idiom" : "mac",
-      "scale" : "1x",
-      "size" : "1024x1024"
+      "idiom": "mac",
+      "scale": "1x",
+      "size": "1024x1024"
     }
   ],
-  "info" : {
-    "author" : "xcode",
-    "version" : 1
+  "info": {
+    "author": "xcode",
+    "version": 1
   }
 }

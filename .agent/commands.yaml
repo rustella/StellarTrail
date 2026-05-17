@@ -75,12 +75,11 @@ commands:
     when_to_run: Run after scripts/dev-api.sh reports the API is ready.
     prerequisites:
       - API is running locally on 127.0.0.1:8080.
-  import_content_stub:
-    description: Placeholder content import check; currently only validates that the content directory exists unless the current branch has implemented full import.
+  check_importer_tests:
+    description: Run Knots3D metadata importer tests.
     cwd: .
-    command: scripts/import-content.sh content
-    status: stub
-    when_to_run: Do not treat as production import validation until the importer is fully wired.
+    command: cargo test -p stellartrail-importer
+    when_to_run: Run after changing Knots3D metadata parsing or importer CLI behavior.
   generate_api_client_stub:
     description: Placeholder API client generation script.
     cwd: .

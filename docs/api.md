@@ -139,24 +139,19 @@ POST /api/auth/refresh
 }
 ```
 
-## Public content catalog
+## Public skills and gear templates
 
-服务启动时会从 `CONTENT_DIR`（默认 `content`）读取 YAML/Markdown 种子内容，提供只读公共内容 API；这些接口不需要 Bearer Token。
+公共技能与装备模板接口不需要 Bearer Token。API 启动不再读取 repo-local `content/` 文件树，也不再挂载 `/assets/*` 静态目录；公开媒体 URL 均来自 DB 中保存的 MinIO/S3-compatible 对象存储地址。山峰和路线模块尚未开始实现，因此不注册 `/api/mountains*` 或 `/api/routes*`。
 
 ```http
-GET /api/mountains
-GET /api/mountains/:id
-GET /api/routes
-GET /api/routes/:id
 GET /api/skills
 GET /api/skills/knots/list?offset=0&limit=20
 GET /api/skills/knots/detail/:id
-GET /assets/*
 GET /api/gear-templates
 GET /api/gear-templates/:id
 ```
 
-`/api/routes/:id` 会返回路线点位、路线装备建议和关联技能；`/api/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不再暴露 Markdown mock。`/api/gear-templates/:id` 会返回装备模板分类和条目。
+`/api/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不暴露 Markdown mock。`/api/gear-templates` 和 `/api/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。
 
 ### Outdoor skills / knots
 

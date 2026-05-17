@@ -10,7 +10,7 @@
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/Client-WeChat%20Mini%20Program-07C160" />
   <img alt="Android" src="https://img.shields.io/badge/Client-Android%20%2B%20Compose-3DDC84" />
   <img alt="iOS" src="https://img.shields.io/badge/Client-iOS%20%2B%20SwiftUI-000000" />
-  <img alt="Content Driven" src="https://img.shields.io/badge/Content-YAML%20%2B%20Markdown-8A2BE2" />
+  <img alt="Content Driven" src="https://img.shields.io/badge/Content-DB%20%2B%20MinIO-8A2BE2" />
 </p>
 
 <p align="center">
@@ -23,15 +23,14 @@
 
 StellarTrail serves hikers, campers, and lightweight outdoor users in China. The product is designed around one preparation loop: choose a route, understand difficulty, seasonality and risks, generate a packing checklist, compare it with the user's gear library, and learn the related outdoor skills.
 
-The current entry point is a **WeChat Mini Program**. Native **Android** and **iOS** clients share the same core gear and skills experience. A **Rust API service** provides backend capabilities. Phase one focuses on **personal gear library management**, while routes, mountains, skills, and gear templates remain follow-up content directions.
+The current entry point is a **WeChat Mini Program**. Native **Android** and **iOS** clients share the same core gear and skills experience. A **Rust API service** provides backend capabilities. Phase one focuses on **personal gear library management**, DB-backed gear templates, and knot skills. Route and mountain modules are not implemented yet.
 
-| Module            | Current goal                                             |
-| ----------------- | -------------------------------------------------------- |
-| 🗺️ Route wiki     | Curate mountains, routes, difficulty, seasons, and risks |
-| 🎒 Gear prep      | Generate packing lists and compare personal gear         |
-| 🧭 Skills toolbox | Cover knots, camping, navigation, weather, first aid     |
-| 📦 Content import | Iterate seed content quickly with YAML/Markdown          |
-| 🧱 Rust backend   | Provide stable APIs, domain models, and data boundaries  |
+| Module            | Current goal                                                      |
+| ----------------- | ----------------------------------------------------------------- |
+| 🎒 Gear prep      | Manage personal gear and serve DB-backed gear templates           |
+| 🧭 Skills toolbox | Start with knots; media is delivered through MinIO/object storage |
+| 🧱 Rust backend   | Provide stable APIs, domain models, and data boundaries           |
+| 🗺️ Route wiki     | Follow-up module for mountains, routes, difficulty, and risks     |
 
 ## 🚀 MVP scope
 
@@ -49,14 +48,12 @@ Phase one focuses on:
 
 Routes, trips, skills, realtime navigation, social feeds, guided-trip marketplaces, full GPX editing, and commerce are intentionally out of scope for phase one.
 
-## 🌱 Current seed content
+## 🌱 Current public data
 
-| Type             | Content                                     |
-| ---------------- | ------------------------------------------- |
-| ⛰️ Mountain      | Wugongshan                                  |
-| 🥾 Route         | Wugongshan classic 2-day / 1-night traverse |
-| 🪢 Skill         | Taut-line hitch                             |
-| 🎒 Gear template | Beginner backpacking basics                 |
+| Type             | Source                                                                    |
+| ---------------- | ------------------------------------------------------------------------- |
+| 🪢 Knot skills   | Knots3D metadata imported into DB; media served from MinIO/object storage |
+| 🎒 Gear template | Idempotent system defaults seeded into DB at API startup                  |
 
 ## 🧭 Repository layout
 
@@ -72,12 +69,11 @@ StellarTrail/
   crates/
     domain/                 # Shared Rust domain models
     db/                     # DB config and repository boundary
-    importer/               # Content importer boundary
+    importer/               # Knots3D metadata importer boundary
     migration/              # Migration boundary
   packages/
     api-client-ts/          # TS API client for Mini Program / web / mobile
     shared-types/           # Shared TS DTO types
-  content/                  # Mountains, routes, skills, and gear templates
   docs/                     # Product, architecture, API, and content schema docs
   infra/                    # Local integration-test and production deployment config
   scripts/                  # Development helper scripts
@@ -130,15 +126,10 @@ POST /api/auth/email-verification-code
 POST /api/auth/register
 POST /api/auth/login
 POST /api/auth/captcha
-GET /api/mountains
-GET /api/mountains/:id
-GET /api/routes
-GET /api/routes/:id
 GET /api/skills
 GET /api/skills/knots/list
 GET /api/skills/knots/detail/:id
 PUT /api/admin/skills/knots/:knot_id/media/:asset_id
-GET /assets/*
 GET /api/gear-templates
 GET /api/gear-templates/:id
 GET /api/me/gears/categories
@@ -211,7 +202,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 - 📌 [MVP scope](docs/mvp.md)
 - 🏗️ [Architecture](docs/architecture.md)
 - 🔌 [API draft](docs/api.md)
-- 🧩 [Content schema draft](docs/content-schema.md)
+- 🧩 [Public data notes](docs/content-schema.md)
 
 ## 🏷️ Naming
 

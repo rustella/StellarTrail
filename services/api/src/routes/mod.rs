@@ -19,18 +19,14 @@ use axum::{
     },
     routing::get,
 };
-use tower_http::{
-    cors::{AllowOrigin, CorsLayer},
-    services::ServeDir,
-};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::config::CorsConfig;
 use crate::error::ApiError;
 use crate::state::AppState;
 
-/// Combines all business routes, health checks, static assets, and the 404 fallback.
+/// Combines all business routes, health checks, and the 404 fallback.
 pub fn build_router(state: AppState) -> Router {
-    let assets_dir = state.config().content_assets_dir.clone();
     let body_limit = state
         .config()
         .upload
@@ -48,7 +44,6 @@ pub fn build_router(state: AppState) -> Router {
         .merge(gears::routes())
         .merge(uploads::routes())
         .merge(feedback::routes())
-        .nest_service("/assets", ServeDir::new(assets_dir))
         .layer(DefaultBodyLimit::max(body_limit))
         .layer(cors_layer)
         .fallback(not_found)

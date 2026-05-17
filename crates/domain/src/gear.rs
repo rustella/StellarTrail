@@ -1,4 +1,4 @@
-//! Gear inventory domain model module defining categories, statuses, draft validation, statistics, and route gear suggestions.
+//! Gear inventory domain model module defining categories, statuses, draft validation, and statistics.
 
 use serde::{Deserialize, Serialize};
 use time::{Date, OffsetDateTime, format_description::well_known::Iso8601};
@@ -461,25 +461,6 @@ pub struct GearStats {
     pub total_weight_g: i64,
     pub by_category: Vec<GearCategoryCount>,
     pub by_status: Vec<GearStatusCount>,
-}
-
-/// Stable data boundary for `RouteGearSuggestion`, exposed by or reused within this module.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct RouteGearSuggestion {
-    pub route_id: String,
-    pub gear_category: String,
-    pub gear_name: String,
-    pub required_level: RequiredLevel,
-    pub reason: String,
-}
-
-/// Stable enum boundary for `RequiredLevel`, exposed by or reused within this module.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RequiredLevel {
-    Required,
-    Recommended,
-    Optional,
 }
 
 #[cfg(test)]
