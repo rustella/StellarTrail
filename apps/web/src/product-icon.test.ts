@@ -11,7 +11,7 @@ describe("web product icon asset", () => {
     const icon = readFileSync(PRODUCT_ICON, "utf8");
     const size = statSync(PRODUCT_ICON).size;
 
-    expect(icon).toContain('viewBox="0 0 512 512"');
+    expect(icon).toContain('viewBox="0 0 144 144"');
     expect(icon).toContain('id="night-sky"');
     expect(icon).toContain('id="mountains"');
     expect(icon).toContain('id="trail"');
@@ -24,10 +24,13 @@ describe("web product icon asset", () => {
     const html = readFileSync(INDEX_HTML, "utf8");
 
     expect(html).toContain(
-      '<link rel="icon" type="image/svg+xml" href="/stellartrail-icon.svg" />',
+      '<link rel="icon" type="image/svg+xml" href="/favicon.svg" />',
     );
     expect(html).toContain(
-      '<link rel="apple-touch-icon" href="/stellartrail-icon.svg" />',
+      '<link rel="apple-touch-icon" href="/apple-touch-icon.png" />',
+    );
+    expect(html).toContain(
+      '<link rel="manifest" href="/manifest.webmanifest" />',
     );
   });
 });
