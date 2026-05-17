@@ -170,3 +170,35 @@ commands:
     command: ./gradlew :apps:android:lintDebug
     when_to_run: Run before handoff after Android code changes.
     ci: .github/workflows/android-ci.yml
+  ios_xcodegen_generate:
+    description: Generate the iOS Xcode project from the versioned XcodeGen definition.
+    cwd: apps/ios
+    command: xcodegen generate
+    when_to_run: Run on macOS after changing apps/ios/project.yml or before Xcode build/test commands.
+    prerequisites:
+      - macOS with Xcode installed.
+      - XcodeGen 2.42 or newer installed.
+  ios_build_simulator:
+    description: Build the iOS SwiftUI app for the review simulator.
+    cwd: apps/ios
+    command: xcodebuild -project StellarTrail.xcodeproj -scheme StellarTrail -destination 'platform=iOS Simulator,name=iPhone 15 Pro' build
+    when_to_run: Run after changing iOS app source, resources, or project configuration.
+    prerequisites:
+      - Run ios_xcodegen_generate first when the Xcode project is missing or stale.
+      - macOS with Xcode and the iPhone 15 Pro simulator runtime.
+  ios_test_simulator:
+    description: Run iOS unit and UI tests on the review simulator.
+    cwd: apps/ios
+    command: xcodebuild -project StellarTrail.xcodeproj -scheme StellarTrail -destination 'platform=iOS Simulator,name=iPhone 15 Pro' test
+    when_to_run: Run after changing iOS DTOs, repositories, view models, UI, or screenshot flow.
+    prerequisites:
+      - Run ios_xcodegen_generate first when the Xcode project is missing or stale.
+      - macOS with Xcode and the iPhone 15 Pro simulator runtime.
+  ios_capture_screenshots:
+    description: Run the deterministic iOS screenshot UI test and keep the review result bundle or exported attachments.
+    cwd: .
+    command: scripts/capture-ios-screenshots.sh
+    when_to_run: Run after visible iOS page changes before asking for design review.
+    prerequisites:
+      - macOS with Xcode, iOS simulator runtime, and XcodeGen.
+      - The app can build and run in the selected simulator.

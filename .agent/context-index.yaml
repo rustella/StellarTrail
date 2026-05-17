@@ -44,6 +44,15 @@ topics:
       - apps/wechat-miniprogram/miniprogram/app.json
       - packages/api-client-ts/src/index.ts
       - packages/shared-types/src/index.ts
+  ios_client:
+    summary: Load when changing the iOS SwiftUI app, iOS DTOs, repositories, XcodeGen project definition, tests, or screenshot flows.
+    read:
+      - apps/ios/README.md
+      - apps/ios/project.yml
+      - apps/ios/StellarTrail/App/StellarTrailApp.swift
+      - packages/shared-types/src/index.ts
+      - docs/api.md
+      - .agent/commands.yaml
   content_import:
     summary: Load when changing seed content, content schema, or importer behavior.
     read:
@@ -91,6 +100,20 @@ tasks:
       - .agent/commands.yaml
     related_topics:
       - android_client
+      - domain_model
+      - testing_and_ci
+    checklist: .agent/checklists/self-review.md
+  ios_feature_or_bugfix:
+    keywords: [ios, swift, swiftui, xcode, xcodegen, simulator, screenshot]
+    read:
+      - apps/ios/README.md
+      - apps/ios/project.yml
+      - apps/ios/StellarTrail/App/StellarTrailApp.swift
+      - packages/shared-types/src/index.ts
+      - docs/api.md
+      - .agent/commands.yaml
+    related_topics:
+      - ios_client
       - domain_model
       - testing_and_ci
     checklist: .agent/checklists/self-review.md
