@@ -7,45 +7,45 @@
   color: var(--text-color);
   background: var(--page-bg);
   font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --text-color: #172017;
-  --muted-color: #6d7e6b;
-  --heading-muted-color: #60725e;
-  --accent-color: #5d7d46;
-  --page-bg: #f3f5ef;
+  --text-color: #0f172a;
+  --muted-color: #64748b;
+  --heading-muted-color: #334155;
+  --accent-color: #0f766e;
+  --page-bg: #f8fafc;
   --body-gradient: linear-gradient(
     135deg,
-    #eef4e7 0%,
-    #f8faf5 52%,
-    #eef3f1 100%
+    #f8fafc 0%,
+    #ecfeff 52%,
+    #eef2ff 100%
   );
-  --surface-color: rgba(255, 255, 255, 0.86);
+  --surface-color: rgba(255, 255, 255, 0.92);
   --surface-strong-color: #fff;
-  --sidebar-surface-color: rgba(255, 255, 255, 0.78);
+  --sidebar-surface-color: rgba(255, 255, 255, 0.86);
   --control-bg: #fff;
-  --control-border: #d8e1d2;
-  --border-color: #dfe7d8;
-  --soft-border-color: #edf2e9;
-  --section-border-color: #e1eadc;
-  --brand-color: #1f3a24;
+  --control-border: #e2e8f0;
+  --border-color: #e2e8f0;
+  --soft-border-color: #f1f5f9;
+  --section-border-color: #e2e8f0;
+  --brand-color: #0f766e;
   --brand-text-color: #fff;
-  --soft-control-bg: #edf3e8;
-  --soft-control-text: #263526;
-  --tab-bg: #e7efe0;
-  --chip-bg: #eef5e9;
-  --notice-text: #7d4b10;
-  --notice-bg: #fff0cf;
-  --status-success-text: #245431;
-  --status-success-bg: #e2f4df;
-  --status-warning-text: #7d4b10;
-  --status-warning-bg: #fff0cf;
-  --status-danger-text: #7d2727;
-  --status-danger-bg: #ffe2e2;
-  --info-bg: #edf7ff;
-  --modal-backdrop: rgba(16, 28, 18, 0.42);
-  --shadow-soft: 0 14px 40px rgba(31, 58, 36, 0.06);
-  --shadow-card: 0 24px 80px rgba(23, 32, 23, 0.12);
+  --soft-control-bg: #f1f5f9;
+  --soft-control-text: #475569;
+  --tab-bg: #f1f5f9;
+  --chip-bg: #ecfdf5;
+  --notice-text: #b45309;
+  --notice-bg: #fef3c7;
+  --status-success-text: #047857;
+  --status-success-bg: #d1fae5;
+  --status-warning-text: #b45309;
+  --status-warning-bg: #fef3c7;
+  --status-danger-text: #dc2626;
+  --status-danger-bg: #fff1f2;
+  --info-bg: #eff6ff;
+  --modal-backdrop: rgba(15, 23, 42, 0.32);
+  --shadow-soft: 0 12px 40px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 18px 50px rgba(15, 23, 42, 0.12);
   --shadow-modal: 0 30px 100px rgba(0, 0, 0, 0.24);
-  --shadow-drawer: -20px 0 70px rgba(22, 32, 23, 0.16);
+  --shadow-drawer: -20px 0 70px rgba(15, 23, 42, 0.14);
 }
 
 :root[data-theme="dark"] {
@@ -436,7 +436,7 @@ td small {
 
 .primary-button {
   color: var(--brand-text-color);
-  background: var(--text-color);
+  background: var(--brand-color);
 }
 
 .secondary-button,
