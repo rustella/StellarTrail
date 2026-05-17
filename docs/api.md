@@ -16,6 +16,7 @@ POST /api/auth/wechat-login
 POST /api/auth/email-verification-code
 POST /api/auth/register
 POST /api/auth/login
+POST /api/auth/refresh
 POST /api/auth/captcha
 ```
 
@@ -105,10 +106,37 @@ POST /api/auth/login
 }
 ```
 
-登录/注册成功响应会返回 `access_token`，后续请求使用：
+登录/注册成功响应会返回短期 `access_token` 和长期 `refresh_token`。服务端只保存 token hash，不保存明文 token；客户端后续私有接口请求使用：
 
 ```http
 Authorization: Bearer ***
+```
+
+当 `access_token` 过期或私有接口返回 401 时，客户端可使用 `refresh_token` 换取新的 token pair。refresh 成功会轮换 refresh token，旧 refresh token 立即失效，客户端必须持久化新的 `refresh_token`。
+
+```json
+POST /api/auth/refresh
+{
+  "refresh_token": "opaque-refresh-token"
+}
+```
+
+登录、注册和刷新成功响应结构一致：
+
+```json
+{
+  "access_token": "opaque-access-token",
+  "expires_at": "2026-05-16T12:00:00Z",
+  "refresh_token": "opaque-refresh-token",
+  "refresh_expires_at": "2026-06-15T10:00:00Z",
+  "user": {
+    "id": "user-id",
+    "username": "trail_alice",
+    "email": "alice@example.com",
+    "nickname": null,
+    "avatar_url": null
+  }
+}
 ```
 
 ## Public content catalog

@@ -185,8 +185,17 @@ export default function App({ client }: AppProps) {
   const dashboardRequestRef = useRef(0);
 
   useEffect(() => {
-    api.setAccessToken(session?.accessToken);
-  }, [api, session?.accessToken]);
+    api.setSessionTokens(session?.accessToken, session?.refreshToken);
+  }, [api, session?.accessToken, session?.refreshToken]);
+
+  useEffect(() => {
+    api.setSessionRefreshHandler((response) => {
+      const nextSession = sessionFromLoginResponse(response);
+      saveSession(nextSession);
+      setSession(nextSession);
+    });
+    return () => api.setSessionRefreshHandler(undefined);
+  }, [api]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -268,13 +277,9 @@ export default function App({ client }: AppProps) {
 
   function completeLogin(response: WechatLoginResponse) {
     resetDashboardState();
-    const nextSession: WebSession = {
-      accessToken: response.access_token,
-      expiresAt: response.expires_at,
-      user: response.user,
-    };
+    const nextSession = sessionFromLoginResponse(response);
     saveSession(nextSession);
-    api.setAccessToken(response.access_token);
+    api.setSessionTokens(nextSession.accessToken, nextSession.refreshToken);
     setSession(nextSession);
   }
 
@@ -419,7 +424,7 @@ export default function App({ client }: AppProps) {
 
   function handleLogout() {
     clearSession();
-    api.setAccessToken(undefined);
+    api.setSessionTokens(undefined, undefined);
     setSession(null);
     resetDashboardState();
   }
@@ -1602,6 +1607,16 @@ function authTitle(mode: AuthMode): string {
     return "注册账号";
   }
   return "本地开发登录";
+}
+
+function sessionFromLoginResponse(response: WechatLoginResponse): WebSession {
+  return {
+    accessToken: response.access_token,
+    expiresAt: response.expires_at,
+    refreshToken: response.refresh_token,
+    refreshExpiresAt: response.refresh_expires_at,
+    user: response.user,
+  };
 }
 
 function displayUserName(session: WebSession): string {

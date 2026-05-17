@@ -5,8 +5,8 @@ use axum::{Json, Router, routing::post};
 use crate::{
     dto::auth::{
         CaptchaChallengeRequest, CaptchaChallengeResponse, EmailVerificationCodeRequest,
-        EmailVerificationCodeResponse, LoginResponse, PasswordLoginRequest, RegisterRequest,
-        WechatLoginRequest,
+        EmailVerificationCodeResponse, LoginResponse, PasswordLoginRequest, RefreshTokenRequest,
+        RegisterRequest, WechatLoginRequest,
     },
     error::ApiError,
     services::auth_service,
@@ -23,6 +23,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(password_login))
+        .route("/api/auth/refresh", post(refresh_token))
         .route("/api/auth/captcha", post(create_captcha))
 }
 
@@ -59,6 +60,15 @@ async fn password_login(
     Json(payload): Json<PasswordLoginRequest>,
 ) -> Result<Json<LoginResponse>, ApiError> {
     let response = auth_service::password_login(&state, payload).await?;
+    Ok(Json(response))
+}
+
+/// Rotates an active refresh token and returns a fresh access/refresh token pair.
+async fn refresh_token(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<RefreshTokenRequest>,
+) -> Result<Json<LoginResponse>, ApiError> {
+    let response = auth_service::refresh_token(&state, payload.refresh_token).await?;
     Ok(Json(response))
 }
 

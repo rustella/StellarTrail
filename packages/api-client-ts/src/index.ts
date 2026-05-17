@@ -20,6 +20,7 @@ import type {
   ListGearsResponse,
   MetaResponse,
   PasswordLoginRequest,
+  RefreshTokenRequest,
   RegisterRequest,
   RouteContent,
   SkillCategoriesResponse,
@@ -33,21 +34,43 @@ export interface ApiClientOptions {
   baseUrl: string;
   fetcher?: typeof fetch;
   accessToken?: string;
+  refreshToken?: string;
+  onSessionRefresh?: (response: WechatLoginResponse) => void;
 }
 
 export class StellarTrailApiClient {
   private readonly baseUrl: string;
   private readonly fetcher: typeof fetch;
   private accessToken?: string;
+  private refreshToken?: string;
+  private refreshPromise?: Promise<WechatLoginResponse>;
+  private onSessionRefresh?: (response: WechatLoginResponse) => void;
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
     this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
     this.accessToken = options.accessToken;
+    this.refreshToken = options.refreshToken;
+    this.onSessionRefresh = options.onSessionRefresh;
   }
 
   setAccessToken(accessToken?: string): void {
     this.accessToken = accessToken;
+  }
+
+  setRefreshToken(refreshToken?: string): void {
+    this.refreshToken = refreshToken;
+  }
+
+  setSessionTokens(accessToken?: string, refreshToken?: string): void {
+    this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
+  }
+
+  setSessionRefreshHandler(
+    handler?: (response: WechatLoginResponse) => void,
+  ): void {
+    this.onSessionRefresh = handler;
   }
 
   async health(): Promise<HealthResponse> {
@@ -112,7 +135,7 @@ export class StellarTrailApiClient {
       "/api/auth/wechat-login",
       request,
     );
-    this.accessToken = response.access_token;
+    this.applyLoginResponse(response);
     return response;
   }
 
@@ -136,7 +159,7 @@ export class StellarTrailApiClient {
       "/api/auth/register",
       request,
     );
-    this.accessToken = response.access_token;
+    this.applyLoginResponse(response);
     return response;
   }
 
@@ -147,7 +170,18 @@ export class StellarTrailApiClient {
       "/api/auth/login",
       request,
     );
-    this.accessToken = response.access_token;
+    this.applyLoginResponse(response);
+    return response;
+  }
+
+  async refreshSession(
+    request: RefreshTokenRequest,
+  ): Promise<WechatLoginResponse> {
+    const response = await this.post<WechatLoginResponse>(
+      "/api/auth/refresh",
+      request,
+    );
+    this.applyLoginResponse(response, true);
     return response;
   }
 
@@ -260,6 +294,23 @@ export class StellarTrailApiClient {
     auth = false,
     locale?: SkillLocale,
   ): Promise<Response> {
+    let response = await this.send(path, init, auth, locale);
+    if (response.status === 401 && auth && this.refreshToken) {
+      await this.refreshWithStoredToken();
+      response = await this.send(path, init, auth, locale);
+    }
+    if (!response.ok) {
+      throw new Error(`StellarTrail API request failed: ${response.status}`);
+    }
+    return response;
+  }
+
+  private async send(
+    path: string,
+    init: RequestInit,
+    auth: boolean,
+    locale?: SkillLocale,
+  ): Promise<Response> {
     const headers = new Headers(init.headers);
     if (locale) {
       headers.set("X-StellarTrail-Locale", locale);
@@ -270,14 +321,36 @@ export class StellarTrailApiClient {
       }
       headers.set("authorization", `Bearer ${this.accessToken}`);
     }
-    const response = await this.fetcher(`${this.baseUrl}${path}`, {
+    return this.fetcher(`${this.baseUrl}${path}`, {
       ...init,
       headers,
     });
-    if (!response.ok) {
-      throw new Error(`StellarTrail API request failed: ${response.status}`);
+  }
+
+  private async refreshWithStoredToken(): Promise<void> {
+    if (!this.refreshToken) {
+      throw new Error("StellarTrail API request requires a refresh token");
     }
-    return response;
+    if (!this.refreshPromise) {
+      const refreshToken = this.refreshToken;
+      this.refreshPromise = this.refreshSession({
+        refresh_token: refreshToken,
+      }).finally(() => {
+        this.refreshPromise = undefined;
+      });
+    }
+    await this.refreshPromise;
+  }
+
+  private applyLoginResponse(
+    response: WechatLoginResponse,
+    notify = false,
+  ): void {
+    this.accessToken = response.access_token;
+    this.refreshToken = response.refresh_token;
+    if (notify) {
+      this.onSessionRefresh?.(response);
+    }
   }
 }
 

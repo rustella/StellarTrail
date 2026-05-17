@@ -71,18 +71,29 @@ data class LoginUser(
 data class LoginResponse(
     @SerialName("access_token") val accessToken: String,
     @SerialName("expires_at") val expiresAt: String,
+    @SerialName("refresh_token") val refreshToken: String,
+    @SerialName("refresh_expires_at") val refreshExpiresAt: String,
     val user: LoginUser,
+)
+
+@Serializable
+data class RefreshTokenRequest(
+    @SerialName("refresh_token") val refreshToken: String,
 )
 
 @Serializable
 data class UserSession(
     val accessToken: String,
     val expiresAt: String,
+    val refreshToken: String,
+    val refreshExpiresAt: String,
     val user: LoginUser,
 )
 
 fun LoginResponse.toSession(): UserSession = UserSession(
     accessToken = accessToken,
     expiresAt = expiresAt,
+    refreshToken = refreshToken,
+    refreshExpiresAt = refreshExpiresAt,
     user = user,
 )

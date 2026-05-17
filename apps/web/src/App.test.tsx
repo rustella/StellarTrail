@@ -13,6 +13,8 @@ import type { WebGearApi } from "./api";
 function buildClient(): WebGearApi {
   return {
     setAccessToken: vi.fn(),
+    setSessionTokens: vi.fn(),
+    setSessionRefreshHandler: vi.fn(),
     meta: vi.fn().mockResolvedValue({
       name: "StellarTrail",
       env: "local",
@@ -21,11 +23,15 @@ function buildClient(): WebGearApi {
     loginWithWechatCode: vi.fn().mockResolvedValue({
       access_token: "token-123",
       expires_at: "2026-06-01T00:00:00Z",
+      refresh_token: "refresh-123",
+      refresh_expires_at: "2026-07-01T00:00:00Z",
       user: { id: "u1", nickname: "测试用户", avatar_url: null },
     }),
     loginWithPassword: vi.fn().mockResolvedValue({
       access_token: "token-password",
       expires_at: "2026-06-01T00:00:00Z",
+      refresh_token: "refresh-password",
+      refresh_expires_at: "2026-07-01T00:00:00Z",
       user: {
         id: "u2",
         username: "trail-user",
@@ -49,6 +55,8 @@ function buildClient(): WebGearApi {
     register: vi.fn().mockResolvedValue({
       access_token: "token-register",
       expires_at: "2026-06-01T00:00:00Z",
+      refresh_token: "refresh-register",
+      refresh_expires_at: "2026-07-01T00:00:00Z",
       user: {
         id: "u3",
         username: "new-user",

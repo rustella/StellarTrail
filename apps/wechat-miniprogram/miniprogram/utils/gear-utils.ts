@@ -163,6 +163,8 @@ export interface ListGearTemplatesResponse {
 export interface WechatLoginResponse {
   access_token: string;
   expires_at: string;
+  refresh_token: string;
+  refresh_expires_at: string;
   user: {
     id: string;
     username?: string | null;

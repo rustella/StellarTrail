@@ -24,6 +24,13 @@ pub struct UserRecord {
     pub updated_at: String,
 }
 
+/// Active refresh-token lookup result used to rotate the owning session and return the user payload.
+#[derive(Clone, Debug)]
+pub struct RefreshSessionRecord {
+    pub session_id: String,
+    pub user: UserRecord,
+}
+
 /// Authentication persistence object that centralizes SQL for users, sessions, and verification challenges.
 #[derive(Clone)]
 pub struct AuthRepository {
@@ -142,21 +149,30 @@ impl AuthRepository {
         user_id: &str,
         token_hash: &str,
         expires_at: OffsetDateTime,
+        refresh_token_hash: &str,
+        refresh_expires_at: OffsetDateTime,
     ) -> Result<String, DbErr> {
         let id = Uuid::new_v4().to_string();
         let now = now_rfc3339();
         let expires_at = expires_at
             .format(&Iso8601::DEFAULT)
             .map_err(|err| DbErr::Custom(err.to_string()))?;
+        let refresh_expires_at = refresh_expires_at
+            .format(&Iso8601::DEFAULT)
+            .map_err(|err| DbErr::Custom(err.to_string()))?;
         self.db
             .execute(statement(
                 self.db.get_database_backend(),
-                "INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+                r#"INSERT INTO sessions (
+                    id, user_id, token_hash, refresh_token_hash, expires_at, refresh_expires_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)"#,
                 vec![
                     id.clone().into(),
                     user_id.to_owned().into(),
                     token_hash.to_owned().into(),
+                    refresh_token_hash.to_owned().into(),
                     expires_at.into(),
+                    refresh_expires_at.into(),
                     now.into(),
                 ],
             ))
@@ -338,6 +354,90 @@ impl AuthRepository {
         row.map(|row| map_user(&row)).transpose()
     }
 
+    /// Finds an active refresh token together with its session id while allowing the access token to be expired.
+    pub async fn find_session_by_refresh_token_hash(
+        &self,
+        refresh_token_hash: &str,
+    ) -> Result<Option<RefreshSessionRecord>, DbErr> {
+        let now = now_rfc3339();
+        let row = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                format!(
+                    r#"SELECT sessions.id AS session_id, users.{user_select}
+                       FROM sessions
+                       JOIN users ON users.id = sessions.user_id
+                       WHERE sessions.refresh_token_hash = ?
+                         AND sessions.revoked_at IS NULL
+                         AND sessions.refresh_expires_at > ?
+                         AND users.deleted_at IS NULL
+                       LIMIT 1"#,
+                    user_select = USER_SELECT.replace(", ", ", users."),
+                ),
+                vec![refresh_token_hash.to_owned().into(), now.into()],
+            ))
+            .await?;
+        row.map(|row| {
+            Ok(RefreshSessionRecord {
+                session_id: row.try_get("", "session_id")?,
+                user: map_user(&row)?,
+            })
+        })
+        .transpose()
+    }
+
+    /// Atomically rotates the stored access and refresh token hashes for one active session.
+    pub async fn rotate_session_tokens(
+        &self,
+        session_id: &str,
+        old_refresh_token_hash: &str,
+        token_hash: &str,
+        expires_at: OffsetDateTime,
+        refresh_token_hash: &str,
+        refresh_expires_at: OffsetDateTime,
+    ) -> Result<bool, DbErr> {
+        let now = now_rfc3339();
+        let expires_at = expires_at
+            .format(&Iso8601::DEFAULT)
+            .map_err(|err| DbErr::Custom(err.to_string()))?;
+        let refresh_expires_at = refresh_expires_at
+            .format(&Iso8601::DEFAULT)
+            .map_err(|err| DbErr::Custom(err.to_string()))?;
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                r#"UPDATE sessions
+                   SET token_hash = ?,
+                       refresh_token_hash = ?,
+                       expires_at = ?,
+                       refresh_expires_at = ?,
+                       refreshed_at = ?
+                   WHERE id = ?
+                     AND refresh_token_hash = ?
+                     AND refresh_expires_at > ?
+                     AND revoked_at IS NULL
+                     AND EXISTS (
+                         SELECT 1 FROM users
+                         WHERE users.id = sessions.user_id
+                           AND users.deleted_at IS NULL
+                     )"#,
+                vec![
+                    token_hash.to_owned().into(),
+                    refresh_token_hash.to_owned().into(),
+                    expires_at.into(),
+                    refresh_expires_at.into(),
+                    now.clone().into(),
+                    session_id.to_owned().into(),
+                    old_refresh_token_hash.to_owned().into(),
+                    now.into(),
+                ],
+            ))
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     /// Finds a user by normalized account identifier, supporting username or email login.
     pub async fn find_user_by_login_account(
         &self,
@@ -497,6 +597,8 @@ mod tests {
         repo.create_session(
             &user.id,
             &token_hash,
+            OffsetDateTime::now_utc() + time::Duration::hours(2),
+            &hash_token("plain-refresh-token"),
             OffsetDateTime::now_utc() + time::Duration::days(30),
         )
         .await

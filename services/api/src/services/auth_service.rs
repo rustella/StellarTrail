@@ -21,6 +21,8 @@ const EMAIL_CODE_PURPOSE_REGISTER: &str = "register";
 const EMAIL_CODE_EXPIRES_MINUTES: i64 = 10;
 const CAPTCHA_EXPIRES_MINUTES: i64 = 5;
 const LOGIN_CAPTCHA_THRESHOLD: i32 = 3;
+const ACCESS_TOKEN_EXPIRES_HOURS: i64 = 2;
+const REFRESH_TOKEN_EXPIRES_DAYS: i64 = 30;
 
 /// Handles WeChat Mini Program code login and issues a StellarTrail session token on success.
 pub async fn wechat_login(
@@ -197,6 +199,24 @@ pub async fn create_captcha_challenge(
     })
 }
 
+/// Rotates a valid refresh token and returns a fresh access/refresh token pair for the same session.
+pub async fn refresh_token(
+    state: &AppState,
+    refresh_token: String,
+) -> Result<LoginResponse, ApiError> {
+    let refresh_token = validate_refresh_token(refresh_token)?;
+    let repo = AuthRepository::new(state.db().clone());
+    let refresh_token_hash = hash_token(&refresh_token);
+    let Some(session) = repo
+        .find_session_by_refresh_token_hash(&refresh_token_hash)
+        .await?
+    else {
+        return Err(ApiError::Unauthorized);
+    };
+    issue_rotated_login_for_session(&repo, session.session_id, refresh_token_hash, session.user)
+        .await
+}
+
 /// Runs the `mock login` server-side flow while preserving input validation, error propagation, and state invariants.
 pub async fn mock_login(
     state: &AppState,
@@ -230,20 +250,73 @@ async fn issue_login_for_openid(
     issue_login_for_user(&repo, user).await
 }
 
-/// Generates a random token for the user, stores its hash, and returns the login response.
+/// Generates random access/refresh tokens for the user, stores only their hashes, and returns the login response.
 async fn issue_login_for_user(
     repo: &AuthRepository,
     user: UserRecord,
 ) -> Result<LoginResponse, ApiError> {
-    // The client receives a random token while the database stores only its hash, so database leaks cannot directly forge requests.
-    let token = generate_token();
-    let token_hash = hash_token(&token);
-    let expires_at = OffsetDateTime::now_utc() + Duration::days(30);
-    repo.create_session(&user.id, &token_hash, expires_at)
+    let token_pair = generate_token_pair();
+    repo.create_session(
+        &user.id,
+        &hash_token(&token_pair.access_token),
+        token_pair.expires_at,
+        &hash_token(&token_pair.refresh_token),
+        token_pair.refresh_expires_at,
+    )
+    .await?;
+    login_response(user, token_pair)
+}
+
+/// Rotates token hashes in an existing session so the previous refresh token cannot be replayed.
+async fn issue_rotated_login_for_session(
+    repo: &AuthRepository,
+    session_id: String,
+    old_refresh_token_hash: String,
+    user: UserRecord,
+) -> Result<LoginResponse, ApiError> {
+    let token_pair = generate_token_pair();
+    let updated = repo
+        .rotate_session_tokens(
+            &session_id,
+            &old_refresh_token_hash,
+            &hash_token(&token_pair.access_token),
+            token_pair.expires_at,
+            &hash_token(&token_pair.refresh_token),
+            token_pair.refresh_expires_at,
+        )
         .await?;
+    if !updated {
+        return Err(ApiError::Unauthorized);
+    }
+    login_response(user, token_pair)
+}
+
+struct TokenPair {
+    access_token: String,
+    expires_at: OffsetDateTime,
+    refresh_token: String,
+    refresh_expires_at: OffsetDateTime,
+}
+
+fn generate_token_pair() -> TokenPair {
+    TokenPair {
+        access_token: generate_token(),
+        expires_at: OffsetDateTime::now_utc() + Duration::hours(ACCESS_TOKEN_EXPIRES_HOURS),
+        refresh_token: generate_token(),
+        refresh_expires_at: OffsetDateTime::now_utc() + Duration::days(REFRESH_TOKEN_EXPIRES_DAYS),
+    }
+}
+
+fn login_response(user: UserRecord, token_pair: TokenPair) -> Result<LoginResponse, ApiError> {
     Ok(LoginResponse {
-        access_token: token,
-        expires_at: expires_at
+        access_token: token_pair.access_token,
+        expires_at: token_pair
+            .expires_at
+            .format(&Iso8601::DEFAULT)
+            .map_err(ApiError::internal)?,
+        refresh_token: token_pair.refresh_token,
+        refresh_expires_at: token_pair
+            .refresh_expires_at
             .format(&Iso8601::DEFAULT)
             .map_err(ApiError::internal)?,
         user: LoginUserResponse {
@@ -373,6 +446,18 @@ fn validate_verification_code(code: String) -> Result<String, ApiError> {
         )]));
     }
     Ok(code.to_owned())
+}
+
+/// Runs the `validate refresh token` server-side flow while preserving input validation, error propagation, and state invariants.
+fn validate_refresh_token(token: String) -> Result<String, ApiError> {
+    let token = token.trim();
+    if token.is_empty() {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "refresh_token",
+            "is required",
+        )]));
+    }
+    Ok(token.to_owned())
 }
 
 /// Validates and consumes an image captcha challenge to prevent replaying the same ticket.
