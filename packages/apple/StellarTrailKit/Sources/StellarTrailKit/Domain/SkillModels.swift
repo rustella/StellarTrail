@@ -99,6 +99,8 @@ struct KnotListResponse: Codable, Equatable {
     let items: [KnotSummary]
     let page: PageInfo
 
+    var nextOffset: Int? { page.nextOffset }
+
     enum CodingKeys: String, CodingKey {
         case locale, items, page
         case nextOffset
@@ -120,6 +122,13 @@ struct KnotListResponse: Codable, Equatable {
             let nextOffset = try container.decodeIfPresent(Int.self, forKey: .nextOffset)
             self.page = PageInfo(limit: items.count, offset: 0, nextOffset: nextOffset)
         }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(locale, forKey: .locale)
+        try container.encode(items, forKey: .items)
+        try container.encode(page, forKey: .page)
     }
 }
 
