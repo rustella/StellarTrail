@@ -8,7 +8,7 @@ use axum::{
 use serde_json::{Value, json};
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
-    config::{ApiConfig, RedisCacheConfig},
+    config::{ApiConfig, CorsConfig, RedisCacheConfig},
     migrate_database,
     routes::build_router,
     state::AppState,
@@ -49,6 +49,7 @@ async fn test_app_with_cache(cache: Cache) -> TestApp {
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),
+        cors: CorsConfig::default(),
     };
     TestApp {
         router: build_router(AppState::new_with_cache(config, db, cache)),

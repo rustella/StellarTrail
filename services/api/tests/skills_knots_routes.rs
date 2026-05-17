@@ -7,7 +7,9 @@ use http_body_util::BodyExt;
 use sea_orm::{ConnectionTrait, Statement};
 use serde_json::Value;
 use stellartrail_api::{
-    config::{ApiConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig},
+    config::{
+        ApiConfig, CorsConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig,
+    },
     migrate_database,
     routes::build_router,
     state::AppState,
@@ -182,6 +184,7 @@ async fn seeded_app_with_uploaded_media() -> TestApp {
             trust_proxy_headers: false,
             trusted_proxy_cidrs: Vec::new(),
         },
+        cors: CorsConfig::default(),
     };
     let repository = KnotRepository::new(db.clone(), config.media_base_url.clone());
     repository
@@ -261,6 +264,7 @@ async fn seeded_app() -> TestApp {
             trust_proxy_headers: false,
             trusted_proxy_cidrs: Vec::new(),
         },
+        cors: CorsConfig::default(),
     };
     let repository = KnotRepository::new(db.clone(), config.media_base_url.clone());
     repository

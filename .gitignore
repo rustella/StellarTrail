@@ -11,6 +11,14 @@
 /config.yaml
 /config.*.yaml
 !/config.example.yaml
+infra/production/**/config.yaml
+infra/production/**/config.*.yaml
+!infra/production/**/config.*.example.yaml
+infra/production/**/.env
+infra/production/**/.env.*
+!infra/production/**/.env.example
+infra/production/traefik/acme.json
+infra/production/traefik/acme/
 
 # Rust
 /target/

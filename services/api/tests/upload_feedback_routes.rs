@@ -8,7 +8,9 @@ use axum::{
 use serde_json::{Value, json};
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
-    config::{ApiConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig},
+    config::{
+        ApiConfig, CorsConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig,
+    },
     migrate_database,
     object_store::InMemoryObjectStore,
     routes::build_router,
@@ -66,6 +68,7 @@ async fn test_app(max_images_per_window: u64) -> TestApp {
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: PublicApiConfig::default(),
+        cors: CorsConfig::default(),
     };
     let state = AppState::new_with_cache_and_object_store(
         config,

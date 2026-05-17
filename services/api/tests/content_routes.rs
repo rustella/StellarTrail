@@ -11,7 +11,7 @@ use axum::{
 use serde_json::Value;
 use stellartrail_api::{
     build_state,
-    config::{ApiConfig, RedisCacheConfig},
+    config::{ApiConfig, CorsConfig, RedisCacheConfig},
     routes::build_router,
 };
 use stellartrail_db::DatabaseConfig;
@@ -50,6 +50,7 @@ async fn test_app_with_content_dir(temp_dir: TempDir, content_dir: PathBuf) -> T
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),
+        cors: CorsConfig::default(),
     };
     let state = build_state(config).await.unwrap();
     TestApp {

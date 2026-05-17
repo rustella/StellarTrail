@@ -77,8 +77,8 @@ services:
 
   api:
     build:
-      context: ..
-      dockerfile: infra/Dockerfile.api
+      context: ../..
+      dockerfile: infra/production/api/Dockerfile
     network_mode: bridge
     extra_hosts:
       - "host.docker.internal:host-gateway"

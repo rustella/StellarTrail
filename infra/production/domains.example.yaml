@@ -1,0 +1,21 @@
+# Non-sensitive production domain routing contract for StellarTrail.
+# Copy values into Traefik labels, API config.yaml CORS allowlist, and smoke tests.
+site:
+  canonical_origin: https://stellartail.cn
+  redirect_origins:
+    - https://www.stellartail.cn
+web:
+  origin: https://app.stellartail.cn
+api:
+  origin: https://api.stellartail.cn
+assets:
+  origin: https://assets.stellartail.cn
+allowlist:
+  api_cors_origins:
+    - https://app.stellartail.cn
+    - https://stellartail.cn
+    - https://www.stellartail.cn
+  asset_cors_origins:
+    - https://app.stellartail.cn
+    - https://stellartail.cn
+    - https://www.stellartail.cn

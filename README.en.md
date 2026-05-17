@@ -63,6 +63,7 @@ Routes, trips, skills, realtime navigation, social feeds, guided-trip marketplac
 StellarTrail/
   apps/
     android/                # Android native client (Kotlin + Jetpack Compose)
+    web/                    # Web App
     wechat-miniprogram/     # WeChat Mini Program client
   services/
     api/                    # Rust axum API service
@@ -76,7 +77,7 @@ StellarTrail/
     shared-types/           # Shared TS DTO types
   content/                  # Mountains, routes, skills, and gear templates
   docs/                     # Product, architecture, API, and content schema docs
-  infra/                    # Local/dev deployment files
+  infra/                    # Local integration-test and production deployment config
   scripts/                  # Development helper scripts
 ```
 
@@ -156,16 +157,29 @@ You can also run a one-shot local integration test with Docker Compose:
 
 ```bash
 COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=15432 REDIS_HOST_PORT=16379 \
-  bash infra/integration-test.sh
+  bash infra/test/integration-test.sh
 ```
 
 The script starts PostgreSQL, Redis caching, and the API service, validates them with username/password account registration and login, and always runs `docker compose down -v --remove-orphans` when the test exits or fails. Inject real WeChat and database secrets only through secure production channels.
 
-### 5. Open the WeChat Mini Program
+### 5. Production Docker / Traefik deployment config
+
+Production deployment config is split under `infra/production/`, with `/www/service/stellartail` as the server deploy root:
+
+- `infra/production/traefik/docker-compose.yml`: the only public edge entrypoint, exposing 80/443 and using Let’s Encrypt for automatic certificate issuance and renewal.
+- `infra/production/site/docker-compose.yml`: official site; `stellartail.cn` is canonical and `www.stellartail.cn` redirects to the apex with HTTP 301.
+- `infra/production/web/docker-compose.yml`: Web App on `app.stellartail.cn`.
+- `infra/production/api/docker-compose.yml`: API service on `api.stellartail.cn`, mounting root `config.yaml` to `/app/config.yaml:ro`.
+- `infra/production/api-deps/docker-compose.yml`: API dependencies PostgreSQL, Redis, and MinIO; `assets.stellartail.cn` reaches only the MinIO API through Traefik, while the MinIO console is not publicly exposed.
+- `infra/production/domains.example.yaml` and `infra/production/api/config.production.example.yaml`: committed non-sensitive domain and API config examples.
+
+Real `.env`, `config.yaml`, ACME storage, and production secret files must stay on the production server or in a secure channel. The repository `.gitignore` ignores those files; commit only `.env.example`, `config.example.yaml`, and `*.example.yaml`.
+
+### 6. Open the WeChat Mini Program
 
 Open `apps/wechat-miniprogram` in WeChat DevTools. The project config points `miniprogramRoot` to `miniprogram/`.
 
-### 6. Android client
+### 7. Android client
 
 The Android app lives in `apps/android` and uses Kotlin, Jetpack Compose, Material 3, Navigation Compose, Ktor Client, and kotlinx.serialization. Debug builds default to `http://10.0.2.2:8080`; the Profile screen can override the API base URL for local testing.
 

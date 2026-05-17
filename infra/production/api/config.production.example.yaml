@@ -1,0 +1,74 @@
+# Production example for the API root config.yaml file.
+# Keep the real /www/service/stellartail/config.yaml out of Git.
+app:
+  env: production
+  host: 0.0.0.0
+  port: 8080
+
+database:
+  url: postgresql://stellartrail:example-password@postgres:5432/stellartrail
+
+wechat:
+  mock_login: false
+  app_id: example-wechat-app-id
+  app_secret: example-wechat-app-secret
+
+content:
+  dir: /app/content
+  assets_dir: /app/content/assets
+  media_base_url: https://assets.stellartail.cn
+
+redis:
+  url: redis://redis:6379/0
+  key_prefix: stellartrail:prod
+  gear_cache_ttl_seconds: 60
+
+upload:
+  max_image_bytes: 8000000
+  rate_limit_window_seconds: 3600
+  max_images_per_window: 30
+
+object_storage:
+  endpoint: http://minio:9000
+  region: us-east-1
+  bucket: stellartrail-uploads
+  access_key_id: example-access-key
+  secret_access_key: example-secret-key
+  force_path_style: true
+
+knots_media_storage:
+  storage_profile: knots-public
+  endpoint: http://minio:9000
+  region: us-east-1
+  bucket: stellartrail-knots-media
+  access_key_id: example-access-key
+  secret_access_key: example-secret-key
+  force_path_style: true
+  public_base_url: https://assets.stellartail.cn/stellartrail-knots-media
+  max_image_bytes: 32000000
+  max_video_bytes: 80000000
+
+admin:
+  user_ids: []
+  emails: []
+  usernames: []
+
+public_api:
+  rate_limit_enabled: true
+  rate_limit_window_seconds: 60
+  rate_limit_max_requests_per_ip: 120
+  cache_ttl_seconds: 300
+  cache_stale_seconds: 600
+  max_list_limit: 100
+  max_search_query_chars: 64
+  max_offset: 10000
+  trust_proxy_headers: true
+  trusted_proxy_cidrs:
+    - 172.16.0.0/12
+
+cors:
+  allowed_origins:
+    - https://app.stellartail.cn
+    - https://stellartail.cn
+    - https://www.stellartail.cn
+  allow_credentials: true
