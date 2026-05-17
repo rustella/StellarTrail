@@ -51,6 +51,7 @@ async fn test_app_with_content_dir(temp_dir: TempDir, content_dir: PathBuf) -> T
         admin: Default::default(),
         public_api: Default::default(),
         cors: CorsConfig::default(),
+        mail: Default::default(),
     };
     let state = build_state(config).await.unwrap();
     TestApp {

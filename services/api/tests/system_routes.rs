@@ -43,6 +43,7 @@ async fn test_app() -> TestApp {
         admin: Default::default(),
         public_api: Default::default(),
         cors: CorsConfig::default(),
+        mail: Default::default(),
     };
     TestApp {
         router: build_router(AppState::new(config, db)),

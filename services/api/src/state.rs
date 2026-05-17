@@ -9,6 +9,7 @@ use stellartrail_importer::ContentCatalog;
 use crate::{
     cache::Cache,
     config::ApiConfig,
+    email::{EmailSender, NoopEmailSender},
     object_store::{InMemoryObjectStore, ObjectStore},
     services::{
         public_rate_limit_service::InMemoryPublicRateLimiter,
@@ -30,6 +31,7 @@ struct AppStateInner {
     wechat_client: Arc<dyn WechatCodeSessionClient>,
     cache: Cache,
     object_store: Arc<dyn ObjectStore>,
+    email_sender: Arc<dyn EmailSender>,
     knot_repository: KnotRepository,
     public_rate_limiter: InMemoryPublicRateLimiter,
     public_response_cache: InMemoryPublicResponseCache,
@@ -103,6 +105,23 @@ impl AppState {
         )
     }
 
+    /// Creates app state with default content, default WeChat client, disabled cache, and custom email sender.
+    pub fn new_with_email_sender(
+        config: ApiConfig,
+        db: DatabaseConnection,
+        email_sender: Arc<dyn EmailSender>,
+    ) -> Self {
+        Self::new_with_content_and_wechat_client_cache_object_store_and_email_sender(
+            config,
+            db,
+            ContentCatalog::default(),
+            Arc::new(CurlWechatCodeSessionClient),
+            Cache::disabled(),
+            Arc::new(InMemoryObjectStore::default()),
+            email_sender,
+        )
+    }
+
     /// Creates app state with custom content and WeChat client.
     pub fn new_with_content_and_wechat_client(
         config: ApiConfig,
@@ -146,6 +165,27 @@ impl AppState {
         cache: Cache,
         object_store: Arc<dyn ObjectStore>,
     ) -> Self {
+        Self::new_with_content_and_wechat_client_cache_object_store_and_email_sender(
+            config,
+            db,
+            content,
+            wechat_client,
+            cache,
+            object_store,
+            Arc::new(NoopEmailSender),
+        )
+    }
+
+    /// Creates app state with every dependency injected explicitly, including the transactional email sender.
+    pub fn new_with_content_and_wechat_client_cache_object_store_and_email_sender(
+        config: ApiConfig,
+        db: DatabaseConnection,
+        content: ContentCatalog,
+        wechat_client: Arc<dyn WechatCodeSessionClient>,
+        cache: Cache,
+        object_store: Arc<dyn ObjectStore>,
+        email_sender: Arc<dyn EmailSender>,
+    ) -> Self {
         let knot_repository = KnotRepository::new(db.clone(), config.media_base_url.clone());
         Self {
             inner: Arc::new(AppStateInner {
@@ -155,6 +195,7 @@ impl AppState {
                 wechat_client,
                 cache,
                 object_store,
+                email_sender,
                 knot_repository,
                 public_rate_limiter: InMemoryPublicRateLimiter::default(),
                 public_response_cache: InMemoryPublicResponseCache::default(),
@@ -190,6 +231,11 @@ impl AppState {
     /// Returns the object storage backend.
     pub fn object_store(&self) -> Arc<dyn ObjectStore> {
         Arc::clone(&self.inner.object_store)
+    }
+
+    /// Returns the transactional email sender.
+    pub fn email_sender(&self) -> Arc<dyn EmailSender> {
+        Arc::clone(&self.inner.email_sender)
     }
 
     /// Returns the DB-backed public knot repository.

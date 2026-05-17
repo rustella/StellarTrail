@@ -17,6 +17,7 @@ base64.workspace = true
 csv.workspace = true
 dotenvy.workspace = true
 hex.workspace = true
+lettre.workspace = true
 http-body-util.workspace = true
 rand.workspace = true
 redis.workspace = true

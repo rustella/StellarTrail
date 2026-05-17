@@ -16,7 +16,8 @@ use axum::{
 use sea_orm::{ConnectionTrait, Statement};
 use serde_json::{Value, json};
 use stellartrail_api::{
-    config::{ApiConfig, CorsConfig, RedisCacheConfig},
+    config::{ApiConfig, CorsConfig, MailConfig, MailSmtpTls, RedisCacheConfig},
+    email::{EmailSender, VerificationEmail},
     migrate_database,
     routes::build_router,
     services::wechat::{WechatCodeSession, WechatCodeSessionClient},
@@ -56,6 +57,7 @@ async fn test_app() -> TestApp {
         admin: Default::default(),
         public_api: Default::default(),
         cors: CorsConfig::default(),
+        mail: Default::default(),
     };
     TestApp {
         router: build_router(AppState::new(config, db.clone())),
@@ -74,6 +76,23 @@ struct WechatCode2SessionCall {
 #[derive(Clone, Default)]
 struct RecordingWechatCodeSessionClient {
     calls: Arc<Mutex<Vec<WechatCode2SessionCall>>>,
+}
+
+#[derive(Clone, Default)]
+struct RecordingEmailSender {
+    sent: Arc<Mutex<Vec<VerificationEmail>>>,
+    fail: bool,
+}
+
+#[async_trait::async_trait]
+impl EmailSender for RecordingEmailSender {
+    async fn send_verification_code(&self, email: VerificationEmail) -> anyhow::Result<()> {
+        if self.fail {
+            anyhow::bail!("smtp password rejected by upstream relay");
+        }
+        self.sent.lock().unwrap().push(email);
+        Ok(())
+    }
 }
 
 impl WechatCodeSessionClient for RecordingWechatCodeSessionClient {
@@ -315,6 +334,131 @@ async fn refresh_token_rotates_session_and_rejects_replay() {
 }
 
 #[tokio::test]
+async fn production_email_verification_sends_mail_and_hides_debug_code() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+    let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
+    let db = connect_database(&database).await.unwrap();
+    migrate_database(&db).await.unwrap();
+    let config = ApiConfig {
+        app_env: "production".to_owned(),
+        host: "127.0.0.1".to_owned(),
+        port: 0,
+        database,
+        wechat_mock_login: false,
+        wechat_app_id: None,
+        wechat_app_secret: None,
+        content_dir: temp_dir.path().join("content"),
+        content_assets_dir: temp_dir.path().join("assets"),
+        media_base_url: "/assets".to_owned(),
+        redis_cache: RedisCacheConfig::disabled(),
+        upload: Default::default(),
+        object_storage: Default::default(),
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
+        public_api: Default::default(),
+        cors: CorsConfig::default(),
+        mail: MailConfig {
+            enabled: true,
+            smtp_host: "smtp.example.invalid".to_owned(),
+            smtp_port: 465,
+            smtp_tls: MailSmtpTls::Implicit,
+            smtp_username: "noreply@site.example.invalid".to_owned(),
+            smtp_password: "x".to_owned(),
+            from: "寻径星野 <noreply@site.example.invalid>".to_owned(),
+            verification_subject: "寻径星野邮箱验证码".to_owned(),
+        },
+    };
+    let sender = RecordingEmailSender::default();
+    let sent = Arc::clone(&sender.sent);
+    let router = build_router(AppState::new_with_email_sender(
+        config,
+        db,
+        Arc::new(sender),
+    ));
+
+    let (status, value) = send_json(
+        &router,
+        "POST",
+        "/api/auth/email-verification-code",
+        None,
+        json!({"email": "Trail.User@Example.COM"}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "{value}");
+    assert_eq!(value["email"], "trail.user@example.com");
+    assert!(value.get("debug_code").is_none(), "{value}");
+    let sent = sent.lock().unwrap();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to, "trail.user@example.com");
+    assert_eq!(sent[0].from, "寻径星野 <noreply@site.example.invalid>");
+    assert_eq!(sent[0].subject, "寻径星野邮箱验证码");
+    assert_eq!(sent[0].expires_minutes, 10);
+    assert_eq!(sent[0].code.len(), 6);
+    assert!(sent[0].code.chars().all(|ch| ch.is_ascii_digit()));
+}
+
+#[tokio::test]
+async fn production_email_verification_delivery_failure_returns_safe_error() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+    let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
+    let db = connect_database(&database).await.unwrap();
+    migrate_database(&db).await.unwrap();
+    let config = ApiConfig {
+        app_env: "production".to_owned(),
+        host: "127.0.0.1".to_owned(),
+        port: 0,
+        database,
+        wechat_mock_login: false,
+        wechat_app_id: None,
+        wechat_app_secret: None,
+        content_dir: temp_dir.path().join("content"),
+        content_assets_dir: temp_dir.path().join("assets"),
+        media_base_url: "/assets".to_owned(),
+        redis_cache: RedisCacheConfig::disabled(),
+        upload: Default::default(),
+        object_storage: Default::default(),
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
+        public_api: Default::default(),
+        cors: CorsConfig::default(),
+        mail: MailConfig {
+            enabled: true,
+            smtp_host: "smtp.example.invalid".to_owned(),
+            smtp_port: 465,
+            smtp_tls: MailSmtpTls::Implicit,
+            smtp_username: "noreply@site.example.invalid".to_owned(),
+            smtp_password: "x".to_owned(),
+            from: "寻径星野 <noreply@site.example.invalid>".to_owned(),
+            verification_subject: "寻径星野邮箱验证码".to_owned(),
+        },
+    };
+    let router = build_router(AppState::new_with_email_sender(
+        config,
+        db,
+        Arc::new(RecordingEmailSender {
+            sent: Arc::new(Mutex::new(Vec::new())),
+            fail: true,
+        }),
+    ));
+
+    let (status, value) = send_json(
+        &router,
+        "POST",
+        "/api/auth/email-verification-code",
+        None,
+        json!({"email": "trail.user@example.com"}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_GATEWAY, "{value}");
+    assert_eq!(value["code"], "email_delivery_failed");
+    assert!(!value.to_string().contains("smtp password"), "{value}");
+}
+
+#[tokio::test]
 async fn production_wechat_login_uses_code2session_client() {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
@@ -339,6 +483,7 @@ async fn production_wechat_login_uses_code2session_client() {
         admin: Default::default(),
         public_api: Default::default(),
         cors: CorsConfig::default(),
+        mail: Default::default(),
     };
     let wechat_client = RecordingWechatCodeSessionClient::default();
     let calls = Arc::clone(&wechat_client.calls);

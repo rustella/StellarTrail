@@ -45,7 +45,7 @@ POST /api/auth/email-verification-code
 }
 ```
 
-本地环境响应会带 `debug_code` 方便联调；生产环境不返回明文验证码，后续接入邮件投递服务即可在生成验证码后发送邮件：
+本地环境响应会带 `debug_code` 方便联调；生产环境不返回明文验证码，服务端会通过配置的 SMTP 邮箱发送验证码。当前生产发件邮箱为 `noreply@site.example.invalid`，SMTP 主机为 `smtp.example.invalid`，真实密码只放在 `.env`、被忽略的 `config.yaml` 或 secret manager：
 
 ```json
 {

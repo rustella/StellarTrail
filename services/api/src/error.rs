@@ -26,6 +26,7 @@ pub enum ApiError {
     RateLimited {
         retry_after_seconds: u64,
     },
+    EmailDeliveryFailed,
     Internal(anyhow::Error),
 }
 
@@ -183,6 +184,14 @@ impl IntoResponse for ApiError {
                 StatusCode::TOO_MANY_REQUESTS,
                 "rate_limited",
                 format!("Too many requests. Please retry after {retry_after_seconds} seconds."),
+                None,
+                None,
+                None,
+            ),
+            Self::EmailDeliveryFailed => (
+                StatusCode::BAD_GATEWAY,
+                "email_delivery_failed",
+                "邮箱验证码发送失败，请稍后重试".to_owned(),
                 None,
                 None,
                 None,

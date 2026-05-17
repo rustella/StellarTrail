@@ -50,6 +50,7 @@ async fn test_app_with_cache(cache: Cache) -> TestApp {
         admin: Default::default(),
         public_api: Default::default(),
         cors: CorsConfig::default(),
+        mail: Default::default(),
     };
     TestApp {
         router: build_router(AppState::new_with_cache(config, db, cache)),

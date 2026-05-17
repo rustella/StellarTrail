@@ -1,7 +1,7 @@
 //! API service configuration module that merges optional YAML files with environment variables for database, WeChat login, Redis cache, uploads, object storage, and other runtime settings.
 
 use std::{
-    env, fs,
+    env, fmt, fs,
     net::SocketAddr,
     path::{Path, PathBuf},
 };
@@ -27,6 +27,7 @@ struct FileConfig {
     admin: FileAdminConfig,
     public_api: FilePublicApiConfig,
     cors: FileCorsConfig,
+    mail: FileMailConfig,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -129,6 +130,19 @@ struct FilePublicApiConfig {
 struct FileCorsConfig {
     allowed_origins: Option<Vec<String>>,
     allow_credentials: Option<bool>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct FileMailConfig {
+    enabled: Option<bool>,
+    smtp_host: Option<String>,
+    smtp_port: Option<u16>,
+    smtp_tls: Option<MailSmtpTls>,
+    smtp_username: Option<String>,
+    smtp_password: Option<String>,
+    from: Option<String>,
+    verification_subject: Option<String>,
 }
 
 impl FileConfig {
@@ -298,7 +312,64 @@ pub struct AdminConfig {
     pub usernames: Vec<String>,
 }
 
-/// Runtime API configuration containing environment, bind address, database, auth providers, cache, upload, and content directory settings.
+/// SMTP transport security mode for transactional email delivery.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum MailSmtpTls {
+    /// Use TLS from the initial SMTP connection, commonly port 465.
+    #[default]
+    Implicit,
+    /// Upgrade a plaintext connection with STARTTLS, commonly port 587.
+    StartTls,
+    /// Disable SMTP TLS. This is only intended for local development relays.
+    None,
+}
+
+/// Transactional email configuration used for registration verification codes.
+#[derive(Clone, Eq, PartialEq)]
+pub struct MailConfig {
+    pub enabled: bool,
+    pub smtp_host: String,
+    pub smtp_port: u16,
+    pub smtp_tls: MailSmtpTls,
+    pub smtp_username: String,
+    pub smtp_password: String,
+    pub from: String,
+    pub verification_subject: String,
+}
+
+impl fmt::Debug for MailConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MailConfig")
+            .field("enabled", &self.enabled)
+            .field("smtp_host", &self.smtp_host)
+            .field("smtp_port", &self.smtp_port)
+            .field("smtp_tls", &self.smtp_tls)
+            .field("smtp_username", &self.smtp_username)
+            .field("smtp_password", &"<redacted>")
+            .field("from", &self.from)
+            .field("verification_subject", &self.verification_subject)
+            .finish()
+    }
+}
+
+impl Default for MailConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            smtp_host: "smtp.example.invalid".to_owned(),
+            smtp_port: 465,
+            smtp_tls: MailSmtpTls::Implicit,
+            smtp_username: "noreply@site.example.invalid".to_owned(),
+            smtp_password: String::new(),
+            from: "寻径星野 <noreply@site.example.invalid>".to_owned(),
+            verification_subject: "寻径星野邮箱验证码".to_owned(),
+        }
+    }
+}
+
+/// Runtime API configuration containing environment, bind address, database, auth providers, cache, upload, content directory, and email settings.
 #[derive(Clone, Debug)]
 pub struct ApiConfig {
     pub app_env: String,
@@ -318,6 +389,7 @@ pub struct ApiConfig {
     pub admin: AdminConfig,
     pub public_api: PublicApiConfig,
     pub cors: CorsConfig,
+    pub mail: MailConfig,
 }
 
 impl ApiConfig {
@@ -335,6 +407,7 @@ impl ApiConfig {
             admin: file_admin,
             public_api: file_public_api,
             cors: file_cors,
+            mail: file_mail,
         } = FileConfig::load_from_env()?;
 
         let app_env = config_string_env("APP_ENV", app.env, "local");
@@ -545,6 +618,42 @@ impl ApiConfig {
             ),
         };
         validate_public_api_config(&public_api)?;
+        let default_mail = MailConfig::default();
+        let mail = MailConfig {
+            enabled: config_bool_env("MAIL_ENABLED", file_mail.enabled, default_mail.enabled)?,
+            smtp_host: config_string_env(
+                "MAIL_SMTP_HOST",
+                file_mail.smtp_host,
+                &default_mail.smtp_host,
+            ),
+            smtp_port: config_u16_env(
+                "MAIL_SMTP_PORT",
+                file_mail.smtp_port,
+                default_mail.smtp_port,
+            )?,
+            smtp_tls: config_mail_tls_env(
+                "MAIL_SMTP_TLS",
+                file_mail.smtp_tls,
+                default_mail.smtp_tls,
+            )?,
+            smtp_username: config_string_env(
+                "MAIL_SMTP_USERNAME",
+                file_mail.smtp_username,
+                &default_mail.smtp_username,
+            ),
+            smtp_password: config_string_env(
+                "MAIL_SMTP_PASSWORD",
+                file_mail.smtp_password,
+                &default_mail.smtp_password,
+            ),
+            from: config_string_env("MAIL_FROM", file_mail.from, &default_mail.from),
+            verification_subject: config_string_env(
+                "MAIL_VERIFICATION_SUBJECT",
+                file_mail.verification_subject,
+                &default_mail.verification_subject,
+            ),
+        };
+        validate_mail_config(&mail)?;
 
         let cors = CorsConfig {
             allowed_origins: config_list_env("CORS_ALLOWED_ORIGINS", file_cors.allowed_origins),
@@ -574,6 +683,7 @@ impl ApiConfig {
             admin,
             public_api,
             cors,
+            mail,
         })
     }
 
@@ -715,6 +825,26 @@ fn validate_cors_config(config: &CorsConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn config_mail_tls_env(
+    name: &str,
+    file_value: Option<MailSmtpTls>,
+    default: MailSmtpTls,
+) -> anyhow::Result<MailSmtpTls> {
+    match optional_env(name) {
+        Some(value) => parse_mail_tls(name, &value),
+        None => Ok(file_value.unwrap_or(default)),
+    }
+}
+
+fn parse_mail_tls(name: &str, value: &str) -> anyhow::Result<MailSmtpTls> {
+    match value {
+        "implicit" | "implicit_tls" | "tls" | "wrapper" => Ok(MailSmtpTls::Implicit),
+        "starttls" | "start_tls" | "required" => Ok(MailSmtpTls::StartTls),
+        "none" | "plain" | "disabled" => Ok(MailSmtpTls::None),
+        other => anyhow::bail!("{name} must be one of implicit, starttls, or none; got {other}"),
+    }
+}
+
 fn validate_public_api_config(config: &PublicApiConfig) -> anyhow::Result<()> {
     if config.rate_limit_window_seconds == 0 {
         anyhow::bail!("PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS must be greater than 0");
@@ -733,6 +863,31 @@ fn validate_public_api_config(config: &PublicApiConfig) -> anyhow::Result<()> {
     }
     if config.trust_proxy_headers && config.trusted_proxy_cidrs.is_empty() {
         anyhow::bail!("TRUSTED_PROXY_CIDRS must be set when TRUST_PROXY_HEADERS=true");
+    }
+    Ok(())
+}
+
+fn validate_mail_config(config: &MailConfig) -> anyhow::Result<()> {
+    if !config.enabled {
+        return Ok(());
+    }
+    if config.smtp_host.trim().is_empty() {
+        anyhow::bail!("MAIL_SMTP_HOST must not be empty when MAIL_ENABLED=true");
+    }
+    if config.smtp_port == 0 {
+        anyhow::bail!("MAIL_SMTP_PORT must be greater than 0 when MAIL_ENABLED=true");
+    }
+    if config.smtp_username.trim().is_empty() {
+        anyhow::bail!("MAIL_SMTP_USERNAME must not be empty when MAIL_ENABLED=true");
+    }
+    if config.smtp_password.trim().is_empty() {
+        anyhow::bail!("MAIL_SMTP_PASSWORD must not be empty when MAIL_ENABLED=true");
+    }
+    if config.from.trim().is_empty() {
+        anyhow::bail!("MAIL_FROM must not be empty when MAIL_ENABLED=true");
+    }
+    if config.verification_subject.trim().is_empty() {
+        anyhow::bail!("MAIL_VERIFICATION_SUBJECT must not be empty when MAIL_ENABLED=true");
     }
     Ok(())
 }
@@ -902,6 +1057,15 @@ cors:
     - https://app.example.invalid
     - https://www.example.invalid
   allow_credentials: true
+mail:
+  enabled: true
+  smtp_host: smtp.example.invalid
+  smtp_port: 465
+  smtp_tls: implicit
+  smtp_username: noreply@site.example.invalid
+  smtp_password: example-mail-password
+  from: "寻径星野 <noreply@site.example.invalid>"
+  verification_subject: 寻径星野邮箱验证码
 "#,
         )
         .unwrap();
@@ -949,6 +1113,14 @@ cors:
             ]
         );
         assert!(config.cors.allow_credentials);
+        assert!(config.mail.enabled);
+        assert_eq!(config.mail.smtp_host, "smtp.example.invalid");
+        assert_eq!(config.mail.smtp_port, 465);
+        assert_eq!(config.mail.smtp_tls, MailSmtpTls::Implicit);
+        assert_eq!(config.mail.smtp_username, "noreply@site.example.invalid");
+        assert_eq!(config.mail.smtp_password, "example-mail-password");
+        assert_eq!(config.mail.from, "寻径星野 <noreply@site.example.invalid>");
+        assert_eq!(config.mail.verification_subject, "寻径星野邮箱验证码");
 
         restore_env(saved);
     }
@@ -1129,6 +1301,59 @@ public_api:
         restore_env(saved);
     }
 
+    #[test]
+    fn from_env_reads_mail_config_from_environment() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("MAIL_ENABLED", "true");
+            env::set_var("MAIL_SMTP_HOST", " smtp.example.invalid ");
+            env::set_var("MAIL_SMTP_PORT", "465");
+            env::set_var("MAIL_SMTP_TLS", "implicit");
+            env::set_var("MAIL_SMTP_USERNAME", " noreply@site.example.invalid ");
+            env::set_var("MAIL_SMTP_PASSWORD", " example-mail-password ");
+            env::set_var("MAIL_FROM", " 寻径星野 <noreply@site.example.invalid> ");
+            env::set_var("MAIL_VERIFICATION_SUBJECT", " 寻径星野邮箱验证码 ");
+        }
+
+        let config = ApiConfig::from_env().unwrap();
+
+        assert!(config.mail.enabled);
+        assert_eq!(config.mail.smtp_host, "smtp.example.invalid");
+        assert_eq!(config.mail.smtp_port, 465);
+        assert_eq!(config.mail.smtp_tls, MailSmtpTls::Implicit);
+        assert_eq!(config.mail.smtp_username, "noreply@site.example.invalid");
+        assert_eq!(config.mail.smtp_password, "example-mail-password");
+        assert_eq!(config.mail.from, "寻径星野 <noreply@site.example.invalid>");
+        assert_eq!(config.mail.verification_subject, "寻径星野邮箱验证码");
+
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_rejects_enabled_mail_without_password() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("MAIL_ENABLED", "true");
+            env::set_var("MAIL_SMTP_HOST", "smtp.example.invalid");
+            env::set_var("MAIL_SMTP_PORT", "465");
+            env::set_var("MAIL_SMTP_USERNAME", "noreply@site.example.invalid");
+            env::set_var("MAIL_SMTP_PASSWORD", "");
+            env::set_var("MAIL_FROM", "寻径星野 <noreply@site.example.invalid>");
+            env::set_var("MAIL_VERIFICATION_SUBJECT", "寻径星野邮箱验证码");
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(error.contains("MAIL_SMTP_PASSWORD"), "{error}");
+        restore_env(saved);
+    }
+
     const CONFIG_KEYS: &[&str] = &[
         "CONFIG_PATH",
         "APP_ENV",
@@ -1179,6 +1404,14 @@ public_api:
         "ADMIN_USER_IDS",
         "ADMIN_EMAILS",
         "ADMIN_USERNAMES",
+        "MAIL_ENABLED",
+        "MAIL_SMTP_HOST",
+        "MAIL_SMTP_PORT",
+        "MAIL_SMTP_TLS",
+        "MAIL_SMTP_USERNAME",
+        "MAIL_SMTP_PASSWORD",
+        "MAIL_FROM",
+        "MAIL_VERIFICATION_SUBJECT",
     ];
     fn snapshot_env(keys: &[&'static str]) -> Vec<(&'static str, Option<String>)> {
         keys.iter().map(|key| (*key, env::var(key).ok())).collect()
