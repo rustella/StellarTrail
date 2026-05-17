@@ -187,6 +187,7 @@ export default function App({ client }: AppProps) {
   const [theme, setTheme] = useState<ThemeMode>(() => loadThemePreference());
   const [authMode, setAuthMode] = useState<AuthMode>("wechat");
   const [activePage, setActivePage] = useState<ActivePage>("gear");
+  const [outdoorSkillsOpen, setOutdoorSkillsOpen] = useState(true);
   const [passwordLogin, setPasswordLogin] =
     useState<PasswordLoginState>(emptyPasswordLogin);
   const [registerForm, setRegisterForm] =
@@ -1124,14 +1125,34 @@ export default function App({ client }: AppProps) {
           >
             装备库
           </button>
-          <button
-            type="button"
-            className={activePage === "knots" ? "active" : ""}
-            aria-current={activePage === "knots" ? "page" : undefined}
-            onClick={() => setActivePage("knots")}
+          <div
+            className="nav-group"
+            data-active-parent={activePage === "knots" ? "true" : undefined}
           >
-            户外技能
-          </button>
+            <button
+              type="button"
+              className="nav-group-trigger"
+              aria-expanded={outdoorSkillsOpen}
+              aria-controls="outdoor-skills-nav"
+              onClick={() => setOutdoorSkillsOpen((open) => !open)}
+            >
+              户外技能
+            </button>
+            {outdoorSkillsOpen ? (
+              <div className="nav-children" id="outdoor-skills-nav">
+                <button
+                  type="button"
+                  className={
+                    activePage === "knots" ? "nav-child active" : "nav-child"
+                  }
+                  aria-current={activePage === "knots" ? "page" : undefined}
+                  onClick={() => setActivePage("knots")}
+                >
+                  绳结
+                </button>
+              </div>
+            ) : null}
+          </div>
           <span>路线清单 · 待接入</span>
         </nav>
         <div

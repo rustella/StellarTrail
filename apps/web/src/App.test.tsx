@@ -300,7 +300,7 @@ describe("App", () => {
     expect(screen.queryByText(/local\s*·\s*api/i)).not.toBeInTheDocument();
   });
 
-  it("keeps outdoor skills as the second main navigation item", async () => {
+  it("keeps outdoor skills expanded as the second navigation group", async () => {
     const client = buildClient();
     render(<App client={client} />);
 
@@ -311,7 +311,12 @@ describe("App", () => {
 
     expect(
       Array.from(navigation.children).map((item) => item.textContent?.trim()),
-    ).toEqual(["装备库", "户外技能", "路线清单 · 待接入"]);
+    ).toEqual(["装备库", "户外技能绳结", "路线清单 · 待接入"]);
+    expect(screen.getByRole("button", { name: /户外技能/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "绳结" })).toBeInTheDocument();
   });
 
   it("renders the sidebar brand as a separated bilingual wordmark", async () => {
@@ -344,7 +349,7 @@ describe("App", () => {
     expect(screen.queryByText("星")).not.toBeInTheDocument();
   });
 
-  it("opens the outdoor skills knots page from the sidebar", async () => {
+  it("opens the knots page from the expanded outdoor skills group", async () => {
     const client = buildClient();
     render(<App client={client} />);
 
@@ -353,11 +358,17 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "装备管理" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "户外技能" }));
+    const outdoorSkills = screen.getByRole("button", { name: /户外技能/ });
+    expect(outdoorSkills).toHaveAttribute("aria-expanded", "true");
+    expect(client.listKnots).not.toHaveBeenCalled();
+
+    const knotsNavItem = screen.getByRole("button", { name: "绳结" });
+    fireEvent.click(knotsNavItem);
 
     expect(
-      await screen.findByRole("heading", { name: "户外技能" }),
+      await screen.findByRole("heading", { name: "绳结" }),
     ).toBeInTheDocument();
+    expect(knotsNavItem).toHaveAttribute("aria-current", "page");
     expect(await screen.findByText("可调节绳结")).toBeInTheDocument();
     expect(client.listKnots).toHaveBeenCalledWith(
       { offset: 0, limit: 24 },
@@ -368,6 +379,32 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "装备管理" }),
     ).toBeInTheDocument();
+  });
+
+  it("toggles the outdoor skills group without opening knots", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+
+    const outdoorSkills = screen.getByRole("button", { name: /户外技能/ });
+    expect(outdoorSkills).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "绳结" })).toBeInTheDocument();
+
+    fireEvent.click(outdoorSkills);
+    expect(outdoorSkills).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByRole("button", { name: "绳结" }),
+    ).not.toBeInTheDocument();
+    expect(client.listKnots).not.toHaveBeenCalled();
+
+    fireEvent.click(outdoorSkills);
+    expect(outdoorSkills).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "绳结" })).toBeInTheDocument();
+    expect(client.listKnots).not.toHaveBeenCalled();
   });
 
   it("clears previous dashboard totals before loading a newly registered empty account", async () => {
