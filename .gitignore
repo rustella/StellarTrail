@@ -33,5 +33,12 @@ apps/wechat-miniprogram/private.*.key
 .agent/
 AGENTS.md
 CLAUDE.md
-skills/
+/skills/
 scripts/init_agent_context.py
+# Android
+.gradle/
+local.properties
+*.jks
+*.keystore
+apps/android/.cxx/
+apps/android/build/
