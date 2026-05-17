@@ -66,7 +66,6 @@ topics:
       - infra/production/domains.example.yaml
       - infra/production/traefik/docker-compose.yml
       - infra/production/api/docker-compose.yml
-      - infra/production/api-deps/docker-compose.yml
   agent_context:
     summary: Load when changing .agent, AGENTS.md, CLAUDE.md, or context indexes.
     read:

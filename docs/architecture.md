@@ -57,3 +57,7 @@ crates/importer -> AppState in-memory public catalog
 - `GET /api/me/gears/:id`
 
 缓存采用 read-through 模式，默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒。每个用户有独立 gear cache version；创建、更新、归档、恢复和导入装备后会递增版本号，让后续读请求自动绕过旧 key，避免跨用户或写后读到旧数据。Redis 读写异常只会降级为直连数据库，不影响接口可用性。
+
+## Production deployment topology
+
+Production Docker assets keep Traefik, the official site, the Web App, and the API in separate compose entrypoints under `infra/production/`. The API compose file also owns PostgreSQL, Redis, MinIO, and the MinIO bucket initializer so the API can resolve its private dependencies by Docker service names (`postgres`, `redis`, `minio`) on the backend network. Only Traefik exposes public 80/443; the API and MinIO API are routed by Traefik labels, while PostgreSQL, Redis, and the MinIO console stay private.

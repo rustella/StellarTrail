@@ -5,6 +5,15 @@ services:
       dockerfile: infra/production/api/Dockerfile
     image: ${STELLARTAIL_API_IMAGE:-ghcr.io/rustella/stellartrail-api:latest}
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     environment:
       RUST_LOG: ${RUST_LOG:-stellartrail_api=info,tower_http=info}
     volumes:
@@ -21,10 +30,112 @@ services:
       traefik.http.routers.api.middlewares: security-headers@file
       traefik.http.services.api.loadbalancer.server.port: "8080"
 
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stellartrail}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/production/api/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-stellartrail}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    expose:
+      - "5432"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER:-stellartrail} -d $${POSTGRES_DB:-stellartrail}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:7-alpine}
+    restart: unless-stopped
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "$${REDIS_PASSWORD}",
+      ]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in infra/production/api/.env}
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD-SHELL", 'redis-cli -a "$${REDIS_PASSWORD}" ping']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  minio:
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z}
+    restart: unless-stopped
+    command:
+      ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in infra/production/api/.env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in infra/production/api/.env}
+    volumes:
+      - minio-data:/data
+    networks:
+      - edge
+      - backend
+    expose:
+      - "9000"
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
+      traefik.http.routers.assets.rule: Host(`assets.stellartail.cn`)
+      traefik.http.routers.assets.entrypoints: websecure
+      traefik.http.routers.assets.tls.certresolver: letsencrypt
+      traefik.http.routers.assets.middlewares: security-headers@file
+      traefik.http.services.assets.loadbalancer.server.port: "9000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  minio-init:
+    image: ${MINIO_MC_IMAGE:-quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z}
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in infra/production/api/.env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in infra/production/api/.env}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-stellartrail-uploads}
+      KNOTS_MEDIA_BUCKET: ${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
+    networks:
+      - backend
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
+        mc mb -p "local/$${OBJECT_STORAGE_BUCKET}" || true
+        mc anonymous set none "local/$${OBJECT_STORAGE_BUCKET}"
+        mc mb -p "local/$${KNOTS_MEDIA_BUCKET}" || true
+        mc anonymous set download "local/$${KNOTS_MEDIA_BUCKET}"
+
 networks:
   edge:
     name: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
     external: true
   backend:
     name: ${STELLARTAIL_BACKEND_NETWORK:-stellartail-backend}
-    external: true
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
