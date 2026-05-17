@@ -7,6 +7,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 24rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
 }
 
 .account-title {

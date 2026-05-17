@@ -1,8 +1,9 @@
 .detail-page {
   min-height: 100vh;
   padding: 28rpx 28rpx 64rpx;
-  background: #f8fafc;
+  background: var(--page-bg);
   box-sizing: border-box;
+  color: var(--text-color);
 }
 
 .detail-hero,
@@ -10,9 +11,10 @@
 .tag-card,
 .info-card,
 .state-card {
-  border-radius: 30rpx;
-  background: #ffffff;
-  box-shadow: 0 12rpx 40rpx rgba(15, 23, 42, 0.06);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+  border: 1rpx solid var(--border-color);
 }
 
 .detail-hero {
@@ -34,28 +36,28 @@
 }
 
 .category-badge {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
 }
 
 .status-badge {
-  color: #64748b;
-  background: #f1f5f9;
+  color: var(--muted-color);
+  background: var(--soft-control-bg);
 }
 
 .status-badge.success {
-  color: #047857;
-  background: #d1fae5;
+  color: var(--status-success-text);
+  background: var(--status-success-bg);
 }
 
 .status-badge.warning {
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--status-warning-text);
+  background: var(--status-warning-bg);
 }
 
 .detail-title {
   margin-top: 24rpx;
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 42rpx;
   font-weight: 800;
   line-height: 1.35;
@@ -63,7 +65,7 @@
 
 .detail-subtitle {
   margin-top: 10rpx;
-  color: #64748b;
+  color: var(--muted-color);
   font-size: 26rpx;
 }
 
@@ -77,13 +79,13 @@
 .summary-item {
   min-width: 0;
   padding: 18rpx 12rpx;
-  border-radius: 22rpx;
-  background: #f8fafc;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
   text-align: center;
 }
 
 .summary-value {
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 24rpx;
   font-weight: 800;
   overflow: hidden;
@@ -93,7 +95,7 @@
 
 .summary-label {
   margin-top: 6rpx;
-  color: #94a3b8;
+  color: var(--muted-color);
   font-size: 20rpx;
 }
 
@@ -109,19 +111,21 @@
   flex: 1;
   margin: 0;
   border-radius: 999rpx;
-  color: #ffffff;
-  background: #0f766e;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
   font-size: 26rpx;
   font-weight: 700;
   line-height: 76rpx;
 }
 
 .action-row .danger {
-  background: #dc2626;
+  background: var(--status-danger-bg);
+  color: var(--status-danger-text);
 }
 
 .action-row .restore {
-  background: #2563eb;
+  background: var(--status-info-bg);
+  color: var(--status-info-text);
 }
 
 .tag-card,
@@ -132,7 +136,7 @@
 }
 
 .section-title {
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 30rpx;
   font-weight: 800;
 }
@@ -145,8 +149,8 @@
 }
 
 .tag {
-  color: #0f766e;
-  background: #ecfdf5;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
 }
 
 .info-row {
@@ -163,13 +167,13 @@
 
 .info-label {
   flex: 0 0 180rpx;
-  color: #64748b;
+  color: var(--muted-color);
   font-size: 26rpx;
 }
 
 .info-value {
   flex: 1;
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 26rpx;
   line-height: 1.5;
   text-align: right;
@@ -177,15 +181,15 @@
 }
 
 .state-card {
-  color: #64748b;
+  color: var(--muted-color);
   font-size: 28rpx;
   line-height: 1.6;
   text-align: center;
 }
 
 .state-card.error {
-  color: #b91c1c;
-  background: #fff1f2;
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
 }
 
 .state-card button {
