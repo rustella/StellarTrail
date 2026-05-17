@@ -19,11 +19,11 @@ targets:
       - path: StellarTrailMac
         excludes:
           - Resources/**
-      - path: ../../packages/apple/StellarTrailKit/Sources/StellarTrailKit
-    resources:
       - path: StellarTrailMac/Resources
         excludes:
           - Info.plist
+        buildPhase: resources
+      - path: ../../packages/apple/StellarTrailKit/Sources/StellarTrailKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rustella.stellartrail.macos
