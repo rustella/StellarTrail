@@ -27,7 +27,16 @@ services:
       traefik.http.routers.api.rule: Host(`api.stellartail.cn`)
       traefik.http.routers.api.entrypoints: websecure
       traefik.http.routers.api.tls.certresolver: letsencrypt
-      traefik.http.routers.api.middlewares: security-headers@file
+      # Keep API CORS preflight owned by the Rust service; the shared file middleware may
+      # define proxy-level CORS rules that override browser preflight responses.
+      traefik.http.routers.api.middlewares: api-security-headers
+      traefik.http.middlewares.api-security-headers.headers.browserXssFilter: "true"
+      traefik.http.middlewares.api-security-headers.headers.contentTypeNosniff: "true"
+      traefik.http.middlewares.api-security-headers.headers.frameDeny: "true"
+      traefik.http.middlewares.api-security-headers.headers.referrerPolicy: strict-origin-when-cross-origin
+      traefik.http.middlewares.api-security-headers.headers.stsSeconds: "31536000"
+      traefik.http.middlewares.api-security-headers.headers.stsIncludeSubdomains: "true"
+      traefik.http.middlewares.api-security-headers.headers.stsPreload: "true"
       traefik.http.services.api.loadbalancer.server.port: "8080"
 
   postgres:
