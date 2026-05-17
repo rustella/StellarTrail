@@ -352,10 +352,16 @@ td small {
   width: 42px;
   height: 42px;
   place-items: center;
+  overflow: hidden;
   border-radius: 14px;
-  color: var(--brand-text-color);
-  background: var(--brand-color);
-  font-weight: 800;
+  background: #0b1731;
+  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.22);
+}
+
+.brand-logo-image {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .sidebar nav {

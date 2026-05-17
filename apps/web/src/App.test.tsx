@@ -273,6 +273,20 @@ describe("App", () => {
     );
   });
 
+  it("uses the optimized product icon in the sidebar brand", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    const icon = await screen.findByRole("img", {
+      name: "寻径星野产品图标",
+    });
+
+    expect(icon).toHaveClass("brand-logo-image");
+    expect(icon).toHaveAttribute("src", "/stellartrail-icon.svg");
+    expect(screen.queryByText("星")).not.toBeInTheDocument();
+  });
+
   it("opens the outdoor skills knots page from the sidebar", async () => {
     const client = buildClient();
     render(<App client={client} />);

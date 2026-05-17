@@ -813,7 +813,13 @@ export default function App({ client }: AppProps) {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand-block">
-          <div className="brand-logo">星</div>
+          <div className="brand-logo">
+            <img
+              className="brand-logo-image"
+              src="/stellartrail-icon.svg"
+              alt="寻径星野产品图标"
+            />
+          </div>
           <div className="brand-wordmark" aria-label="寻径星野 StellarTrail">
             <strong className="brand-wordmark-cn">寻径星野</strong>
             <span className="brand-wordmark-en">StellarTrail</span>
