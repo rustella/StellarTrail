@@ -100,11 +100,13 @@ npm install
 
 ```bash
 cp .env.example .env
+# 可选：如果希望用 YAML 管理本地/生产配置，可复制模板到被 Git 忽略的 config.yaml
+cp config.example.yaml config.yaml
 cargo run -p stellartrail-api --bin migrate -- up
 cargo run -p stellartrail-api
 ```
 
-API 默认监听 `127.0.0.1:8080`，并从环境变量读取配置。默认数据库地址为 `sqlite://stellartrail.db`。本地可通过 `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true` 启用 mock 登录；正式微信登录需设置 `WECHAT_MOCK_LOGIN=false`、`WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`。如需启用 Redis 缓存，设置 `REDIS_URL=redis://127.0.0.1:6379/0`，可通过 `REDIS_GEAR_CACHE_TTL_SECONDS` 调整装备接口缓存 TTL。
+API 默认监听 `127.0.0.1:8080`。启动时会先加载 `.env`，再读取根目录 `config.yaml`（存在时）或 `CONFIG_PATH` 指定的 YAML 文件，最后由环境变量覆盖 YAML 配置。默认数据库地址为 `sqlite://stellartrail.db`。本地可通过 `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true` 启用 mock 登录；正式微信登录需设置 `WECHAT_MOCK_LOGIN=false`、`WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`。如需启用 Redis 缓存，设置 `REDIS_URL=redis://127.0.0.1:6379/0`，可通过 `REDIS_GEAR_CACHE_TTL_SECONDS` 调整装备接口缓存 TTL。`config.example.yaml` 可提交，真实的 `config.yaml` / `config.*.yaml` 会被 `.gitignore` 忽略。
 
 可用以下接口做本地冒烟验证：
 
