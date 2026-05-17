@@ -3,6 +3,7 @@ package com.rustella.stellartrail.ui.theme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class DesignTokensTest {
@@ -42,18 +43,33 @@ class DesignTokensTest {
 
     @Test
     fun mobileChromeTokensMatchWechatMiniProgram() {
-        assertColor(0xFF0F172A, StellarTrailDesignColors.Light.topBarBackground)
-        assertColor(0xF5FFFFFF, StellarTrailDesignColors.Light.footerBackground)
+        assertColor(0xFFF8FAFC, StellarTrailDesignColors.Light.topBarBackground)
+        assertColor(0xFFFFFFFF, StellarTrailDesignColors.Light.footerBackground)
         assertColor(0xFF12082E, StellarTrailDesignColors.Dark.topBarBackground)
         assertColor(0xEF0E0A22, StellarTrailDesignColors.Dark.footerBackground)
     }
 
     @Test
-    fun heroGradientUsesWechatMiniProgramStops() {
-        assertColor(0xFF0F172A, StellarTrailDesignColors.Light.heroStart)
-        assertColor(0xFF0F766E, StellarTrailDesignColors.Light.heroEnd)
+    fun lightHeroUsesWechatDayModeIllustrationColors() {
+        assertNotEquals(
+            "Light mode hero should not keep the old dark navy start color.",
+            0xFF0F172A.toInt(),
+            StellarTrailDesignColors.Light.heroStart.toArgb(),
+        )
+        assertColor(0xFFFFF7ED, StellarTrailDesignColors.Light.heroStart)
+        assertColor(0xFFECFEFF, StellarTrailDesignColors.Light.heroMid)
+        assertColor(0xFFEEF2FF, StellarTrailDesignColors.Light.heroEnd)
+        assertColor(0xFFD8F1F6, StellarTrailDesignColors.Light.heroHill)
+        assertColor(0xFFFBBF24, StellarTrailDesignColors.Light.heroSun)
+    }
+
+    @Test
+    fun darkHeroKeepsHighContrastOutdoorGradient() {
         assertColor(0xFF12082E, StellarTrailDesignColors.Dark.heroStart)
+        assertColor(0xFF1A274D, StellarTrailDesignColors.Dark.heroMid)
         assertColor(0xFF0F766E, StellarTrailDesignColors.Dark.heroEnd)
+        assertColor(0xFF1F3F4A, StellarTrailDesignColors.Dark.heroHill)
+        assertColor(0xFFFDE68A, StellarTrailDesignColors.Dark.heroSun)
     }
 
     private fun assertColor(expectedArgb: Long, actual: Color) {
