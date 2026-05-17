@@ -193,9 +193,8 @@ export default function App({ client }: AppProps) {
     useState<PasswordLoginState>(emptyPasswordLogin);
   const [registerForm, setRegisterForm] =
     useState<RegisterFormState>(emptyRegisterForm);
-  const [emailLoginForm, setEmailLoginForm] = useState<EmailCodeLoginState>(
-    emptyEmailCodeLogin,
-  );
+  const [emailLoginForm, setEmailLoginForm] =
+    useState<EmailCodeLoginState>(emptyEmailCodeLogin);
   const [passwordResetForm, setPasswordResetForm] =
     useState<PasswordResetFormState>(emptyPasswordResetForm);
   const [captcha, setCaptcha] = useState<CaptchaState | null>(null);
@@ -419,9 +418,7 @@ export default function App({ client }: AppProps) {
     }
   }
 
-  async function handleEmailCodeLogin(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  async function handleEmailCodeLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const email = emailLoginForm.email.trim();
     const emailVerificationCode = emailLoginForm.emailVerificationCode.trim();
@@ -474,7 +471,8 @@ export default function App({ client }: AppProps) {
       return;
     }
     const email = passwordResetForm.email.trim();
-    const emailVerificationCode = passwordResetForm.emailVerificationCode.trim();
+    const emailVerificationCode =
+      passwordResetForm.emailVerificationCode.trim();
     if (!email || !emailVerificationCode) {
       setError("请填写邮箱和验证码");
       return;
@@ -1112,7 +1110,7 @@ export default function App({ client }: AppProps) {
           <div className="brand-logo">
             <img
               className="brand-logo-image"
-              src="/stellartrail-icon.png"
+              src="/app-icon.png"
               alt="寻径星野产品图标"
             />
           </div>
