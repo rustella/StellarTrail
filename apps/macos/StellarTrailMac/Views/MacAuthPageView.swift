@@ -253,12 +253,7 @@ struct MacAuthPageView: View {
                 Task { await viewModel.loginWithWechat() }
             } label: {
                 HStack(spacing: 10) {
-                    Text("微")
-                        .font(.system(size: 15, weight: .heavy))
-                        .foregroundStyle(.white)
-                        .frame(width: 30, height: 30)
-                        .background(Color(red: 0.08, green: 0.72, blue: 0.34))
-                        .clipShape(Circle())
+                    WechatLogoIcon()
                     Text(viewModel.loading ? "微信登录中..." : "微信登录")
                         .font(.headline.weight(.bold))
                         .foregroundStyle(palette.textPrimary)
@@ -315,6 +310,73 @@ struct MacAuthPageView: View {
             SecureField("密码", text: $viewModel.password)
             SecureField("确认密码", text: $viewModel.confirmPassword)
         }
+    }
+}
+
+private struct WechatLogoIcon: View {
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color(red: 0.08, green: 0.72, blue: 0.34))
+            ZStack {
+                ChatBubbleShape(tailSide: .left)
+                    .fill(.white)
+                    .frame(width: 15, height: 12)
+                    .offset(x: -3.5, y: -2.5)
+                ChatBubbleShape(tailSide: .right)
+                    .fill(.white)
+                    .frame(width: 13, height: 10)
+                    .offset(x: 4.5, y: 3.5)
+                Circle()
+                    .fill(Color(red: 0.08, green: 0.72, blue: 0.34))
+                    .frame(width: 2.2, height: 2.2)
+                    .offset(x: -7, y: -4)
+                Circle()
+                    .fill(Color(red: 0.08, green: 0.72, blue: 0.34))
+                    .frame(width: 2.2, height: 2.2)
+                    .offset(x: -2.5, y: -4)
+                Circle()
+                    .fill(Color(red: 0.08, green: 0.72, blue: 0.34))
+                    .frame(width: 1.9, height: 1.9)
+                    .offset(x: 2.5, y: 2.5)
+                Circle()
+                    .fill(Color(red: 0.08, green: 0.72, blue: 0.34))
+                    .frame(width: 1.9, height: 1.9)
+                    .offset(x: 6.5, y: 2.5)
+            }
+        }
+        .frame(width: 30, height: 30)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct ChatBubbleShape: Shape {
+    enum TailSide {
+        case left
+        case right
+    }
+
+    let tailSide: TailSide
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.addEllipse(in: rect)
+
+        let tailHeight = rect.height * 0.28
+        let baseY = rect.maxY - rect.height * 0.22
+        let tipY = rect.maxY + tailHeight * 0.18
+
+        if tailSide == .left {
+            path.move(to: CGPoint(x: rect.minX + rect.width * 0.28, y: baseY))
+            path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.18, y: tipY))
+            path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.42, y: rect.maxY - tailHeight * 0.15))
+        } else {
+            path.move(to: CGPoint(x: rect.maxX - rect.width * 0.28, y: baseY))
+            path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.12, y: tipY))
+            path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.44, y: rect.maxY - tailHeight * 0.15))
+        }
+        path.closeSubpath()
+        return path
     }
 }
 
