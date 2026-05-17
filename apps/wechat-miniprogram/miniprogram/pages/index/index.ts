@@ -66,6 +66,26 @@ const EMPTY_STATS: GearStatsResponse = {
   by_status: [],
 };
 
+const LOCKED_GEAR_STATS: HomeStatCard[] = [
+  {
+    label: "可用装备",
+    value: "—",
+    hint: "登录后可见",
+  },
+  {
+    label: "总重量",
+    value: "—",
+    hint: "登录后可见",
+  },
+  {
+    label: "装备估值",
+    value: "—",
+    hint: "登录后可见",
+  },
+];
+
+const INITIAL_LOGGED_IN = hasAccessToken();
+
 const QUICK_ACTIONS: QuickAction[] = [
   {
     id: "gears",
@@ -120,14 +140,16 @@ Page({
     title: "寻径星野",
     quickActions: QUICK_ACTIONS,
     checklistItems: CHECKLIST_ITEMS,
-    isLoggedIn: hasAccessToken(),
+    isLoggedIn: INITIAL_LOGGED_IN,
     gearLoading: false,
     gearError: "",
     skillLoading: false,
     skillError: "",
     templateLoading: false,
     templateError: "",
-    gearStatCards: buildGearStatCards(EMPTY_STATS),
+    gearStatCards: INITIAL_LOGGED_IN
+      ? buildGearStatCards(EMPTY_STATS)
+      : LOCKED_GEAR_STATS,
     recentGears: [] as HomeGearCard[],
     featuredSkills: [] as SkillCard[],
     gearTemplates: [] as TemplateCard[],
@@ -157,7 +179,7 @@ Page({
       this.setData({
         gearLoading: false,
         gearError: "",
-        gearStatCards: buildGearStatCards(EMPTY_STATS),
+        gearStatCards: LOCKED_GEAR_STATS,
         recentGears: [] as HomeGearCard[],
       });
     }
