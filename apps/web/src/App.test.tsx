@@ -279,6 +279,27 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides environment and database diagnostics from the gear dashboard header", async () => {
+    const client = buildClient();
+    vi.mocked(client.meta).mockResolvedValue({
+      name: "StellarTrail",
+      env: "production",
+      database_kind: "postgres",
+    });
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(client.listGears).toHaveBeenCalled());
+    expect(client.meta).not.toHaveBeenCalled();
+    expect(screen.queryByText(/production/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/postgres/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/local\s*·\s*api/i)).not.toBeInTheDocument();
+  });
+
   it("keeps outdoor skills as the second main navigation item", async () => {
     const client = buildClient();
     render(<App client={client} />);

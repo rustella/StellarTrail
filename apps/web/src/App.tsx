@@ -9,7 +9,6 @@ import type {
   GearStatus,
   GearSummary,
   GearTab,
-  MetaResponse,
   WechatLoginResponse,
 } from "@stellartrail/shared-types";
 
@@ -179,7 +178,6 @@ export default function App({ client }: AppProps) {
   const [session, setSession] = useState<WebSession | null>(() =>
     loadSession(),
   );
-  const [meta, setMeta] = useState<MetaResponse | null>(null);
   const [tab, setTab] = useState<GearTab>("available");
   const [category, setCategory] = useState<GearCategoryFilterId>("all");
   const [status, setStatus] = useState<GearStatusFilter>("");
@@ -254,17 +252,16 @@ export default function App({ client }: AppProps) {
     setLoading(true);
     setError(null);
     try {
-      const [metaResponse, categoryResponse, statsResponse, listResponse] =
-        await Promise.all([
-          api.meta(),
+      const [categoryResponse, statsResponse, listResponse] = await Promise.all(
+        [
           api.listGearCategories(tab),
           api.getGearStats(tab),
           api.listGears(listRequest),
-        ]);
+        ],
+      );
       if (requestId !== dashboardRequestRef.current) {
         return;
       }
-      setMeta(metaResponse);
       setCategories(
         categoryResponse.items.length
           ? categoryResponse.items
@@ -295,7 +292,6 @@ export default function App({ client }: AppProps) {
 
   function resetDashboardState() {
     dashboardRequestRef.current += 1;
-    setMeta(null);
     setCategory("all");
     setStatus("");
     setQuery("");
@@ -1157,9 +1153,6 @@ export default function App({ client }: AppProps) {
         <main className="dashboard" id="gear">
           <header className="page-header">
             <div>
-              <p className="eyebrow">
-                {meta ? `${meta.env} · ${meta.database_kind}` : "local · api"}
-              </p>
               <h1>装备管理</h1>
               <p className="muted">
                 管理您的户外装备库，追踪装备状态、重量和价值。
