@@ -48,7 +48,7 @@ final class APIClientTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             if request.url?.path == "/api/auth/refresh" {
                 XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
-                let body = String(data: request.httpBody ?? Data(), encoding: .utf8)
+                let body = requestBodyString(from: request)
                 XCTAssertEqual(body, #"{"refresh_token":"refresh"}"#)
                 let payload = #"{"access_token":"new","expires_at":"2026-05-16T12:30:00Z","refresh_token":"next","refresh_expires_at":"2026-06-15T10:30:00Z","user":{"id":"user-fixture","username":"trail_alice","email":"alice@example.com","nickname":"星野 Alice","avatar_url":null}}"#.data(using: .utf8)!
                 return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
@@ -70,6 +70,25 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(sessionStore.currentSession?.refreshToken, "next")
     }
 
+}
+
+private func requestBodyString(from request: URLRequest) -> String? {
+    if let body = request.httpBody {
+        return String(data: body, encoding: .utf8)
+    }
+    guard let stream = request.httpBodyStream else { return nil }
+    stream.open()
+    defer { stream.close() }
+    var data = Data()
+    let bufferSize = 1024
+    let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+    defer { buffer.deallocate() }
+    while stream.hasBytesAvailable {
+        let count = stream.read(buffer, maxLength: bufferSize)
+        if count <= 0 { break }
+        data.append(buffer, count: count)
+    }
+    return String(data: data, encoding: .utf8)
 }
 
 private extension URLSession {

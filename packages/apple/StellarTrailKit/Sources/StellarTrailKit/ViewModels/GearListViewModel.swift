@@ -115,7 +115,7 @@ final class GearDetailViewModel: ObservableObject {
             loading = false
         } catch {
             loading = false
-            error = error.localizedDescription
+            self.error = error.localizedDescription
         }
     }
 
