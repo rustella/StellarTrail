@@ -12,7 +12,10 @@ import type { WebGearApi } from "./api";
 const KNOTS_LOCALE = "zh-CN";
 const KNOTS_PAGE_SIZE = 24;
 
-type KnotsApi = Pick<WebGearApi, "listSkills" | "listKnots" | "getKnotDetail">;
+type KnotsApi = Pick<
+  WebGearApi,
+  "listSkills" | "listKnots" | "getKnotDetail" | "resolveAssetUrl"
+>;
 
 interface KnotsPageProps {
   api: KnotsApi;
@@ -214,7 +217,12 @@ export default function KnotsPage({ api }: KnotsPageProps) {
           ) : null}
           <div className="knot-grid">
             {knots.map((item) => (
-              <KnotCard key={item.id} item={item} onOpen={openDetail} />
+              <KnotCard
+                key={item.id}
+                item={item}
+                onOpen={openDetail}
+                resolveAssetUrl={(url) => api.resolveAssetUrl(url)}
+              />
             ))}
           </div>
           {nextOffset !== null ? (
@@ -242,7 +250,13 @@ export default function KnotsPage({ api }: KnotsPageProps) {
           正在打开绳结详情…
         </div>
       ) : null}
-      {detail ? <KnotDetailDrawer item={detail} onClose={closeDetail} /> : null}
+      {detail ? (
+        <KnotDetailDrawer
+          item={detail}
+          onClose={closeDetail}
+          resolveAssetUrl={(url) => api.resolveAssetUrl(url)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -250,11 +264,14 @@ export default function KnotsPage({ api }: KnotsPageProps) {
 function KnotCard({
   item,
   onOpen,
+  resolveAssetUrl,
 }: {
   item: KnotSummary;
   onOpen(id: string): Promise<void> | void;
+  resolveAssetUrl(url: string): string;
 }) {
   const media = primaryMedia(item.media);
+  const mediaUrl = media ? resolveAssetUrl(media.url) : undefined;
   return (
     <article className="knot-card">
       <button
@@ -264,7 +281,7 @@ function KnotCard({
         aria-label={`查看${item.title}`}
       >
         {media ? (
-          <img src={media.url} alt="" loading="lazy" />
+          <img src={mediaUrl} alt="" loading="lazy" />
         ) : (
           <span className="knot-media-placeholder" aria-hidden="true">
             ⛓
@@ -293,11 +310,14 @@ function KnotCard({
 function KnotDetailDrawer({
   item,
   onClose,
+  resolveAssetUrl,
 }: {
   item: KnotDetail;
   onClose(): void;
+  resolveAssetUrl(url: string): string;
 }) {
   const media = primaryMedia(item.media);
+  const mediaUrl = media ? resolveAssetUrl(media.url) : undefined;
   return (
     <aside className="detail-drawer knot-detail-drawer" aria-label="绳结详情">
       <button
@@ -318,7 +338,7 @@ function KnotDetailDrawer({
       </div>
       {media ? (
         <figure className="knot-detail-media">
-          <img src={media.url} alt={`${item.title} 演示素材`} />
+          <img src={mediaUrl} alt={`${item.title} 演示素材`} />
           {media.attribution || media.license_note ? (
             <figcaption>
               {[media.attribution, media.license_note]
@@ -351,7 +371,7 @@ function KnotDetailDrawer({
             {item.media.map((asset) => (
               <a
                 key={assetKey(asset)}
-                href={asset.url}
+                href={resolveAssetUrl(asset.url)}
                 target="_blank"
                 rel="noreferrer"
               >

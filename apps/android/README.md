@@ -8,9 +8,10 @@ StellarTrail Android 是原生 Kotlin + Jetpack Compose 客户端，复用仓库
 
 - JDK 21
 - Android SDK 36 / Build Tools 36.0.0
-- 本地 API 默认运行在 `127.0.0.1:8080`
+- 默认 API 地址：`https://api.example.invalid`
+- 默认图片资源 / CORS 资源域名：`https://assets.example.invalid`
 
-Debug 包默认 API Base URL 为 `http://10.0.2.2:8080`，模拟器可直接访问宿主机 API。真机联调时可在 Profile 页面修改 API Base URL。
+构建时会读取 Git 忽略的 `config.properties`，缺失时回退到 `config.example.properties`。本地联调可复制示例文件并把 API 地址改为 `http://10.0.2.2:8080`，模拟器即可访问宿主机服务。真机联调时也可在 Profile 页面临时修改 API Base URL。
 
 ```bash
 ./gradlew :apps:android:assembleDebug

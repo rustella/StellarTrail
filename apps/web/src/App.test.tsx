@@ -48,6 +48,11 @@ function buildClient(): WebGearApi {
     setAccessToken: vi.fn(),
     setSessionTokens: vi.fn(),
     setSessionRefreshHandler: vi.fn(),
+    resolveAssetUrl: vi.fn((pathOrUrl: string) =>
+      pathOrUrl.startsWith("/")
+        ? `https://assets.example.test${pathOrUrl}`
+        : pathOrUrl,
+    ),
     meta: vi.fn().mockResolvedValue({
       name: "StellarTrail",
       env: "local",

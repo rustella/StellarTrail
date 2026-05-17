@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 /** API endpoint configuration shared by repositories. */
 data class AppConfig(
     val baseUrl: String = sanitizeBaseUrl(BuildConfig.DEFAULT_API_BASE_URL),
+    val assetsBaseUrl: String = sanitizeBaseUrl(BuildConfig.DEFAULT_ASSETS_BASE_URL),
 )
 
 interface AppConfigStore {
@@ -20,23 +21,30 @@ interface AppConfigStore {
 class AndroidAppConfigStore(context: Context) : AppConfigStore {
     private val preferences = context.getSharedPreferences("stellartrail_config", Context.MODE_PRIVATE)
     private val defaultBaseUrl = sanitizeBaseUrl(BuildConfig.DEFAULT_API_BASE_URL)
-    private val _config = MutableStateFlow(AppConfig(preferences.getString(KEY_BASE_URL, defaultBaseUrl) ?: defaultBaseUrl))
+    private val defaultAssetsBaseUrl = sanitizeBaseUrl(BuildConfig.DEFAULT_ASSETS_BASE_URL)
+    private val _config = MutableStateFlow(
+        AppConfig(
+            baseUrl = preferences.getString(KEY_BASE_URL, defaultBaseUrl) ?: defaultBaseUrl,
+            assetsBaseUrl = preferences.getString(KEY_ASSETS_BASE_URL, defaultAssetsBaseUrl) ?: defaultAssetsBaseUrl,
+        ),
+    )
 
     override val config: StateFlow<AppConfig> = _config.asStateFlow()
 
     override fun updateBaseUrl(baseUrl: String) {
         val sanitized = sanitizeBaseUrl(baseUrl)
         preferences.edit().putString(KEY_BASE_URL, sanitized).apply()
-        _config.value = AppConfig(sanitized)
+        _config.value = _config.value.copy(baseUrl = sanitized)
     }
 
     override fun resetBaseUrl() {
-        preferences.edit().remove(KEY_BASE_URL).apply()
-        _config.value = AppConfig(defaultBaseUrl)
+        preferences.edit().remove(KEY_BASE_URL).remove(KEY_ASSETS_BASE_URL).apply()
+        _config.value = _config.value.copy(baseUrl = defaultBaseUrl, assetsBaseUrl = defaultAssetsBaseUrl)
     }
 
     private companion object {
         const val KEY_BASE_URL = "base_url"
+        const val KEY_ASSETS_BASE_URL = "assets_base_url"
     }
 }
 
@@ -44,7 +52,7 @@ class InMemoryAppConfigStore(initial: AppConfig = AppConfig()) : AppConfigStore 
     private val _config = MutableStateFlow(initial)
     override val config: StateFlow<AppConfig> = _config.asStateFlow()
     override fun updateBaseUrl(baseUrl: String) {
-        _config.value = AppConfig(sanitizeBaseUrl(baseUrl))
+        _config.value = _config.value.copy(baseUrl = sanitizeBaseUrl(baseUrl))
     }
     override fun resetBaseUrl() {
         _config.value = AppConfig()

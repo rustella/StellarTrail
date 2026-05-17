@@ -1,4 +1,6 @@
 import { StellarTrailApiClient } from "@stellartrail/api-client";
+
+import { getWebClientConfig } from "./client-config";
 import type {
   CaptchaChallengeRequest,
   CaptchaChallengeResponse,
@@ -35,6 +37,7 @@ export interface WebGearApi {
   setSessionRefreshHandler(
     handler?: (response: WechatLoginResponse) => void,
   ): void;
+  resolveAssetUrl(pathOrUrl: string): string;
   meta(): Promise<MetaResponse>;
   loginWithWechatCode(
     request: WechatLoginRequest,
@@ -78,7 +81,9 @@ export interface WebGearApi {
 }
 
 export function createWebGearApi(): WebGearApi {
+  const config = getWebClientConfig();
   return new StellarTrailApiClient({
-    baseUrl: import.meta.env.VITE_STELLARTRAIL_API_BASE_URL ?? "",
+    baseUrl: config.apiBaseUrl,
+    assetsBaseUrl: config.assetsBaseUrl,
   });
 }

@@ -51,3 +51,11 @@ local.properties
 *.keystore
 apps/android/.cxx/
 apps/android/build/
+
+# Client runtime config
+apps/web/.env.local
+apps/web/.env.*.local
+apps/wechat-miniprogram/miniprogram/config.ts
+apps/android/config.properties
+apps/ios/StellarTrail/Resources/ClientConfig.plist
+apps/macos/StellarTrailMac/Resources/ClientConfig.plist

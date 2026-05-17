@@ -117,6 +117,25 @@ curl http://127.0.0.1:8080/api/meta
 
 绳结媒体通过 MinIO/S3-compatible 对象存储上传，公开读接口只返回数据库中的媒体 URL，不再从 `/assets/*` 拼接绳结媒体路径。服务端只维护一组 `minio` 连接配置，反馈图与绳结媒体分别通过 `object_storage.bucket` 和 `knots_media_storage.bucket` 配置业务 bucket。管理员可在配置 `ADMIN_USER_IDS`/`ADMIN_EMAILS`/`ADMIN_USERNAMES` allowlist 后，通过 `npm run knots:upload-media -- --dry-run` 检查 Knots3D 上传计划，再使用同一脚本调用管理员上传接口写入媒体。
 
+### 4. 配置客户端访问地址
+
+各客户端默认使用正式地址：
+
+- API 地址：`https://api.example.invalid`
+- 图片资源 / 允许跨域资源域名：`https://assets.example.invalid`
+
+真实客户端配置文件只保留在本地或构建环境，已被 `.gitignore` 忽略；仓库只提交示例文件。需要调整地址时，复制对应示例文件后修改：
+
+| 客户端     | 示例配置                                                          | 真实配置（不提交）                                        |
+| ---------- | ----------------------------------------------------------------- | --------------------------------------------------------- |
+| Web        | `apps/web/.env.example`                                           | `apps/web/.env.local`                                     |
+| 微信小程序 | `apps/wechat-miniprogram/miniprogram/config.example.ts`           | `apps/wechat-miniprogram/miniprogram/config.ts`           |
+| Android    | `apps/android/config.example.properties`                          | `apps/android/config.properties`                          |
+| iOS        | `apps/ios/StellarTrail/Resources/ClientConfig.example.plist`      | `apps/ios/StellarTrail/Resources/ClientConfig.plist`      |
+| macOS      | `apps/macos/StellarTrailMac/Resources/ClientConfig.example.plist` | `apps/macos/StellarTrailMac/Resources/ClientConfig.plist` |
+
+Web 可通过 `VITE_STELLARTRAIL_API_BASE_URL` 和 `VITE_STELLARTRAIL_ASSETS_BASE_URL` 覆盖；Android 会在 Gradle 构建时读取 `config.properties` 并写入 `BuildConfig`；iOS/macOS 会优先读取应用 Bundle 内的 `ClientConfig.plist`，缺失时回退到默认正式地址。
+
 当前已实现接口：
 
 ```http
@@ -150,7 +169,7 @@ GET /api/me/gears/export
 POST /api/me/gears/import
 ```
 
-### 4. 使用 Docker Compose 启动 PostgreSQL + Redis + API
+### 5. 使用 Docker Compose 启动 PostgreSQL + Redis + API
 
 也可以用 Docker Compose 启动一次性本地集成测试：
 
@@ -161,7 +180,7 @@ COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=1543
 
 该脚本会启动 PostgreSQL、Redis 缓存和 API 服务，使用账号注册、密码登录、邮箱验证码登录和找回密码做 curl 冒烟测试，并在测试结束或失败时自动执行 `docker compose down -v --remove-orphans` 关闭并清理容器；生产环境请通过安全渠道注入真实微信、数据库和 SMTP 密钥。
 
-### 5. 生产 Docker / Traefik 部署配置
+### 6. 生产 Docker / Traefik 部署配置
 
 生产部署配置拆分在 `infra/production/` 下，目标服务器部署根目录为 `/www/service/stellartail`：
 
@@ -173,13 +192,13 @@ COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=1543
 
 生产 API 不再使用 `infra/production/api/.env`；真实 `config.yaml`、ACME storage 和生产密钥文件必须保留在生产服务器或安全渠道中，仓库 `.gitignore` 会忽略这些文件；API 配置只提交 `config.example.yaml` 和 `*.example.yaml`。
 
-### 6. 打开微信小程序
+### 7. 打开微信小程序
 
 用微信开发者工具打开 `apps/wechat-miniprogram`。项目配置中的 `miniprogramRoot` 指向 `miniprogram/`。
 
-### 7. Android 原生端
+### 8. Android 原生端
 
-Android 应用位于 `apps/android`，使用 Kotlin、Jetpack Compose、Material 3、Navigation Compose、Ktor Client 与 kotlinx.serialization。Debug 构建默认连接 `http://10.0.2.2:8080`，可在 Profile 页面覆盖 API Base URL 便于本地联调。
+Android 应用位于 `apps/android`，使用 Kotlin、Jetpack Compose、Material 3、Navigation Compose、Ktor Client 与 kotlinx.serialization。构建时从 `apps/android/config.properties` 读取默认 API 和图片资源地址；本地联调可复制示例后改为 `http://10.0.2.2:8080`，也可在 Profile 页面临时覆盖 API Base URL。
 
 ```bash
 ./gradlew :apps:android:assembleDebug
