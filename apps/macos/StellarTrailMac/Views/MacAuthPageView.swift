@@ -45,7 +45,7 @@ struct MacAuthPageView: View {
         let innerWidth = shellWidth - 56
         let brandWidth = innerWidth * 0.38
         let formWidth = min(max(innerWidth - brandWidth - 30, 430), 560)
-        let shellMinHeight: CGFloat = viewModel.mode == .register ? 590 : 540
+        let shellMinHeight: CGFloat = viewModel.mode == .register ? 590 : 620
 
         return centeredPage(size: size) {
             authShell {
@@ -164,12 +164,6 @@ struct MacAuthPageView: View {
                     .foregroundStyle(palette.textMuted)
             }
 
-            Picker("方式", selection: $viewModel.mode) {
-                Text("账号登录").tag(AuthMode.login)
-                Text("注册账号").tag(AuthMode.register)
-            }
-            .pickerStyle(.segmented)
-
             formFieldGroup {
                 authFields
             }
@@ -179,7 +173,7 @@ struct MacAuthPageView: View {
                 messagePanel(message)
             }
 
-            actionButtons
+            formActions
         }
         .frame(maxWidth: 560, alignment: .leading)
     }
@@ -208,29 +202,91 @@ struct MacAuthPageView: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    private var actionButtons: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                submitButton
-                guestButton
+    private var formActions: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            submitButton
+            modeSwitchRow
+            if viewModel.mode == .login {
+                wechatLoginSection
             }
-            VStack(spacing: 10) {
-                submitButton
-                guestButton
+        }
+    }
+
+    private var modeSwitchRow: some View {
+        HStack(spacing: 6) {
+            if viewModel.mode == .login {
+                Text("还没有账号？")
+                    .foregroundStyle(palette.textMuted)
+                authTextButton("注册账号") {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        viewModel.switchMode(.register)
+                    }
+                }
+            } else {
+                Text("已有账号？")
+                    .foregroundStyle(palette.textMuted)
+                authTextButton("返回登录") {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        viewModel.switchMode(.login)
+                    }
+                }
             }
+            Spacer(minLength: 12)
+            authTextButton("暂不登录，先浏览", action: onContinueAsGuest)
+        }
+        .font(.subheadline)
+    }
+
+    private func authTextButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(palette.brandSoftText)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var wechatLoginSection: some View {
+        VStack(spacing: 12) {
+            AuthDivider(label: "通过以下方式登录")
+            Button {
+                Task { await viewModel.loginWithWechat() }
+            } label: {
+                HStack(spacing: 10) {
+                    Text("微")
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        .background(Color(red: 0.08, green: 0.72, blue: 0.34))
+                        .clipShape(Circle())
+                    Text(viewModel.loading ? "微信登录中..." : "微信登录")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(palette.textPrimary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(palette.surface.opacity(palette.isDark ? 0.60 : 0.92))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(palette.softBorder, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.loading)
         }
     }
 
     private var submitButton: some View {
         TrailPrimaryButton(
-            title: viewModel.loading ? "处理中..." : viewModel.mode.title,
+            title: viewModel.loading ? "处理中..." : primaryButtonTitle,
             action: { Task { await viewModel.submit() } },
             isDisabled: viewModel.loading || !viewModel.canSubmit
         )
     }
 
-    private var guestButton: some View {
-        TrailSoftButton(title: "暂不登录，先浏览", action: onContinueAsGuest)
+    private var primaryButtonTitle: String {
+        viewModel.mode == .login ? "开始登录" : viewModel.mode.title
     }
 
     @ViewBuilder
@@ -258,6 +314,26 @@ struct MacAuthPageView: View {
             }
             SecureField("密码", text: $viewModel.password)
             SecureField("确认密码", text: $viewModel.confirmPassword)
+        }
+    }
+}
+
+private struct AuthDivider: View {
+    @Environment(\.trailPalette) private var palette
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Rectangle()
+                .fill(palette.softBorder)
+                .frame(height: 1)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(palette.textMuted)
+                .fixedSize()
+            Rectangle()
+                .fill(palette.softBorder)
+                .frame(height: 1)
         }
     }
 }

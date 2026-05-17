@@ -12,6 +12,8 @@ final class FixtureRepository: AuthRepositorying, GearRepositorying, SkillReposi
 
     func login(account: String, password: String, captchaTicket: String?, captchaAnswer: String?) async throws -> LoginResponse { .fixture }
 
+    func wechatLogin(code: String, profile: WechatLoginProfile?) async throws -> LoginResponse { .fixture }
+
     func captcha(account: String) async throws -> CaptchaChallengeResponse {
         CaptchaChallengeResponse(captchaTicket: "fixture-ticket", captchaType: "image", imageSvg: "<svg></svg>", expiresAt: "2026-05-16T10:05:00Z", debugAnswer: "A7K2")
     }

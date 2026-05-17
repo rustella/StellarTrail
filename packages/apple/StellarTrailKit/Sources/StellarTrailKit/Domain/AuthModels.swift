@@ -89,6 +89,16 @@ struct PasswordLoginRequest: Encodable, Equatable {
     let captchaAnswer: String?
 }
 
+struct WechatLoginRequest: Encodable, Equatable {
+    let code: String
+    let profile: WechatLoginProfile?
+}
+
+struct WechatLoginProfile: Encodable, Equatable {
+    let nickname: String?
+    let avatarUrl: String?
+}
+
 struct RefreshTokenRequest: Encodable, Equatable {
     let refreshToken: String
 }

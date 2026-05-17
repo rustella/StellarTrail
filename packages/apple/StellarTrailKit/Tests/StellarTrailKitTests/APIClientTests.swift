@@ -70,12 +70,43 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(sessionStore.currentSession?.refreshToken, "next")
     }
 
+    func testWechatLoginPostsCodeAndStoresSession() async throws {
+        let settings = AppSettingsStore(defaults: .testSuite())
+        let sessionStore = SessionStore(keychainStore: InMemoryKeychainStore())
+        let client = APIClient(settingsStore: settings, sessionStore: sessionStore, session: .mocked)
+        let repository = AuthRepository(client: client, sessionStore: sessionStore)
+
+        MockURLProtocol.requestHandler = { request in
+            XCTAssertEqual(request.url?.path, "/api/auth/wechat-login")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            let bodyData = try XCTUnwrap(requestBodyData(from: request))
+            let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+            XCTAssertEqual(body["code"] as? String, "macos-local-user")
+            let profile = try XCTUnwrap(body["profile"] as? [String: Any])
+            XCTAssertEqual(profile["nickname"] as? String, "macOS 本地用户")
+            XCTAssertNil(profile["avatar_url"])
+            let payload = #"{"access_token":"wechat-token","expires_at":"2026-05-16T12:30:00Z","refresh_token":"wechat-refresh","refresh_expires_at":"2026-06-15T10:30:00Z","user":{"id":"wechat-user","username":null,"email":null,"nickname":"macOS 本地用户","avatar_url":null}}"#.data(using: .utf8)!
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
+        }
+
+        let response = try await repository.wechatLogin(
+            code: "macos-local-user",
+            profile: WechatLoginProfile(nickname: "macOS 本地用户", avatarUrl: nil)
+        )
+
+        XCTAssertEqual(response.accessToken, "wechat-token")
+        XCTAssertEqual(sessionStore.currentSession?.accessToken, "wechat-token")
+        XCTAssertEqual(sessionStore.currentSession?.user.displayName, "macOS 本地用户")
+    }
+
 }
 
 private func requestBodyString(from request: URLRequest) -> String? {
-    if let body = request.httpBody {
-        return String(data: body, encoding: .utf8)
-    }
+    requestBodyData(from: request).flatMap { String(data: $0, encoding: .utf8) }
+}
+
+private func requestBodyData(from request: URLRequest) -> Data? {
+    if let body = request.httpBody { return body }
     guard let stream = request.httpBodyStream else { return nil }
     stream.open()
     defer { stream.close() }
@@ -88,7 +119,7 @@ private func requestBodyString(from request: URLRequest) -> String? {
         if count <= 0 { break }
         data.append(buffer, count: count)
     }
-    return String(data: data, encoding: .utf8)
+    return data
 }
 
 private extension URLSession {
