@@ -294,10 +294,6 @@ struct MacAuthPageView: View {
                 Text("多次登录失败时需要先完成验证码。")
                     .font(.caption)
                     .foregroundStyle(palette.textMuted)
-            } else {
-                Text("若多次输入错误，系统会提示验证码。")
-                    .font(.caption)
-                    .foregroundStyle(palette.textMuted)
             }
         } else {
             TextField("用户名", text: $viewModel.username)
