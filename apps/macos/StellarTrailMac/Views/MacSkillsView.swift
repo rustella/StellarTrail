@@ -507,13 +507,6 @@ private struct MacKnotHeroViewer: View {
             .help("循环")
             .buttonStyle(.borderless)
             .frame(width: 42, height: 34)
-            if let activeURL {
-                Link(destination: activeURL) {
-                    Image(systemName: "square.and.arrow.down")
-                        .frame(width: 42, height: 34)
-                }
-                .help("打开素材")
-            }
         }
         .foregroundStyle(.white)
         .padding(5)
