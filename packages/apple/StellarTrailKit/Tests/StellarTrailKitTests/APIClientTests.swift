@@ -99,6 +99,16 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(sessionStore.currentSession?.user.displayName, "macOS 本地用户")
     }
 
+    func testSettingsMigratesMisspelledAPIBaseURL() {
+        let defaults = UserDefaults.testSuite()
+        defaults.set("https://api.example.invalid/", forKey: "stellartrail.baseURLString")
+
+        let settings = AppSettingsStore(defaults: defaults)
+
+        XCTAssertEqual(settings.baseURLString, "https://api.example.invalid")
+        XCTAssertEqual(defaults.string(forKey: "stellartrail.baseURLString"), "https://api.example.invalid")
+    }
+
 }
 
 private func requestBodyString(from request: URLRequest) -> String? {

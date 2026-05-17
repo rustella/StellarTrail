@@ -9,6 +9,8 @@ struct ClientConfig: Equatable {
         assetsBaseURLString: "https://assets.example.invalid"
     )
 
+    private static let legacyMisspelledAPIBaseURLString = "https://api.example.invalid"
+
     static func load(from bundle: Bundle = .main) -> ClientConfig {
         guard let url = bundle.url(forResource: "ClientConfig", withExtension: "plist"),
               let data = try? Data(contentsOf: url),
@@ -16,12 +18,20 @@ struct ClientConfig: Equatable {
             return production
         }
         return ClientConfig(
-            apiBaseURLString: sanitizeBaseURL(raw.apiBaseURLString, fallback: production.apiBaseURLString),
+            apiBaseURLString: sanitizeAPIBaseURL(raw.apiBaseURLString, fallback: production.apiBaseURLString),
             assetsBaseURLString: sanitizeBaseURL(raw.assetsBaseURLString, fallback: production.assetsBaseURLString)
         )
     }
 
-    private static func sanitizeBaseURL(_ value: String?, fallback: String) -> String {
+    static func sanitizeAPIBaseURL(_ value: String?, fallback: String) -> String {
+        let sanitized = sanitizeBaseURL(value, fallback: fallback)
+        if sanitized == legacyMisspelledAPIBaseURLString {
+            return production.apiBaseURLString
+        }
+        return sanitized
+    }
+
+    static func sanitizeBaseURL(_ value: String?, fallback: String) -> String {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
             return fallback
         }

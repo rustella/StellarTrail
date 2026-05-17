@@ -48,10 +48,22 @@ final class AppSettingsStore: ObservableObject {
     init(defaults: UserDefaults = .standard, clientConfig: ClientConfig = .load()) {
         self.defaults = defaults
         self.defaultClientConfig = clientConfig
+        let storedBaseURLString = defaults.string(forKey: Keys.baseURLString)
+        let normalizedBaseURLString = ClientConfig.sanitizeAPIBaseURL(
+            storedBaseURLString,
+            fallback: clientConfig.apiBaseURLString
+        )
+        let storedAssetsBaseURLString = defaults.string(forKey: Keys.assetsBaseURLString)
         let storedTheme = defaults.string(forKey: Keys.themeMode).flatMap(AppThemeMode.init(rawValue:)) ?? .system
         self.themeMode = storedTheme
-        self.baseURLString = defaults.string(forKey: Keys.baseURLString) ?? clientConfig.apiBaseURLString
-        self.assetsBaseURLString = defaults.string(forKey: Keys.assetsBaseURLString) ?? clientConfig.assetsBaseURLString
+        self.baseURLString = normalizedBaseURLString
+        self.assetsBaseURLString = ClientConfig.sanitizeBaseURL(
+            storedAssetsBaseURLString,
+            fallback: clientConfig.assetsBaseURLString
+        )
+        if let storedBaseURLString, storedBaseURLString != normalizedBaseURLString {
+            defaults.set(normalizedBaseURLString, forKey: Keys.baseURLString)
+        }
     }
 
     func resetBaseURL() {
