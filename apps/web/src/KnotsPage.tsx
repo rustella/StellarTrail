@@ -160,7 +160,7 @@ export default function KnotsPage({ api }: KnotsPageProps) {
       <header className="page-header knots-hero">
         <div>
           <p className="eyebrow">Outdoor Skills</p>
-          <h1 id="knots-title">户外技能</h1>
+          <h1 id="knots-title">绳结</h1>
           <p className="muted">
             {categorySummary?.summary ??
               "学习露营、登山和日常户外场景常用绳结，按用途快速找到练习方法。"}

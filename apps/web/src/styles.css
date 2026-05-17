@@ -389,6 +389,51 @@ td small {
   background: var(--brand-color);
 }
 
+.nav-group {
+  display: grid;
+  gap: 6px;
+}
+
+.nav-group-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.nav-group-trigger::after {
+  content: "⌄";
+  color: var(--muted-color);
+  transition: transform 160ms ease;
+}
+
+.nav-group-trigger[aria-expanded="false"]::after {
+  transform: rotate(-90deg);
+}
+
+.nav-group[data-active-parent="true"] > .nav-group-trigger {
+  color: var(--brand-color);
+  background: var(--soft-control-bg);
+}
+
+.nav-group[data-active-parent="true"] > .nav-group-trigger::after {
+  color: currentColor;
+}
+
+.nav-children {
+  display: grid;
+  gap: 8px;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border-color);
+}
+
+.sidebar nav .nav-child {
+  width: 100%;
+  padding-inline: 12px;
+}
+
 .sidebar-global-actions {
   margin-top: auto;
   padding-top: 18px;

@@ -88,14 +88,14 @@ describe("KnotsPage", () => {
     render(<KnotsPage api={api} />);
 
     expect(
-      await screen.findByRole("heading", { name: "户外技能" }),
+      await screen.findByRole("heading", { name: "绳结" }),
     ).toBeInTheDocument();
     expect(api.listSkills).toHaveBeenCalledWith("zh-CN");
     expect(api.listKnots).toHaveBeenCalledWith(
       { offset: 0, limit: 24 },
       "zh-CN",
     );
-    expect(screen.getByText("绳结")).toBeInTheDocument();
+    expect(screen.getByLabelText("绳结概览")).toHaveTextContent("绳结");
     expect(screen.getByText("可调节绳结")).toBeInTheDocument();
     expect(screen.getByText("露营绳结")).toBeInTheDocument();
     expect(screen.getByText("新手")).toBeInTheDocument();
