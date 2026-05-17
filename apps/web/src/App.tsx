@@ -828,7 +828,6 @@ export default function App({ client }: AppProps) {
           >
             装备库
           </button>
-          <span>路线清单 · 待接入</span>
           <button
             type="button"
             className={activePage === "knots" ? "active" : ""}
@@ -837,6 +836,7 @@ export default function App({ client }: AppProps) {
           >
             户外技能
           </button>
+          <span>路线清单 · 待接入</span>
         </nav>
         <div
           className="sidebar-global-actions"
