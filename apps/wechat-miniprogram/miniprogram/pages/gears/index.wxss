@@ -1,7 +1,7 @@
 .gear-page {
   min-height: 100vh;
   padding: 28rpx 28rpx 64rpx;
-  background: #f8fafc;
+  background: var(--page-bg);
   box-sizing: border-box;
 }
 
@@ -41,8 +41,8 @@
   margin: 0;
   padding: 0 28rpx;
   border-radius: 999rpx;
-  color: #0f766e;
-  background: #ffffff;
+  color: var(--brand-color);
+  background: var(--surface-color);
   font-size: 26rpx;
   font-weight: 700;
   line-height: 72rpx;
@@ -51,8 +51,8 @@
 .primary-action.wide {
   width: 100%;
   margin-top: 24rpx;
-  color: #ffffff;
-  background: #0f766e;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
 }
 
 .tab-card,
@@ -62,9 +62,10 @@
 .empty-card,
 .gear-card {
   margin-top: 24rpx;
-  border-radius: 28rpx;
-  background: #ffffff;
-  box-shadow: 0 12rpx 40rpx rgba(15, 23, 42, 0.06);
+  border: 1rpx solid var(--border-color);
+  border-radius: 30rpx;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
 }
 
 .tab-card {
@@ -75,7 +76,7 @@
 .tab-item {
   flex: 1;
   border-radius: 22rpx;
-  color: #64748b;
+  color: var(--muted-color);
   font-size: 28rpx;
   font-weight: 700;
   line-height: 76rpx;
@@ -83,8 +84,8 @@
 }
 
 .tab-item.active {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
 }
 
 .stats-grid {
@@ -96,27 +97,28 @@
 
 .stat-card {
   padding: 24rpx;
-  border-radius: 28rpx;
-  background: #ffffff;
-  box-shadow: 0 12rpx 40rpx rgba(15, 23, 42, 0.05);
+  border: 1rpx solid var(--border-color);
+  border-radius: 30rpx;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
 }
 
 .stat-value {
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 36rpx;
   font-weight: 800;
 }
 
 .stat-label {
   margin-top: 6rpx;
-  color: #334155;
+  color: var(--heading-muted-color);
   font-size: 25rpx;
   font-weight: 700;
 }
 
 .stat-hint {
   margin-top: 6rpx;
-  color: #94a3b8;
+  color: var(--muted-color);
   font-size: 22rpx;
 }
 
@@ -131,8 +133,10 @@
   flex: 1;
   height: 72rpx;
   padding: 0 22rpx;
+  border: 1rpx solid var(--soft-border-color);
   border-radius: 20rpx;
-  background: #f1f5f9;
+  color: var(--text-color);
+  background: var(--control-bg);
   font-size: 26rpx;
 }
 
@@ -148,12 +152,12 @@
 }
 
 .search-button {
-  color: #ffffff;
-  background: #0f766e;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
 }
 
 .clear-button {
-  color: #64748b;
+  color: var(--muted-color);
   background: #e2e8f0;
 }
 
@@ -169,22 +173,22 @@
   gap: 10rpx;
   margin-right: 16rpx;
   padding: 18rpx 24rpx;
-  border: 2rpx solid #e2e8f0;
+  border: 2rpx solid var(--border-color);
   border-radius: 999rpx;
-  color: #475569;
-  background: #ffffff;
+  color: var(--muted-color);
+  background: var(--surface-color);
   font-size: 25rpx;
   font-weight: 700;
 }
 
 .category-chip.active {
-  border-color: #0f766e;
-  color: #0f766e;
-  background: #ecfdf5;
+  border-color: var(--brand-color);
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
 }
 
 .chip-count {
-  color: #94a3b8;
+  color: var(--muted-color);
   font-size: 22rpx;
 }
 
@@ -197,8 +201,8 @@
 .filter-pill {
   padding: 18rpx 26rpx;
   border-radius: 999rpx;
-  color: #334155;
-  background: #ffffff;
+  color: var(--heading-muted-color);
+  background: var(--surface-color);
   font-size: 25rpx;
   font-weight: 700;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.05);
@@ -208,15 +212,15 @@
 .loading-card,
 .empty-card {
   padding: 32rpx;
-  color: #64748b;
+  color: var(--muted-color);
   font-size: 27rpx;
   line-height: 1.6;
   text-align: center;
 }
 
 .error-card {
-  color: #b91c1c;
-  background: #fff1f2;
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
 }
 
 .error-card button {
@@ -226,7 +230,7 @@
 }
 
 .empty-title {
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 30rpx;
   font-weight: 800;
 }
@@ -259,8 +263,8 @@
 }
 
 .category-badge {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
 }
 
 .status-badge {
@@ -279,13 +283,13 @@
 }
 
 .status-badge.muted {
-  color: #64748b;
+  color: var(--muted-color);
   background: #f1f5f9;
 }
 
 .gear-name {
   margin-top: 20rpx;
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 32rpx;
   font-weight: 800;
   line-height: 1.4;
@@ -293,7 +297,7 @@
 
 .gear-meta {
   margin-top: 8rpx;
-  color: #64748b;
+  color: var(--muted-color);
   font-size: 25rpx;
 }
 
@@ -307,13 +311,14 @@
   flex: 1;
   min-width: 0;
   padding: 18rpx 12rpx;
+  border: 1rpx solid var(--soft-border-color);
   border-radius: 20rpx;
-  background: #f8fafc;
+  background: var(--control-bg);
   text-align: center;
 }
 
 .metric-value {
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 24rpx;
   font-weight: 800;
   overflow: hidden;
@@ -323,7 +328,7 @@
 
 .metric-label {
   margin-top: 6rpx;
-  color: #94a3b8;
+  color: var(--muted-color);
   font-size: 20rpx;
 }
 
@@ -335,8 +340,8 @@
 }
 
 .card-actions button {
-  color: #0f766e;
-  background: #ecfdf5;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
 }
 
 .card-actions .danger {
@@ -351,13 +356,13 @@
 
 .load-more {
   padding: 28rpx 0;
-  color: #64748b;
+  color: var(--muted-color);
   font-size: 24rpx;
   text-align: center;
 }
 
 .load-more.muted {
-  color: #94a3b8;
+  color: var(--muted-color);
 }
 
 /* Dark theme overrides */

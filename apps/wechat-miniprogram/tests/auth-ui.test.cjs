@@ -48,3 +48,38 @@ test("register page styles include dark theme surfaces", () => {
   assert.match(wxss, /var\(--surface-color\)/);
   assert.match(wxss, /var\(--brand-color\)/);
 });
+
+test("home gear summary aligns logged-out and logged-in card surfaces", () => {
+  const wxml = read("pages/index/index.wxml");
+  const ts = read("pages/index/index.ts");
+  const wxss = read("pages/index/index.wxss");
+  const guestInlineBlock =
+    wxss.match(/\.guest-inline \{[\s\S]*?\n\}/)?.[0] ?? "";
+
+  assert.match(wxml, /showLoginForGearSummary/);
+  assert.match(ts, /LOCKED_GEAR_STATS/);
+  assert.match(ts, /登录后可见/);
+  assert.match(ts, /value: "—"/);
+  assert.match(
+    guestInlineBlock,
+    /border: 1rpx solid var\(--soft-border-color\)/,
+  );
+  assert.match(guestInlineBlock, /background: var\(--control-bg\)/);
+  assert.doesNotMatch(guestInlineBlock, /var\(--notice-bg\)/);
+});
+
+test("gear page logged-out and logged-in cards share surface tokens", () => {
+  const wxss = read("pages/gears/index.wxss");
+  const cardSurfaceBlock =
+    wxss.match(/\.tab-card,[\s\S]*?\.gear-card \{[\s\S]*?\n\}/)?.[0] ?? "";
+  const metricBlock = wxss.match(/\.metric \{[\s\S]*?\n\}/)?.[0] ?? "";
+  const metricValueBlock =
+    wxss.match(/\.metric-value \{[\s\S]*?\n\}/)?.[0] ?? "";
+
+  assert.match(cardSurfaceBlock, /border: 1rpx solid var\(--border-color\)/);
+  assert.match(cardSurfaceBlock, /background: var\(--surface-color\)/);
+  assert.match(cardSurfaceBlock, /box-shadow: var\(--shadow-soft\)/);
+  assert.doesNotMatch(cardSurfaceBlock, /background: #ffffff/);
+  assert.match(metricBlock, /background: var\(--control-bg\)/);
+  assert.match(metricValueBlock, /color: var\(--text-color\)/);
+});

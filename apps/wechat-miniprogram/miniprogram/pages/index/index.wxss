@@ -1,6 +1,6 @@
 .home-page {
   min-height: 100vh;
-  padding: 28rpx 28rpx 64rpx;
+  padding: 28rpx 28rpx calc(140rpx + env(safe-area-inset-bottom));
   background: var(--page-bg);
   color: var(--text-color);
   box-sizing: border-box;
@@ -252,6 +252,7 @@
   min-width: 0;
   padding: 20rpx 12rpx;
   border-radius: 24rpx;
+  border: 1rpx solid var(--soft-border-color);
   background: var(--control-bg);
   text-align: center;
 }
@@ -571,18 +572,21 @@
   gap: 18rpx;
   margin-top: 22rpx;
   padding: 22rpx;
+  border: 1rpx solid var(--soft-border-color);
   border-radius: 24rpx;
-  color: var(--notice-text);
-  background: var(--notice-bg);
+  color: var(--text-color);
+  background: var(--control-bg);
 }
 
 .guest-title {
+  color: var(--text-color);
   font-size: 27rpx;
   font-weight: 900;
 }
 
 .guest-desc {
   margin-top: 6rpx;
+  color: var(--muted-color);
   font-size: 23rpx;
   line-height: 1.45;
 }
