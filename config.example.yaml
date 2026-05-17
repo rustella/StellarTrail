@@ -35,26 +35,22 @@ upload:
   rate_limit_window_seconds: 3600
   max_images_per_window: 30
 
-object_storage:
+minio:
   endpoint: http://127.0.0.1:19000
   region: us-east-1
-  bucket: stellartrail-uploads
   access_key_id:
   secret_access_key:
   force_path_style: true
+
+object_storage:
+  bucket: stellartrail-uploads
 
 knots_media_storage:
   storage_profile: knots-public
-  endpoint: http://127.0.0.1:19000
-  region: us-east-1
   bucket: stellartrail-knots-media
-  access_key_id:
-  secret_access_key:
-  force_path_style: true
   public_base_url: http://127.0.0.1:19000/stellartrail-knots-media
   max_image_bytes: 32000000
   max_video_bytes: 80000000
-
 admin:
   user_ids: []
   emails: []
@@ -84,7 +80,6 @@ public_api:
   max_offset: 10000
   trust_proxy_headers: false
   trusted_proxy_cidrs: []
-
 
 cors:
   # Browser origins that may call the API directly. Production should include

@@ -22,6 +22,7 @@ struct FileConfig {
     content: FileContentConfig,
     redis: FileRedisCacheConfig,
     upload: FileUploadConfig,
+    minio: FileMinioConfig,
     object_storage: FileObjectStorageConfig,
     knots_media_storage: FileKnotsMediaStorageConfig,
     admin: FileAdminConfig,
@@ -78,10 +79,9 @@ struct FileUploadConfig {
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-struct FileObjectStorageConfig {
+struct FileMinioConfig {
     endpoint: Option<String>,
     region: Option<String>,
-    bucket: Option<String>,
     access_key_id: Option<String>,
     secret_access_key: Option<String>,
     force_path_style: Option<bool>,
@@ -89,14 +89,15 @@ struct FileObjectStorageConfig {
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+struct FileObjectStorageConfig {
+    bucket: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 struct FileKnotsMediaStorageConfig {
     storage_profile: Option<String>,
-    endpoint: Option<String>,
-    region: Option<String>,
     bucket: Option<String>,
-    access_key_id: Option<String>,
-    secret_access_key: Option<String>,
-    force_path_style: Option<bool>,
     public_base_url: Option<String>,
     max_image_bytes: Option<u64>,
     max_video_bytes: Option<u64>,
@@ -248,23 +249,21 @@ impl Default for UploadConfig {
     }
 }
 
-/// S3-compatible object storage configuration. MinIO is the local integration-test implementation.
+/// Shared S3-compatible MinIO connection configuration.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ObjectStorageConfig {
+pub struct MinioConfig {
     pub endpoint: String,
     pub region: String,
-    pub bucket: String,
     pub access_key_id: String,
     pub secret_access_key: String,
     pub force_path_style: bool,
 }
 
-impl Default for ObjectStorageConfig {
+impl Default for MinioConfig {
     fn default() -> Self {
         Self {
             endpoint: "http://127.0.0.1:19000".to_owned(),
             region: "us-east-1".to_owned(),
-            bucket: "stellartrail-uploads".to_owned(),
             access_key_id: String::new(),
             secret_access_key: String::new(),
             force_path_style: true,
@@ -272,16 +271,25 @@ impl Default for ObjectStorageConfig {
     }
 }
 
-/// Public Knots3D media object storage configuration. Public URLs can point at a different MinIO/CDN domain than the API.
+/// Private feedback image object bucket configuration.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ObjectStorageConfig {
+    pub bucket: String,
+}
+
+impl Default for ObjectStorageConfig {
+    fn default() -> Self {
+        Self {
+            bucket: "stellartrail-uploads".to_owned(),
+        }
+    }
+}
+
+/// Public Knots3D media bucket configuration. Public URLs can point at a different MinIO/CDN domain than the API.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct KnotsMediaStorageConfig {
     pub storage_profile: String,
-    pub endpoint: String,
-    pub region: String,
     pub bucket: String,
-    pub access_key_id: String,
-    pub secret_access_key: String,
-    pub force_path_style: bool,
     pub public_base_url: String,
     pub max_image_bytes: u64,
     pub max_video_bytes: u64,
@@ -291,12 +299,7 @@ impl Default for KnotsMediaStorageConfig {
     fn default() -> Self {
         Self {
             storage_profile: "knots-public".to_owned(),
-            endpoint: "http://127.0.0.1:19000".to_owned(),
-            region: "us-east-1".to_owned(),
             bucket: "stellartrail-knots-media".to_owned(),
-            access_key_id: String::new(),
-            secret_access_key: String::new(),
-            force_path_style: true,
             public_base_url: "http://127.0.0.1:19000/stellartrail-knots-media".to_owned(),
             max_image_bytes: 32_000_000,
             max_video_bytes: 80_000_000,
@@ -384,6 +387,7 @@ pub struct ApiConfig {
     pub media_base_url: String,
     pub redis_cache: RedisCacheConfig,
     pub upload: UploadConfig,
+    pub minio: MinioConfig,
     pub object_storage: ObjectStorageConfig,
     pub knots_media_storage: KnotsMediaStorageConfig,
     pub admin: AdminConfig,
@@ -402,6 +406,7 @@ impl ApiConfig {
             content,
             redis,
             upload: file_upload,
+            minio: file_minio,
             object_storage: file_object_storage,
             knots_media_storage: file_knots_media_storage,
             admin: file_admin,
@@ -460,48 +465,57 @@ impl ApiConfig {
         if upload.max_images_per_window == 0 {
             anyhow::bail!("UPLOAD_MAX_IMAGES_PER_WINDOW must be greater than 0");
         }
+        let default_minio = MinioConfig::default();
+        let minio = MinioConfig {
+            endpoint: config_string_env_alias(
+                "MINIO_ENDPOINT",
+                &["OBJECT_STORAGE_ENDPOINT"],
+                file_minio.endpoint,
+                &default_minio.endpoint,
+            ),
+            region: config_string_env_alias(
+                "MINIO_REGION",
+                &["OBJECT_STORAGE_REGION"],
+                file_minio.region,
+                &default_minio.region,
+            ),
+            access_key_id: config_string_env_alias(
+                "MINIO_ACCESS_KEY_ID",
+                &["OBJECT_STORAGE_ACCESS_KEY_ID"],
+                file_minio.access_key_id,
+                &default_minio.access_key_id,
+            ),
+            secret_access_key: config_string_env_alias(
+                "MINIO_SECRET_ACCESS_KEY",
+                &["OBJECT_STORAGE_SECRET_ACCESS_KEY"],
+                file_minio.secret_access_key,
+                &default_minio.secret_access_key,
+            ),
+            force_path_style: config_bool_env_alias(
+                "MINIO_FORCE_PATH_STYLE",
+                &["OBJECT_STORAGE_FORCE_PATH_STYLE"],
+                file_minio.force_path_style,
+                true,
+            )?,
+        };
+        validate_minio_config(&minio)?;
+
         let default_storage = ObjectStorageConfig::default();
         let object_storage = ObjectStorageConfig {
-            endpoint: config_string_env(
-                "OBJECT_STORAGE_ENDPOINT",
-                file_object_storage.endpoint,
-                &default_storage.endpoint,
-            ),
-            region: config_string_env(
-                "OBJECT_STORAGE_REGION",
-                file_object_storage.region,
-                &default_storage.region,
-            ),
             bucket: config_string_env(
                 "OBJECT_STORAGE_BUCKET",
                 file_object_storage.bucket,
                 &default_storage.bucket,
             ),
-            access_key_id: config_string_env(
-                "OBJECT_STORAGE_ACCESS_KEY_ID",
-                file_object_storage.access_key_id,
-                &default_storage.access_key_id,
-            ),
-            secret_access_key: config_string_env(
-                "OBJECT_STORAGE_SECRET_ACCESS_KEY",
-                file_object_storage.secret_access_key,
-                &default_storage.secret_access_key,
-            ),
-            force_path_style: config_bool_env(
-                "OBJECT_STORAGE_FORCE_PATH_STYLE",
-                file_object_storage.force_path_style,
-                true,
-            )?,
         };
+        validate_object_storage_config(&object_storage)?;
+
         let default_knots_storage = KnotsMediaStorageConfig::default();
         let knots_media_bucket = config_string_env(
             "KNOTS_MEDIA_BUCKET",
             file_knots_media_storage.bucket,
             &default_knots_storage.bucket,
         );
-        let knots_media_endpoint =
-            config_optional_string_env("KNOTS_MEDIA_ENDPOINT", file_knots_media_storage.endpoint)
-                .unwrap_or_else(|| object_storage.endpoint.clone());
         let knots_media_public_base_url = config_optional_string_env(
             "KNOTS_MEDIA_PUBLIC_BASE_URL",
             file_knots_media_storage.public_base_url,
@@ -509,7 +523,7 @@ impl ApiConfig {
         .unwrap_or_else(|| {
             format!(
                 "{}/{}",
-                knots_media_endpoint.trim_end_matches('/'),
+                minio.endpoint.trim_end_matches('/'),
                 knots_media_bucket
             )
         });
@@ -519,28 +533,7 @@ impl ApiConfig {
                 file_knots_media_storage.storage_profile,
                 &default_knots_storage.storage_profile,
             ),
-            endpoint: knots_media_endpoint,
-            region: config_optional_string_env(
-                "KNOTS_MEDIA_REGION",
-                file_knots_media_storage.region,
-            )
-            .unwrap_or_else(|| object_storage.region.clone()),
             bucket: knots_media_bucket,
-            access_key_id: config_optional_string_env(
-                "KNOTS_MEDIA_ACCESS_KEY_ID",
-                file_knots_media_storage.access_key_id,
-            )
-            .unwrap_or_else(|| object_storage.access_key_id.clone()),
-            secret_access_key: config_optional_string_env(
-                "KNOTS_MEDIA_SECRET_ACCESS_KEY",
-                file_knots_media_storage.secret_access_key,
-            )
-            .unwrap_or_else(|| object_storage.secret_access_key.clone()),
-            force_path_style: config_bool_env(
-                "KNOTS_MEDIA_FORCE_PATH_STYLE",
-                file_knots_media_storage.force_path_style,
-                object_storage.force_path_style,
-            )?,
             public_base_url: knots_media_public_base_url.trim_end_matches('/').to_owned(),
             max_image_bytes: config_u64_env(
                 "KNOTS_MEDIA_MAX_IMAGE_BYTES",
@@ -554,6 +547,7 @@ impl ApiConfig {
             )?,
         };
         validate_knots_media_storage_config(&knots_media_storage)?;
+
         let admin = AdminConfig {
             user_ids: config_list_env("ADMIN_USER_IDS", file_admin.user_ids),
             emails: config_list_env("ADMIN_EMAILS", file_admin.emails)
@@ -678,6 +672,7 @@ impl ApiConfig {
             media_base_url,
             redis_cache,
             upload,
+            minio,
             object_storage,
             knots_media_storage,
             admin,
@@ -719,8 +714,23 @@ fn config_string_env(name: &str, file_value: Option<String>, default: &str) -> S
         .unwrap_or_else(|| default.to_owned())
 }
 
+fn config_string_env_alias(
+    name: &str,
+    aliases: &[&str],
+    file_value: Option<String>,
+    default: &str,
+) -> String {
+    optional_env_alias(name, aliases)
+        .or_else(|| normalize_file_string(file_value))
+        .unwrap_or_else(|| default.to_owned())
+}
+
 fn config_optional_string_env(name: &str, file_value: Option<String>) -> Option<String> {
     optional_env(name).or_else(|| normalize_file_string(file_value))
+}
+
+fn optional_env_alias(name: &str, aliases: &[&str]) -> Option<String> {
+    optional_env(name).or_else(|| aliases.iter().find_map(|alias| optional_env(alias)))
 }
 
 fn config_u16_env(name: &str, file_value: Option<u16>, default: u16) -> anyhow::Result<u16> {
@@ -759,6 +769,19 @@ fn config_bool_env(name: &str, file_value: Option<bool>, default: bool) -> anyho
     Ok(optional_bool_env(name)?.or(file_value).unwrap_or(default))
 }
 
+fn config_bool_env_alias(
+    name: &str,
+    aliases: &[&str],
+    file_value: Option<bool>,
+    default: bool,
+) -> anyhow::Result<bool> {
+    if let Some(value) = optional_env_alias(name, aliases) {
+        Ok(value.parse::<bool>()?)
+    } else {
+        Ok(file_value.unwrap_or(default))
+    }
+}
+
 fn config_list_env(name: &str, file_value: Option<Vec<String>>) -> Vec<String> {
     if env::var(name).is_ok() {
         return optional_csv_env(name);
@@ -782,6 +805,23 @@ fn optional_csv_env(name: &str) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn validate_minio_config(config: &MinioConfig) -> anyhow::Result<()> {
+    if config.endpoint.trim().is_empty() {
+        anyhow::bail!("MINIO_ENDPOINT must not be empty");
+    }
+    if config.region.trim().is_empty() {
+        anyhow::bail!("MINIO_REGION must not be empty");
+    }
+    Ok(())
+}
+
+fn validate_object_storage_config(config: &ObjectStorageConfig) -> anyhow::Result<()> {
+    if config.bucket.trim().is_empty() {
+        anyhow::bail!("OBJECT_STORAGE_BUCKET must not be empty");
+    }
+    Ok(())
 }
 
 fn validate_knots_media_storage_config(config: &KnotsMediaStorageConfig) -> anyhow::Result<()> {
@@ -1015,21 +1055,17 @@ upload:
   max_image_bytes: 111111
   rate_limit_window_seconds: 120
   max_images_per_window: 8
-object_storage:
-  endpoint: http://object-store.example.invalid
+minio:
+  endpoint: http://minio.example.invalid
   region: us-east-1
-  bucket: yaml-uploads
   access_key_id: x
   secret_access_key: x
   force_path_style: true
+object_storage:
+  bucket: yaml-uploads
 knots_media_storage:
   storage_profile: yaml-knots
-  endpoint: http://knots-store.example.invalid
-  region: us-east-1
   bucket: yaml-knots-media
-  access_key_id: x
-  secret_access_key: x
-  force_path_style: true
   public_base_url: https://cdn.example.invalid/knots
   max_image_bytes: 222222
   max_video_bytes: 333333
@@ -1091,6 +1127,7 @@ mail:
         assert_eq!(config.media_base_url, "https://cdn.example.invalid/assets");
         assert_eq!(config.redis_cache.key_prefix, "yaml-prefix");
         assert_eq!(config.upload.max_image_bytes, 111111);
+        assert_eq!(config.minio.endpoint, "http://minio.example.invalid");
         assert_eq!(config.object_storage.bucket, "yaml-uploads");
         assert_eq!(config.knots_media_storage.storage_profile, "yaml-knots");
         assert_eq!(config.knots_media_storage.max_video_bytes, 333333);
@@ -1180,7 +1217,7 @@ public_api:
         restore_env(saved);
     }
     #[test]
-    fn from_env_reads_upload_and_object_storage_config() {
+    fn from_env_reads_upload_minio_and_bucket_config() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = snapshot_env(CONFIG_KEYS);
         unsafe {
@@ -1189,12 +1226,12 @@ public_api:
             env::set_var("UPLOAD_MAX_IMAGE_BYTES", "123456");
             env::set_var("UPLOAD_RATE_LIMIT_WINDOW_SECONDS", "60");
             env::set_var("UPLOAD_MAX_IMAGES_PER_WINDOW", "7");
-            env::set_var("OBJECT_STORAGE_ENDPOINT", " http://minio:9000 ");
-            env::set_var("OBJECT_STORAGE_REGION", " us-east-1 ");
+            env::set_var("MINIO_ENDPOINT", " http://minio:9000 ");
+            env::set_var("MINIO_REGION", " us-east-1 ");
+            env::set_var("MINIO_ACCESS_KEY_ID", " local-key ");
+            env::set_var("MINIO_SECRET_ACCESS_KEY", " local-secret ");
+            env::set_var("MINIO_FORCE_PATH_STYLE", "true");
             env::set_var("OBJECT_STORAGE_BUCKET", " stellartrail-test ");
-            env::set_var("OBJECT_STORAGE_ACCESS_KEY_ID", " local-key ");
-            env::set_var("OBJECT_STORAGE_SECRET_ACCESS_KEY", " local-secret ");
-            env::set_var("OBJECT_STORAGE_FORCE_PATH_STYLE", "true");
         }
 
         let config = ApiConfig::from_env().unwrap();
@@ -1207,11 +1244,11 @@ public_api:
                 max_images_per_window: 7,
             },
         );
-        assert_eq!(config.object_storage.endpoint, "http://minio:9000");
+        assert_eq!(config.minio.endpoint, "http://minio:9000");
+        assert_eq!(config.minio.access_key_id, "local-key");
+        assert_eq!(config.minio.secret_access_key, "local-secret");
+        assert!(config.minio.force_path_style);
         assert_eq!(config.object_storage.bucket, "stellartrail-test");
-        assert_eq!(config.object_storage.access_key_id, "local-key");
-        assert_eq!(config.object_storage.secret_access_key, "local-secret");
-        assert!(config.object_storage.force_path_style);
 
         restore_env(saved);
     }
@@ -1372,9 +1409,14 @@ public_api:
         "UPLOAD_MAX_IMAGE_BYTES",
         "UPLOAD_RATE_LIMIT_WINDOW_SECONDS",
         "UPLOAD_MAX_IMAGES_PER_WINDOW",
+        "MINIO_ENDPOINT",
+        "MINIO_REGION",
+        "MINIO_ACCESS_KEY_ID",
+        "MINIO_SECRET_ACCESS_KEY",
+        "MINIO_FORCE_PATH_STYLE",
+        "OBJECT_STORAGE_BUCKET",
         "OBJECT_STORAGE_ENDPOINT",
         "OBJECT_STORAGE_REGION",
-        "OBJECT_STORAGE_BUCKET",
         "OBJECT_STORAGE_ACCESS_KEY_ID",
         "OBJECT_STORAGE_SECRET_ACCESS_KEY",
         "OBJECT_STORAGE_FORCE_PATH_STYLE",
@@ -1392,12 +1434,7 @@ public_api:
         "CORS_ALLOW_CREDENTIALS",
         "MINIO_ROOT_USER",
         "KNOTS_MEDIA_STORAGE_PROFILE",
-        "KNOTS_MEDIA_ENDPOINT",
-        "KNOTS_MEDIA_REGION",
         "KNOTS_MEDIA_BUCKET",
-        "KNOTS_MEDIA_ACCESS_KEY_ID",
-        "KNOTS_MEDIA_SECRET_ACCESS_KEY",
-        "KNOTS_MEDIA_FORCE_PATH_STYLE",
         "KNOTS_MEDIA_PUBLIC_BASE_URL",
         "KNOTS_MEDIA_MAX_IMAGE_BYTES",
         "KNOTS_MEDIA_MAX_VIDEO_BYTES",

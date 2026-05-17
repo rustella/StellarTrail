@@ -45,6 +45,7 @@ async fn test_app_with_cache(cache: Cache) -> TestApp {
         media_base_url: "/assets".to_owned(),
         redis_cache: RedisCacheConfig::disabled(),
         upload: Default::default(),
+        minio: Default::default(),
         object_storage: Default::default(),
         knots_media_storage: Default::default(),
         admin: Default::default(),
