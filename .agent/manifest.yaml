@@ -1,56 +1,133 @@
+version: 1
 project:
   name: StellarTrail
+  display_name: Xunjing Xingye
   repository: https://github.com/rustella/StellarTrail
-  description: Outdoor gear management Mini Program and backend, also known as Xunjing Xingye.
+  default_branch: main
+  current_focus: phase-one gear inventory MVP
+  description: Outdoor route knowledge, gear preparation, and offline skills for China-focused hiking scenarios. The current implementation prioritizes the WeChat Mini Program and the Rust API.
+
+read_order:
+  - AGENTS.md
+  - .agent/AGENTS.md
+  - .agent/local/AGENTS.md
+  - .agent/context-index.yaml
+  - .agent/commands.yaml
+
+indexes:
+  context: .agent/context-index.yaml
+  commands: .agent/commands.yaml
+  knowledge: .agent/knowledge/README.md
+  skills: .agent/skills/README.md
 
 stack:
   backend:
     language: Rust
-    framework: axum
-    source_roots:
-      - services/api/src
-      - crates/domain/src
-      - crates/db/src
-      - crates/importer/src
-      - crates/migration/src
+    edition: "2024"
+    framework: axum 0.7
+    async_runtime: tokio
+    db_access: SeaORM 1.1
+    migrations: sea-orm-migration 1.1
   frontend:
-    source_roots:
-      - apps/web
-      - apps/wechat-miniprogram
+    platforms:
+      - WeChat Mini Program
+      - Android
+      - web
+    language: TypeScript
+    node: "22+"
+  content:
+    formats:
+      - YAML
+      - Markdown
+  databases:
+    local: SQLite
+    production_recommended: PostgreSQL
+    compatibility_note: Keep room for MySQL-compatible configuration when required, but phase one focuses on SQLite and PostgreSQL.
+
+source_roots:
+  - path: apps/android
+    role: Android native client.
+  - path: apps/wechat-miniprogram
+    role: WeChat Mini Program client.
+  - path: apps/web
+    role: Web client.
+  - path: services/api
+    role: Rust Axum API service.
+  - path: crates/domain
+    role: Domain models, enums, and validation rules.
+  - path: crates/db
+    role: Database configuration, connections, and repositories.
+  - path: crates/importer
+    role: Content parsing and import boundaries.
+  - path: crates/migration
+    role: Database schema migrations.
+  - path: packages/api-client-ts
+    role: TypeScript API client.
+  - path: packages/shared-types
+    role: Shared TypeScript DTO types.
+  - path: content
+    role: Seed content for mountains, routes, skills, and gear templates.
+  - path: docs
+    role: Product, architecture, API, and content schema documentation.
+  - path: infra
+    role: Docker and local deployment configuration.
+  - path: scripts
+    role: Development helper scripts.
 
 entrypoints:
-  api:
-    main: services/api/src/main.rs
-    library: services/api/src/lib.rs
-    routes: services/api/src/routes/mod.rs
+  android_app: apps/android/src/main/java/com/rustella/stellartrail/MainActivity.kt
+  api_server: services/api/src/main.rs
+  api_state: services/api/src/state.rs
+  api_routes: services/api/src/routes/mod.rs
   migrations: crates/migration/src/lib.rs
+  wechat_app: apps/wechat-miniprogram/miniprogram/app.ts
+  wechat_pages_config: apps/wechat-miniprogram/miniprogram/app.json
+  rust_workspace: Cargo.toml
+  node_workspace: package.json
+
+important_docs:
+  - README.md
+  - README.en.md
+  - docs/architecture.md
+  - docs/api.md
+  - docs/content-schema.md
+  - docs/mvp.md
+
+generated_or_local_paths:
+  - target
+  - node_modules
+  - dist
+  - .idea
+  - .env
+  - stellartrail.db
+  - "*.sqlite"
+  - "*.sqlite3"
 
 policies:
-  code_comments:
-    language: en-US
-    scope: All code comments across the repository must be written in English.
-  server_rust_comments:
-    language: en-US
-    module_docs: Use `//!` to describe each server Rust crate or module responsibility, boundary, and key constraint.
-    item_docs: Use `///` for `pub` types, `pub` functions, and important private functions to describe purpose, inputs/outputs, errors, or safety boundaries.
-    inline_comments: Use `//` for critical authentication, database, cache, state transition, external call, import/export, and migration DDL logic.
-  secrets:
-    rule: Do not write tokens, passwords, connection strings, or other secrets in code, comments, logs, or documentation.
-  docs_sync:
-    rule: Keep README, docs/api.md, or .agent rules synchronized when APIs, configuration, migrations, or run commands change.
+  agent_docs_language: English only for AGENTS.md, CLAUDE.md, and every file under .agent.
+  code_comments_language: English for code comments unless a task explicitly requests otherwise.
+  server_rust_comments: Server Rust additions and modifications should include module-level rustdoc, rustdoc for public items and important private functions, and inline comments for critical logic.
+  protect_existing_changes: true
+  no_secrets_in_repo: true
+  doc_sync_required_for_behavior_changes: true
+  keep_agent_entrypoints_thin: true
+  avoid_unrequested_scope_expansion: true
+  local_branch_policy: Use wx/chore/initial-mvp until it is merged or deleted locally and remotely.
 
 validation:
-  backend:
-    - cargo fmt --all -- --check
-    - cargo check --workspace
-    - cargo test --workspace
-    - cargo clippy --workspace --all-targets -- -D warnings
-    - cargo doc --workspace --no-deps
-  workspace:
-    - npm run check
-    - npm run format:check
-    - git diff --check
+  primary_commands_file: .agent/commands.yaml
+  recommended_before_handoff:
+    - npm_run_check
+    - npm_format_check
+    - cargo_fmt_check
+    - cargo_check_workspace
+    - cargo_test_workspace
+    - cargo_clippy_workspace
+    - git_diff_check
 
 freshness:
-  last_updated: 2026-05-16
-  source: Current repository code and explicit user requirements.
+  last_updated: "2026-05-17"
+  source: Repository files, current channel context, and explicit user language and branch-policy requirements.
+  known_gaps:
+    - Full database-backed content import remains follow-up work unless already implemented in the current MVP branch.
+    - Placeholder scripts should not be treated as production import or client generation validation until they are implemented.

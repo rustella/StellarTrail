@@ -33,11 +33,9 @@ apps/wechat-miniprogram/private.*.key
 *.sqlite3
 /tmp/
 .hermes/
-.agent/
-AGENTS.md
-CLAUDE.md
 /skills/
 scripts/init_agent_context.py
+.agent/local
 # Android
 .gradle/
 local.properties
