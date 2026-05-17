@@ -257,6 +257,22 @@ describe("App", () => {
     ).toEqual(["装备库", "户外技能", "路线清单 · 待接入"]);
   });
 
+  it("renders the sidebar brand as a separated bilingual wordmark", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    const wordmark = await screen.findByLabelText("寻径星野 StellarTrail");
+
+    expect(wordmark).toHaveClass("brand-wordmark");
+    expect(within(wordmark).getByText("寻径星野")).toHaveClass(
+      "brand-wordmark-cn",
+    );
+    expect(within(wordmark).getByText("StellarTrail")).toHaveClass(
+      "brand-wordmark-en",
+    );
+  });
+
   it("opens the outdoor skills knots page from the sidebar", async () => {
     const client = buildClient();
     render(<App client={client} />);

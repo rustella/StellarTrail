@@ -65,3 +65,18 @@ describe("web light theme color tokens", () => {
     );
   });
 });
+
+describe("web brand wordmark layout", () => {
+  it("keeps the Chinese and English names visually separated", () => {
+    const styles = readCss(WEB_STYLES);
+    const wordmarkBlock = extractBlock(styles, ".brand-wordmark");
+
+    expect(wordmarkBlock).toContain("display: inline-flex;");
+    expect(wordmarkBlock).toContain("gap: 8px;");
+    expect(wordmarkBlock).toContain("align-items: baseline;");
+    expect(wordmarkBlock).toContain("white-space: nowrap;");
+    expect(extractBlock(styles, ".brand-wordmark-en")).toContain(
+      "letter-spacing: 0.01em;",
+    );
+  });
+});
