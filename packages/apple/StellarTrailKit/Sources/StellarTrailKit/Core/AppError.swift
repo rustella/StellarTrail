@@ -24,8 +24,8 @@ enum AppError: Error, Equatable, LocalizedError {
             return message
         case let .decoding(message):
             return "数据暂时无法显示：\(message)"
-        case let .network(message):
-            return "暂时连不上，请稍后再试：\(message)"
+        case .network:
+            return "暂时连不上，请稍后再试"
         case .unknown:
             return "暂时无法完成，请稍后再试"
         }
