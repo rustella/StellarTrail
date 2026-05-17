@@ -93,7 +93,7 @@ data class ListKnotsRequest(
     val query: String? = null,
 )
 
-fun resolveMediaUrl(apiBaseUrl: String, mediaUrl: String): String {
+fun resolveMediaUrl(assetsBaseUrl: String, mediaUrl: String): String {
     if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) return mediaUrl
-    return apiBaseUrl.trimEnd('/') + "/" + mediaUrl.trimStart('/')
+    return assetsBaseUrl.trimEnd('/') + "/" + mediaUrl.trimStart('/')
 }

@@ -102,7 +102,7 @@ class ApiClient(
 
     fun resolveAssetUrl(pathOrUrl: String): String {
         if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) return pathOrUrl
-        return baseUrl.trimEnd('/') + "/" + pathOrUrl.trimStart('/')
+        return configProvider().assetsBaseUrl.trimEnd('/') + "/" + pathOrUrl.trimStart('/')
     }
 
     @PublishedApi

@@ -100,6 +100,19 @@ final class APIClient {
         return urlRequest
     }
 
+    func resolveAssetURL(_ pathOrURL: String) -> URL? {
+        if let absoluteURL = URL(string: pathOrURL), absoluteURL.scheme == "http" || absoluteURL.scheme == "https" {
+            return absoluteURL
+        }
+        guard var components = URLComponents(url: settingsStore.assetsBaseURL, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        let basePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let assetPath = pathOrURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        components.path = "/" + [basePath, assetPath].filter { !$0.isEmpty }.joined(separator: "/")
+        return components.url
+    }
+
     private func buildURL(path: String, queryItems: [URLQueryItem]) throws -> URL {
         guard var components = URLComponents(url: settingsStore.baseURL, resolvingAgainstBaseURL: false) else {
             throw AppError.invalidURL

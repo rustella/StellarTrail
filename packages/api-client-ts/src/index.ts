@@ -36,6 +36,7 @@ import type {
 
 export interface ApiClientOptions {
   baseUrl: string;
+  assetsBaseUrl?: string;
   fetcher?: typeof fetch;
   accessToken?: string;
   refreshToken?: string;
@@ -56,6 +57,7 @@ export interface AdminKnotMediaUploadInput {
 
 export class StellarTrailApiClient {
   private readonly baseUrl: string;
+  private readonly assetsBaseUrl: string;
   private readonly fetcher: typeof fetch;
   private accessToken?: string;
   private refreshToken?: string;
@@ -64,6 +66,7 @@ export class StellarTrailApiClient {
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
+    this.assetsBaseUrl = (options.assetsBaseUrl ?? options.baseUrl).replace(/\/$/, "");
     this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
     this.accessToken = options.accessToken;
     this.refreshToken = options.refreshToken;
@@ -136,6 +139,13 @@ export class StellarTrailApiClient {
       true,
     );
     return response.json() as Promise<KnotMediaUploadResponse>;
+  }
+
+  resolveAssetUrl(pathOrUrl: string): string {
+    if (/^https?:\/\//i.test(pathOrUrl)) {
+      return pathOrUrl;
+    }
+    return `${this.assetsBaseUrl}/${pathOrUrl.replace(/^\/+/, "")}`;
   }
 
   async listGearTemplates(): Promise<ContentListResponse<GearTemplate>> {

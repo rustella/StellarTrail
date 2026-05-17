@@ -1,4 +1,4 @@
-import { getApiBaseUrl, getErrorMessage, getKnotDetail } from "../../../utils/api";
+import { getErrorMessage, getKnotDetail, resolveAssetUrl } from "../../../utils/api";
 import {
   getSkillDifficultyLabel,
   getSkillDifficultyTone,
@@ -79,11 +79,4 @@ function mapMedia(item: KnotMediaAsset): MediaView {
     resolvedUrl: resolveAssetUrl(item.url),
     mediaTypeText: item.media_type.toUpperCase(),
   };
-}
-
-function resolveAssetUrl(url: string): string {
-  if (/^https?:\/\//.test(url)) {
-    return url;
-  }
-  return `${getApiBaseUrl()}${url.startsWith("/") ? url : `/${url}`}`;
 }

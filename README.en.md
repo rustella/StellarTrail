@@ -116,6 +116,25 @@ curl http://127.0.0.1:8080/api/meta
 
 Knot media is uploaded through MinIO/S3-compatible object storage. Public read APIs return only DB-backed media URLs and no longer derive knot media paths from `/assets/*`. The API now keeps one shared `minio` connection configuration, while feedback images and knot media use separate business buckets through `object_storage.bucket` and `knots_media_storage.bucket`. After configuring the admin allowlist (`ADMIN_USER_IDS`, `ADMIN_EMAILS`, or `ADMIN_USERNAMES`), use `npm run knots:upload-media -- --dry-run` to inspect the Knots3D plan and the same script to call the admin upload API.
 
+### 4. Configure client endpoints
+
+All clients default to the production endpoints:
+
+- API base URL: `https://api.stellartrail.cn`
+- Image asset / CORS asset origin: `https://assets.stellartrail.cn`
+
+Real client config files stay local or in the build environment and are ignored by Git; the repository commits only example files. Copy the matching example when you need to override endpoints:
+
+| Client              | Example config                                                    | Real config (do not commit)                               |
+| ------------------- | ----------------------------------------------------------------- | --------------------------------------------------------- |
+| Web                 | `apps/web/.env.example`                                           | `apps/web/.env.local`                                     |
+| WeChat Mini Program | `apps/wechat-miniprogram/miniprogram/config.example.ts`           | `apps/wechat-miniprogram/miniprogram/config.ts`           |
+| Android             | `apps/android/config.example.properties`                          | `apps/android/config.properties`                          |
+| iOS                 | `apps/ios/StellarTrail/Resources/ClientConfig.example.plist`      | `apps/ios/StellarTrail/Resources/ClientConfig.plist`      |
+| macOS               | `apps/macos/StellarTrailMac/Resources/ClientConfig.example.plist` | `apps/macos/StellarTrailMac/Resources/ClientConfig.plist` |
+
+Web reads `VITE_STELLARTRAIL_API_BASE_URL` and `VITE_STELLARTRAIL_ASSETS_BASE_URL`; Android reads `config.properties` during the Gradle build and writes `BuildConfig`; iOS/macOS first read `ClientConfig.plist` from the app bundle and fall back to the production defaults when it is absent.
+
 Currently implemented endpoints:
 
 ```http
@@ -149,7 +168,7 @@ GET /api/me/gears/export
 POST /api/me/gears/import
 ```
 
-### 4. Start PostgreSQL + Redis + API with Docker Compose
+### 5. Start PostgreSQL + Redis + API with Docker Compose
 
 You can also run a one-shot local integration test with Docker Compose:
 
@@ -160,7 +179,7 @@ COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=1543
 
 The script starts PostgreSQL, Redis caching, and the API service, validates them with registration, password login, email-code login, and password reset, and always runs `docker compose down -v --remove-orphans` when the test exits or fails. Inject real WeChat, database, and SMTP secrets only through secure production channels.
 
-### 5. Production Docker / Traefik deployment config
+### 6. Production Docker / Traefik deployment config
 
 Production deployment config is split under `infra/production/`, with `/www/service/stellartail` as the server deploy root:
 
@@ -172,13 +191,13 @@ Production deployment config is split under `infra/production/`, with `/www/serv
 
 The production API no longer uses `infra/production/api/.env`; real `config.yaml`, ACME storage, and production secret files must stay on the production server or in a secure channel. The repository `.gitignore` ignores those files; commit only API `config.example.yaml` and `*.example.yaml`.
 
-### 6. Open the WeChat Mini Program
+### 7. Open the WeChat Mini Program
 
 Open `apps/wechat-miniprogram` in WeChat DevTools. The project config points `miniprogramRoot` to `miniprogram/`.
 
-### 7. Android client
+### 8. Android client
 
-The Android app lives in `apps/android` and uses Kotlin, Jetpack Compose, Material 3, Navigation Compose, Ktor Client, and kotlinx.serialization. Debug builds default to `http://10.0.2.2:8080`; the Profile screen can override the API base URL for local testing.
+The Android app lives in `apps/android` and uses Kotlin, Jetpack Compose, Material 3, Navigation Compose, Ktor Client, and kotlinx.serialization. Gradle reads the default API and image asset endpoints from `apps/android/config.properties`; copy the example and switch it to `http://10.0.2.2:8080` for local emulator testing, or override the API base URL temporarily from the Profile screen.
 
 ```bash
 ./gradlew :apps:android:assembleDebug

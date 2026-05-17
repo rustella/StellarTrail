@@ -26,6 +26,8 @@ const REFRESH_TOKEN_EXPIRES_AT_STORAGE_KEY =
   "stellartrail_refresh_token_expires_at";
 const USER_STORAGE_KEY = "stellartrail_user";
 const API_BASE_URL_STORAGE_KEY = "stellartrail_api_base_url";
+const DEFAULT_API_BASE_URL = "https://api.stellartrail.cn";
+const DEFAULT_ASSETS_BASE_URL = "https://assets.stellartrail.cn";
 
 let loginPromise: Promise<string> | null = null;
 let refreshPromise: Promise<string> | null = null;
@@ -190,10 +192,29 @@ export function getApiBaseUrl(): string {
       apiBaseUrl?: string;
     };
   }>();
-  return (app.globalData?.apiBaseUrl ?? "http://127.0.0.1:8080").replace(
+  return (app.globalData?.apiBaseUrl ?? DEFAULT_API_BASE_URL).replace(
     /\/$/,
     "",
   );
+}
+
+export function getAssetsBaseUrl(): string {
+  const app = getApp<{
+    globalData?: {
+      assetsBaseUrl?: string;
+    };
+  }>();
+  return (app.globalData?.assetsBaseUrl ?? DEFAULT_ASSETS_BASE_URL).replace(
+    /\/$/,
+    "",
+  );
+}
+
+export function resolveAssetUrl(pathOrUrl: string): string {
+  if (/^https?:\/\//i.test(pathOrUrl)) {
+    return pathOrUrl;
+  }
+  return `${getAssetsBaseUrl()}/${pathOrUrl.replace(/^\/+/, "")}`;
 }
 
 export function setApiBaseUrl(baseUrl: string): void {
@@ -282,10 +303,13 @@ export function sendEmailLoginCode(
 export async function loginWithEmailCode(
   request: EmailLoginRequest,
 ): Promise<string> {
-  const response = await requestJson<WechatLoginResponse>("/api/auth/email-login", {
-    method: "POST",
-    data: request,
-  });
+  const response = await requestJson<WechatLoginResponse>(
+    "/api/auth/email-login",
+    {
+      method: "POST",
+      data: request,
+    },
+  );
   saveLoginResponse(response);
   return response.access_token;
 }

@@ -52,7 +52,10 @@ const knotDetail = {
   locale: "zh-CN" as const,
 };
 
-type KnotsApi = Pick<WebGearApi, "listSkills" | "listKnots" | "getKnotDetail">;
+type KnotsApi = Pick<
+  WebGearApi,
+  "listSkills" | "listKnots" | "getKnotDetail" | "resolveAssetUrl"
+>;
 
 function buildKnotsApi(): KnotsApi {
   return {
@@ -74,6 +77,11 @@ function buildKnotsApi(): KnotsApi {
       page: { offset: 0, limit: 24, next_offset: null },
     }),
     getKnotDetail: vi.fn().mockResolvedValue(knotDetail),
+    resolveAssetUrl: vi.fn((pathOrUrl: string) =>
+      pathOrUrl.startsWith("/")
+        ? `https://assets.example.test${pathOrUrl}`
+        : pathOrUrl,
+    ),
   };
 }
 

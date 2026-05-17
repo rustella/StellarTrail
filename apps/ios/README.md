@@ -44,4 +44,9 @@ The screenshot flow writes the page review set into `STELLARTRAIL_SCREENSHOT_DIR
 
 ## Runtime notes
 
-Debug builds default to `http://127.0.0.1:8080` for the simulator. Users can change the local connection address from the Profile page in debug builds.
+The iOS client defaults to the production endpoints:
+
+- API base URL: `https://api.stellartrail.cn`
+- Image asset / CORS asset origin: `https://assets.stellartrail.cn`
+
+Copy `StellarTrail/Resources/ClientConfig.example.plist` to the Git-ignored `StellarTrail/Resources/ClientConfig.plist` when a build needs different endpoints. Users can still change the local connection address from the Profile page in debug builds.

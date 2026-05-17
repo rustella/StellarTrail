@@ -21,7 +21,7 @@ describe("createWebGearApi", () => {
       if (this !== globalThis) {
         throw new TypeError("Illegal invocation");
       }
-      expect(input).toBe("/api/meta");
+      expect(input).toBe("https://api.stellartrail.cn/api/meta");
       expect(init).toBeDefined();
       return Promise.resolve(
         new Response(

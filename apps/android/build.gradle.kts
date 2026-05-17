@@ -1,8 +1,26 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.compose)
 }
+
+
+val clientConfigProperties = Properties()
+val clientConfigFile = project.file("config.properties")
+val clientConfigExampleFile = project.file("config.example.properties")
+val clientConfigSource = if (clientConfigFile.exists()) clientConfigFile else clientConfigExampleFile
+if (clientConfigSource.exists()) {
+    clientConfigSource.inputStream().use { clientConfigProperties.load(it) }
+}
+
+fun clientConfigValue(key: String, fallback: String): String =
+    clientConfigProperties.getProperty(key)?.trim()?.takeIf { it.isNotEmpty() } ?: fallback
+
+fun quotedBuildConfigString(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 
 android {
     namespace = "com.rustella.stellartrail"
@@ -16,14 +34,22 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
-        buildConfigField("String", "DEFAULT_API_BASE_URL", "\"https://api.stellartrail.example\"")
+        buildConfigField(
+            "String",
+            "DEFAULT_API_BASE_URL",
+            quotedBuildConfigString(clientConfigValue("stellartrail.apiBaseUrl", "https://api.stellartrail.cn")),
+        )
+        buildConfigField(
+            "String",
+            "DEFAULT_ASSETS_BASE_URL",
+            quotedBuildConfigString(clientConfigValue("stellartrail.assetsBaseUrl", "https://assets.stellartrail.cn")),
+        )
     }
 
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            buildConfigField("String", "DEFAULT_API_BASE_URL", "\"http://10.0.2.2:8080\"")
         }
         release {
             isMinifyEnabled = false

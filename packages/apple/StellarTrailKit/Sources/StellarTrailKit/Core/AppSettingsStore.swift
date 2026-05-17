@@ -34,26 +34,34 @@ final class AppSettingsStore: ObservableObject {
         didSet { defaults.set(baseURLString, forKey: Keys.baseURLString) }
     }
 
+    @Published var assetsBaseURLString: String {
+        didSet { defaults.set(assetsBaseURLString, forKey: Keys.assetsBaseURLString) }
+    }
+
     var preferredColorScheme: ColorScheme? { themeMode.preferredColorScheme }
-    var baseURL: URL { URL(string: baseURLString) ?? URL(string: Self.defaultBaseURLString)! }
+    var baseURL: URL { URL(string: baseURLString) ?? URL(string: defaultClientConfig.apiBaseURLString)! }
+    var assetsBaseURL: URL { URL(string: assetsBaseURLString) ?? URL(string: defaultClientConfig.assetsBaseURLString)! }
 
     private let defaults: UserDefaults
+    private let defaultClientConfig: ClientConfig
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, clientConfig: ClientConfig = .load()) {
         self.defaults = defaults
+        self.defaultClientConfig = clientConfig
         let storedTheme = defaults.string(forKey: Keys.themeMode).flatMap(AppThemeMode.init(rawValue:)) ?? .system
         self.themeMode = storedTheme
-        self.baseURLString = defaults.string(forKey: Keys.baseURLString) ?? Self.defaultBaseURLString
+        self.baseURLString = defaults.string(forKey: Keys.baseURLString) ?? clientConfig.apiBaseURLString
+        self.assetsBaseURLString = defaults.string(forKey: Keys.assetsBaseURLString) ?? clientConfig.assetsBaseURLString
     }
 
     func resetBaseURL() {
-        baseURLString = Self.defaultBaseURLString
+        baseURLString = defaultClientConfig.apiBaseURLString
+        assetsBaseURLString = defaultClientConfig.assetsBaseURLString
     }
 
     private enum Keys {
         static let themeMode = "stellartrail.themeMode"
         static let baseURLString = "stellartrail.baseURLString"
+        static let assetsBaseURLString = "stellartrail.assetsBaseURLString"
     }
-
-    static let defaultBaseURLString = "http://127.0.0.1:8080"
 }
