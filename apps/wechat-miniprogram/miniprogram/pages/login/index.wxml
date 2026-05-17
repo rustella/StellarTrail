@@ -1,9 +1,9 @@
 <view class="login-page {{themeClass}}">
   <view class="login-card hero">
     <view class="eyebrow">寻径星野账号</view>
-    <view class="title">登录后同步个人装备</view>
+    <view class="title">登录后保存个人装备</view>
     <view class="subtitle"
-      >游客可以继续浏览装备模板、公告清单和绳结详情；写入个人装备前需要登录。</view
+      >不登录也可以先看出行装备参考和绳结教学；要保存自己的装备时再登录。</view
     >
   </view>
 
@@ -14,7 +14,7 @@
         <view class="status-desc">{{userDisplay}}</view>
       </view>
       <view class="status-badge {{loggedIn ? 'success' : ''}}"
-        >{{loggedIn ? '已登录' : '游客'}}</view
+        >{{loggedIn ? '已登录' : '未登录'}}</view
       >
     </view>
 

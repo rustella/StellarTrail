@@ -60,8 +60,8 @@ Page({
       wx.setNavigationBarTitle({ title: id ? "编辑装备" : "添加装备" });
       showLoginPrompt(this, {
         message: id
-          ? "登录后可以编辑和同步你的个人装备。"
-          : "登录后可以把装备保存到你的个人装备库。",
+          ? "登录后可以编辑自己的装备。"
+          : "登录后就能把这件装备保存到自己的清单里。",
         redirectUrl: `/pages/gears/form/index${id ? `?id=${encodeURIComponent(id)}` : templateId ? `?template=${encodeURIComponent(templateId)}` : ""}`,
       });
       return;
@@ -151,8 +151,8 @@ Page({
       !requireLoginForAction(this, {
         message:
           this.data.mode === "edit"
-            ? "登录后可以编辑和同步你的个人装备。"
-            : "登录后可以把装备保存到你的个人装备库。",
+            ? "登录后可以编辑自己的装备。"
+            : "登录后就能把这件装备保存到自己的清单里。",
         redirectUrl: `/pages/gears/form/index${this.data.id ? `?id=${encodeURIComponent(this.data.id)}` : ""}`,
       })
     ) {

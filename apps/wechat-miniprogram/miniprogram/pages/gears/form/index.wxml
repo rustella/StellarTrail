@@ -4,7 +4,7 @@
       >登录后{{mode === 'edit' ? '编辑装备' : '添加装备'}}</view
     >
     <view class="login-required-desc"
-      >装备写操作需要同步到你的个人装备库，请先登录。</view
+      >添加或修改装备会保存到你的个人清单，请先登录。</view
     >
     <button bindtap="loginPromptGoLogin">去登录</button>
   </view>
@@ -18,7 +18,7 @@
         >{{mode === 'edit' ? '编辑装备信息' : '添加一件装备'}}</view
       >
       <view class="intro-subtitle"
-        >适配微信小程序移动端填写体验，先记录核心字段，后续可随时补充。</view
+        >先填写最关键的信息，重量、价格和存放位置之后也能随时补充。</view
       >
     </view>
 
@@ -129,9 +129,7 @@
           placeholder="例如 0.315"
           bindinput="onInput"
         />
-        <view class="field-hint"
-          >后端按克保存，小程序中用 kg 输入更适合移动端。</view
-        >
+        <view class="field-hint">填写千克数即可，例如 0.315 kg。</view>
       </view>
       <view class="two-column">
         <view class="field compact">
@@ -237,7 +235,7 @@
         <view>
           <view class="field-label">允许共享给搭子参考</view>
           <view class="field-hint"
-            >仅开启共享意愿，实际分享/审核能力以后续版本为准。</view
+            >可以先标记为愿意分享，之后方便给搭子参考。</view
           >
         </view>
         <switch

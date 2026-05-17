@@ -3,11 +3,11 @@
     <view>
       <view class="eyebrow">寻径星野装备库</view>
       <view class="hero-title"
-        >{{isLoggedIn ? '我的户外装备' : '公告装备清单'}}</view
+        >{{isLoggedIn ? '我的户外装备' : '出行装备参考'}}</view
       >
       <view class="hero-subtitle"
         >{{isLoggedIn ? '按分类、状态和关键词快速管理装备，为下一次出行做准备。'
-        : '免登录查看装备模板；登录后再同步个人装备。'}}</view
+        : '先参考常用户外清单；登录后记录自己的装备。'}}</view
       >
     </view>
     <button class="primary-action" bindtap="goCreate">+ 添加</button>
@@ -17,29 +17,29 @@
     <view class="guest-card">
       <view class="guest-icon">🎒</view>
       <view>
-        <view class="guest-title">当前为游客模式</view>
+        <view class="guest-title">未登录也可先浏览</view>
         <view class="guest-desc"
-          >你可以先浏览装备模板和公告清单。添加、编辑、归档和恢复个人装备前会提示登录。</view
+          >可以先看出行装备参考和绳结教学；要保存自己的装备时再登录。</view
         >
       </view>
       <button bindtap="goLogin">登录</button>
     </view>
 
     <view class="template-section">
-      <view class="template-section-title">装备模板</view>
+      <view class="template-section-title">出行装备参考</view>
       <view class="template-section-desc"
-        >公开清单可作为出发前检查参考，不需要登录。</view
+        >这些清单可作为出发前检查参考，不登录也能看。</view
       >
       <view wx:if="{{templateLoading}}" class="loading-card"
-        >正在加载装备模板...</view
+        >正在整理装备清单...</view
       >
       <view wx:elif="{{templateError}}" class="error-card">
         <view>{{templateError}}</view>
         <button bindtap="loadTemplates">重试</button>
       </view>
       <view wx:elif="{{!templates.length}}" class="empty-card">
-        <view class="empty-title">装备模板准备中</view>
-        <view class="empty-subtitle">稍后会展示公开装备清单。</view>
+        <view class="empty-title">装备清单准备中</view>
+        <view class="empty-subtitle">稍后会展示更多出行参考。</view>
       </view>
       <block wx:else>
         <block wx:for="{{templates}}" wx:key="id">
@@ -52,7 +52,7 @@
                 >
               </view>
               <button catchtap="useTemplate" data-id="{{item.id}}">
-                保存到我的
+                保存到我的装备
               </button>
             </view>
             <view class="template-preview">

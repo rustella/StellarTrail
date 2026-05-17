@@ -2,7 +2,7 @@
   <view wx:if="{{requiresLogin}}" class="state-card login-required">
     <view class="login-required-title">登录后查看装备详情</view>
     <view class="login-required-desc"
-      >个人装备详情属于私有数据，登录后可继续查看和编辑。</view
+      >这是你的个人装备记录，登录后可继续查看和编辑。</view
     >
     <button bindtap="loginPromptGoLogin">去登录</button>
   </view>
