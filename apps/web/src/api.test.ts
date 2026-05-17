@@ -127,3 +127,81 @@ describe("createWebGearApi", () => {
     );
   });
 });
+
+describe("StellarTrailApiClient public knot requests", () => {
+  it("lists knots with zh-CN locale header without authorization", async () => {
+    const requests: Array<{ url: string; headers: Headers }> = [];
+    const fetcher = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({
+          url: String(input),
+          headers: new Headers(init?.headers),
+        });
+        return new Response(
+          JSON.stringify({
+            locale: "zh-CN",
+            items: [],
+            page: { offset: 0, limit: 24, next_offset: null },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      },
+    );
+    const client = new StellarTrailApiClient({
+      baseUrl: "",
+      fetcher: fetcher as typeof fetch,
+      accessToken: "x",
+    });
+
+    await client.listKnots({ offset: 0, limit: 24, q: "风绳" }, "zh-CN");
+
+    expect(requests).toHaveLength(1);
+    const url = new URL(`https://example.test${requests[0].url}`);
+    expect(url.pathname).toBe("/api/skills/knots/list");
+    expect(url.searchParams.get("offset")).toBe("0");
+    expect(url.searchParams.get("limit")).toBe("24");
+    expect(url.searchParams.get("q")).toBe("风绳");
+    expect(requests[0].headers.get("X-StellarTrail-Locale")).toBe("zh-CN");
+    expect(requests[0].headers.get("authorization")).toBeNull();
+  });
+
+  it("gets knot detail with an encoded id and locale header", async () => {
+    const requests: Array<{ url: string; headers: Headers }> = [];
+    const fetcher = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({
+          url: String(input),
+          headers: new Headers(init?.headers),
+        });
+        return new Response(
+          JSON.stringify({
+            id: "adjustable grip",
+            slug: "adjustable-grip",
+            title: "可调节绳结",
+            summary: "调节绳索上的张力。",
+            description: null,
+            steps: [],
+            difficulty: null,
+            categories: [],
+            types: [],
+            media: [],
+            href: "/api/skills/knots/detail/adjustable%20grip",
+            locale: "zh-CN",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      },
+    );
+    const client = new StellarTrailApiClient({
+      baseUrl: "",
+      fetcher: fetcher as typeof fetch,
+    });
+
+    await client.getKnotDetail("adjustable grip", "zh-CN");
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].url).toBe("/api/skills/knots/detail/adjustable%20grip");
+    expect(requests[0].headers.get("X-StellarTrail-Locale")).toBe("zh-CN");
+    expect(requests[0].headers.get("authorization")).toBeNull();
+  });
+});

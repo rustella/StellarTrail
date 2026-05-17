@@ -10,11 +10,16 @@ import type {
   GearStatsResponse,
   ImportGearsRequest,
   ImportGearsResponse,
+  KnotDetail,
+  KnotListResponse,
   ListGearsRequest,
   ListGearsResponse,
+  ListKnotsRequest,
   MetaResponse,
   PasswordLoginRequest,
   RegisterRequest,
+  SkillCategoriesResponse,
+  SkillLocale,
   UpdateGearRequest,
   WechatLoginRequest,
   WechatLoginResponse,
@@ -40,6 +45,12 @@ export interface WebGearApi {
   loginWithPassword(
     request: PasswordLoginRequest,
   ): Promise<WechatLoginResponse>;
+  listSkills(locale?: SkillLocale): Promise<SkillCategoriesResponse>;
+  listKnots(
+    request?: ListKnotsRequest,
+    locale?: SkillLocale,
+  ): Promise<KnotListResponse>;
+  getKnotDetail(id: string, locale?: SkillLocale): Promise<KnotDetail>;
   listGearCategories(
     tab?: "available" | "history",
   ): Promise<GearCategoriesResponse>;
