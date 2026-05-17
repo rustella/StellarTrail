@@ -60,6 +60,19 @@ admin:
   emails: []
   usernames: []
 
+mail:
+  # Set true in production after providing SMTP credentials. Local development keeps
+  # this false so /api/auth/email-verification-code returns debug_code for tests.
+  enabled: false
+  smtp_host: mx1.stellartrail.cn
+  smtp_port: 465
+  smtp_tls: implicit
+  smtp_username: noreply@stellartrail.cn
+  # Keep real SMTP passwords in config.yaml, .env, or a secret manager.
+  smtp_password: null
+  from: "寻径星野 <noreply@stellartrail.cn>"
+  verification_subject: 寻径星野邮箱验证码
+
 public_api:
   rate_limit_enabled: true
   rate_limit_window_seconds: 60

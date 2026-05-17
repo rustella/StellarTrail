@@ -3,6 +3,7 @@
 pub mod cache;
 pub mod config;
 pub mod dto;
+pub mod email;
 pub mod error;
 pub mod object_store;
 pub mod routes;
@@ -24,6 +25,7 @@ use stellartrail_importer::{ContentCatalog, SkillContent, read_content_catalog};
 use stellartrail_migration::Migrator;
 
 use config::ApiConfig;
+use email::{EmailSender, NoopEmailSender, SmtpEmailSender};
 use object_store::MinioObjectStore;
 use state::AppState;
 
@@ -36,14 +38,20 @@ pub async fn build_state(config: ApiConfig) -> anyhow::Result<AppState> {
     migrate_database(&db).await?;
     seed_public_knots_from_content(&db, &content).await?;
     let object_store = MinioObjectStore::from_config(&config.object_storage).await?;
+    let email_sender: Arc<dyn EmailSender> = if config.mail.enabled {
+        Arc::new(SmtpEmailSender::from_config(&config.mail)?)
+    } else {
+        Arc::new(NoopEmailSender)
+    };
     Ok(
-        AppState::new_with_content_and_wechat_client_cache_and_object_store(
+        AppState::new_with_content_and_wechat_client_cache_object_store_and_email_sender(
             config,
             db,
             content,
             Arc::new(services::wechat::CurlWechatCodeSessionClient),
             cache,
             Arc::new(object_store),
+            email_sender,
         ),
     )
 }

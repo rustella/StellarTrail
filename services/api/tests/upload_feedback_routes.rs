@@ -69,6 +69,7 @@ async fn test_app(max_images_per_window: u64) -> TestApp {
         admin: Default::default(),
         public_api: PublicApiConfig::default(),
         cors: CorsConfig::default(),
+        mail: Default::default(),
     };
     let state = AppState::new_with_cache_and_object_store(
         config,

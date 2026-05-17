@@ -185,6 +185,7 @@ async fn seeded_app_with_uploaded_media() -> TestApp {
             trusted_proxy_cidrs: Vec::new(),
         },
         cors: CorsConfig::default(),
+        mail: Default::default(),
     };
     let repository = KnotRepository::new(db.clone(), config.media_base_url.clone());
     repository
@@ -265,6 +266,7 @@ async fn seeded_app() -> TestApp {
             trusted_proxy_cidrs: Vec::new(),
         },
         cors: CorsConfig::default(),
+        mail: Default::default(),
     };
     let repository = KnotRepository::new(db.clone(), config.media_base_url.clone());
     repository

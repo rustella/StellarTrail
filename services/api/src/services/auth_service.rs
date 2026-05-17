@@ -18,6 +18,7 @@ use crate::{
         CaptchaChallengeResponse, EmailVerificationCodeResponse, LoginProfileRequest,
         LoginResponse, LoginUserResponse, PasswordLoginRequest, RegisterRequest,
     },
+    email::VerificationEmail,
     error::ApiError,
     services::wechat::WechatCodeSessionError,
     state::AppState,
@@ -95,8 +96,23 @@ pub async fn send_email_verification_code(
         .create_email_verification_code(&email, EMAIL_CODE_PURPOSE_REGISTER, &code_hash, expires_at)
         .await?;
 
-    // The current server completes the verification-code generation and validation loop first; local returns debug_code for integration testing,
-    // and future email delivery only needs to be added here while production never returns the plaintext code.
+    if state.config().mail.enabled {
+        state
+            .email_sender()
+            .send_verification_code(VerificationEmail {
+                to: email.clone(),
+                code: code.clone(),
+                expires_minutes: EMAIL_CODE_EXPIRES_MINUTES,
+                from: state.config().mail.from.clone(),
+                subject: state.config().mail.verification_subject.clone(),
+            })
+            .await
+            .map_err(|_error| ApiError::EmailDeliveryFailed)?;
+    } else if state.config().app_env != "local" {
+        return Err(ApiError::EmailDeliveryFailed);
+    }
+
+    // Local smoke tests get the plaintext code directly; production relies on SMTP delivery and never exposes it in the response.
     let debug_code = (state.config().app_env == "local").then_some(code);
     Ok(EmailVerificationCodeResponse {
         email,
