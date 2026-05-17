@@ -37,7 +37,7 @@ function parseIcoSizes(path: string) {
 
   expect(reserved).toBe(0);
   expect(type).toBe(1);
-  expect(count).toBeGreaterThanOrEqual(3);
+  expect(count).toBeGreaterThanOrEqual(6);
 
   return Array.from({ length: count }, (_, index) => {
     const offset = 6 + index * 16;
@@ -81,7 +81,14 @@ describe("web product icon asset", () => {
       "icon-maskable-512.png",
     ]);
     expect(parseIcoSizes(FAVICON_ICO)).toEqual(
-      expect.arrayContaining(["16x16", "32x32", "48x48"]),
+      expect.arrayContaining([
+        "16x16",
+        "32x32",
+        "48x48",
+        "64x64",
+        "128x128",
+        "256x256",
+      ]),
     );
   });
 

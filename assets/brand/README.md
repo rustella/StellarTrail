@@ -1,12 +1,12 @@
 # StellarTrail icon assets
 
-This directory keeps `source-app-icon.png` as the only source artwork. Generated icon exports are derived from that file without cropping the artwork; the source image is centered on a square canvas using the source edge background color (`#191A1C`) and then resized with high-quality sampling.
+This directory keeps `source-app-icon.png` as the only source artwork. Generated icon exports are direct high-quality resizes of that source image; alpha transparency and the source rounded corners are preserved for PNG, WebP, and ICO outputs.
 
 SVG/vector redraw exports are intentionally not included.
 
 ## Source
 
-- `source-app-icon.png`: original supplied image (634×596).
+- `source-app-icon.png`: original supplied image (144×144).
 
 ## Common raster exports
 
@@ -14,7 +14,7 @@ PNG exports are intentionally limited to the common sizes: 32, 180, 192, 512, an
 
 Additional common formats:
 
-- `app-icon.ico`: multi-size favicon bundle.
+- `app-icon.ico`: multi-size favicon bundle with 16, 32, 48, 64, 128, and 256 px frames.
 - `app-icon-512.webp`, `app-icon-1024.webp`.
 - `app-icon-512.jpg`, `app-icon-1024.jpg`.
 
