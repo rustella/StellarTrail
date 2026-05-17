@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -128,12 +129,17 @@ fun HeroCard(
         .fillMaxWidth()
         .clip(TrailHeroShape)
         .background(Brush.linearGradient(listOf(palette.heroStart, palette.heroMid, palette.heroEnd)))
-        .then(if (lightHero) Modifier.drawBehind { drawDayHeroDecoration(palette) } else Modifier)
-        .padding(18.dp)
+        .drawBehind {
+            if (lightHero) {
+                drawDayHeroDecoration(palette)
+            } else {
+                drawNightHeroDecoration(palette)
+            }
+        }
+        .padding(HeroVisualContract.contentPaddingDp.dp)
     Box(modifier = heroModifier) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(end = if (lightHero) 28.dp else 0.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
                 eyebrow,
@@ -141,12 +147,14 @@ fun HeroCard(
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
             )
+            Spacer(Modifier.height(7.dp))
             Text(
                 title,
                 color = headlineColor,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
             )
+            Spacer(Modifier.height(8.dp))
             Text(
                 subtitle,
                 color = bodyColor,
@@ -154,12 +162,15 @@ fun HeroCard(
                 lineHeight = MaterialTheme.typography.bodyMedium.lineHeight,
             )
             if (chips.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     chips.take(2).forEach { chip -> HeroChip(chip, lightHero) }
                 }
             }
             if (actions != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), content = actions)
+                Spacer(Modifier.height(HeroVisualContract.actionRowTopGapDp.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), content = actions)
+                Spacer(Modifier.height(HeroVisualContract.actionBottomSafeGapDp.dp))
             }
         }
     }
@@ -172,12 +183,12 @@ private fun DrawScope.drawDayHeroDecoration(palette: StellarTrailPalette) {
     drawCircle(
         color = palette.heroSun.copy(alpha = 0.22f),
         radius = sunRadius * 1.9f,
-        center = androidx.compose.ui.geometry.Offset(width - 46.dp.toPx(), 42.dp.toPx()),
+        center = Offset(width - 46.dp.toPx(), 42.dp.toPx()),
     )
     drawCircle(
         color = palette.heroSun.copy(alpha = 0.86f),
         radius = sunRadius,
-        center = androidx.compose.ui.geometry.Offset(width - 46.dp.toPx(), 42.dp.toPx()),
+        center = Offset(width - 46.dp.toPx(), 42.dp.toPx()),
     )
     val backHill = Path().apply {
         moveTo(width * 0.36f, height)
@@ -196,12 +207,50 @@ private fun DrawScope.drawDayHeroDecoration(palette: StellarTrailPalette) {
     drawCircle(
         color = palette.brand.copy(alpha = 0.10f),
         radius = 7.dp.toPx(),
-        center = androidx.compose.ui.geometry.Offset(width * 0.88f, height * 0.72f),
+        center = Offset(width * 0.88f, height * 0.72f),
     )
     drawCircle(
         color = palette.heroSun.copy(alpha = 0.22f),
         radius = 4.dp.toPx(),
-        center = androidx.compose.ui.geometry.Offset(width * 0.77f, height * 0.24f),
+        center = Offset(width * 0.77f, height * 0.24f),
+    )
+}
+
+private fun DrawScope.drawNightHeroDecoration(palette: StellarTrailPalette) {
+    val width = size.width
+    val height = size.height
+    HeroVisualContract.nightStars.forEach { star ->
+        drawCircle(
+            color = (if (star.accent) palette.heroStarAccent else palette.heroStar).copy(alpha = star.alpha),
+            radius = star.radiusDp.dp.toPx(),
+            center = Offset(width * star.xPercent, height * star.yPercent),
+        )
+    }
+    drawCircle(
+        color = palette.heroStar.copy(alpha = 0.12f),
+        radius = 34.dp.toPx(),
+        center = Offset(width * 0.12f, height * 0.18f),
+    )
+    val backHill = Path().apply {
+        moveTo(0f, height * 0.74f)
+        quadraticTo(width * 0.42f, height * 0.56f, width, height * 0.64f)
+        lineTo(width, height)
+        lineTo(0f, height)
+        close()
+    }
+    drawPath(backHill, palette.heroHill.copy(alpha = 0.36f))
+    val frontHill = Path().apply {
+        moveTo(0f, height * 0.82f)
+        quadraticTo(width * 0.50f, height * 0.62f, width, height * 0.78f)
+        lineTo(width, height)
+        lineTo(0f, height)
+        close()
+    }
+    drawPath(frontHill, palette.heroEnd.copy(alpha = 0.34f))
+    drawCircle(
+        color = palette.heroSun.copy(alpha = 0.24f),
+        radius = 4.dp.toPx(),
+        center = Offset(width * 0.07f, height * 0.58f),
     )
 }
 
@@ -234,8 +283,8 @@ fun HeroButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier)
         modifier = modifier,
         shape = TrailPillShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (lightHero) palette.brand else Color.White,
-            contentColor = if (lightHero) palette.brandText else StellarTrailDesignColors.Light.brand,
+            containerColor = palette.brand,
+            contentColor = palette.brandText,
         ),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
     ) { Text(text, fontWeight = FontWeight.Bold) }
@@ -249,10 +298,10 @@ fun HeroSoftButton(text: String, onClick: () -> Unit, modifier: Modifier = Modif
         onClick = onClick,
         modifier = modifier,
         shape = TrailPillShape,
-        border = BorderStroke(1.dp, if (lightHero) palette.brandSoft else Color.White.copy(alpha = 0.42f)),
+        border = BorderStroke(1.dp, if (lightHero) palette.brandSoft else palette.border),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (lightHero) Color.White.copy(alpha = 0.74f) else Color.Transparent,
-            contentColor = if (lightHero) palette.brandSoftText else Color.White,
+            containerColor = if (lightHero) Color.White.copy(alpha = 0.74f) else palette.brandSoft,
+            contentColor = palette.brandSoftText,
         ),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
     ) { Text(text, fontWeight = FontWeight.Bold) }

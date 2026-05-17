@@ -2,6 +2,8 @@ package com.rustella.stellartrail.ui.screens
 
 import com.rustella.stellartrail.domain.gear.GearStatsResponse
 import com.rustella.stellartrail.domain.gear.formatWeight
+import com.rustella.stellartrail.ui.common.HeroStar
+import com.rustella.stellartrail.ui.common.HeroVisualContract
 
 enum class HomeActionTarget { Gears, NewGear, Skills, Profile, Login }
 
@@ -63,4 +65,13 @@ data class HomeGearOverview(
             ),
         )
     }
+}
+
+object HomeHeroVisualContract {
+    const val contentPaddingDp = HeroVisualContract.contentPaddingDp
+    const val actionRowTopGapDp = HeroVisualContract.actionRowTopGapDp
+    const val actionBottomSafeGapDp = HeroVisualContract.actionBottomSafeGapDp
+    const val followingSectionGapDp = HeroVisualContract.followingSectionGapDp
+
+    val nightStars: List<HeroStar> = HeroVisualContract.nightStars
 }

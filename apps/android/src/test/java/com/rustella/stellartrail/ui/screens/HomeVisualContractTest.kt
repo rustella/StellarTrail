@@ -37,4 +37,21 @@ class HomeVisualContractTest {
         assertEquals(listOf("可用装备", "历史装备", "总重量"), overview.stats.map { it.label })
         assertEquals(listOf("6", "2", "3250g"), overview.stats.map { it.value })
     }
+    @Test
+    fun heroLayoutReservesSpaceBelowActionButtons() {
+        assertEquals(20, HomeHeroVisualContract.contentPaddingDp)
+        assertEquals(12, HomeHeroVisualContract.actionRowTopGapDp)
+        assertEquals(20, HomeHeroVisualContract.actionBottomSafeGapDp)
+        assertEquals(16, HomeHeroVisualContract.followingSectionGapDp)
+    }
+
+    @Test
+    fun darkHeroUsesSparseStarDecoration() {
+        val stars = HomeHeroVisualContract.nightStars
+
+        assertEquals(7, stars.size)
+        assertEquals(true, stars.any { it.accent })
+        assertEquals(true, stars.all { it.xPercent in 0.55f..0.95f && it.yPercent in 0.08f..0.58f })
+    }
+
 }
