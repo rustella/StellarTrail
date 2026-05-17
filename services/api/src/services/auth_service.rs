@@ -15,8 +15,9 @@ use time::{Duration, OffsetDateTime, format_description::well_known::Iso8601};
 
 use crate::{
     dto::auth::{
-        CaptchaChallengeResponse, EmailVerificationCodeResponse, LoginProfileRequest,
-        LoginResponse, LoginUserResponse, PasswordLoginRequest, RegisterRequest,
+        CaptchaChallengeResponse, EmailLoginRequest, EmailVerificationCodeResponse,
+        LoginProfileRequest, LoginResponse, LoginUserResponse, PasswordLoginRequest,
+        PasswordResetRequest, RegisterRequest,
     },
     email::VerificationEmail,
     error::ApiError,
@@ -25,7 +26,11 @@ use crate::{
 };
 
 const EMAIL_CODE_PURPOSE_REGISTER: &str = "register";
+const EMAIL_CODE_PURPOSE_EMAIL_LOGIN: &str = "email_login";
+const EMAIL_CODE_PURPOSE_PASSWORD_RESET: &str = "password_reset";
 const EMAIL_CODE_EXPIRES_MINUTES: i64 = 10;
+const EMAIL_LOGIN_SUBJECT: &str = "寻径星野登录验证码";
+const PASSWORD_RESET_SUBJECT: &str = "寻径星野找回密码验证码";
 const CAPTCHA_EXPIRES_MINUTES: i64 = 5;
 const LOGIN_CAPTCHA_THRESHOLD: i32 = 3;
 // Access tokens are intentionally short-lived because clients can renew them
@@ -82,18 +87,80 @@ pub async fn wechat_login(
 /// Generates and stores a one-time registration email verification code.
 ///
 /// The stored value is a hash, not the plaintext code. Local environments return
-/// the plaintext code for smoke tests, while production can later plug in email
-/// delivery without changing registration validation.
+/// the plaintext code for smoke tests, while production sends it by SMTP.
 pub async fn send_email_verification_code(
     state: &AppState,
     email: String,
 ) -> Result<EmailVerificationCodeResponse, ApiError> {
+    send_email_code_for_purpose(
+        state,
+        email,
+        EMAIL_CODE_PURPOSE_REGISTER,
+        state.config().mail.verification_subject.as_str(),
+        false,
+    )
+    .await
+}
+
+/// Generates an email-login code for an existing account without revealing missing accounts.
+pub async fn send_email_login_code(
+    state: &AppState,
+    email: String,
+) -> Result<EmailVerificationCodeResponse, ApiError> {
+    send_email_code_for_purpose(
+        state,
+        email,
+        EMAIL_CODE_PURPOSE_EMAIL_LOGIN,
+        EMAIL_LOGIN_SUBJECT,
+        true,
+    )
+    .await
+}
+
+/// Generates a password-reset code for an existing account without revealing missing accounts.
+pub async fn send_password_reset_code(
+    state: &AppState,
+    email: String,
+) -> Result<EmailVerificationCodeResponse, ApiError> {
+    send_email_code_for_purpose(
+        state,
+        email,
+        EMAIL_CODE_PURPOSE_PASSWORD_RESET,
+        PASSWORD_RESET_SUBJECT,
+        true,
+    )
+    .await
+}
+
+async fn send_email_code_for_purpose(
+    state: &AppState,
+    email: String,
+    purpose: &'static str,
+    subject: &str,
+    require_existing_user: bool,
+) -> Result<EmailVerificationCodeResponse, ApiError> {
     let email = validate_email(email)?;
+    let expires_at = OffsetDateTime::now_utc() + Duration::minutes(EMAIL_CODE_EXPIRES_MINUTES);
+    let repo = AuthRepository::new(state.db().clone());
+    let target_user_exists = if require_existing_user {
+        repo.find_user_by_email(&email).await?.is_some()
+    } else {
+        true
+    };
+
+    if !target_user_exists {
+        return Ok(EmailVerificationCodeResponse {
+            email,
+            expires_at: expires_at
+                .format(&Iso8601::DEFAULT)
+                .map_err(ApiError::internal)?,
+            debug_code: None,
+        });
+    }
+
     let code = generate_email_code();
     let code_hash = hash_token(&code);
-    let expires_at = OffsetDateTime::now_utc() + Duration::minutes(EMAIL_CODE_EXPIRES_MINUTES);
-    AuthRepository::new(state.db().clone())
-        .create_email_verification_code(&email, EMAIL_CODE_PURPOSE_REGISTER, &code_hash, expires_at)
+    repo.create_email_verification_code(&email, purpose, &code_hash, expires_at)
         .await?;
 
     if state.config().mail.enabled {
@@ -104,7 +171,7 @@ pub async fn send_email_verification_code(
                 code: code.clone(),
                 expires_minutes: EMAIL_CODE_EXPIRES_MINUTES,
                 from: state.config().mail.from.clone(),
-                subject: state.config().mail.verification_subject.clone(),
+                subject: subject.to_owned(),
             })
             .await
             .map_err(|_error| ApiError::EmailDeliveryFailed)?;
@@ -121,6 +188,72 @@ pub async fn send_email_verification_code(
             .map_err(ApiError::internal)?,
         debug_code,
     })
+}
+
+/// Logs in an existing account by consuming a one-time email login code.
+pub async fn email_login(
+    state: &AppState,
+    payload: EmailLoginRequest,
+) -> Result<LoginResponse, ApiError> {
+    let email = validate_email(payload.email)?;
+    let verification_code = validate_verification_code(payload.email_verification_code)?;
+    let repo = AuthRepository::new(state.db().clone());
+    let Some(user) = repo.find_user_by_email(&email).await? else {
+        return Err(ApiError::InvalidCredentials);
+    };
+    let code_ok = repo
+        .consume_email_verification_code(
+            &email,
+            EMAIL_CODE_PURPOSE_EMAIL_LOGIN,
+            &hash_token(&verification_code),
+        )
+        .await?;
+    if !code_ok {
+        return Err(ApiError::InvalidCredentials);
+    }
+    repo.reset_failed_password_login(&user.id).await?;
+    issue_login_for_user(&repo, user).await
+}
+
+/// Resets an existing account password after consuming a password-reset email code.
+pub async fn password_reset(
+    state: &AppState,
+    payload: PasswordResetRequest,
+) -> Result<LoginResponse, ApiError> {
+    let email = validate_email(payload.email)?;
+    let password = validate_password(payload.password)?;
+    let confirm_password = payload.confirm_password;
+    let verification_code = validate_verification_code(payload.email_verification_code)?;
+    if password != confirm_password {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "confirm_password",
+            "does not match password",
+        )]));
+    }
+
+    let repo = AuthRepository::new(state.db().clone());
+    let Some(user) = repo.find_user_by_email(&email).await? else {
+        return Err(ApiError::InvalidCredentials);
+    };
+    let code_ok = repo
+        .consume_email_verification_code(
+            &email,
+            EMAIL_CODE_PURPOSE_PASSWORD_RESET,
+            &hash_token(&verification_code),
+        )
+        .await?;
+    if !code_ok {
+        return Err(ApiError::InvalidCredentials);
+    }
+
+    let updated = repo
+        .update_user_password_hash(&user.id, &hash_token(&password))
+        .await?;
+    if !updated {
+        return Err(ApiError::Unauthorized);
+    }
+    repo.revoke_user_sessions(&user.id).await?;
+    issue_login_for_user(&repo, user).await
 }
 
 /// Completes email/username registration by validating the code and password, creating the user, and issuing a session.

@@ -2,6 +2,7 @@ FROM rust:1-bookworm AS builder
 WORKDIR /app
 RUN rustup show active-toolchain | awk '{print $1}' > /tmp/rust-toolchain-docker
 COPY . .
+RUN mkdir -p /app/content
 RUN RUSTUP_TOOLCHAIN="$(cat /tmp/rust-toolchain-docker)" cargo build --release -p stellartrail-api
 
 FROM rust:1-bookworm AS runtime

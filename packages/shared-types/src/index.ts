@@ -286,6 +286,26 @@ export interface EmailVerificationCodeResponse {
   debug_code?: string;
 }
 
+export interface EmailLoginCodeRequest {
+  email: string;
+}
+
+export interface EmailLoginRequest {
+  email: string;
+  email_verification_code: string;
+}
+
+export interface PasswordResetCodeRequest {
+  email: string;
+}
+
+export interface PasswordResetRequest {
+  email: string;
+  email_verification_code: string;
+  password: string;
+  confirm_password: string;
+}
+
 export interface RegisterRequest {
   username: string;
   email: string;

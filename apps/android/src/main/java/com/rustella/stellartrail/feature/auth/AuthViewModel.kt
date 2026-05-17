@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class AuthMode { LOGIN, REGISTER }
+enum class AuthMode { LOGIN, EMAIL_CODE, REGISTER, RESET_PASSWORD }
 
 data class AuthUiState(
     val mode: AuthMode = AuthMode.LOGIN,
@@ -23,6 +23,8 @@ data class AuthUiState(
     val email: String = "",
     val confirmPassword: String = "",
     val emailCode: String = "",
+    val resetPassword: String = "",
+    val resetConfirmPassword: String = "",
     val captchaTicket: String = "",
     val captchaAnswer: String = "",
     val captchaSvg: String? = null,
@@ -37,7 +39,16 @@ class AuthViewModel(private val repository: AuthRepositoryContract) : ViewModel(
     val state: StateFlow<AuthUiState> = _state.asStateFlow()
 
     fun switchMode(mode: AuthMode) {
-        _state.update { it.copy(mode = mode, error = null, notice = null, captchaSvg = null, captchaTicket = "", captchaAnswer = "") }
+        _state.update {
+            it.copy(
+                mode = mode,
+                error = null,
+                notice = null,
+                captchaSvg = null,
+                captchaTicket = "",
+                captchaAnswer = "",
+            )
+        }
     }
 
     fun updateAccount(value: String) = _state.update { it.copy(account = value) }
@@ -46,6 +57,8 @@ class AuthViewModel(private val repository: AuthRepositoryContract) : ViewModel(
     fun updateEmail(value: String) = _state.update { it.copy(email = value) }
     fun updateConfirmPassword(value: String) = _state.update { it.copy(confirmPassword = value) }
     fun updateEmailCode(value: String) = _state.update { it.copy(emailCode = value) }
+    fun updateResetPassword(value: String) = _state.update { it.copy(resetPassword = value) }
+    fun updateResetConfirmPassword(value: String) = _state.update { it.copy(resetConfirmPassword = value) }
     fun updateCaptchaAnswer(value: String) = _state.update { it.copy(captchaAnswer = value) }
 
     fun login() {
@@ -85,12 +98,90 @@ class AuthViewModel(private val repository: AuthRepositoryContract) : ViewModel(
             _state.update { it.copy(loading = true, error = null, notice = null) }
             try {
                 val response = repository.sendEmailCode(email)
-                val notice = if (BuildConfig.DEBUG && response.debugCode != null) {
-                    "本地验证码：${response.debugCode}"
-                } else {
-                    "验证码已发送至 ${response.email}"
-                }
-                _state.update { it.copy(notice = notice) }
+                _state.update { it.copy(notice = codeNotice(response.email, response.debugCode)) }
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(error = throwable.userMessage()) }
+            } finally {
+                _state.update { it.copy(loading = false) }
+            }
+        }
+    }
+
+    fun sendEmailLoginCode() {
+        val email = _state.value.email.trim()
+        if (email.isBlank()) {
+            _state.update { it.copy(error = "请先填写邮箱") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null, notice = null) }
+            try {
+                val response = repository.sendEmailLoginCode(email)
+                _state.update { it.copy(notice = codeNotice(response.email, response.debugCode)) }
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(error = throwable.userMessage()) }
+            } finally {
+                _state.update { it.copy(loading = false) }
+            }
+        }
+    }
+
+    fun loginWithEmailCode() {
+        val current = _state.value
+        if (current.email.isBlank() || current.emailCode.isBlank()) {
+            _state.update { it.copy(error = "请填写邮箱和验证码") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null, notice = null) }
+            try {
+                repository.loginWithEmailCode(current.email, current.emailCode)
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(error = throwable.userMessage()) }
+            } finally {
+                _state.update { it.copy(loading = false) }
+            }
+        }
+    }
+
+    fun sendPasswordResetCode() {
+        val email = _state.value.email.trim()
+        if (email.isBlank()) {
+            _state.update { it.copy(error = "请先填写邮箱") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null, notice = null) }
+            try {
+                val response = repository.sendPasswordResetCode(email)
+                _state.update { it.copy(notice = codeNotice(response.email, response.debugCode)) }
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(error = throwable.userMessage()) }
+            } finally {
+                _state.update { it.copy(loading = false) }
+            }
+        }
+    }
+
+    fun resetPassword() {
+        val current = _state.value
+        if (current.email.isBlank() || current.emailCode.isBlank()) {
+            _state.update { it.copy(error = "请填写邮箱和验证码") }
+            return
+        }
+        if (current.resetPassword != current.resetConfirmPassword) {
+            _state.update { it.copy(error = "两次输入的密码不一致") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null, notice = null) }
+            try {
+                repository.resetPassword(
+                    email = current.email,
+                    emailCode = current.emailCode,
+                    password = current.resetPassword,
+                    confirmPassword = current.resetConfirmPassword,
+                )
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }
             } finally {
@@ -158,4 +249,11 @@ class AuthViewModel(private val repository: AuthRepositoryContract) : ViewModel(
             _state.update { it.copy(error = throwable.userMessage()) }
         }
     }
+
+    private fun codeNotice(email: String, debugCode: String?): String =
+        if (BuildConfig.DEBUG && debugCode != null) {
+            "本地验证码：$debugCode"
+        } else {
+            "验证码已发送至 $email"
+        }
 }

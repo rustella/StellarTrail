@@ -16,6 +16,30 @@ data class EmailVerificationCodeResponse(
 )
 
 @Serializable
+data class EmailLoginCodeRequest(
+    val email: String,
+)
+
+@Serializable
+data class EmailLoginRequest(
+    val email: String,
+    @SerialName("email_verification_code") val emailVerificationCode: String,
+)
+
+@Serializable
+data class PasswordResetCodeRequest(
+    val email: String,
+)
+
+@Serializable
+data class PasswordResetRequest(
+    val email: String,
+    @SerialName("email_verification_code") val emailVerificationCode: String,
+    val password: String,
+    @SerialName("confirm_password") val confirmPassword: String,
+)
+
+@Serializable
 data class RegisterRequest(
     val username: String,
     val email: String,

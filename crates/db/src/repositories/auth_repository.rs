@@ -15,6 +15,7 @@ use time::{OffsetDateTime, format_description::well_known::Iso8601};
 use uuid::Uuid;
 
 const USER_SELECT: &str = "id, wechat_openid, username, email, password_hash, nickname, avatar_url, failed_login_attempts, created_at, updated_at";
+const EMAIL_CODE_MAX_FAILED_ATTEMPTS: i64 = 5;
 
 /// Database projection for an application user returned by authentication queries.
 #[derive(Clone, Debug)]
@@ -228,8 +229,8 @@ impl AuthRepository {
     ) -> Result<String, DbErr> {
         let id = Uuid::new_v4().to_string();
         let now = now_rfc3339();
-        // The update statement below is the replay guard: it succeeds only while
-        // the stored refresh hash still matches the hash presented by the client.
+        // Failed attempts start from the default zero value; successful use still
+        // depends on the one-time consume update in `consume_email_verification_code`.
         let expires_at = expires_at
             .format(&Iso8601::DEFAULT)
             .map_err(|err| DbErr::Custom(err.to_string()))?;
@@ -253,6 +254,10 @@ impl AuthRepository {
     }
 
     /// Finds an unexpired record by email, purpose, and code digest, then atomically marks it as consumed.
+    ///
+    /// Wrong guesses are recorded against the newest active code for the same
+    /// email and purpose. After several failures the code becomes unusable, so a
+    /// six-digit code cannot be brute-forced by repeated login/reset attempts.
     pub async fn consume_email_verification_code(
         &self,
         email: &str,
@@ -270,6 +275,7 @@ impl AuthRepository {
                      AND code_hash = ?
                      AND consumed_at IS NULL
                      AND expires_at > ?
+                     AND failed_attempts < ?
                    ORDER BY created_at DESC
                    LIMIT 1"#,
                 vec![
@@ -277,11 +283,13 @@ impl AuthRepository {
                     purpose.to_owned().into(),
                     code_hash.to_owned().into(),
                     now.clone().into(),
+                    EMAIL_CODE_MAX_FAILED_ATTEMPTS.into(),
                 ],
             ))
             .await?;
-        // Return false when no consumable code exists; the service layer maps that to a validation error.
         let Some(row) = row else {
+            self.record_failed_email_verification_attempt(email, purpose, &now)
+                .await?;
             return Ok(false);
         };
         let id: String = row.try_get("", "id")?;
@@ -289,13 +297,49 @@ impl AuthRepository {
             .db
             .execute(statement(
                 self.db.get_database_backend(),
-                "UPDATE email_verification_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL",
-                vec![now.into(), id.into()],
+                r#"UPDATE email_verification_codes
+                   SET consumed_at = ?
+                   WHERE id = ?
+                     AND consumed_at IS NULL
+                     AND failed_attempts < ?"#,
+                vec![now.into(), id.into(), EMAIL_CODE_MAX_FAILED_ATTEMPTS.into()],
             ))
             .await?;
-        // A zero-row update means the refresh token was expired, revoked,
-        // deleted-user-bound, or already rotated by another request.
+        // A zero-row update means another request consumed or locked the one-time code first.
         Ok(result.rows_affected() > 0)
+    }
+
+    /// Counts a failed code guess against the newest active code for the requested action.
+    async fn record_failed_email_verification_attempt(
+        &self,
+        email: &str,
+        purpose: &str,
+        now: &str,
+    ) -> Result<(), DbErr> {
+        self.db
+            .execute(statement(
+                self.db.get_database_backend(),
+                r#"UPDATE email_verification_codes
+                   SET failed_attempts = failed_attempts + 1
+                   WHERE id = (
+                       SELECT id FROM email_verification_codes
+                       WHERE email = ?
+                         AND purpose = ?
+                         AND consumed_at IS NULL
+                         AND expires_at > ?
+                         AND failed_attempts < ?
+                       ORDER BY created_at DESC
+                       LIMIT 1
+                   )"#,
+                vec![
+                    email.to_owned().into(),
+                    purpose.to_owned().into(),
+                    now.to_owned().into(),
+                    EMAIL_CODE_MAX_FAILED_ATTEMPTS.into(),
+                ],
+            ))
+            .await?;
+        Ok(())
     }
 
     /// Creates a one-time image captcha challenge and returns the debug answer in the local environment.
@@ -451,8 +495,8 @@ impl AuthRepository {
         refresh_expires_at: OffsetDateTime,
     ) -> Result<bool, DbErr> {
         let now = now_rfc3339();
-        // The update statement below is the replay guard: it succeeds only while
-        // the stored refresh hash still matches the hash presented by the client.
+        // Failed attempts start from the default zero value; successful use still
+        // depends on the one-time consume update in `consume_email_verification_code`.
         let expires_at = expires_at
             .format(&Iso8601::DEFAULT)
             .map_err(|err| DbErr::Custom(err.to_string()))?;
@@ -492,8 +536,7 @@ impl AuthRepository {
                 ],
             ))
             .await?;
-        // A zero-row update means the refresh token was expired, revoked,
-        // deleted-user-bound, or already rotated by another request.
+        // A zero-row update means another request consumed the one-time code first.
         Ok(result.rows_affected() > 0)
     }
 
@@ -541,6 +584,51 @@ impl AuthRepository {
             ))
             .await?;
         row.map(|row| map_user(&row)).transpose()
+    }
+
+    /// Replaces a user's password digest and clears password-login failure state.
+    pub async fn update_user_password_hash(
+        &self,
+        user_id: &str,
+        password_hash: &str,
+    ) -> Result<bool, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                r#"UPDATE users
+                   SET password_hash = ?,
+                       failed_login_attempts = 0,
+                       last_failed_login_at = NULL,
+                       updated_at = ?
+                   WHERE id = ?
+                     AND deleted_at IS NULL"#,
+                vec![
+                    password_hash.to_owned().into(),
+                    now.into(),
+                    user_id.to_owned().into(),
+                ],
+            ))
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Revokes every active session for a user, including outstanding refresh tokens.
+    pub async fn revoke_user_sessions(&self, user_id: &str) -> Result<u64, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                r#"UPDATE sessions
+                   SET revoked_at = ?
+                   WHERE user_id = ?
+                     AND revoked_at IS NULL"#,
+                vec![now.into(), user_id.to_owned().into()],
+            ))
+            .await?;
+        Ok(result.rows_affected())
     }
 
     /// Records one failed password login and increments the failure counter.
@@ -679,5 +767,74 @@ mod tests {
 
         assert_eq!(found.id, user.id);
         assert_eq!(found.nickname.as_deref(), Some("测试"));
+    }
+
+    /// Verifies password resets update the stored digest and clear brute-force counters.
+    #[tokio::test]
+    async fn updates_password_hash_and_resets_failed_login_state() {
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        Migrator::up(&db, None).await.unwrap();
+        let repo = AuthRepository::new(db.clone());
+        let user = repo
+            .create_password_user("reset_repo", "reset-repo@example.com", &hash_token("old"))
+            .await
+            .unwrap();
+        repo.record_failed_password_login(&user.id).await.unwrap();
+        repo.record_failed_password_login(&user.id).await.unwrap();
+
+        let updated = repo
+            .update_user_password_hash(&user.id, &hash_token("new"))
+            .await
+            .unwrap();
+        assert!(updated);
+
+        let found = repo
+            .find_user_by_email("reset-repo@example.com")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            found.password_hash.as_deref(),
+            Some(hash_token("new").as_str())
+        );
+        assert_eq!(found.failed_login_attempts, 0);
+    }
+
+    /// Verifies password reset revokes both access and refresh credentials from older sessions.
+    #[tokio::test]
+    async fn revokes_existing_sessions_for_user() {
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        Migrator::up(&db, None).await.unwrap();
+        let repo = AuthRepository::new(db);
+        let user = repo
+            .create_password_user("revoke_repo", "revoke-repo@example.com", &hash_token("old"))
+            .await
+            .unwrap();
+        let access_hash = hash_token("old-access");
+        let refresh_hash = hash_token("old-refresh");
+        repo.create_session(
+            &user.id,
+            &access_hash,
+            OffsetDateTime::now_utc() + time::Duration::hours(2),
+            &refresh_hash,
+            OffsetDateTime::now_utc() + time::Duration::days(30),
+        )
+        .await
+        .unwrap();
+
+        let revoked = repo.revoke_user_sessions(&user.id).await.unwrap();
+        assert_eq!(revoked, 1);
+        assert!(
+            repo.find_user_by_token_hash(&access_hash)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            repo.find_session_by_refresh_token_hash(&refresh_hash)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }

@@ -72,7 +72,7 @@
 .status-desc {
   margin-top: 8rpx;
   color: var(--muted-color);
-  font-size: 25rpx;
+  font-size: 23rpx;
 }
 
 .status-badge {
@@ -91,7 +91,7 @@
 
 .auth-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16rpx;
   margin-top: 22rpx;
   padding: 8rpx;
@@ -156,14 +156,57 @@
   background: #ffffff;
 }
 
-.error-text {
+.error-text,
+.notice-text {
   margin-top: 22rpx;
   padding: 18rpx;
   border-radius: 20rpx;
-  color: var(--status-danger-text);
-  background: var(--status-danger-bg);
   font-size: 24rpx;
   line-height: 1.5;
+}
+
+.error-text {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
+.notice-text {
+  color: var(--status-success-text);
+  background: var(--status-success-bg);
+}
+
+.code-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.code-input {
+  flex: 1;
+}
+
+.code-button {
+  flex: 0 0 188rpx;
+  margin: 0;
+  border-radius: 22rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 78rpx;
+}
+
+.action-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-top: 18rpx;
+}
+
+.action-row button.link-button {
+  margin-top: 0;
+  font-size: 24rpx;
+  line-height: 64rpx;
 }
 
 button.primary,

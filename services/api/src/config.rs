@@ -355,9 +355,9 @@ impl Default for MailConfig {
             smtp_host: "smtp.example.invalid".to_owned(),
             smtp_port: 465,
             smtp_tls: MailSmtpTls::Implicit,
-            smtp_username: "noreply@site.example.invalid".to_owned(),
+            smtp_username: "sender@example.test".to_owned(),
             smtp_password: String::new(),
-            from: "寻径星野 <noreply@site.example.invalid>".to_owned(),
+            from: "StellarTrail <sender@example.test>".to_owned(),
             verification_subject: "寻径星野邮箱验证码".to_owned(),
         }
     }
@@ -1062,9 +1062,9 @@ mail:
   smtp_host: smtp.example.invalid
   smtp_port: 465
   smtp_tls: implicit
-  smtp_username: noreply@site.example.invalid
+  smtp_username: sender@example.test
   smtp_password: example-mail-password
-  from: "寻径星野 <noreply@site.example.invalid>"
+  from: "StellarTrail <sender@example.test>"
   verification_subject: 寻径星野邮箱验证码
 "#,
         )
@@ -1112,9 +1112,9 @@ mail:
         assert_eq!(config.mail.smtp_host, "smtp.example.invalid");
         assert_eq!(config.mail.smtp_port, 465);
         assert_eq!(config.mail.smtp_tls, MailSmtpTls::Implicit);
-        assert_eq!(config.mail.smtp_username, "noreply@site.example.invalid");
+        assert_eq!(config.mail.smtp_username, "sender@example.test");
         assert_eq!(config.mail.smtp_password, "example-mail-password");
-        assert_eq!(config.mail.from, "寻径星野 <noreply@site.example.invalid>");
+        assert_eq!(config.mail.from, "StellarTrail <sender@example.test>");
         assert_eq!(config.mail.verification_subject, "寻径星野邮箱验证码");
 
         restore_env(saved);
@@ -1307,9 +1307,9 @@ public_api:
             env::set_var("MAIL_SMTP_HOST", " smtp.example.invalid ");
             env::set_var("MAIL_SMTP_PORT", "465");
             env::set_var("MAIL_SMTP_TLS", "implicit");
-            env::set_var("MAIL_SMTP_USERNAME", " noreply@site.example.invalid ");
+            env::set_var("MAIL_SMTP_USERNAME", " sender@example.test ");
             env::set_var("MAIL_SMTP_PASSWORD", " example-mail-password ");
-            env::set_var("MAIL_FROM", " 寻径星野 <noreply@site.example.invalid> ");
+            env::set_var("MAIL_FROM", " StellarTrail <sender@example.test> ");
             env::set_var("MAIL_VERIFICATION_SUBJECT", " 寻径星野邮箱验证码 ");
         }
 
@@ -1319,9 +1319,9 @@ public_api:
         assert_eq!(config.mail.smtp_host, "smtp.example.invalid");
         assert_eq!(config.mail.smtp_port, 465);
         assert_eq!(config.mail.smtp_tls, MailSmtpTls::Implicit);
-        assert_eq!(config.mail.smtp_username, "noreply@site.example.invalid");
+        assert_eq!(config.mail.smtp_username, "sender@example.test");
         assert_eq!(config.mail.smtp_password, "example-mail-password");
-        assert_eq!(config.mail.from, "寻径星野 <noreply@site.example.invalid>");
+        assert_eq!(config.mail.from, "StellarTrail <sender@example.test>");
         assert_eq!(config.mail.verification_subject, "寻径星野邮箱验证码");
 
         restore_env(saved);
@@ -1337,9 +1337,9 @@ public_api:
             env::set_var("MAIL_ENABLED", "true");
             env::set_var("MAIL_SMTP_HOST", "smtp.example.invalid");
             env::set_var("MAIL_SMTP_PORT", "465");
-            env::set_var("MAIL_SMTP_USERNAME", "noreply@site.example.invalid");
+            env::set_var("MAIL_SMTP_USERNAME", "sender@example.test");
             env::set_var("MAIL_SMTP_PASSWORD", "");
-            env::set_var("MAIL_FROM", "寻径星野 <noreply@site.example.invalid>");
+            env::set_var("MAIL_FROM", "StellarTrail <sender@example.test>");
             env::set_var("MAIL_VERIFICATION_SUBJECT", "寻径星野邮箱验证码");
         }
 

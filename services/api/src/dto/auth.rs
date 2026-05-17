@@ -28,10 +28,38 @@ pub struct EmailVerificationCodeRequest {
     pub email: String,
 }
 
+/// Request body for issuing a one-time email code used to log in without a password.
+#[derive(Debug, Deserialize)]
+pub struct EmailLoginCodeRequest {
+    pub email: String,
+}
+
+/// Request body for logging in with a one-time email code.
+#[derive(Debug, Deserialize)]
+pub struct EmailLoginRequest {
+    pub email: String,
+    pub email_verification_code: String,
+}
+
+/// Request body for issuing a one-time email code used to reset a password.
+#[derive(Debug, Deserialize)]
+pub struct PasswordResetCodeRequest {
+    pub email: String,
+}
+
+/// Request body for replacing a password after email ownership verification.
+#[derive(Debug, Deserialize)]
+pub struct PasswordResetRequest {
+    pub email: String,
+    pub email_verification_code: String,
+    pub password: String,
+    pub confirm_password: String,
+}
+
 /// Response describing when the email verification code expires.
 ///
 /// Local environments may include `debug_code` so integration tests can complete
-/// the registration flow without a real email delivery provider.
+/// auth flows without a real email delivery provider.
 #[derive(Debug, Serialize)]
 pub struct EmailVerificationCodeResponse {
     pub email: String,

@@ -106,7 +106,7 @@ cargo run -p stellartrail-api --bin migrate -- up
 cargo run -p stellartrail-api
 ```
 
-API 默认监听 `127.0.0.1:8080`。启动时会先加载 `.env`，再读取根目录 `config.yaml`（存在时）或 `CONFIG_PATH` 指定的 YAML 文件，最后由环境变量覆盖 YAML 配置。默认数据库地址为 `sqlite://stellartrail.db`。本地可通过 `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true` 启用 mock 登录；正式微信登录需设置 `WECHAT_MOCK_LOGIN=false`、`WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`。邮箱验证码生产投递通过 SMTP：设置 `MAIL_ENABLED=true`、`MAIL_SMTP_HOST=smtp.example.invalid`、`MAIL_SMTP_USERNAME=noreply@site.example.invalid`，并通过 `.env`、被忽略的 `config.yaml` 或 secret manager 注入 `MAIL_SMTP_PASSWORD`。如需启用 Redis 缓存，设置 `REDIS_URL=redis://127.0.0.1:6379/0`，可通过 `REDIS_GEAR_CACHE_TTL_SECONDS` 调整装备接口缓存 TTL。`config.example.yaml` 可提交，真实的 `config.yaml` / `config.*.yaml` 会被 `.gitignore` 忽略。
+API 默认监听 `127.0.0.1:8080`。启动时会先加载 `.env`，再读取根目录 `config.yaml`（存在时）或 `CONFIG_PATH` 指定的 YAML 文件，最后由环境变量覆盖 YAML 配置。默认数据库地址为 `sqlite://stellartrail.db`。本地可通过 `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true` 启用 mock 登录；正式微信登录需设置 `WECHAT_MOCK_LOGIN=false`、`WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`。邮箱验证码生产投递通过 SMTP：设置 `MAIL_ENABLED=true`、`MAIL_SMTP_HOST=smtp.example.invalid`、`MAIL_SMTP_USERNAME=[REDACTED]`，并通过 `.env`、被忽略的 `config.yaml` 或 secret manager 注入 `MAIL_SMTP_PASSWORD` 和发件人地址。邮箱验证码现在用于注册、邮箱验证码登录和找回密码。如需启用 Redis 缓存，设置 `REDIS_URL=redis://127.0.0.1:6379/0`；`REDIS_GEAR_CACHE_TTL_SECONDS` 控制装备读取缓存 TTL。`config.example.yaml` 会提交到 Git，实际 `config.yaml` / `config.*.yaml` 会被忽略。
 
 可用以下接口做本地冒烟验证：
 
@@ -124,8 +124,13 @@ GET /healthz
 GET /api/meta
 POST /api/auth/wechat-login
 POST /api/auth/email-verification-code
+POST /api/auth/email-login-code
+POST /api/auth/email-login
+POST /api/auth/password-reset-code
+POST /api/auth/password-reset
 POST /api/auth/register
 POST /api/auth/login
+POST /api/auth/refresh
 POST /api/auth/captcha
 GET /api/skills
 GET /api/skills/knots/list
@@ -154,7 +159,7 @@ COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=1543
   bash infra/test/integration-test.sh
 ```
 
-该脚本会启动 PostgreSQL、Redis 缓存和 API 服务，使用用户名/密码账号注册与登录做 curl 冒烟测试，并在测试结束或失败时自动执行 `docker compose down -v --remove-orphans` 关闭并清理容器；生产环境请通过安全渠道注入真实微信与数据库密钥。
+该脚本会启动 PostgreSQL、Redis 缓存和 API 服务，使用账号注册、密码登录、邮箱验证码登录和找回密码做 curl 冒烟测试，并在测试结束或失败时自动执行 `docker compose down -v --remove-orphans` 关闭并清理容器；生产环境请通过安全渠道注入真实微信、数据库和 SMTP 密钥。
 
 ### 5. 生产 Docker / Traefik 部署配置
 

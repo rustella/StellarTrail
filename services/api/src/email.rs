@@ -119,9 +119,9 @@ mod tests {
             smtp_host: "smtp.example.invalid".to_owned(),
             smtp_port: 465,
             smtp_tls: MailSmtpTls::Implicit,
-            smtp_username: "noreply@site.example.invalid".to_owned(),
+            smtp_username: "sender@example.test".to_owned(),
             smtp_password: "example-mail-password".to_owned(),
-            from: "寻径星野 <noreply@site.example.invalid>".to_owned(),
+            from: "StellarTrail <sender@example.test>".to_owned(),
             verification_subject: "寻径星野邮箱验证码".to_owned(),
         };
         let sender = SmtpEmailSender::from_config(&config).unwrap();
@@ -144,7 +144,7 @@ mod tests {
             to: "trail@example.invalid".to_owned(),
             code: "123456".to_owned(),
             expires_minutes: 10,
-            from: "寻径星野 <noreply@site.example.invalid>".to_owned(),
+            from: "StellarTrail <sender@example.test>".to_owned(),
             subject: "寻径星野邮箱验证码".to_owned(),
         };
 

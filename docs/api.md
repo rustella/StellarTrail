@@ -14,6 +14,10 @@ GET /api/meta
 ```http
 POST /api/auth/wechat-login
 POST /api/auth/email-verification-code
+POST /api/auth/email-login-code
+POST /api/auth/email-login
+POST /api/auth/password-reset-code
+POST /api/auth/password-reset
 POST /api/auth/register
 POST /api/auth/login
 POST /api/auth/refresh
@@ -34,7 +38,7 @@ POST /api/auth/captcha
 }
 ```
 
-### Email / username registration and password login
+### Email / username registration, email-code login, and password reset
 
 注册页可在同一表单中填写用户名、邮箱、密码、确认密码，并通过“发送邮箱验证码”按钮调用：
 
@@ -45,7 +49,7 @@ POST /api/auth/email-verification-code
 }
 ```
 
-本地环境响应会带 `debug_code` 方便联调；生产环境不返回明文验证码，服务端会通过配置的 SMTP 邮箱发送验证码。当前生产发件邮箱为 `noreply@site.example.invalid`，SMTP 主机为 `smtp.example.invalid`，真实密码只放在 `.env`、被忽略的 `config.yaml` 或 secret manager：
+本地环境响应会带 `debug_code` 方便联调；生产环境不返回明文验证码，服务端会通过配置的 SMTP 邮箱发送验证码。SMTP 主机为 `smtp.example.invalid`，真实账号、发件人地址和密码只放在 `.env`、被忽略的 `config.yaml` 或 secret manager：
 
 ```json
 {
@@ -106,7 +110,43 @@ POST /api/auth/login
 }
 ```
 
-登录/注册成功响应会返回短期 `access_token` 和长期 `refresh_token`。服务端只保存 token hash，不保存明文 token；客户端后续私有接口请求使用：
+邮箱验证码登录先对已存在账号发送一次性验证码。为避免账号枚举，不存在的邮箱也返回同样结构，但不会发送邮件，也不会返回 `debug_code`：
+
+```json
+POST /api/auth/email-login-code
+{
+  "email": "alice@example.com"
+}
+```
+
+```json
+POST /api/auth/email-login
+{
+  "email": "alice@example.com",
+  "email_verification_code": "123456"
+}
+```
+
+找回密码同样先发送一次性验证码。验证码只可用于找回密码，不能复用注册或登录验证码；重置成功后旧 session 会失效，并签发新的登录态：
+
+```json
+POST /api/auth/password-reset-code
+{
+  "email": "alice@example.com"
+}
+```
+
+```json
+POST /api/auth/password-reset
+{
+  "email": "alice@example.com",
+  "password": "***",
+  "confirm_password": "***",
+  "email_verification_code": "123456"
+}
+```
+
+登录、注册、邮箱验证码登录、找回密码成功响应会返回短期 `access_token` 和长期 `refresh_token`。服务端只保存 token hash，不保存明文 token；客户端后续私有请求使用：
 
 ```http
 Authorization: Bearer ***
@@ -121,7 +161,7 @@ POST /api/auth/refresh
 }
 ```
 
-登录、注册和刷新成功响应结构一致：
+登录、注册、邮箱验证码登录、找回密码和刷新成功响应结构一致：
 
 ```json
 {

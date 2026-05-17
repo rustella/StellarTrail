@@ -3,6 +3,8 @@ import type {
   CaptchaChallengeRequest,
   CaptchaChallengeResponse,
   CreateGearRequest,
+  EmailLoginCodeRequest,
+  EmailLoginRequest,
   EmailVerificationCodeRequest,
   EmailVerificationCodeResponse,
   GearCategoriesResponse,
@@ -17,6 +19,8 @@ import type {
   ListKnotsRequest,
   MetaResponse,
   PasswordLoginRequest,
+  PasswordResetCodeRequest,
+  PasswordResetRequest,
   RegisterRequest,
   SkillCategoriesResponse,
   SkillLocale,
@@ -38,6 +42,14 @@ export interface WebGearApi {
   sendEmailVerificationCode(
     request: EmailVerificationCodeRequest,
   ): Promise<EmailVerificationCodeResponse>;
+  sendEmailLoginCode(
+    request: EmailLoginCodeRequest,
+  ): Promise<EmailVerificationCodeResponse>;
+  loginWithEmailCode(request: EmailLoginRequest): Promise<WechatLoginResponse>;
+  sendPasswordResetCode(
+    request: PasswordResetCodeRequest,
+  ): Promise<EmailVerificationCodeResponse>;
+  resetPassword(request: PasswordResetRequest): Promise<WechatLoginResponse>;
   createCaptcha(
     request: CaptchaChallengeRequest,
   ): Promise<CaptchaChallengeResponse>;
