@@ -279,9 +279,9 @@ describe("KnotsPage", () => {
     );
     expect(await screen.findByText("用途说明")).toBeInTheDocument();
     expect(screen.getByText("适合风绳和营绳张力调节。")).toBeInTheDocument();
-    expect(screen.getByText("练习步骤")).toBeInTheDocument();
-    expect(screen.getByText("将绳头绕过主绳。")).toBeInTheDocument();
-    expect(screen.getByText("收紧后检查受力。")).toBeInTheDocument();
+    expect(screen.queryByText("练习步骤")).not.toBeInTheDocument();
+    expect(screen.queryByText("将绳头绕过主绳。")).not.toBeInTheDocument();
+    expect(screen.queryByText("收紧后检查受力。")).not.toBeInTheDocument();
 
     const defaultImage = screen.getByRole("img", {
       name: "可调节绳结 高清图",

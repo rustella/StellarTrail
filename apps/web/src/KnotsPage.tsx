@@ -394,18 +394,6 @@ function KnotDetailDrawer({
         <h3>用途说明</h3>
         <p>{item.description || item.summary}</p>
       </section>
-      <section>
-        <h3>练习步骤</h3>
-        {item.steps.length ? (
-          <ol className="knot-steps">
-            {item.steps.map((step, index) => (
-              <li key={`${index}-${step}`}>{step}</li>
-            ))}
-          </ol>
-        ) : (
-          <p className="muted">暂时还没有分步说明。</p>
-        )}
-      </section>
     </aside>
   );
 }
