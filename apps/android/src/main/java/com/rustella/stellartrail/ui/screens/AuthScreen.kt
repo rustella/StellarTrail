@@ -28,6 +28,7 @@ import com.rustella.stellartrail.feature.auth.AuthMode
 import com.rustella.stellartrail.feature.auth.AuthViewModel
 import com.rustella.stellartrail.ui.common.ErrorState
 import com.rustella.stellartrail.ui.common.HeroCard
+import com.rustella.stellartrail.ui.common.HeroVisualContract
 import com.rustella.stellartrail.ui.common.LoadingState
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SurfaceCard
@@ -41,13 +42,13 @@ fun AuthScreen(viewModel: AuthViewModel, modifier: Modifier = Modifier) {
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(HeroVisualContract.followingSectionGapDp.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         HeroCard(
             eyebrow = "寻径星野",
             title = "山野出发前的准备台",
-            subtitle = "装备准备、户外技能与路线知识，延续微信端深色渐变头图与圆角卡片。",
+            subtitle = "装备准备、户外技能与路线知识，登录后同步保存你的出行进度。",
         )
         SurfaceCard(Modifier.fillMaxWidth()) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {

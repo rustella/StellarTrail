@@ -73,7 +73,7 @@ fun HomeScreen(
     LazyColumn(
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(HomeHeroVisualContract.followingSectionGapDp.dp),
     ) {
         item {
             HeroCard(
@@ -82,8 +82,8 @@ fun HomeScreen(
                 subtitle = "跟着清单确认背包、技能和个人设置，轻松开始下一段路线。",
                 chips = listOf(if (state.isLoggedIn) "我的装备已保存" else "可先浏览清单", "绳结教学可直接看"),
                 actions = {
-                    HeroButton("查看装备", onOpenGears)
-                    HeroSoftButton("学习技能", onOpenSkills)
+                    HeroButton("查看装备", onOpenGears, Modifier.weight(1f))
+                    HeroSoftButton("学习技能", onOpenSkills, Modifier.weight(1f))
                 },
             )
         }
