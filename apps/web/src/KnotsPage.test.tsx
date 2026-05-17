@@ -52,6 +52,97 @@ const knotDetail = {
   locale: "zh-CN" as const,
 };
 
+const richKnotDetail = {
+  ...knotDetail,
+  media: [
+    {
+      id: "thumbnail",
+      media_type: "thumbnail",
+      url: "https://cdn.example.com/knots/thumb.webp",
+      mime_type: "image/webp",
+      width: 640,
+      height: 360,
+      size_bytes: 12345,
+      attribution: "Knots 3D",
+      license_note: "Use only after authorization is confirmed.",
+    },
+    {
+      id: "preview",
+      media_type: "preview",
+      url: "https://cdn.example.com/knots/preview-hd.webp",
+      mime_type: "image/webp",
+      width: 1600,
+      height: 900,
+      size_bytes: 56789,
+      attribution: "Knots 3D",
+      license_note: "Use only after authorization is confirmed.",
+    },
+    {
+      id: "draw_mp4",
+      media_type: "draw_mp4",
+      url: "https://cdn.example.com/knots/draw.mp4",
+      mime_type: "video/mp4",
+      width: 1280,
+      height: 720,
+      size_bytes: 34567,
+      attribution: "Knots 3D",
+      license_note: "Use only after authorization is confirmed.",
+    },
+    {
+      id: "draw_gif",
+      media_type: "draw_gif",
+      url: "https://cdn.example.com/knots/draw.gif",
+      mime_type: "image/gif",
+      width: 800,
+      height: 450,
+      size_bytes: 45678,
+      attribution: "Knots 3D",
+      license_note: "Use only after authorization is confirmed.",
+    },
+    {
+      id: "turntable_mp4",
+      media_type: "turntable_mp4",
+      url: "https://cdn.example.com/knots/turntable.mp4",
+      mime_type: "video/mp4",
+      width: 1280,
+      height: 720,
+      size_bytes: 45670,
+      attribution: "Knots 3D",
+      license_note: "Use only after authorization is confirmed.",
+    },
+    {
+      id: "turntable_gif",
+      media_type: "turntable_gif",
+      url: "https://cdn.example.com/knots/turntable.gif",
+      mime_type: "image/gif",
+      width: 800,
+      height: 450,
+      size_bytes: 56780,
+      attribution: "Knots 3D",
+      license_note: "Use only after authorization is confirmed.",
+    },
+  ],
+};
+
+const gifFallbackKnotDetail = {
+  ...richKnotDetail,
+  media: richKnotDetail.media.filter(
+    (asset) => asset.id !== "draw_mp4" && asset.id !== "turntable_mp4",
+  ),
+};
+
+const secondRichKnotDetail = {
+  ...richKnotDetail,
+  ...secondKnotSummary,
+  description: "适合快速制作固定绳圈。",
+  steps: ["绕出绳圈。", "穿回并收紧。"],
+  locale: "zh-CN" as const,
+  media: richKnotDetail.media.map((asset) => ({
+    ...asset,
+    url: asset.url.replace("/knots/", "/knots/second-"),
+  })),
+};
+
 type KnotsApi = Pick<
   WebGearApi,
   "listSkills" | "listKnots" | "getKnotDetail" | "resolveAssetUrl"
@@ -175,8 +266,9 @@ describe("KnotsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("opens a knot detail drawer with steps and media", async () => {
+  it("opens a knot detail drawer with steps and high-resolution media first", async () => {
     const api = buildKnotsApi();
+    vi.mocked(api.getKnotDetail).mockResolvedValue(richKnotDetail);
 
     render(<KnotsPage api={api} />);
     fireEvent.click(await screen.findByRole("button", { name: /可调节绳结/ }));
@@ -190,13 +282,94 @@ describe("KnotsPage", () => {
     expect(screen.getByText("练习步骤")).toBeInTheDocument();
     expect(screen.getByText("将绳头绕过主绳。")).toBeInTheDocument();
     expect(screen.getByText("收紧后检查受力。")).toBeInTheDocument();
-    expect(screen.getByText("演示素材")).toBeInTheDocument();
+
+    const defaultImage = screen.getByRole("img", {
+      name: "可调节绳结 高清图",
+    });
+    expect(defaultImage.getAttribute("src")).toContain("preview-hd.webp");
+    expect(defaultImage.getAttribute("src")).not.toContain("draw.gif");
+
+    expect(screen.getByRole("button", { name: "高清图" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "打法动图" }));
+    const drawMotion = screen.getByLabelText("可调节绳结 打法动图");
+    expect(drawMotion.tagName).toBe("VIDEO");
+    expect(drawMotion.getAttribute("src")).toContain("draw.mp4");
+    expect(drawMotion.getAttribute("src")).not.toContain("draw.gif");
+
+    fireEvent.click(screen.getByRole("button", { name: "旋转动图" }));
+    const turntableMotion = screen.getByLabelText("可调节绳结 旋转动图");
+    expect(turntableMotion.tagName).toBe("VIDEO");
+    expect(turntableMotion.getAttribute("src")).toContain("turntable.mp4");
+    expect(turntableMotion.getAttribute("src")).not.toContain("turntable.gif");
+
+    expect(screen.queryByText("演示素材")).not.toBeInTheDocument();
+    expect(screen.queryByText("Knots 3D")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("img", { name: "可调节绳结 演示素材" }),
-    ).toBeInTheDocument();
+      screen.queryByText("Use only after authorization is confirmed."),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "关闭绳结详情" }));
     expect(screen.queryByText("用途说明")).not.toBeInTheDocument();
+  });
+
+  it("falls back to gif motion when mp4 assets are unavailable", async () => {
+    const api = buildKnotsApi();
+    vi.mocked(api.getKnotDetail).mockResolvedValue(gifFallbackKnotDetail);
+
+    render(<KnotsPage api={api} />);
+    fireEvent.click(await screen.findByRole("button", { name: /可调节绳结/ }));
+
+    const defaultImage = await screen.findByRole("img", {
+      name: "可调节绳结 高清图",
+    });
+    expect(defaultImage.getAttribute("src")).toContain("preview-hd.webp");
+
+    fireEvent.click(screen.getByRole("button", { name: "打法动图" }));
+    const drawMotion = screen.getByRole("img", {
+      name: "可调节绳结 打法动图",
+    });
+    expect(drawMotion.getAttribute("src")).toContain("draw.gif");
+
+    fireEvent.click(screen.getByRole("button", { name: "旋转动图" }));
+    const turntableMotion = screen.getByRole("img", {
+      name: "可调节绳结 旋转动图",
+    });
+    expect(turntableMotion.getAttribute("src")).toContain("turntable.gif");
+  });
+
+  it("resets to the high-resolution image when opening another knot", async () => {
+    const api = buildKnotsApi();
+    vi.mocked(api.listKnots).mockResolvedValue({
+      locale: "zh-CN",
+      items: [knotSummary, secondKnotSummary],
+      page: { offset: 0, limit: 24, next_offset: null },
+    });
+    vi.mocked(api.getKnotDetail)
+      .mockResolvedValueOnce(richKnotDetail)
+      .mockResolvedValueOnce(secondRichKnotDetail);
+
+    render(<KnotsPage api={api} />);
+    fireEvent.click(await screen.findByRole("button", { name: /可调节绳结/ }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "打法动图" }));
+    expect(screen.getByLabelText("可调节绳结 打法动图").tagName).toBe("VIDEO");
+
+    fireEvent.click(screen.getByRole("button", { name: /单结/ }));
+
+    const secondDefaultImage = await screen.findByRole("img", {
+      name: "单结 高清图",
+    });
+    expect(secondDefaultImage.getAttribute("src")).toContain(
+      "second-preview-hd.webp",
+    );
+    expect(screen.queryByLabelText("单结 打法动图")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "高清图" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("shows a retry action when knots fail to load", async () => {

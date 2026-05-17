@@ -316,8 +316,25 @@ function KnotDetailDrawer({
   onClose(): void;
   resolveAssetUrl(url: string): string;
 }) {
-  const media = primaryMedia(item.media);
-  const mediaUrl = media ? resolveAssetUrl(media.url) : undefined;
+  const mediaOptions = buildDetailMediaOptions(item.media);
+  const defaultMediaKey = mediaOptions[0]?.key ?? "";
+  const [selectedMediaKey, setSelectedMediaKey] = useState(defaultMediaKey);
+
+  useEffect(() => {
+    setSelectedMediaKey(defaultMediaKey);
+  }, [defaultMediaKey, item.id]);
+
+  const selectedMedia =
+    mediaOptions.find((option) => option.key === selectedMediaKey) ??
+    mediaOptions[0];
+  const selectedMediaUrl = selectedMedia
+    ? resolveAssetUrl(selectedMedia.asset.url)
+    : undefined;
+  const posterMedia = mediaOptions.find((option) => option.key === "photo");
+  const posterUrl = posterMedia
+    ? resolveAssetUrl(posterMedia.asset.url)
+    : undefined;
+
   return (
     <aside className="detail-drawer knot-detail-drawer" aria-label="绳结详情">
       <button
@@ -336,16 +353,41 @@ function KnotDetailDrawer({
           <span key={category.id}>{category.title}</span>
         ))}
       </div>
-      {media ? (
+      {selectedMedia && selectedMediaUrl ? (
         <figure className="knot-detail-media">
-          <img src={mediaUrl} alt={`${item.title} 演示素材`} />
-          {media.attribution || media.license_note ? (
-            <figcaption>
-              {[media.attribution, media.license_note]
-                .filter(Boolean)
-                .join(" · ")}
-            </figcaption>
-          ) : null}
+          <div
+            className="knot-media-switcher"
+            role="group"
+            aria-label="选择查看方式"
+          >
+            {mediaOptions.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                aria-pressed={option.key === selectedMedia.key}
+                onClick={() => setSelectedMediaKey(option.key)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {selectedMedia.kind === "video" ? (
+            <video
+              aria-label={`${item.title} ${selectedMedia.label}`}
+              src={selectedMediaUrl}
+              poster={posterUrl}
+              controls
+              loop
+              muted
+              playsInline
+              preload="metadata"
+            />
+          ) : (
+            <img
+              src={selectedMediaUrl}
+              alt={`${item.title} ${selectedMedia.label}`}
+            />
+          )}
         </figure>
       ) : null}
       <section>
@@ -364,29 +406,86 @@ function KnotDetailDrawer({
           <p className="muted">暂时还没有分步说明。</p>
         )}
       </section>
-      {item.media.length ? (
-        <section>
-          <h3>演示素材</h3>
-          <div className="knot-media-list">
-            {item.media.map((asset) => (
-              <a
-                key={assetKey(asset)}
-                href={resolveAssetUrl(asset.url)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {mediaLabel(asset)}
-              </a>
-            ))}
-          </div>
-        </section>
-      ) : null}
     </aside>
   );
 }
 
 function primaryMedia(media: KnotMediaAsset[]): KnotMediaAsset | undefined {
-  return media.find((asset) => asset.mime_type.startsWith("image/"));
+  return (
+    selectPreferredMedia(media, ["thumbnail", "preview"]) ?? staticImage(media)
+  );
+}
+
+type DetailMediaOption = {
+  key: "photo" | "draw" | "turntable";
+  label: string;
+  kind: "image" | "video";
+  asset: KnotMediaAsset;
+};
+
+function buildDetailMediaOptions(media: KnotMediaAsset[]): DetailMediaOption[] {
+  const options: DetailMediaOption[] = [];
+  const photo =
+    selectPreferredMedia(media, ["preview", "thumbnail"]) ?? staticImage(media);
+  if (photo) {
+    options.push({
+      key: "photo",
+      label: "高清图",
+      kind: "image",
+      asset: photo,
+    });
+  }
+
+  const draw = selectPreferredMedia(media, ["draw_mp4", "draw_gif"]);
+  if (draw) {
+    options.push({
+      key: "draw",
+      label: "打法动图",
+      kind: mediaKind(draw),
+      asset: draw,
+    });
+  }
+
+  const turntable = selectPreferredMedia(media, [
+    "turntable_mp4",
+    "turntable_gif",
+  ]);
+  if (turntable) {
+    options.push({
+      key: "turntable",
+      label: "旋转动图",
+      kind: mediaKind(turntable),
+      asset: turntable,
+    });
+  }
+
+  return options;
+}
+
+function selectPreferredMedia(
+  media: KnotMediaAsset[],
+  orderedIds: string[],
+): KnotMediaAsset | undefined {
+  for (const id of orderedIds) {
+    const match = media.find(
+      (asset) => asset.id === id || asset.media_type === id,
+    );
+    if (match) return match;
+  }
+  return undefined;
+}
+
+function staticImage(media: KnotMediaAsset[]): KnotMediaAsset | undefined {
+  return media.find(
+    (asset) =>
+      asset.mime_type.startsWith("image/") && asset.mime_type !== "image/gif",
+  );
+}
+
+function mediaKind(asset: KnotMediaAsset): "image" | "video" {
+  return asset.mime_type.startsWith("video/") || asset.id.endsWith("_mp4")
+    ? "video"
+    : "image";
 }
 
 function difficultyLabel(value?: string | null): string {
@@ -404,18 +503,4 @@ function difficultyLabel(value?: string | null): string {
     default:
       return "常用";
   }
-}
-
-function mediaLabel(asset: KnotMediaAsset): string {
-  if (asset.id === "thumbnail") return "缩略图";
-  if (asset.id === "preview") return "预览图";
-  if (asset.id === "draw_gif") return "打法动图";
-  if (asset.id === "turntable_gif") return "旋转动图";
-  if (asset.id === "draw_mp4") return "打法视频";
-  if (asset.id === "turntable_mp4") return "旋转视频";
-  return "素材";
-}
-
-function assetKey(asset: KnotMediaAsset): string {
-  return `${asset.id}-${asset.url}`;
 }

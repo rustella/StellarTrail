@@ -80,3 +80,16 @@ describe("web brand wordmark layout", () => {
     );
   });
 });
+
+describe("web knots media layout", () => {
+  it("shows knot card preview images completely instead of cropping them", () => {
+    const styles = readCss(WEB_STYLES);
+    const mediaBlock = extractBlock(
+      styles,
+      ".knot-card-button img,\n.knot-media-placeholder",
+    );
+
+    expect(mediaBlock).toContain("object-fit: contain;");
+    expect(mediaBlock).not.toContain("object-fit: cover;");
+  });
+});
