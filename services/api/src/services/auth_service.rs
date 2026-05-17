@@ -1,4 +1,10 @@
-//! Authentication service module for WeChat code2session, email registration, password login, captcha, and session issuance flows.
+//! Authentication domain service for login, registration, captcha, and token renewal.
+//!
+//! This module owns the security-sensitive orchestration around credentials and
+//! sessions. It validates client input, calls WeChat code2session when required,
+//! hashes every opaque token before persistence, and rotates refresh tokens so a
+//! refresh token can be used only once. Routes should stay thin and delegate all
+//! authentication state changes to this layer.
 
 use axum::http::HeaderMap;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -21,10 +27,19 @@ const EMAIL_CODE_PURPOSE_REGISTER: &str = "register";
 const EMAIL_CODE_EXPIRES_MINUTES: i64 = 10;
 const CAPTCHA_EXPIRES_MINUTES: i64 = 5;
 const LOGIN_CAPTCHA_THRESHOLD: i32 = 3;
+// Access tokens are intentionally short-lived because clients can renew them
+// with refresh tokens instead of keeping a month-long bearer token active.
 const ACCESS_TOKEN_EXPIRES_HOURS: i64 = 2;
+// Refresh tokens keep the existing 30-day session experience but rotate on use
+// so a captured refresh token cannot be replayed after a successful refresh.
 const REFRESH_TOKEN_EXPIRES_DAYS: i64 = 30;
 
-/// Handles WeChat Mini Program code login and issues a StellarTrail session token on success.
+/// Exchanges a WeChat Mini Program login code for a StellarTrail session.
+///
+/// Local development may use the mock path, but non-local environments must have
+/// WeChat credentials configured and must call `code2session` before any user or
+/// session is created. Successful login returns both a short-lived access token
+/// and a longer-lived refresh token.
 pub async fn wechat_login(
     state: &AppState,
     code: String,
@@ -63,7 +78,11 @@ pub async fn wechat_login(
     issue_login_for_openid(state, &code_session.openid, profile).await
 }
 
-/// Generates a registration email verification code and stores its digest for the registration endpoint to consume later.
+/// Generates and stores a one-time registration email verification code.
+///
+/// The stored value is a hash, not the plaintext code. Local environments return
+/// the plaintext code for smoke tests, while production can later plug in email
+/// delivery without changing registration validation.
 pub async fn send_email_verification_code(
     state: &AppState,
     email: String,
@@ -140,7 +159,11 @@ pub async fn register_with_password(
     issue_login_for_user(&repo, user).await
 }
 
-/// Handles password login by username or email and verifies a one-time image captcha when required.
+/// Authenticates a username/email password login and issues a fresh token pair.
+///
+/// Accounts with repeated failures must solve the latest captcha challenge before
+/// password verification proceeds. Successful login resets the failure counter
+/// and creates a new opaque access/refresh session.
 pub async fn password_login(
     state: &AppState,
     payload: PasswordLoginRequest,
@@ -174,7 +197,11 @@ pub async fn password_login(
     issue_login_for_user(&repo, user).await
 }
 
-/// Creates a one-time image captcha challenge and returns the debug answer in the local environment.
+/// Creates a one-time captcha challenge for accounts that reached the failure threshold.
+///
+/// The challenge answer is stored as a hash and can be consumed only once. Local
+/// environments include the answer in the response so automated tests can cover
+/// the protected password-login path.
 pub async fn create_captcha_challenge(
     state: &AppState,
     account: String,
@@ -199,25 +226,36 @@ pub async fn create_captcha_challenge(
     })
 }
 
-/// Rotates a valid refresh token and returns a fresh access/refresh token pair for the same session.
+/// Rotates a valid refresh token into a new access/refresh token pair.
+///
+/// The refresh token supplied by the client is hashed before lookup. A missing,
+/// expired, revoked, deleted-user-bound, or already-rotated token is reported as
+/// `Unauthorized` without revealing which condition failed.
 pub async fn refresh_token(
     state: &AppState,
     refresh_token: String,
 ) -> Result<LoginResponse, ApiError> {
     let refresh_token = validate_refresh_token(refresh_token)?;
     let repo = AuthRepository::new(state.db().clone());
+    // Hash the client-provided token before lookup so plaintext refresh tokens
+    // never cross the repository boundary or appear in query logs.
     let refresh_token_hash = hash_token(&refresh_token);
     let Some(session) = repo
         .find_session_by_refresh_token_hash(&refresh_token_hash)
         .await?
     else {
+        // Use the same unauthorized response for invalid, expired, revoked, and
+        // replayed tokens so callers cannot enumerate session state.
         return Err(ApiError::Unauthorized);
     };
     issue_rotated_login_for_session(&repo, session.session_id, refresh_token_hash, session.user)
         .await
 }
 
-/// Runs the `mock login` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Performs development-only mock login using the same session issuance path as WeChat login.
+///
+/// This endpoint is deliberately disabled outside the local environment so a
+/// configured production server cannot bypass WeChat code2session.
 pub async fn mock_login(
     state: &AppState,
     code: String,
@@ -237,7 +275,11 @@ pub async fn mock_login(
     issue_login_for_openid(state, &openid, profile).await
 }
 
-/// Runs the `issue login for openid` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Creates or updates the WeChat user identified by `openid` and issues a session.
+///
+/// Profile updates happen before token issuance so the user snapshot embedded in
+/// the login response reflects the latest nickname and avatar supplied by the
+/// client.
 async fn issue_login_for_openid(
     state: &AppState,
     openid: &str,
@@ -250,12 +292,18 @@ async fn issue_login_for_openid(
     issue_login_for_user(&repo, user).await
 }
 
-/// Generates random access/refresh tokens for the user, stores only their hashes, and returns the login response.
+/// Issues a new persisted session for a user and returns the client-visible tokens.
+///
+/// Both tokens are high-entropy opaque strings. Only SHA-256 hashes are persisted
+/// in the `sessions` table, which prevents a database dump from being used as a
+/// bearer credential.
 async fn issue_login_for_user(
     repo: &AuthRepository,
     user: UserRecord,
 ) -> Result<LoginResponse, ApiError> {
     let token_pair = generate_token_pair();
+    // Store only token hashes. The plaintext values remain in `token_pair` long
+    // enough to be returned to the authenticated client in the response body.
     repo.create_session(
         &user.id,
         &hash_token(&token_pair.access_token),
@@ -267,7 +315,11 @@ async fn issue_login_for_user(
     login_response(user, token_pair)
 }
 
-/// Rotates token hashes in an existing session so the previous refresh token cannot be replayed.
+/// Replaces token hashes in an existing session after a refresh-token lookup succeeds.
+///
+/// The repository update is conditional on the old refresh hash still matching
+/// the session row. If another request rotated the same refresh token first, the
+/// update affects zero rows and this function returns `Unauthorized`.
 async fn issue_rotated_login_for_session(
     repo: &AuthRepository,
     session_id: String,
@@ -275,6 +327,8 @@ async fn issue_rotated_login_for_session(
     user: UserRecord,
 ) -> Result<LoginResponse, ApiError> {
     let token_pair = generate_token_pair();
+    // Generate the replacement pair before the conditional update so the old
+    // refresh token and new refresh token are never valid at the same time.
     let updated = repo
         .rotate_session_tokens(
             &session_id,
@@ -286,6 +340,9 @@ async fn issue_rotated_login_for_session(
         )
         .await?;
     if !updated {
+        // A failed conditional update means another request already rotated the
+        // token, or the session became revoked/expired/deleted between lookup
+        // and update. Treat all of those as unauthorized replay attempts.
         return Err(ApiError::Unauthorized);
     }
     login_response(user, token_pair)
@@ -298,7 +355,10 @@ struct TokenPair {
     refresh_expires_at: OffsetDateTime,
 }
 
+/// Builds an access/refresh token pair with independent expiry timestamps.
 fn generate_token_pair() -> TokenPair {
+    // Each token is generated independently so the refresh token cannot be
+    // derived from, compared to, or confused with the access token.
     TokenPair {
         access_token: generate_token(),
         expires_at: OffsetDateTime::now_utc() + Duration::hours(ACCESS_TOKEN_EXPIRES_HOURS),
@@ -307,7 +367,10 @@ fn generate_token_pair() -> TokenPair {
     }
 }
 
+/// Converts a persisted user and freshly generated token pair into the public login response.
 fn login_response(user: UserRecord, token_pair: TokenPair) -> Result<LoginResponse, ApiError> {
+    // Format expiry values once at the API boundary so every client receives the
+    // same RFC3339 timestamp representation regardless of login method.
     Ok(LoginResponse {
         access_token: token_pair.access_token,
         expires_at: token_pair
@@ -339,7 +402,7 @@ pub async fn authenticate(headers: &HeaderMap, state: &AppState) -> Result<UserR
         .ok_or(ApiError::Unauthorized)
 }
 
-/// Runs the `validate code` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Trims and validates the temporary WeChat login code before code2session exchange.
 fn validate_code(code: String) -> Result<String, ApiError> {
     let code = code.trim();
     if code.is_empty() {
@@ -351,7 +414,7 @@ fn validate_code(code: String) -> Result<String, ApiError> {
     Ok(code.to_owned())
 }
 
-/// Runs the `validate username` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Normalizes and bounds a registration username before it is written to the database.
 fn validate_username(username: String) -> Result<String, ApiError> {
     let username = username.trim().to_ascii_lowercase();
     let mut errors = Vec::new();
@@ -382,7 +445,7 @@ fn validate_username(username: String) -> Result<String, ApiError> {
     }
 }
 
-/// Runs the `validate email` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Normalizes and validates an email address used for registration or login.
 fn validate_email(email: String) -> Result<String, ApiError> {
     let email = email.trim().to_ascii_lowercase();
     let valid_shape = email.len() <= 254
@@ -401,7 +464,7 @@ fn validate_email(email: String) -> Result<String, ApiError> {
     Ok(email)
 }
 
-/// Runs the `validate password` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Validates a registration password and confirms the repeated password matches.
 fn validate_password(password: String) -> Result<String, ApiError> {
     let len = password.chars().count();
     if !(8..=128).contains(&len) {
@@ -413,7 +476,7 @@ fn validate_password(password: String) -> Result<String, ApiError> {
     Ok(password)
 }
 
-/// Runs the `validate login password` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Validates that a password-login request includes a non-empty password.
 fn validate_login_password(password: String) -> Result<String, ApiError> {
     if password.is_empty() {
         return Err(ApiError::Validation(vec![FieldViolation::new(
@@ -424,7 +487,7 @@ fn validate_login_password(password: String) -> Result<String, ApiError> {
     Ok(password)
 }
 
-/// Runs the `validate login account` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Trims the username or email identifier used by password login.
 fn validate_login_account(account: String) -> Result<String, ApiError> {
     let account = account.trim().to_ascii_lowercase();
     if account.is_empty() {
@@ -436,7 +499,7 @@ fn validate_login_account(account: String) -> Result<String, ApiError> {
     Ok(account)
 }
 
-/// Runs the `validate verification code` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Trims the registration email verification code and rejects empty values.
 fn validate_verification_code(code: String) -> Result<String, ApiError> {
     let code = code.trim();
     if code.is_empty() {
@@ -448,7 +511,7 @@ fn validate_verification_code(code: String) -> Result<String, ApiError> {
     Ok(code.to_owned())
 }
 
-/// Runs the `validate refresh token` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Trims the refresh token submitted by clients and rejects empty credentials.
 fn validate_refresh_token(token: String) -> Result<String, ApiError> {
     let token = token.trim();
     if token.is_empty() {
@@ -482,12 +545,12 @@ async fn verify_captcha(
         .map_err(ApiError::from)
 }
 
-/// Runs the `normalize captcha answer` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Normalizes captcha answers so user input and generated answers hash consistently.
 fn normalize_captcha_answer(answer: &str) -> String {
     answer.trim().to_ascii_uppercase()
 }
 
-/// Runs the `generate captcha answer` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Generates a short numeric captcha answer using the process random generator.
 fn generate_captcha_answer() -> String {
     const CHARS: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
     let mut rng = rand::thread_rng();
@@ -496,7 +559,7 @@ fn generate_captcha_answer() -> String {
         .collect()
 }
 
-/// Runs the `render captcha svg` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Renders the captcha answer into a simple SVG image returned to clients.
 fn render_captcha_svg(answer: &str) -> String {
     let chars = answer
         .chars()
@@ -516,7 +579,7 @@ fn render_captcha_svg(answer: &str) -> String {
     )
 }
 
-/// Runs the `required wechat config` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Reads a required WeChat configuration value without exposing secret contents in errors.
 fn required_wechat_config<'a>(value: Option<&'a str>, name: &str) -> Result<&'a str, ApiError> {
     value
         .map(str::trim)
@@ -524,7 +587,7 @@ fn required_wechat_config<'a>(value: Option<&'a str>, name: &str) -> Result<&'a 
         .ok_or_else(|| ApiError::internal(anyhow::anyhow!("{name} is required for WeChat login")))
 }
 
-/// Runs the `map wechat login error` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Converts code2session failures into API errors while preserving safe client messages.
 fn map_wechat_login_error(error: anyhow::Error) -> ApiError {
     match error.downcast::<WechatCodeSessionError>() {
         Ok(WechatCodeSessionError::Rejected { code, message }) => {
@@ -535,7 +598,7 @@ fn map_wechat_login_error(error: anyhow::Error) -> ApiError {
     }
 }
 
-/// Runs the `bearer token` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Extracts a bearer token from the Authorization header for authenticated routes.
 fn bearer_token(headers: &HeaderMap) -> Option<&str> {
     let value = headers
         .get(axum::http::header::AUTHORIZATION)?
@@ -546,14 +609,14 @@ fn bearer_token(headers: &HeaderMap) -> Option<&str> {
         .or_else(|| value.strip_prefix("bearer "))
 }
 
-/// Runs the `generate token` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Generates a URL-safe opaque bearer token with enough entropy for access or refresh use.
 fn generate_token() -> String {
     let mut bytes = [0_u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
-/// Runs the `generate email code` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Generates a six-digit registration email code for the user-facing verification step.
 fn generate_email_code() -> String {
     format!("{:06}", rand::thread_rng().gen_range(0..=999_999))
 }

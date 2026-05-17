@@ -1,8 +1,13 @@
-//! Authentication HTTP DTOs for WeChat login, email registration, password login, and captcha request/response payloads.
+//! HTTP request and response DTOs for StellarTrail authentication.
+//!
+//! These structs define the wire format shared by the Rust API, the TypeScript
+//! clients, the WeChat Mini Program, and the Android client. Authentication uses
+//! opaque access and refresh tokens, so token fields in responses are plaintext
+//! values intended for clients while persistence layers store only token hashes.
 
 use serde::{Deserialize, Serialize};
 
-/// Stable data boundary for `WechatLoginRequest`, exposed by or reused within this module.
+/// Request body for exchanging a WeChat Mini Program login code for a StellarTrail session.
 #[derive(Debug, Deserialize)]
 pub struct WechatLoginRequest {
     pub code: String,
@@ -10,20 +15,23 @@ pub struct WechatLoginRequest {
     pub profile: Option<LoginProfileRequest>,
 }
 
-/// Stable data boundary for `LoginProfileRequest`, exposed by or reused within this module.
+/// Optional profile fields supplied by the client during login or registration bootstrap.
 #[derive(Debug, Deserialize)]
 pub struct LoginProfileRequest {
     pub nickname: Option<String>,
     pub avatar_url: Option<String>,
 }
 
-/// Stable data boundary for `EmailVerificationCodeRequest`, exposed by or reused within this module.
+/// Request body for issuing a one-time email verification code for account registration.
 #[derive(Debug, Deserialize)]
 pub struct EmailVerificationCodeRequest {
     pub email: String,
 }
 
-/// Stable data boundary for `EmailVerificationCodeResponse`, exposed by or reused within this module.
+/// Response describing when the email verification code expires.
+///
+/// Local environments may include `debug_code` so integration tests can complete
+/// the registration flow without a real email delivery provider.
 #[derive(Debug, Serialize)]
 pub struct EmailVerificationCodeResponse {
     pub email: String,
@@ -32,7 +40,7 @@ pub struct EmailVerificationCodeResponse {
     pub debug_code: Option<String>,
 }
 
-/// Stable data boundary for `RegisterRequest`, exposed by or reused within this module.
+/// Request body for username/email/password registration after email verification.
 #[derive(Debug, Deserialize)]
 pub struct RegisterRequest {
     pub username: String,
@@ -42,13 +50,13 @@ pub struct RegisterRequest {
     pub email_verification_code: String,
 }
 
-/// Stable data boundary for `CaptchaChallengeRequest`, exposed by or reused within this module.
+/// Request body for creating an image captcha challenge for a login account.
 #[derive(Debug, Deserialize)]
 pub struct CaptchaChallengeRequest {
     pub account: String,
 }
 
-/// Stable data boundary for `CaptchaChallengeResponse`, exposed by or reused within this module.
+/// Response containing the captcha ticket, SVG challenge, and expiry metadata.
 #[derive(Debug, Serialize)]
 pub struct CaptchaChallengeResponse {
     pub captcha_ticket: String,
@@ -59,7 +67,7 @@ pub struct CaptchaChallengeResponse {
     pub debug_answer: Option<String>,
 }
 
-/// Stable data boundary for `PasswordLoginRequest`, exposed by or reused within this module.
+/// Request body for password login using either a username or an email address.
 #[derive(Debug, Deserialize)]
 pub struct PasswordLoginRequest {
     pub account: String,
@@ -70,13 +78,17 @@ pub struct PasswordLoginRequest {
     pub captcha_answer: Option<String>,
 }
 
-/// Stable data boundary for `RefreshTokenRequest`, exposed by or reused within this module.
+/// Request body for rotating a refresh token into a new access/refresh token pair.
 #[derive(Debug, Deserialize)]
 pub struct RefreshTokenRequest {
     pub refresh_token: String,
 }
 
-/// Stable data boundary for `LoginResponse`, exposed by or reused within this module.
+/// Successful authentication response returned by login, registration, and refresh endpoints.
+///
+/// The access token is short-lived and used in the `Authorization` header. The
+/// refresh token is longer-lived, rotated on every refresh call, and should be
+/// stored by clients with the same care as a password.
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub access_token: String,
@@ -86,7 +98,7 @@ pub struct LoginResponse {
     pub user: LoginUserResponse,
 }
 
-/// Stable data boundary for `LoginUserResponse`, exposed by or reused within this module.
+/// User snapshot embedded in authentication responses so clients can restore session UI state.
 #[derive(Debug, Serialize)]
 pub struct LoginUserResponse {
     pub id: String,

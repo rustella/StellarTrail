@@ -1,4 +1,10 @@
-//! Authentication routes for WeChat login, email verification codes, registration, password login, and image captcha challenges.
+//! Axum route definitions for every authentication endpoint.
+//!
+//! This module is intentionally thin: handlers deserialize HTTP payloads, call
+//! `auth_service` for validation and state changes, and serialize the response.
+//! Keeping token issuance, refresh rotation, and captcha validation in the
+//! service layer makes the route table easy to audit for public authentication
+//! surface area.
 
 use axum::{Json, Router, routing::post};
 
@@ -13,7 +19,11 @@ use crate::{
     state::AppState,
 };
 
-/// Runs the `routes` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Builds the authentication router mounted by the API application.
+///
+/// Login, registration, captcha, and refresh routes are all unauthenticated by
+/// design because they establish or renew a session. Private application data
+/// remains protected by the `/api/me/*` handlers outside this router.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/auth/wechat-login", post(wechat_login))
@@ -23,6 +33,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(password_login))
+        // Refresh is intentionally public: the refresh token itself is the credential.
         .route("/api/auth/refresh", post(refresh_token))
         .route("/api/auth/captcha", post(create_captcha))
 }
@@ -45,7 +56,7 @@ async fn send_email_verification_code(
     Ok(Json(response))
 }
 
-/// Runs the `register` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Registers a password account and returns the first access/refresh token pair for the new user.
 async fn register(
     axum::extract::State(state): axum::extract::State<AppState>,
     Json(payload): Json<RegisterRequest>,
@@ -72,7 +83,7 @@ async fn refresh_token(
     Ok(Json(response))
 }
 
-/// Runs the `create captcha` server-side flow while preserving input validation, error propagation, and state invariants.
+/// Creates a captcha challenge used to slow repeated password-login failures for an account.
 async fn create_captcha(
     axum::extract::State(state): axum::extract::State<AppState>,
     Json(payload): Json<CaptchaChallengeRequest>,

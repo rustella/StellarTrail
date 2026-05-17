@@ -190,8 +190,9 @@ async fn knots_migration_down_preserves_shared_skill_categories() {
     .await
     .expect("insert shared category localization");
 
-    // Roll back media resources, refresh tokens, and knots content so this test remains
-    // pinned to the knots down behavior as later migrations are appended.
+    // Roll back media resources, refresh-token metadata, and knots content. This
+    // keeps the assertion pinned to the knots migration's down behavior even as
+    // later, unrelated migrations are appended to the global migrator sequence.
     Migrator::down(&db, Some(3))
         .await
         .expect("roll back knots migration");
