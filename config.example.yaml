@@ -1,0 +1,73 @@
+# StellarTrail API configuration example.
+#
+# Copy this file to config.yaml for a local single-file setup, or set
+# CONFIG_PATH=/path/to/config.yaml. Environment variables still have priority
+# over values in this file so deployments can inject secrets safely.
+
+app:
+  env: local
+  host: 127.0.0.1
+  port: 8080
+
+database:
+  # Supported prefixes: sqlite://, postgres://, postgresql://, mysql://
+  url: sqlite://stellartrail.db
+
+wechat:
+  # Keep mock_login true for local development. Set false outside local mock environments.
+  mock_login: true
+  app_id:
+  app_secret:
+
+content:
+  dir: content
+  assets_dir: content/assets
+  media_base_url: /assets
+
+redis:
+  # Leave url empty to disable server-side cache.
+  url:
+  key_prefix: stellartrail
+  gear_cache_ttl_seconds: 30
+
+upload:
+  max_image_bytes: 8000000
+  rate_limit_window_seconds: 3600
+  max_images_per_window: 30
+
+object_storage:
+  endpoint: http://127.0.0.1:19000
+  region: us-east-1
+  bucket: stellartrail-uploads
+  access_key_id:
+  secret_access_key:
+  force_path_style: true
+
+knots_media_storage:
+  storage_profile: knots-public
+  endpoint: http://127.0.0.1:19000
+  region: us-east-1
+  bucket: stellartrail-knots-media
+  access_key_id:
+  secret_access_key:
+  force_path_style: true
+  public_base_url: http://127.0.0.1:19000/stellartrail-knots-media
+  max_image_bytes: 32000000
+  max_video_bytes: 80000000
+
+admin:
+  user_ids: []
+  emails: []
+  usernames: []
+
+public_api:
+  rate_limit_enabled: true
+  rate_limit_window_seconds: 60
+  rate_limit_max_requests_per_ip: 120
+  cache_ttl_seconds: 300
+  cache_stale_seconds: 600
+  max_list_limit: 100
+  max_search_query_chars: 64
+  max_offset: 10000
+  trust_proxy_headers: false
+  trusted_proxy_cidrs: []
