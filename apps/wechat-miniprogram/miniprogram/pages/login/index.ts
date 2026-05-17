@@ -4,13 +4,17 @@ import {
   getStoredUser,
   hasAccessToken,
   isCaptchaRequiredError,
+  loginWithEmailCode,
   loginWithPassword,
   loginWithWechat,
+  resetPassword,
+  sendEmailLoginCode,
+  sendPasswordResetCode,
 } from "../../utils/api";
 import { decodeRedirect, navigateToRedirect } from "../../utils/navigation";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 
-type LoginMode = "wechat" | "password";
+type LoginMode = "wechat" | "password" | "email" | "reset";
 
 Page({
   data: {
@@ -18,11 +22,17 @@ Page({
     loggedIn: hasAccessToken(),
     userDisplay: buildUserDisplay(),
     loading: false,
+    codeLoading: false,
     captchaLoading: false,
     error: "",
+    notice: "",
     loginMode: "wechat" as LoginMode,
     account: "",
     password: "",
+    email: "",
+    emailCode: "",
+    resetPassword: "",
+    resetConfirmPassword: "",
     captchaAnswer: "",
     captchaTicket: "",
     captchaImageSrc: "",
@@ -46,17 +56,29 @@ Page({
   },
 
   switchToWechat() {
-    this.setData({ loginMode: "wechat", error: "" });
+    this.setData({ loginMode: "wechat", error: "", notice: "" });
   },
 
   switchToPassword() {
-    this.setData({ loginMode: "password", error: "" });
+    this.setData({ loginMode: "password", error: "", notice: "" });
+  },
+
+  switchToEmail() {
+    this.setData({ loginMode: "email", error: "", notice: "" });
+  },
+
+  switchToReset() {
+    this.setData({ loginMode: "reset", error: "", notice: "" });
   },
 
   onFieldInput(event: WechatMiniprogram.Input) {
     const field = event.currentTarget.dataset.field as
       | "account"
       | "password"
+      | "email"
+      | "emailCode"
+      | "resetPassword"
+      | "resetConfirmPassword"
       | "captchaAnswer";
     if (!field) {
       return;
@@ -68,7 +90,7 @@ Page({
     if (this.data.loading) {
       return;
     }
-    this.setData({ loading: true, error: "" });
+    this.setData({ loading: true, error: "", notice: "" });
     try {
       await loginWithWechat();
       this.afterLoginSuccess();
@@ -87,19 +109,19 @@ Page({
     const password = this.data.password;
     const captchaAnswer = this.data.captchaAnswer.trim();
     if (!account) {
-      this.setData({ error: "请填写账号或邮箱" });
+      this.setData({ error: "请填写账号或邮箱", notice: "" });
       return;
     }
     if (!password) {
-      this.setData({ error: "请填写密码" });
+      this.setData({ error: "请填写密码", notice: "" });
       return;
     }
     if (this.data.captchaTicket && !captchaAnswer) {
-      this.setData({ error: "请填写图形验证码" });
+      this.setData({ error: "请填写图形验证码", notice: "" });
       return;
     }
 
-    this.setData({ loading: true, error: "" });
+    this.setData({ loading: true, error: "", notice: "" });
     try {
       await loginWithPassword({
         account,
@@ -119,16 +141,125 @@ Page({
     }
   },
 
+  async sendLoginCode() {
+    const email = this.data.email.trim();
+    if (this.data.codeLoading) {
+      return;
+    }
+    if (!isEmailLike(email)) {
+      this.setData({ error: "请填写可用邮箱", notice: "" });
+      return;
+    }
+    this.setData({ codeLoading: true, error: "", notice: "" });
+    try {
+      const response = await sendEmailLoginCode(email);
+      this.setData({ notice: buildCodeNotice(response) });
+    } catch (error) {
+      this.setData({ error: getErrorMessage(error) });
+    } finally {
+      this.setData({ codeLoading: false });
+    }
+  },
+
+  async loginWithEmailCode() {
+    if (this.data.loading) {
+      return;
+    }
+    const email = this.data.email.trim();
+    const emailCode = this.data.emailCode.trim();
+    if (!isEmailLike(email)) {
+      this.setData({ error: "请填写可用邮箱", notice: "" });
+      return;
+    }
+    if (!emailCode) {
+      this.setData({ error: "请填写邮箱验证码", notice: "" });
+      return;
+    }
+    this.setData({ loading: true, error: "", notice: "" });
+    try {
+      await loginWithEmailCode({
+        email,
+        email_verification_code: emailCode,
+      });
+      this.afterLoginSuccess();
+    } catch (error) {
+      this.setData({ error: getErrorMessage(error) });
+    } finally {
+      this.setData({ loading: false });
+    }
+  },
+
+  async sendResetCode() {
+    const email = this.data.email.trim();
+    if (this.data.codeLoading) {
+      return;
+    }
+    if (!isEmailLike(email)) {
+      this.setData({ error: "请填写可用邮箱", notice: "" });
+      return;
+    }
+    this.setData({ codeLoading: true, error: "", notice: "" });
+    try {
+      const response = await sendPasswordResetCode(email);
+      this.setData({ notice: buildCodeNotice(response) });
+    } catch (error) {
+      this.setData({ error: getErrorMessage(error) });
+    } finally {
+      this.setData({ codeLoading: false });
+    }
+  },
+
+  async submitPasswordReset() {
+    if (this.data.loading) {
+      return;
+    }
+    const email = this.data.email.trim();
+    const emailCode = this.data.emailCode.trim();
+    const password = this.data.resetPassword;
+    const confirmPassword = this.data.resetConfirmPassword;
+    if (!isEmailLike(email)) {
+      this.setData({ error: "请填写可用邮箱", notice: "" });
+      return;
+    }
+    if (!emailCode) {
+      this.setData({ error: "请填写邮箱验证码", notice: "" });
+      return;
+    }
+    if (password.length < 8) {
+      this.setData({ error: "密码至少 8 位", notice: "" });
+      return;
+    }
+    if (password !== confirmPassword) {
+      this.setData({ error: "两次密码不一致", notice: "" });
+      return;
+    }
+
+    this.setData({ loading: true, error: "", notice: "" });
+    try {
+      await resetPassword({
+        email,
+        email_verification_code: emailCode,
+        password,
+        confirm_password: confirmPassword,
+      });
+      this.afterLoginSuccess();
+    } catch (error) {
+      this.setData({ error: getErrorMessage(error) });
+    } finally {
+      this.setData({ loading: false });
+    }
+  },
+
   async refreshCaptcha(account?: string, message = "已刷新图形验证码") {
     const targetAccount = (account ?? this.data.account).trim();
     if (!targetAccount) {
-      this.setData({ error: "请先填写账号或邮箱" });
+      this.setData({ error: "请先填写账号或邮箱", notice: "" });
       return;
     }
     if (this.data.captchaLoading) {
       return;
     }
-    this.setData({ captchaLoading: true, error: "" });
+    this.setData({ captchaLoading: true, error: "", notice: "" });
     try {
       const captcha = await createCaptcha(targetAccount);
       this.setData({
@@ -167,6 +298,16 @@ function buildUserDisplay(): string {
     return "未登录";
   }
   return user.nickname || user.username || user.email || "寻径星野用户";
+}
+
+function buildCodeNotice(response: { email: string; debug_code?: string }): string {
+  return response.debug_code
+    ? `本地验证码：${response.debug_code}`
+    : `验证码已发送，请查看 ${response.email}`;
+}
+
+function isEmailLike(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function toSvgDataUri(svg: string): string {

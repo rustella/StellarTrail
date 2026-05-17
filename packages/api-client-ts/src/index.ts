@@ -3,6 +3,8 @@ import type {
   CaptchaChallengeResponse,
   ContentListResponse,
   CreateGearRequest,
+  EmailLoginCodeRequest,
+  EmailLoginRequest,
   EmailVerificationCodeRequest,
   EmailVerificationCodeResponse,
   GearCategoriesResponse,
@@ -21,6 +23,8 @@ import type {
   ListGearsResponse,
   MetaResponse,
   PasswordLoginRequest,
+  PasswordResetCodeRequest,
+  PasswordResetRequest,
   RefreshTokenRequest,
   RegisterRequest,
   SkillCategoriesResponse,
@@ -160,6 +164,46 @@ export class StellarTrailApiClient {
       "/api/auth/email-verification-code",
       request,
     );
+  }
+
+  async sendEmailLoginCode(
+    request: EmailLoginCodeRequest,
+  ): Promise<EmailVerificationCodeResponse> {
+    return this.post<EmailVerificationCodeResponse>(
+      "/api/auth/email-login-code",
+      request,
+    );
+  }
+
+  async loginWithEmailCode(
+    request: EmailLoginRequest,
+  ): Promise<WechatLoginResponse> {
+    const response = await this.post<WechatLoginResponse>(
+      "/api/auth/email-login",
+      request,
+    );
+    this.applyLoginResponse(response);
+    return response;
+  }
+
+  async sendPasswordResetCode(
+    request: PasswordResetCodeRequest,
+  ): Promise<EmailVerificationCodeResponse> {
+    return this.post<EmailVerificationCodeResponse>(
+      "/api/auth/password-reset-code",
+      request,
+    );
+  }
+
+  async resetPassword(
+    request: PasswordResetRequest,
+  ): Promise<WechatLoginResponse> {
+    const response = await this.post<WechatLoginResponse>(
+      "/api/auth/password-reset",
+      request,
+    );
+    this.applyLoginResponse(response);
+    return response;
   }
 
   async createCaptcha(

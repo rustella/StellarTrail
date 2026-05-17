@@ -307,12 +307,55 @@ async fn skills_returns_locale_resolved_category_without_parallel_language_field
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(headers.get(header::CONTENT_LANGUAGE).unwrap(), "zh-CN");
+    assert!(headers.get(header::CACHE_CONTROL).is_some());
+    assert!(headers.get(header::ETAG).is_some());
     assert_eq!(body["items"][0]["id"], "knots");
     assert_eq!(body["items"][0]["title"], "绳结");
     assert_eq!(body["items"][0]["item_count"], 1);
     assert!(!body.to_string().contains("zh_slug"));
     assert!(!body.to_string().contains("english_slug"));
     assert!(!body.to_string().contains("title_en"));
+}
+
+#[tokio::test]
+async fn public_skills_etag_supports_not_modified_responses() {
+    let app = seeded_app().await;
+    let (status, headers, _body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/api/skills/knots/list?offset=0&limit=1")
+            .header("X-StellarTrail-Locale", "zh-CN")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let etag = headers
+        .get(header::ETAG)
+        .expect("etag header")
+        .to_str()
+        .expect("etag value")
+        .to_owned();
+    assert!(headers.get(header::CACHE_CONTROL).is_some());
+
+    let response = app
+        .router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/skills/knots/list?offset=0&limit=1")
+                .header("X-StellarTrail-Locale", "zh-CN")
+                .header(header::IF_NONE_MATCH, etag)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(
+        response.headers().get(header::CONTENT_LANGUAGE).unwrap(),
+        "zh-CN"
+    );
 }
 
 #[tokio::test]

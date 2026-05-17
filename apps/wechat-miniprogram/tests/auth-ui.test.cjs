@@ -15,13 +15,22 @@ test("register page is available from the mini program page registry", () => {
   assert.ok(config.pages.includes("pages/register/index"));
 });
 
-test("login page offers both WeChat and account-password login without stale implementation wording", () => {
+test("login page offers WeChat account email-code and password-reset entry points", () => {
   const wxml = read("pages/login/index.wxml");
+  const ts = read("pages/login/index.ts");
+  const pageSource = `${wxml}
+${ts}`;
   assert.match(wxml, /微信一键登录/);
   assert.match(wxml, /账号密码登录/);
+  assert.match(wxml, /邮箱验证码登录/);
+  assert.match(wxml, /找回密码/);
+  assert.match(wxml, /重设密码并登录/);
   assert.match(wxml, /placeholder="账号或邮箱"/);
+  assert.match(wxml, /placeholder="邮箱验证码"/);
   assert.match(wxml, /password="{{true}}"/);
   assert.match(wxml, /注册账号/);
+  assert.match(pageSource, /sendLoginCode/);
+  assert.match(pageSource, /sendResetCode/);
   assert.doesNotMatch(wxml, /API|后端|接口|游客|免登录|写操作|模板/);
 });
 

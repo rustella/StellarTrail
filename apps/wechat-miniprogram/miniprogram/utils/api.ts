@@ -54,6 +54,26 @@ export interface EmailVerificationCodeResponse {
   debug_code?: string;
 }
 
+export interface EmailLoginCodeRequest {
+  email: string;
+}
+
+export interface EmailLoginRequest {
+  email: string;
+  email_verification_code: string;
+}
+
+export interface PasswordResetCodeRequest {
+  email: string;
+}
+
+export interface PasswordResetRequest {
+  email: string;
+  email_verification_code: string;
+  password: string;
+  confirm_password: string;
+}
+
 export interface RegisterRequest {
   username: string;
   email: string;
@@ -248,6 +268,49 @@ export function sendEmailVerificationCode(
     method: "POST",
     data: { email } satisfies EmailVerificationCodeRequest,
   });
+}
+
+export function sendEmailLoginCode(
+  email: string,
+): Promise<EmailVerificationCodeResponse> {
+  return requestJson("/api/auth/email-login-code", {
+    method: "POST",
+    data: { email } satisfies EmailLoginCodeRequest,
+  });
+}
+
+export async function loginWithEmailCode(
+  request: EmailLoginRequest,
+): Promise<string> {
+  const response = await requestJson<WechatLoginResponse>("/api/auth/email-login", {
+    method: "POST",
+    data: request,
+  });
+  saveLoginResponse(response);
+  return response.access_token;
+}
+
+export function sendPasswordResetCode(
+  email: string,
+): Promise<EmailVerificationCodeResponse> {
+  return requestJson("/api/auth/password-reset-code", {
+    method: "POST",
+    data: { email } satisfies PasswordResetCodeRequest,
+  });
+}
+
+export async function resetPassword(
+  request: PasswordResetRequest,
+): Promise<string> {
+  const response = await requestJson<WechatLoginResponse>(
+    "/api/auth/password-reset",
+    {
+      method: "POST",
+      data: request,
+    },
+  );
+  saveLoginResponse(response);
+  return response.access_token;
 }
 
 export function createCaptcha(

@@ -23,7 +23,10 @@ use stellartrail_api::{
     services::wechat::{WechatCodeSession, WechatCodeSessionClient},
     state::AppState,
 };
-use stellartrail_db::{DatabaseConfig, connect_database};
+use stellartrail_db::{
+    DatabaseConfig, connect_database,
+    repositories::{AuthRepository, hash_token},
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -359,9 +362,9 @@ async fn production_email_verification_sends_mail_and_hides_debug_code() {
             smtp_host: "mx1.stellartrail.cn".to_owned(),
             smtp_port: 465,
             smtp_tls: MailSmtpTls::Implicit,
-            smtp_username: "noreply@stellartrail.cn".to_owned(),
+            smtp_username: "sender@example.test".to_owned(),
             smtp_password: "x".to_owned(),
-            from: "寻径星野 <noreply@stellartrail.cn>".to_owned(),
+            from: "StellarTrail <sender@example.test>".to_owned(),
             verification_subject: "寻径星野邮箱验证码".to_owned(),
         },
     };
@@ -388,7 +391,7 @@ async fn production_email_verification_sends_mail_and_hides_debug_code() {
     let sent = sent.lock().unwrap();
     assert_eq!(sent.len(), 1);
     assert_eq!(sent[0].to, "trail.user@example.com");
-    assert_eq!(sent[0].from, "寻径星野 <noreply@stellartrail.cn>");
+    assert_eq!(sent[0].from, "StellarTrail <sender@example.test>");
     assert_eq!(sent[0].subject, "寻径星野邮箱验证码");
     assert_eq!(sent[0].expires_minutes, 10);
     assert_eq!(sent[0].code.len(), 6);
@@ -423,9 +426,9 @@ async fn production_email_verification_delivery_failure_returns_safe_error() {
             smtp_host: "mx1.stellartrail.cn".to_owned(),
             smtp_port: 465,
             smtp_tls: MailSmtpTls::Implicit,
-            smtp_username: "noreply@stellartrail.cn".to_owned(),
+            smtp_username: "sender@example.test".to_owned(),
             smtp_password: "x".to_owned(),
-            from: "寻径星野 <noreply@stellartrail.cn>".to_owned(),
+            from: "StellarTrail <sender@example.test>".to_owned(),
             verification_subject: "寻径星野邮箱验证码".to_owned(),
         },
     };
@@ -654,4 +657,411 @@ async fn protected_gear_routes_reject_missing_token() {
 
     assert_eq!(status, StatusCode::UNAUTHORIZED, "{value}");
     assert_eq!(value["code"], "unauthorized");
+}
+
+#[tokio::test]
+async fn email_code_login_issues_tokens_and_rejects_replay_or_wrong_purpose() {
+    let app = test_app().await;
+    register_password_user(
+        &app.router,
+        "mail_login_alice",
+        "mail-login-alice@example.com",
+        "OutdoorPass123!",
+    )
+    .await;
+
+    let (code_status, code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/email-login-code",
+        None,
+        json!({"email": "Mail-Login-Alice@Example.COM"}),
+    )
+    .await;
+    assert_eq!(code_status, StatusCode::OK, "{code_value}");
+    assert_eq!(code_value["email"], "mail-login-alice@example.com");
+    let login_code = code_value["debug_code"].as_str().unwrap().to_owned();
+
+    let (login_status, login_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/email-login",
+        None,
+        json!({"email": "mail-login-alice@example.com", "email_verification_code": login_code}),
+    )
+    .await;
+    assert_eq!(login_status, StatusCode::OK, "{login_value}");
+    assert!(login_value["access_token"].as_str().unwrap().len() > 20);
+    assert_eq!(login_value["user"]["email"], "mail-login-alice@example.com");
+
+    let (replay_status, replay_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/email-login",
+        None,
+        json!({"email": "mail-login-alice@example.com", "email_verification_code": code_value["debug_code"].as_str().unwrap()}),
+    )
+    .await;
+    assert_eq!(replay_status, StatusCode::UNAUTHORIZED, "{replay_value}");
+
+    let (register_code_status, register_code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/email-verification-code",
+        None,
+        json!({"email": "mail-login-alice@example.com"}),
+    )
+    .await;
+    assert_eq!(
+        register_code_status,
+        StatusCode::OK,
+        "{register_code_value}"
+    );
+    let (wrong_purpose_status, wrong_purpose_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/email-login",
+        None,
+        json!({
+            "email": "mail-login-alice@example.com",
+            "email_verification_code": register_code_value["debug_code"].as_str().unwrap()
+        }),
+    )
+    .await;
+    assert_eq!(
+        wrong_purpose_status,
+        StatusCode::UNAUTHORIZED,
+        "{wrong_purpose_value}",
+    );
+}
+
+#[tokio::test]
+async fn email_codes_lock_after_repeated_wrong_guesses() {
+    let app = test_app().await;
+    register_password_user(
+        &app.router,
+        "mail_lock_alice",
+        "mail-lock-alice@example.com",
+        "OutdoorPass123!",
+    )
+    .await;
+
+    let (login_code_status, login_code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/email-login-code",
+        None,
+        json!({"email": "mail-lock-alice@example.com"}),
+    )
+    .await;
+    assert_eq!(login_code_status, StatusCode::OK, "{login_code_value}");
+    let login_code = login_code_value["debug_code"].as_str().unwrap().to_owned();
+
+    for _ in 0..5 {
+        let (guess_status, guess_value) = send_json(
+            &app.router,
+            "POST",
+            "/api/auth/email-login",
+            None,
+            json!({"email": "mail-lock-alice@example.com", "email_verification_code": "000000"}),
+        )
+        .await;
+        assert_eq!(guess_status, StatusCode::UNAUTHORIZED, "{guess_value}");
+    }
+
+    let (locked_login_status, locked_login_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/email-login",
+        None,
+        json!({"email": "mail-lock-alice@example.com", "email_verification_code": login_code}),
+    )
+    .await;
+    assert_eq!(
+        locked_login_status,
+        StatusCode::UNAUTHORIZED,
+        "{locked_login_value}",
+    );
+
+    let (reset_code_status, reset_code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/password-reset-code",
+        None,
+        json!({"email": "mail-lock-alice@example.com"}),
+    )
+    .await;
+    assert_eq!(reset_code_status, StatusCode::OK, "{reset_code_value}");
+    let reset_code = reset_code_value["debug_code"].as_str().unwrap().to_owned();
+
+    for _ in 0..5 {
+        let (guess_status, guess_value) = send_json(
+            &app.router,
+            "POST",
+            "/api/auth/password-reset",
+            None,
+            json!({
+                "email": "mail-lock-alice@example.com",
+                "email_verification_code": "000000",
+                "password": "NewOutdoorPass123!",
+                "confirm_password": "NewOutdoorPass123!"
+            }),
+        )
+        .await;
+        assert_eq!(guess_status, StatusCode::UNAUTHORIZED, "{guess_value}");
+    }
+
+    let (locked_reset_status, locked_reset_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/password-reset",
+        None,
+        json!({
+            "email": "mail-lock-alice@example.com",
+            "email_verification_code": reset_code,
+            "password": "NewOutdoorPass123!",
+            "confirm_password": "NewOutdoorPass123!"
+        }),
+    )
+    .await;
+    assert_eq!(
+        locked_reset_status,
+        StatusCode::UNAUTHORIZED,
+        "{locked_reset_value}",
+    );
+}
+
+#[tokio::test]
+async fn password_reset_updates_password_revokes_old_sessions_and_rejects_replay() {
+    let app = test_app().await;
+    let initial_login = register_password_user(
+        &app.router,
+        "reset_alice",
+        "reset-alice@example.com",
+        "OutdoorPass123!",
+    )
+    .await;
+    let old_access_token = initial_login["access_token"].as_str().unwrap().to_owned();
+    let old_refresh_token = initial_login["refresh_token"].as_str().unwrap().to_owned();
+
+    let (code_status, code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/password-reset-code",
+        None,
+        json!({"email": "reset-alice@example.com"}),
+    )
+    .await;
+    assert_eq!(code_status, StatusCode::OK, "{code_value}");
+    let reset_code = code_value["debug_code"].as_str().unwrap().to_owned();
+
+    let (reset_status, reset_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/password-reset",
+        None,
+        json!({
+            "email": "reset-alice@example.com",
+            "email_verification_code": reset_code,
+            "password": "NewOutdoorPass123!",
+            "confirm_password": "NewOutdoorPass123!"
+        }),
+    )
+    .await;
+    assert_eq!(reset_status, StatusCode::OK, "{reset_value}");
+    assert_eq!(reset_value["user"]["email"], "reset-alice@example.com");
+    let new_access_token = reset_value["access_token"].as_str().unwrap();
+    assert_ne!(new_access_token, old_access_token);
+
+    let (old_access_status, old_access_value) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/stats",
+        Some(&old_access_token),
+    )
+    .await;
+    assert_eq!(
+        old_access_status,
+        StatusCode::UNAUTHORIZED,
+        "{old_access_value}"
+    );
+
+    let (old_refresh_status, old_refresh_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/refresh",
+        None,
+        json!({"refresh_token": old_refresh_token}),
+    )
+    .await;
+    assert_eq!(
+        old_refresh_status,
+        StatusCode::UNAUTHORIZED,
+        "{old_refresh_value}"
+    );
+
+    let (old_password_status, old_password_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/login",
+        None,
+        json!({"account": "reset-alice@example.com", "password": "OutdoorPass123!"}),
+    )
+    .await;
+    assert_eq!(
+        old_password_status,
+        StatusCode::UNAUTHORIZED,
+        "{old_password_value}"
+    );
+
+    let (new_password_status, new_password_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/login",
+        None,
+        json!({"account": "reset-alice@example.com", "password": "NewOutdoorPass123!"}),
+    )
+    .await;
+    assert_eq!(new_password_status, StatusCode::OK, "{new_password_value}");
+
+    let (replay_status, replay_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/password-reset",
+        None,
+        json!({
+            "email": "reset-alice@example.com",
+            "email_verification_code": code_value["debug_code"].as_str().unwrap(),
+            "password": "AnotherOutdoorPass123!",
+            "confirm_password": "AnotherOutdoorPass123!"
+        }),
+    )
+    .await;
+    assert_eq!(replay_status, StatusCode::UNAUTHORIZED, "{replay_value}");
+}
+
+#[tokio::test]
+async fn login_and_reset_code_requests_do_not_reveal_missing_email() {
+    let app = test_app().await;
+
+    for path in [
+        "/api/auth/email-login-code",
+        "/api/auth/password-reset-code",
+    ] {
+        let (status, value) = send_json(
+            &app.router,
+            "POST",
+            path,
+            None,
+            json!({"email": "missing@example.com"}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{value}");
+        assert_eq!(value["email"], "missing@example.com");
+        assert!(value.get("debug_code").is_none(), "{value}");
+    }
+
+    let (login_status, login_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/email-login",
+        None,
+        json!({"email": "missing@example.com", "email_verification_code": "000000"}),
+    )
+    .await;
+    assert_eq!(login_status, StatusCode::UNAUTHORIZED, "{login_value}");
+
+    let (reset_status, reset_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/password-reset",
+        None,
+        json!({
+            "email": "missing@example.com",
+            "email_verification_code": "000000",
+            "password": "NewOutdoorPass123!",
+            "confirm_password": "NewOutdoorPass123!"
+        }),
+    )
+    .await;
+    assert_eq!(reset_status, StatusCode::UNAUTHORIZED, "{reset_value}");
+}
+
+#[tokio::test]
+async fn production_email_login_and_reset_codes_send_mail_and_hide_debug_code() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+    let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
+    let db = connect_database(&database).await.unwrap();
+    migrate_database(&db).await.unwrap();
+    AuthRepository::new(db.clone())
+        .create_password_user(
+            "prod_mail_user",
+            "prod-mail-user@example.com",
+            &hash_token("OutdoorPass123!"),
+        )
+        .await
+        .unwrap();
+    let config = ApiConfig {
+        app_env: "production".to_owned(),
+        host: "127.0.0.1".to_owned(),
+        port: 0,
+        database,
+        wechat_mock_login: false,
+        wechat_app_id: None,
+        wechat_app_secret: None,
+        redis_cache: RedisCacheConfig::disabled(),
+        upload: Default::default(),
+        minio: Default::default(),
+        object_storage: Default::default(),
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
+        public_api: Default::default(),
+        cors: CorsConfig::default(),
+        mail: MailConfig {
+            enabled: true,
+            smtp_host: "mx1.stellartrail.cn".to_owned(),
+            smtp_port: 465,
+            smtp_tls: MailSmtpTls::Implicit,
+            smtp_username: "sender@example.test".to_owned(),
+            smtp_password: "x".to_owned(),
+            from: "StellarTrail <sender@example.test>".to_owned(),
+            verification_subject: "寻径星野邮箱验证码".to_owned(),
+        },
+    };
+    let sender = RecordingEmailSender::default();
+    let sent = Arc::clone(&sender.sent);
+    let router = build_router(AppState::new_with_email_sender(
+        config,
+        db,
+        Arc::new(sender),
+    ));
+
+    let (login_status, login_value) = send_json(
+        &router,
+        "POST",
+        "/api/auth/email-login-code",
+        None,
+        json!({"email": "prod-mail-user@example.com"}),
+    )
+    .await;
+    assert_eq!(login_status, StatusCode::OK, "{login_value}");
+    assert!(login_value.get("debug_code").is_none(), "{login_value}");
+
+    let (reset_status, reset_value) = send_json(
+        &router,
+        "POST",
+        "/api/auth/password-reset-code",
+        None,
+        json!({"email": "prod-mail-user@example.com"}),
+    )
+    .await;
+    assert_eq!(reset_status, StatusCode::OK, "{reset_value}");
+    assert!(reset_value.get("debug_code").is_none(), "{reset_value}");
+
+    let sent = sent.lock().unwrap();
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[0].subject, "寻径星野登录验证码");
+    assert_eq!(sent[1].subject, "寻径星野找回密码验证码");
+    assert!(sent.iter().all(|message| message.code.len() == 6));
 }

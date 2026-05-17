@@ -105,7 +105,7 @@ cargo run -p stellartrail-api --bin migrate -- up
 cargo run -p stellartrail-api
 ```
 
-The API listens on `127.0.0.1:8080` by default. Startup loads `.env`, then reads root `config.yaml` when present or the YAML file named by `CONFIG_PATH`, and finally lets environment variables override YAML values. The default database URL is `sqlite://stellartrail.db`. Local mock login is enabled with `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true`; real WeChat login requires `WECHAT_MOCK_LOGIN=false`, `WECHAT_APP_ID`, and `WECHAT_APP_SECRET`. Production email verification delivery uses SMTP: set `MAIL_ENABLED=true`, `MAIL_SMTP_HOST=mx1.stellartrail.cn`, `MAIL_SMTP_USERNAME=noreply@stellartrail.cn`, and inject `MAIL_SMTP_PASSWORD` through `.env`, ignored `config.yaml`, or a secret manager. To enable Redis caching, set `REDIS_URL=redis://127.0.0.1:6379/0`; `REDIS_GEAR_CACHE_TTL_SECONDS` controls the gear API cache TTL. `config.example.yaml` is committed, while real `config.yaml` / `config.*.yaml` files are ignored by Git.
+The API listens on `127.0.0.1:8080` by default. Startup loads `.env`, then reads root `config.yaml` when present or the YAML file named by `CONFIG_PATH`, and finally lets environment variables override YAML values. The default database URL is `sqlite://stellartrail.db`. Local mock login is enabled with `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true`; real WeChat login requires `WECHAT_MOCK_LOGIN=false`, `WECHAT_APP_ID`, and `WECHAT_APP_SECRET`. Production email-code delivery uses SMTP: set `MAIL_ENABLED=true`, `MAIL_SMTP_HOST=mx1.stellartrail.cn`, `MAIL_SMTP_USERNAME=[REDACTED]`, and inject `MAIL_SMTP_PASSWORD` plus the sender address through `.env`, ignored `config.yaml`, or a secret manager. Email codes now cover registration, email-code login, and password reset. To enable Redis caching, set `REDIS_URL=redis://127.0.0.1:6379/0`; `REDIS_GEAR_CACHE_TTL_SECONDS` controls the gear read cache TTL. `config.example.yaml` is committed, while real `config.yaml` / `config.*.yaml` files are ignored by Git.
 
 Use these endpoints for local smoke testing:
 
@@ -123,8 +123,13 @@ GET /healthz
 GET /api/meta
 POST /api/auth/wechat-login
 POST /api/auth/email-verification-code
+POST /api/auth/email-login-code
+POST /api/auth/email-login
+POST /api/auth/password-reset-code
+POST /api/auth/password-reset
 POST /api/auth/register
 POST /api/auth/login
+POST /api/auth/refresh
 POST /api/auth/captcha
 GET /api/skills
 GET /api/skills/knots/list
@@ -153,7 +158,7 @@ COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=1543
   bash infra/test/integration-test.sh
 ```
 
-The script starts PostgreSQL, Redis caching, and the API service, validates them with username/password account registration and login, and always runs `docker compose down -v --remove-orphans` when the test exits or fails. Inject real WeChat and database secrets only through secure production channels.
+The script starts PostgreSQL, Redis caching, and the API service, validates them with registration, password login, email-code login, and password reset, and always runs `docker compose down -v --remove-orphans` when the test exits or fails. Inject real WeChat, database, and SMTP secrets only through secure production channels.
 
 ### 5. Production Docker / Traefik deployment config
 

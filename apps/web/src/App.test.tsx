@@ -78,6 +78,42 @@ function buildClient(): WebGearApi {
       expires_at: "2026-05-17T00:10:00Z",
       debug_code: "123456",
     }),
+    sendEmailLoginCode: vi.fn().mockResolvedValue({
+      email: "trail@example.com",
+      expires_at: "2026-05-17T00:10:00Z",
+      debug_code: "654321",
+    }),
+    loginWithEmailCode: vi.fn().mockResolvedValue({
+      access_token: "token-email",
+      expires_at: "2026-06-01T00:00:00Z",
+      refresh_token: "refresh-email",
+      refresh_expires_at: "2026-07-01T00:00:00Z",
+      user: {
+        id: "u4",
+        username: "trail-user",
+        email: "trail@example.com",
+        nickname: null,
+        avatar_url: null,
+      },
+    }),
+    sendPasswordResetCode: vi.fn().mockResolvedValue({
+      email: "trail@example.com",
+      expires_at: "2026-05-17T00:10:00Z",
+      debug_code: "987654",
+    }),
+    resetPassword: vi.fn().mockResolvedValue({
+      access_token: "token-reset",
+      expires_at: "2026-06-01T00:00:00Z",
+      refresh_token: "refresh-reset",
+      refresh_expires_at: "2026-07-01T00:00:00Z",
+      user: {
+        id: "u5",
+        username: "trail-user",
+        email: "trail@example.com",
+        nickname: null,
+        avatar_url: null,
+      },
+    }),
     createCaptcha: vi.fn().mockResolvedValue({
       captcha_ticket: "captcha-ticket",
       captcha_type: "image",
@@ -382,12 +418,15 @@ describe("App", () => {
     render(<App client={client} />);
 
     const authMethods = screen.getByRole("group", { name: "登录方式" });
-    expect(within(authMethods).getAllByRole("button")).toHaveLength(2);
+    expect(within(authMethods).getAllByRole("button")).toHaveLength(3);
     expect(
       within(authMethods).getByRole("button", { name: "微信登录" }),
     ).toBeInTheDocument();
     expect(
       within(authMethods).getByRole("button", { name: "账号登录" }),
+    ).toBeInTheDocument();
+    expect(
+      within(authMethods).getByRole("button", { name: "邮箱验证码" }),
     ).toBeInTheDocument();
     expect(
       within(authMethods).queryByRole("button", { name: "注册账号" }),
@@ -403,6 +442,9 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "注册账号" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "忘记密码" }),
     ).toBeInTheDocument();
     expect(
       within(authMethods).queryByRole("button", { name: "注册账号" }),
@@ -422,12 +464,15 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "已有账号？返回登录" }));
 
     const restoredAuthMethods = screen.getByRole("group", { name: "登录方式" });
-    expect(within(restoredAuthMethods).getAllByRole("button")).toHaveLength(2);
+    expect(within(restoredAuthMethods).getAllByRole("button")).toHaveLength(3);
     expect(
       within(restoredAuthMethods).getByRole("button", { name: "微信登录" }),
     ).toBeInTheDocument();
     expect(
       within(restoredAuthMethods).getByRole("button", { name: "账号登录" }),
+    ).toBeInTheDocument();
+    expect(
+      within(restoredAuthMethods).getByRole("button", { name: "邮箱验证码" }),
     ).toBeInTheDocument();
   });
 
@@ -519,6 +564,71 @@ describe("App", () => {
     });
     expect(localStorage.getItem("stellartrail.web.session")).toContain(
       "token-password",
+    );
+  });
+
+  it("logs in with an email verification code", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "邮箱验证码" }));
+    fireEvent.change(screen.getByLabelText("邮箱"), {
+      target: { value: "trail@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "获取邮箱验证码" }));
+    expect(await screen.findByText("本地验证码：654321")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("邮箱验证码"), {
+      target: { value: "654321" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "邮箱验证码登录" }));
+
+    await screen.findByRole("heading", { name: "装备管理" });
+    expect(client.sendEmailLoginCode).toHaveBeenCalledWith({
+      email: "trail@example.com",
+    });
+    expect(client.loginWithEmailCode).toHaveBeenCalledWith({
+      email: "trail@example.com",
+      email_verification_code: "654321",
+    });
+    expect(localStorage.getItem("stellartrail.web.session")).toContain(
+      "token-email",
+    );
+  });
+
+  it("resets password with an email code and stores the new session", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "账号登录" }));
+    fireEvent.click(screen.getByRole("button", { name: "忘记密码" }));
+    fireEvent.change(screen.getByLabelText("邮箱"), {
+      target: { value: "trail@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "获取邮箱验证码" }));
+    expect(await screen.findByText("本地验证码：987654")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("邮箱验证码"), {
+      target: { value: "987654" },
+    });
+    fireEvent.change(screen.getByLabelText("新密码"), {
+      target: { value: "new-strong-password" },
+    });
+    fireEvent.change(screen.getByLabelText("确认新密码"), {
+      target: { value: "new-strong-password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "重设密码并登录" }));
+
+    await screen.findByRole("heading", { name: "装备管理" });
+    expect(client.sendPasswordResetCode).toHaveBeenCalledWith({
+      email: "trail@example.com",
+    });
+    expect(client.resetPassword).toHaveBeenCalledWith({
+      email: "trail@example.com",
+      email_verification_code: "987654",
+      password: "new-strong-password",
+      confirm_password: "new-strong-password",
+    });
+    expect(localStorage.getItem("stellartrail.web.session")).toContain(
+      "token-reset",
     );
   });
 

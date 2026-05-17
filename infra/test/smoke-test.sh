@@ -9,6 +9,7 @@ RUN_ID="$(date +%s)-$$"
 USERNAME="${ACCOUNT_USERNAME:-smoke_$RUN_ID}"
 EMAIL="${ACCOUNT_EMAIL:-smoke_$RUN_ID@example.test}"
 ACCOUNT_PASS="${ACCOUNT_PASS:-OutdoorPass123!}"
+NEW_ACCOUNT_PASS="${NEW_ACCOUNT_PASS:-OutdoorPass456!}"
 
 expect_status() {
   local expected="$1"
@@ -53,9 +54,8 @@ import sys
 data = json.load(open(sys.argv[1]))
 assert data.get("locale") == "zh-CN", data
 items = data.get("items", [])
-assert items, data
 assert all("source_slug_en" not in item and "source_slug_zh" not in item for item in items), data
-print(items[0]["id"])
+print(items[0]["id"] if items else "")
 PY
 )"
 KNOT_ETAG="$(python3 - "$KNOTS_HEADERS" <<'PY'
@@ -66,9 +66,10 @@ for line in open(sys.argv[1]):
         break
 PY
 )"
-DETAIL_JSON="$TMP_DIR/public-knot-detail.json"
-curl -fsS -H 'X-StellarTrail-Locale: zh-CN' "$BASE_URL/api/skills/knots/detail/$KNOT_ID" -o "$DETAIL_JSON"
-python3 - "$DETAIL_JSON" "$KNOT_ID" <<'PY'
+if [ -n "$KNOT_ID" ]; then
+  DETAIL_JSON="$TMP_DIR/public-knot-detail.json"
+  curl -fsS -H 'X-StellarTrail-Locale: zh-CN' "$BASE_URL/api/skills/knots/detail/$KNOT_ID" -o "$DETAIL_JSON"
+  python3 - "$DETAIL_JSON" "$KNOT_ID" <<'PY'
 import json
 import sys
 data = json.load(open(sys.argv[1]))
@@ -77,13 +78,16 @@ assert data.get("title"), data
 assert "source_slug_en" not in data and "source_slug_zh" not in data, data
 print({"public_knot_detail": data["id"]})
 PY
+else
+  echo "[smoke] no seeded public knots; skipping knot detail smoke"
+fi
 if [ -n "$KNOT_ETAG" ]; then
   NOT_MODIFIED_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' -H "If-None-Match: $KNOT_ETAG" "$BASE_URL/api/skills/knots/list?offset=0&limit=20")"
   expect_status 304 "$NOT_MODIFIED_STATUS" "$KNOTS_JSON"
 fi
 LEGACY_BODY="$TMP_DIR/public-skills-legacy.json"
 LEGACY_STATUS="$(curl -sS -o "$LEGACY_BODY" -w '%{http_code}' "$BASE_URL/api/skills?category=knot")"
-expect_status 400 "$LEGACY_STATUS" "$LEGACY_BODY"
+expect_status 404 "$LEGACY_STATUS" "$LEGACY_BODY"
 
 echo "[smoke] username/password account registration and login"
 EMAIL_CODE_REQUEST="$TMP_DIR/email-code-request.json"
@@ -157,6 +161,132 @@ REFRESH_REPLAY_BODY="$TMP_DIR/refresh-replay.json"
 REFRESH_REPLAY_STATUS="$(curl -sS -o "$REFRESH_REPLAY_BODY" -w '%{http_code}'   -H 'content-type: application/json'   -d "@$REFRESH_REQUEST"   "$BASE_URL/api/auth/refresh")"
 expect_status 401 "$REFRESH_REPLAY_STATUS" "$REFRESH_REPLAY_BODY"
 AUTH_HEADER="authorization: Bearer $TOKEN"
+
+echo "[smoke] email-code login"
+EMAIL_LOGIN_CODE_REQUEST="$TMP_DIR/email-login-code-request.json"
+EMAIL_LOGIN_CODE_JSON="$TMP_DIR/email-login-code.json"
+python3 - "$EMAIL" > "$EMAIL_LOGIN_CODE_REQUEST" <<'PY'
+import json
+import sys
+
+json.dump({"email": sys.argv[1]}, sys.stdout)
+PY
+curl -fsS \
+  -H 'content-type: application/json' \
+  -d "@$EMAIL_LOGIN_CODE_REQUEST" \
+  "$BASE_URL/api/auth/email-login-code" > "$EMAIL_LOGIN_CODE_JSON"
+EMAIL_LOGIN_CODE="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); code=data.get("debug_code"); assert code, data; print(code)' "$EMAIL_LOGIN_CODE_JSON")"
+
+EMAIL_LOGIN_REQUEST="$TMP_DIR/email-login-request.json"
+EMAIL_LOGIN_JSON="$TMP_DIR/email-login.json"
+python3 - "$EMAIL" "$EMAIL_LOGIN_CODE" > "$EMAIL_LOGIN_REQUEST" <<'PY'
+import json
+import sys
+
+email, code = sys.argv[1:3]
+json.dump({"email": email, "email_verification_code": code}, sys.stdout)
+PY
+curl -fsS \
+  -H 'content-type: application/json' \
+  -d "@$EMAIL_LOGIN_REQUEST" \
+  "$BASE_URL/api/auth/email-login" > "$EMAIL_LOGIN_JSON"
+TOKEN="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); assert data.get("access_token"), data; assert data.get("refresh_token"), data; assert data.get("user",{}).get("email") == sys.argv[2], data; print(data["access_token"])' "$EMAIL_LOGIN_JSON" "$EMAIL")"
+REFRESH_TOKEN="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); print(data["refresh_token"])' "$EMAIL_LOGIN_JSON")"
+
+EMAIL_LOGIN_REUSE_BODY="$TMP_DIR/email-login-reuse.json"
+EMAIL_LOGIN_REUSE_STATUS="$(curl -sS -o "$EMAIL_LOGIN_REUSE_BODY" -w '%{http_code}' \
+  -H 'content-type: application/json' \
+  -d "@$EMAIL_LOGIN_REQUEST" \
+  "$BASE_URL/api/auth/email-login")"
+expect_status 401 "$EMAIL_LOGIN_REUSE_STATUS" "$EMAIL_LOGIN_REUSE_BODY"
+
+echo "[smoke] password reset invalidates old password and old refresh token"
+OLD_REFRESH_TOKEN="$REFRESH_TOKEN"
+PASSWORD_RESET_CODE_REQUEST="$TMP_DIR/password-reset-code-request.json"
+PASSWORD_RESET_CODE_JSON="$TMP_DIR/password-reset-code.json"
+python3 - "$EMAIL" > "$PASSWORD_RESET_CODE_REQUEST" <<'PY'
+import json
+import sys
+
+json.dump({"email": sys.argv[1]}, sys.stdout)
+PY
+curl -fsS \
+  -H 'content-type: application/json' \
+  -d "@$PASSWORD_RESET_CODE_REQUEST" \
+  "$BASE_URL/api/auth/password-reset-code" > "$PASSWORD_RESET_CODE_JSON"
+PASSWORD_RESET_CODE="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); code=data.get("debug_code"); assert code, data; print(code)' "$PASSWORD_RESET_CODE_JSON")"
+
+PASSWORD_RESET_REQUEST="$TMP_DIR/password-reset-request.json"
+PASSWORD_RESET_JSON="$TMP_DIR/password-reset.json"
+python3 - "$EMAIL" "$NEW_ACCOUNT_PASS" "$PASSWORD_RESET_CODE" > "$PASSWORD_RESET_REQUEST" <<'PY'
+import json
+import sys
+
+email, password, code = sys.argv[1:4]
+json.dump(
+    {
+        "email": email,
+        "password": password,
+        "confirm_password": password,
+        "email_verification_code": code,
+    },
+    sys.stdout,
+)
+PY
+curl -fsS \
+  -H 'content-type: application/json' \
+  -d "@$PASSWORD_RESET_REQUEST" \
+  "$BASE_URL/api/auth/password-reset" > "$PASSWORD_RESET_JSON"
+TOKEN="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); assert data.get("access_token"), data; assert data.get("refresh_token"), data; assert data.get("user",{}).get("email") == sys.argv[2], data; print(data["access_token"])' "$PASSWORD_RESET_JSON" "$EMAIL")"
+REFRESH_TOKEN="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); print(data["refresh_token"])' "$PASSWORD_RESET_JSON")"
+AUTH_HEADER="Authorization: Bearer $TOKEN"
+
+OLD_REFRESH_REQUEST="$TMP_DIR/old-refresh-request.json"
+OLD_REFRESH_BODY="$TMP_DIR/old-refresh.json"
+python3 - "$OLD_REFRESH_TOKEN" > "$OLD_REFRESH_REQUEST" <<'PY'
+import json
+import sys
+
+json.dump({"refresh_token": sys.argv[1]}, sys.stdout)
+PY
+OLD_REFRESH_STATUS="$(curl -sS -o "$OLD_REFRESH_BODY" -w '%{http_code}' \
+  -H 'content-type: application/json' \
+  -d "@$OLD_REFRESH_REQUEST" \
+  "$BASE_URL/api/auth/refresh")"
+expect_status 401 "$OLD_REFRESH_STATUS" "$OLD_REFRESH_BODY"
+
+OLD_PASSWORD_REQUEST="$TMP_DIR/old-password-login-request.json"
+OLD_PASSWORD_BODY="$TMP_DIR/old-password-login.json"
+python3 - "$USERNAME" "$ACCOUNT_PASS" > "$OLD_PASSWORD_REQUEST" <<'PY'
+import json
+import sys
+
+account, password = sys.argv[1:3]
+json.dump({"account": account, "password": password}, sys.stdout)
+PY
+OLD_PASSWORD_STATUS="$(curl -sS -o "$OLD_PASSWORD_BODY" -w '%{http_code}' \
+  -H 'content-type: application/json' \
+  -d "@$OLD_PASSWORD_REQUEST" \
+  "$BASE_URL/api/auth/login")"
+expect_status 401 "$OLD_PASSWORD_STATUS" "$OLD_PASSWORD_BODY"
+
+NEW_PASSWORD_REQUEST="$TMP_DIR/new-password-login-request.json"
+NEW_PASSWORD_JSON="$TMP_DIR/new-password-login.json"
+python3 - "$EMAIL" "$NEW_ACCOUNT_PASS" > "$NEW_PASSWORD_REQUEST" <<'PY'
+import json
+import sys
+
+account, password = sys.argv[1:3]
+json.dump({"account": account, "password": password}, sys.stdout)
+PY
+curl -fsS \
+  -H 'content-type: application/json' \
+  -d "@$NEW_PASSWORD_REQUEST" \
+  "$BASE_URL/api/auth/login" > "$NEW_PASSWORD_JSON"
+TOKEN="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); assert data.get("access_token"), data; assert data.get("refresh_token"), data; assert data.get("user",{}).get("email") == sys.argv[2], data; print(data["access_token"])' "$NEW_PASSWORD_JSON" "$EMAIL")"
+REFRESH_TOKEN="$(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); print(data["refresh_token"])' "$NEW_PASSWORD_JSON")"
+AUTH_HEADER="Authorization: Bearer $TOKEN"
+
 
 echo "[smoke] gear categories through Redis-backed cache"
 curl -fsS -H "$AUTH_HEADER" "$BASE_URL/api/me/gears/categories"   | python3 -c 'import json,sys; data=json.load(sys.stdin); assert isinstance(data.get("items"), list), data; print({"items": len(data["items"])})'

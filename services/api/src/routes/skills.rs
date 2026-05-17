@@ -3,13 +3,14 @@
 use std::collections::HashMap;
 
 use axum::{
-    Json, Router,
+    Router,
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::get,
 };
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use stellartrail_domain::skill::{Locale, SkillCategoriesResponse};
 
 use crate::{error::ApiError, state::AppState};
@@ -36,7 +37,7 @@ async fn skill_categories(
         .knot_repository()
         .list_skill_categories(locale)
         .await?;
-    localized_json(locale, SkillCategoriesResponse { items })
+    localized_json(&state, &headers, locale, SkillCategoriesResponse { items })
 }
 
 async fn knot_list(
@@ -60,7 +61,7 @@ async fn knot_list(
         .knot_repository()
         .list_knots(locale, offset, limit, category, q)
         .await?;
-    localized_json(locale, response)
+    localized_json(&state, &headers, locale, response)
 }
 
 async fn knot_detail(
@@ -74,21 +75,68 @@ async fn knot_detail(
     let Some(detail) = state.knot_repository().get_knot_detail(&id, locale).await? else {
         return Err(ApiError::NotFound);
     };
-    localized_json(locale, detail)
+    localized_json(&state, &headers, locale, detail)
 }
 
-fn localized_json<T: Serialize>(locale: Locale, body: T) -> Result<Response, ApiError> {
-    let mut response = (StatusCode::OK, Json(body)).into_response();
+fn localized_json<T: Serialize>(
+    state: &AppState,
+    request_headers: &HeaderMap,
+    locale: Locale,
+    body: T,
+) -> Result<Response, ApiError> {
+    let body = serde_json::to_string(&body).map_err(ApiError::internal)?;
+    let etag = format!("\"{}\"", hex::encode(Sha256::digest(body.as_bytes())));
+    let cache_control = format!(
+        "public, max-age={}, stale-while-revalidate={}",
+        state.config().public_api.cache_ttl_seconds,
+        state.config().public_api.cache_stale_seconds
+    );
+
+    if request_headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.split(',').any(|candidate| candidate.trim() == etag))
+        .unwrap_or(false)
+    {
+        let mut response = StatusCode::NOT_MODIFIED.into_response();
+        insert_public_headers(response.headers_mut(), locale, &etag, &cache_control)?;
+        return Ok(response);
+    }
+
+    let mut response = (StatusCode::OK, body).into_response();
     response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    insert_public_headers(response.headers_mut(), locale, &etag, &cache_control)?;
+    Ok(response)
+}
+
+fn insert_public_headers(
+    headers: &mut HeaderMap,
+    locale: Locale,
+    etag: &str,
+    cache_control: &str,
+) -> Result<(), ApiError> {
+    headers.insert(
         header::CONTENT_LANGUAGE,
         HeaderValue::from_str(locale.as_str())
             .map_err(|_| ApiError::invalid_header(header::CONTENT_LANGUAGE.as_str()))?,
     );
-    response.headers_mut().insert(
+    headers.insert(
         header::VARY,
         HeaderValue::from_static("Accept-Language, X-StellarTrail-Locale"),
     );
-    Ok(response)
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_str(cache_control)
+            .map_err(|_| ApiError::invalid_header(header::CACHE_CONTROL.as_str()))?,
+    );
+    headers.insert(
+        header::ETAG,
+        HeaderValue::from_str(etag).map_err(|_| ApiError::invalid_header(header::ETAG.as_str()))?,
+    );
+    Ok(())
 }
 
 fn resolve_locale(headers: &HeaderMap) -> Result<Locale, ApiError> {

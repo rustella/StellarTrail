@@ -60,10 +60,10 @@ mail:
   smtp_host: mx1.stellartrail.cn
   smtp_port: 465
   smtp_tls: implicit
-  smtp_username: noreply@stellartrail.cn
+  smtp_username: "[REDACTED]"
   # Keep real SMTP passwords in config.yaml, .env, or a secret manager.
   smtp_password: null
-  from: "寻径星野 <noreply@stellartrail.cn>"
+  from: "StellarTrail <[REDACTED]>"
   verification_subject: 寻径星野邮箱验证码
 
 public_api:

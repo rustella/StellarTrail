@@ -10,9 +10,10 @@ use axum::{Json, Router, routing::post};
 
 use crate::{
     dto::auth::{
-        CaptchaChallengeRequest, CaptchaChallengeResponse, EmailVerificationCodeRequest,
-        EmailVerificationCodeResponse, LoginResponse, PasswordLoginRequest, RefreshTokenRequest,
-        RegisterRequest, WechatLoginRequest,
+        CaptchaChallengeRequest, CaptchaChallengeResponse, EmailLoginCodeRequest,
+        EmailLoginRequest, EmailVerificationCodeRequest, EmailVerificationCodeResponse,
+        LoginResponse, PasswordLoginRequest, PasswordResetCodeRequest, PasswordResetRequest,
+        RefreshTokenRequest, RegisterRequest, WechatLoginRequest,
     },
     error::ApiError,
     services::auth_service,
@@ -31,6 +32,13 @@ pub fn routes() -> Router<AppState> {
             "/api/auth/email-verification-code",
             post(send_email_verification_code),
         )
+        .route("/api/auth/email-login-code", post(send_email_login_code))
+        .route("/api/auth/email-login", post(email_login))
+        .route(
+            "/api/auth/password-reset-code",
+            post(send_password_reset_code),
+        )
+        .route("/api/auth/password-reset", post(password_reset))
         .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(password_login))
         // Refresh is intentionally public: the refresh token itself is the credential.
@@ -53,6 +61,42 @@ async fn send_email_verification_code(
     Json(payload): Json<EmailVerificationCodeRequest>,
 ) -> Result<Json<EmailVerificationCodeResponse>, ApiError> {
     let response = auth_service::send_email_verification_code(&state, payload.email).await?;
+    Ok(Json(response))
+}
+
+/// Generates a login email verification code for an existing account without revealing missing accounts.
+async fn send_email_login_code(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<EmailLoginCodeRequest>,
+) -> Result<Json<EmailVerificationCodeResponse>, ApiError> {
+    let response = auth_service::send_email_login_code(&state, payload.email).await?;
+    Ok(Json(response))
+}
+
+/// Logs in an existing account by consuming a one-time email verification code.
+async fn email_login(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<EmailLoginRequest>,
+) -> Result<Json<LoginResponse>, ApiError> {
+    let response = auth_service::email_login(&state, payload).await?;
+    Ok(Json(response))
+}
+
+/// Generates a password-reset email verification code for an existing account without revealing missing accounts.
+async fn send_password_reset_code(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<PasswordResetCodeRequest>,
+) -> Result<Json<EmailVerificationCodeResponse>, ApiError> {
+    let response = auth_service::send_password_reset_code(&state, payload.email).await?;
+    Ok(Json(response))
+}
+
+/// Resets an account password by consuming a one-time email verification code and returns a fresh session.
+async fn password_reset(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<PasswordResetRequest>,
+) -> Result<Json<LoginResponse>, ApiError> {
+    let response = auth_service::password_reset(&state, payload).await?;
     Ok(Json(response))
 }
 

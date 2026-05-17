@@ -44,7 +44,7 @@ type GearStatusFilter = "" | GearStatus;
 type ViewMode = "table" | "cards";
 type ThemeMode = "light" | "dark";
 type FormMode = "create" | "edit";
-type AuthMode = "wechat" | "password" | "register";
+type AuthMode = "wechat" | "password" | "email" | "reset" | "register";
 type ActivePage = "gear" | "knots";
 
 interface PasswordLoginState {
@@ -60,6 +60,18 @@ interface RegisterFormState {
   password: string;
   confirmPassword: string;
   emailVerificationCode: string;
+}
+
+interface EmailCodeLoginState {
+  email: string;
+  emailVerificationCode: string;
+}
+
+interface PasswordResetFormState {
+  email: string;
+  emailVerificationCode: string;
+  password: string;
+  confirmPassword: string;
 }
 
 interface CaptchaState {
@@ -150,6 +162,18 @@ const emptyRegisterForm: RegisterFormState = {
   emailVerificationCode: "",
 };
 
+const emptyEmailCodeLogin: EmailCodeLoginState = {
+  email: "",
+  emailVerificationCode: "",
+};
+
+const emptyPasswordResetForm: PasswordResetFormState = {
+  email: "",
+  emailVerificationCode: "",
+  password: "",
+  confirmPassword: "",
+};
+
 export default function App({ client }: AppProps) {
   const [api] = useState<WebGearApi>(() => client ?? createWebGearApi());
   const [session, setSession] = useState<WebSession | null>(() =>
@@ -169,6 +193,11 @@ export default function App({ client }: AppProps) {
     useState<PasswordLoginState>(emptyPasswordLogin);
   const [registerForm, setRegisterForm] =
     useState<RegisterFormState>(emptyRegisterForm);
+  const [emailLoginForm, setEmailLoginForm] = useState<EmailCodeLoginState>(
+    emptyEmailCodeLogin,
+  );
+  const [passwordResetForm, setPasswordResetForm] =
+    useState<PasswordResetFormState>(emptyPasswordResetForm);
   const [captcha, setCaptcha] = useState<CaptchaState | null>(null);
   const [emailCodeNotice, setEmailCodeNotice] = useState<string | null>(null);
   const [categories, setCategories] =
@@ -360,6 +389,106 @@ export default function App({ client }: AppProps) {
           ? `本地验证码：${response.debug_code}`
           : `验证码已发送至 ${response.email}`,
       );
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSendEmailLoginCode() {
+    const email = emailLoginForm.email.trim();
+    if (!email) {
+      setError("请先填写邮箱");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    setEmailCodeNotice(null);
+    try {
+      const response = await api.sendEmailLoginCode({ email });
+      setEmailCodeNotice(
+        response.debug_code
+          ? `本地验证码：${response.debug_code}`
+          : `验证码已发送至 ${response.email}`,
+      );
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleEmailCodeLogin(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    const email = emailLoginForm.email.trim();
+    const emailVerificationCode = emailLoginForm.emailVerificationCode.trim();
+    if (!email || !emailVerificationCode) {
+      setError("请填写邮箱和验证码");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await api.loginWithEmailCode({
+        email,
+        email_verification_code: emailVerificationCode,
+      });
+      completeLogin(response);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSendPasswordResetCode() {
+    const email = passwordResetForm.email.trim();
+    if (!email) {
+      setError("请先填写邮箱");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    setEmailCodeNotice(null);
+    try {
+      const response = await api.sendPasswordResetCode({ email });
+      setEmailCodeNotice(
+        response.debug_code
+          ? `本地验证码：${response.debug_code}`
+          : `验证码已发送至 ${response.email}`,
+      );
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handlePasswordReset(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (passwordResetForm.password !== passwordResetForm.confirmPassword) {
+      setError("两次输入的密码不一致");
+      return;
+    }
+    const email = passwordResetForm.email.trim();
+    const emailVerificationCode = passwordResetForm.emailVerificationCode.trim();
+    if (!email || !emailVerificationCode) {
+      setError("请填写邮箱和验证码");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await api.resetPassword({
+        email,
+        email_verification_code: emailVerificationCode,
+        password: passwordResetForm.password,
+        confirm_password: passwordResetForm.confirmPassword,
+      });
+      completeLogin(response);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -585,10 +714,14 @@ export default function App({ client }: AppProps) {
           <h1>{authTitle(authMode)}</h1>
           <p className="muted">
             {authMode === "wechat"
-              ? "使用微信 code 登录，或切换到账号密码登录。"
+              ? "使用微信 code 登录，或切换到其他登录方式。"
               : authMode === "password"
-                ? "使用后端账号密码登录；需要新账号时可在下方注册。"
-                : "通过邮箱验证码创建账号，注册成功后会自动进入个人装备库。"}
+                ? "使用账号密码登录；忘记密码时可以用邮箱重新设置。"
+                : authMode === "email"
+                  ? "收取邮箱验证码，不输入密码也能进入个人装备库。"
+                  : authMode === "reset"
+                    ? "通过邮箱验证码确认身份，再设置新密码。"
+                    : "通过邮箱验证码创建账号，注册成功后会自动进入个人装备库。"}
           </p>
           {authMode !== "register" ? (
             <div className="auth-tabs" role="group" aria-label="登录方式">
@@ -605,6 +738,13 @@ export default function App({ client }: AppProps) {
                 onClick={() => switchAuthMode("password")}
               >
                 账号登录
+              </button>
+              <button
+                type="button"
+                className={authMode === "email" ? "active" : ""}
+                onClick={() => switchAuthMode("email")}
+              >
+                邮箱验证码
               </button>
             </div>
           ) : null}
@@ -701,9 +841,165 @@ export default function App({ client }: AppProps) {
                 <button
                   type="button"
                   className="auth-link-button"
+                  onClick={() => switchAuthMode("email")}
+                >
+                  用邮箱验证码登录
+                </button>
+                <span aria-hidden="true"> · </span>
+                <button
+                  type="button"
+                  className="auth-link-button"
+                  onClick={() => switchAuthMode("reset")}
+                >
+                  忘记密码
+                </button>
+                <span aria-hidden="true"> · </span>
+                <button
+                  type="button"
+                  className="auth-link-button"
                   onClick={() => switchAuthMode("register")}
                 >
                   注册账号
+                </button>
+              </div>
+            </form>
+          ) : null}
+
+          {authMode === "email" ? (
+            <form className="auth-form" onSubmit={handleEmailCodeLogin}>
+              <label htmlFor="email-login-email">邮箱</label>
+              <input
+                id="email-login-email"
+                type="email"
+                value={emailLoginForm.email}
+                autoComplete="email"
+                onChange={(event) =>
+                  setEmailLoginForm((current) => ({
+                    ...current,
+                    email: event.target.value,
+                  }))
+                }
+              />
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleSendEmailLoginCode()}
+                disabled={submitting}
+              >
+                获取邮箱验证码
+              </button>
+              {emailCodeNotice ? (
+                <p className="helper-text">{emailCodeNotice}</p>
+              ) : null}
+              <label htmlFor="email-login-code">邮箱验证码</label>
+              <input
+                id="email-login-code"
+                value={emailLoginForm.emailVerificationCode}
+                inputMode="numeric"
+                onChange={(event) =>
+                  setEmailLoginForm((current) => ({
+                    ...current,
+                    emailVerificationCode: event.target.value,
+                  }))
+                }
+              />
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={submitting}
+              >
+                {submitting ? "登录中…" : "邮箱验证码登录"}
+              </button>
+              <div className="auth-secondary-action">
+                <button
+                  type="button"
+                  className="auth-link-button"
+                  onClick={() => switchAuthMode("password")}
+                >
+                  返回账号登录
+                </button>
+              </div>
+            </form>
+          ) : null}
+
+          {authMode === "reset" ? (
+            <form className="auth-form" onSubmit={handlePasswordReset}>
+              <label htmlFor="reset-email">邮箱</label>
+              <input
+                id="reset-email"
+                type="email"
+                value={passwordResetForm.email}
+                autoComplete="email"
+                onChange={(event) =>
+                  setPasswordResetForm((current) => ({
+                    ...current,
+                    email: event.target.value,
+                  }))
+                }
+              />
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void handleSendPasswordResetCode()}
+                disabled={submitting}
+              >
+                获取邮箱验证码
+              </button>
+              {emailCodeNotice ? (
+                <p className="helper-text">{emailCodeNotice}</p>
+              ) : null}
+              <label htmlFor="reset-email-code">邮箱验证码</label>
+              <input
+                id="reset-email-code"
+                value={passwordResetForm.emailVerificationCode}
+                inputMode="numeric"
+                onChange={(event) =>
+                  setPasswordResetForm((current) => ({
+                    ...current,
+                    emailVerificationCode: event.target.value,
+                  }))
+                }
+              />
+              <label htmlFor="reset-password">新密码</label>
+              <input
+                id="reset-password"
+                type="password"
+                value={passwordResetForm.password}
+                autoComplete="new-password"
+                onChange={(event) =>
+                  setPasswordResetForm((current) => ({
+                    ...current,
+                    password: event.target.value,
+                  }))
+                }
+              />
+              <label htmlFor="reset-confirm-password">确认新密码</label>
+              <input
+                id="reset-confirm-password"
+                type="password"
+                value={passwordResetForm.confirmPassword}
+                autoComplete="new-password"
+                onChange={(event) =>
+                  setPasswordResetForm((current) => ({
+                    ...current,
+                    confirmPassword: event.target.value,
+                  }))
+                }
+              />
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={submitting}
+              >
+                {submitting ? "提交中…" : "重设密码并登录"}
+              </button>
+              <div className="auth-secondary-action">
+                <button
+                  type="button"
+                  className="auth-link-button"
+                  onClick={() => switchAuthMode("password")}
+                >
+                  返回账号登录
                 </button>
               </div>
             </form>
@@ -1629,6 +1925,12 @@ function optionalNumber(value: string): number | null {
 function authTitle(mode: AuthMode): string {
   if (mode === "password") {
     return "账号密码登录";
+  }
+  if (mode === "email") {
+    return "邮箱验证码登录";
+  }
+  if (mode === "reset") {
+    return "找回密码";
   }
   if (mode === "register") {
     return "注册账号";
