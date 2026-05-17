@@ -15,16 +15,19 @@
 .media-card,
 .info-card {
   border: 1rpx solid var(--border-color);
-  border-radius: 30rpx;
+  border-radius: var(--card-radius);
   background: var(--surface-color);
   box-shadow: var(--shadow-soft);
+  color: var(--text-color);
 }
 
 .detail-hero {
   padding: 34rpx;
-  color: #ffffff;
-  background: var(--hero-gradient);
-  box-shadow: var(--shadow-card);
+  color: #0f172a;
+  background: var(--hero-surface-gradient);
+  box-shadow: var(--hero-surface-shadow);
+  border: 1rpx solid var(--hero-surface-border);
+  border-radius: var(--hero-card-radius);
 }
 
 .tag-row {
@@ -67,7 +70,7 @@
 .detail-summary,
 .detail-meta {
   margin-top: 12rpx;
-  color: rgba(255, 255, 255, 0.84);
+  color: var(--muted-color);
   font-size: 26rpx;
   line-height: 1.58;
 }
@@ -122,7 +125,7 @@
 .media-item {
   margin-top: 20rpx;
   overflow: hidden;
-  border-radius: 24rpx;
+  border-radius: var(--card-inner-radius);
   background: var(--control-bg);
 }
 
@@ -169,4 +172,14 @@
   color: var(--text-color);
   font-size: 27rpx;
   line-height: 1.6;
+}
+
+.skill-detail-page.theme-dark .detail-hero,
+.skill-detail-page.theme-dark .detail-title {
+  color: #ffffff;
+}
+
+.skill-detail-page.theme-dark .detail-summary,
+.skill-detail-page.theme-dark .detail-meta {
+  color: rgba(255, 255, 255, 0.82);
 }
