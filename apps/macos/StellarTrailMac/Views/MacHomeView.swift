@@ -20,8 +20,7 @@ struct MacHomeView: View {
                 TrailHeroCard(
                     eyebrow: "寻径星野 · 桌面准备台",
                     title: "把出行准备放到更大的屏幕上",
-                    subtitle: "在 Mac 上查看装备、学习绳结，并同步管理个人设置。",
-                    chips: [viewModel.state.isLoggedIn ? "已连接账号" : "可先浏览", "适配桌面窗口"]
+                    subtitle: "在 Mac 上查看装备、学习绳结，并同步管理个人设置。"
                 )
 
                 if let error = viewModel.state.error {
