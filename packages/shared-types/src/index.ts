@@ -79,6 +79,19 @@ export interface KnotSummary {
   href: string;
 }
 
+export interface KnotFilterOption {
+  id: string;
+  slug?: string | null;
+  title: string;
+  count: number;
+}
+
+export interface KnotFiltersResponse {
+  locale: SkillLocale;
+  categories: KnotFilterOption[];
+  difficulties: KnotFilterOption[];
+}
+
 export interface KnotListResponse {
   locale: SkillLocale;
   items: KnotSummary[];
@@ -95,6 +108,7 @@ export interface ListKnotsRequest {
   offset?: number;
   limit?: number;
   category?: string;
+  difficulty?: string;
   q?: string;
 }
 

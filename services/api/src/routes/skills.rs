@@ -20,6 +20,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/skills", get(skill_categories))
         .route("/api/skills/knots/list", get(knot_list))
+        .route("/api/skills/knots/filters", get(knot_filters))
         .route("/api/skills/knots/detail/:id", get(knot_detail))
 }
 
@@ -56,11 +57,23 @@ async fn knot_list(
     let offset = parse_u32_query(&query, "offset", 0)?;
     let limit = parse_u32_query(&query, "limit", 20)?.clamp(1, 100);
     let category = query.get("category").map(String::as_str);
+    let difficulty = query.get("difficulty").map(String::as_str);
     let q = query.get("q").map(String::as_str);
     let response = state
         .knot_repository()
-        .list_knots(locale, offset, limit, category, q)
+        .list_knots(locale, offset, limit, category, difficulty, q)
         .await?;
+    localized_json(&state, &headers, locale, response)
+}
+
+async fn knot_filters(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+) -> Result<Response, ApiError> {
+    reject_query_locale(&query)?;
+    let locale = resolve_locale(&headers)?;
+    let response = state.knot_repository().list_knot_filters(locale).await?;
     localized_json(&state, &headers, locale, response)
 }
 

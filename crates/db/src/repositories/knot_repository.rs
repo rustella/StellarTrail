@@ -2,8 +2,8 @@
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, TransactionTrait};
 use stellartrail_domain::skill::{
-    KnotDetail, KnotListResponse, KnotMediaAsset, KnotSeed, KnotSummary, KnotTaxonomyItem, Locale,
-    PageInfo, SkillCategorySummary,
+    KnotDetail, KnotFilterOption, KnotFiltersResponse, KnotListResponse, KnotMediaAsset, KnotSeed,
+    KnotSummary, KnotTaxonomyItem, Locale, PageInfo, SkillCategorySummary,
 };
 
 use super::{MediaResourceRepository, statement};
@@ -212,6 +212,66 @@ impl KnotRepository {
         }])
     }
 
+    /// Lists available knot filter options with locale-resolved labels and full-catalog counts.
+    pub async fn list_knot_filters(&self, locale: Locale) -> Result<KnotFiltersResponse, DbErr> {
+        let backend = self.db.get_database_backend();
+        let category_rows = self
+            .db
+            .query_all(statement(
+                backend,
+                "SELECT kc.id AS id, COUNT(kcm.knot_id) AS count \
+                 FROM knot_categories kc \
+                 JOIN knot_category_memberships kcm ON kcm.category_id = kc.id \
+                 GROUP BY kc.id ORDER BY kc.id ASC",
+                vec![],
+            ))
+            .await?;
+        let mut categories = Vec::with_capacity(category_rows.len());
+        for row in category_rows {
+            let id: String = row.try_get("", "id")?;
+            let count: i64 = row.try_get("", "count")?;
+            categories.push(fetch_category_filter_option(&self.db, &id, count, locale).await?);
+        }
+
+        let difficulty_rows = self
+            .db
+            .query_all(statement(
+                backend,
+                "SELECT difficulty AS id, COUNT(*) AS count FROM knots \
+                 WHERE difficulty IS NOT NULL AND TRIM(difficulty) <> '' \
+                 GROUP BY difficulty \
+                 ORDER BY CASE difficulty \
+                    WHEN 'leisure' THEN 0 \
+                    WHEN 'beginner' THEN 1 \
+                    WHEN 'intermediate' THEN 2 \
+                    WHEN 'advanced' THEN 3 \
+                    WHEN 'technical' THEN 4 \
+                    ELSE 100 \
+                 END ASC, difficulty ASC",
+                vec![],
+            ))
+            .await?;
+        let difficulties = difficulty_rows
+            .into_iter()
+            .map(|row| {
+                let id: String = row.try_get("", "id")?;
+                let count: i64 = row.try_get("", "count")?;
+                Ok(KnotFilterOption {
+                    title: difficulty_label(&id, locale).to_owned(),
+                    id,
+                    slug: None,
+                    count: count.max(0) as u32,
+                })
+            })
+            .collect::<Result<Vec<_>, DbErr>>()?;
+
+        Ok(KnotFiltersResponse {
+            locale,
+            categories,
+            difficulties,
+        })
+    }
+
     /// Lists knots with offset pagination and locale-resolved public fields.
     pub async fn list_knots(
         &self,
@@ -219,6 +279,7 @@ impl KnotRepository {
         offset: u32,
         limit: u32,
         category: Option<&str>,
+        difficulty: Option<&str>,
         q: Option<&str>,
     ) -> Result<KnotListResponse, DbErr> {
         let backend = self.db.get_database_backend();
@@ -246,6 +307,7 @@ impl KnotRepository {
             .map(|row| row.try_get::<String>("", "id"))
             .collect::<Result<Vec<_>, _>>()?;
 
+        let difficulty = difficulty.map(str::trim).filter(|value| !value.is_empty());
         let query = q
             .map(|value| value.trim().to_lowercase())
             .filter(|value| !value.is_empty());
@@ -260,7 +322,11 @@ impl KnotRepository {
                     }
                     None => true,
                 };
-                if matches_query {
+                let matches_difficulty = match difficulty {
+                    Some(value) => detail.difficulty.as_deref() == Some(value),
+                    None => true,
+                };
+                if matches_query && matches_difficulty {
                     summaries.push(KnotSummary {
                         id: detail.id.clone(),
                         slug: detail.slug.clone(),
@@ -378,6 +444,53 @@ async fn fetch_knot_localization(
         }
     }
     Ok(None)
+}
+
+async fn fetch_category_filter_option(
+    db: &DatabaseConnection,
+    id: &str,
+    count: i64,
+    locale: Locale,
+) -> Result<KnotFilterOption, DbErr> {
+    for candidate in locale.fallbacks() {
+        let row = db
+            .query_one(statement(
+                db.get_database_backend(),
+                "SELECT slug, title FROM knot_category_localizations WHERE category_id = ? AND locale = ?",
+                vec![id.to_owned().into(), candidate.as_str().to_owned().into()],
+            ))
+            .await?;
+        if let Some(row) = row {
+            return Ok(KnotFilterOption {
+                id: id.to_owned(),
+                slug: Some(row.try_get("", "slug")?),
+                title: row.try_get("", "title")?,
+                count: count.max(0) as u32,
+            });
+        }
+    }
+    Ok(KnotFilterOption {
+        id: id.to_owned(),
+        slug: None,
+        title: id.to_owned(),
+        count: count.max(0) as u32,
+    })
+}
+
+fn difficulty_label(value: &str, locale: Locale) -> &'static str {
+    match (locale, value) {
+        (Locale::ZhCn, "leisure") => "入门",
+        (Locale::ZhCn, "beginner") => "新手",
+        (Locale::ZhCn, "intermediate") => "进阶",
+        (Locale::ZhCn, "advanced") => "熟练",
+        (Locale::ZhCn, "technical") => "技术",
+        (Locale::En, "leisure") => "Leisure",
+        (Locale::En, "beginner") => "Beginner",
+        (Locale::En, "intermediate") => "Intermediate",
+        (Locale::En, "advanced") => "Advanced",
+        (Locale::En, "technical") => "Technical",
+        _ => "Common",
+    }
 }
 
 async fn fetch_categories(

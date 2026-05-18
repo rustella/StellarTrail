@@ -15,6 +15,7 @@ import type {
   ImportGearsRequest,
   ImportGearsResponse,
   KnotDetail,
+  KnotFiltersResponse,
   KnotListResponse,
   ListGearsRequest,
   ListGearsResponse,
@@ -61,6 +62,7 @@ export interface WebGearApi {
     request: PasswordLoginRequest,
   ): Promise<WechatLoginResponse>;
   listSkills(locale?: SkillLocale): Promise<SkillCategoriesResponse>;
+  listKnotFilters(locale?: SkillLocale): Promise<KnotFiltersResponse>;
   listKnots(
     request?: ListKnotsRequest,
     locale?: SkillLocale,

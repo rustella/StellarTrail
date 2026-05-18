@@ -96,6 +96,66 @@ fn sample_knot() -> KnotSeed {
     }
 }
 
+fn technical_knot() -> KnotSeed {
+    KnotSeed {
+        id: "figure-eight-knot".to_owned(),
+        source_name: "Knots 3D".to_owned(),
+        source_url: Some("https://knots3d.com/knots/en_us/figure-eight-knot".to_owned()),
+        source_slug_en: "figure-eight-knot".to_owned(),
+        source_slug_zh: Some("ba-zi-jie".to_owned()),
+        difficulty: Some("technical".to_owned()),
+        localizations: vec![
+            KnotLocalizationSeed {
+                locale: Locale::En,
+                slug: "figure-eight-knot".to_owned(),
+                title: "Figure Eight Knot".to_owned(),
+                summary: "Stopper knot for rope ends.".to_owned(),
+                description: Some("A compact stopper for rope ends.".to_owned()),
+                steps: vec!["Form an eight shape.".to_owned()],
+            },
+            KnotLocalizationSeed {
+                locale: Locale::ZhCn,
+                slug: "ba-zi-jie".to_owned(),
+                title: "八字结".to_owned(),
+                summary: "用于绳端防脱的基础结。".to_owned(),
+                description: Some("适合作为绳端止动。".to_owned()),
+                steps: vec!["绕出八字形。".to_owned()],
+            },
+        ],
+        categories: vec![KnotCategorySeed {
+            id: "basic-knots".to_owned(),
+            localizations: vec![
+                (
+                    Locale::En,
+                    "basic-knots".to_owned(),
+                    "Basic Knots".to_owned(),
+                ),
+                (
+                    Locale::ZhCn,
+                    "ji-chu-sheng-jie".to_owned(),
+                    "基础绳结".to_owned(),
+                ),
+            ],
+        }],
+        types: vec![KnotTypeSeed {
+            id: "stopper-knots".to_owned(),
+            localizations: vec![
+                (
+                    Locale::En,
+                    "stopper-knots".to_owned(),
+                    "Stopper Knots".to_owned(),
+                ),
+                (Locale::ZhCn, "zhi-dong-jie".to_owned(), "止动结".to_owned()),
+            ],
+        }],
+        media: vec![],
+        raw_metadata: serde_json::json!({
+            "english_slug": "figure-eight-knot",
+            "zh_slug": "ba-zi-jie"
+        }),
+    }
+}
+
 struct UploadedKnotMediaFixture<'a> {
     knot_id: &'a str,
     asset_id: &'a str,
@@ -275,6 +335,52 @@ async fn seeded_app() -> TestApp {
     }
 }
 
+async fn seeded_filter_app() -> TestApp {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+    let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
+    let db = connect_database(&database).await.unwrap();
+    migrate_database(&db).await.unwrap();
+    let config = ApiConfig {
+        app_env: "local".to_owned(),
+        host: "127.0.0.1".to_owned(),
+        port: 0,
+        database,
+        wechat_mock_login: true,
+        wechat_app_id: None,
+        wechat_app_secret: None,
+        redis_cache: RedisCacheConfig::disabled(),
+        upload: UploadConfig::default(),
+        minio: Default::default(),
+        object_storage: ObjectStorageConfig::default(),
+        knots_media_storage: Default::default(),
+        admin: Default::default(),
+        public_api: PublicApiConfig {
+            rate_limit_enabled: true,
+            rate_limit_window_seconds: 60,
+            rate_limit_max_requests_per_ip: 20,
+            cache_ttl_seconds: 300,
+            cache_stale_seconds: 600,
+            max_list_limit: 100,
+            max_search_query_chars: 64,
+            max_offset: 10_000,
+            trust_proxy_headers: false,
+            trusted_proxy_cidrs: Vec::new(),
+        },
+        cors: CorsConfig::default(),
+        mail: Default::default(),
+    };
+    let repository = KnotRepository::new(db.clone());
+    repository
+        .replace_all_knots("test-fixture", &[sample_knot(), technical_knot()])
+        .await
+        .expect("seed knots");
+    TestApp {
+        router: build_router(AppState::new(config, db)),
+        _temp_dir: temp_dir,
+    }
+}
+
 async fn json_response(
     app: &Router,
     request: Request<Body>,
@@ -315,6 +421,71 @@ async fn skills_returns_locale_resolved_category_without_parallel_language_field
     assert!(!body.to_string().contains("zh_slug"));
     assert!(!body.to_string().contains("english_slug"));
     assert!(!body.to_string().contains("title_en"));
+}
+
+#[tokio::test]
+async fn knot_filters_return_locale_resolved_categories_and_difficulties_with_counts() {
+    let app = seeded_filter_app().await;
+    let (status, headers, body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/api/skills/knots/filters")
+            .header("X-StellarTrail-Locale", "zh-CN")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers.get(header::CONTENT_LANGUAGE).unwrap(), "zh-CN");
+    assert_eq!(body["locale"], "zh-CN");
+    assert!(body["categories"].as_array().unwrap().iter().any(|option| {
+        option["id"] == "camping-knots"
+            && option["slug"] == "lu-ying-sheng-jie"
+            && option["title"] == "露营绳结"
+            && option["count"] == 1
+    }));
+    assert!(
+        body["difficulties"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|option| {
+                option["id"] == "technical" && option["title"] == "技术" && option["count"] == 1
+            })
+    );
+}
+
+#[tokio::test]
+async fn knots_list_combines_category_difficulty_and_keyword_filters() {
+    let app = seeded_filter_app().await;
+    let (status, _headers, body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/api/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=beginner&q=%E8%B0%83%E8%8A%82")
+            .header("X-StellarTrail-Locale", "zh-CN")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["items"].as_array().unwrap().len(), 1);
+    assert_eq!(body["items"][0]["id"], "adjustable-grip-hitch-knot");
+    assert_eq!(body["page"]["next_offset"], Value::Null);
+
+    let (status, _headers, body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/api/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=technical")
+            .header("X-StellarTrail-Locale", "zh-CN")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["items"].as_array().unwrap().is_empty());
+    assert_eq!(body["page"]["next_offset"], Value::Null);
 }
 
 #[tokio::test]

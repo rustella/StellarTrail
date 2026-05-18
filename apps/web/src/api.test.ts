@@ -150,17 +150,60 @@ describe("StellarTrailApiClient public knot requests", () => {
     const client = new StellarTrailApiClient({
       baseUrl: "",
       fetcher: fetcher as typeof fetch,
-      accessToken: "x",
+      accessToken: "[REDACTED]",
     });
 
-    await client.listKnots({ offset: 0, limit: 24, q: "风绳" }, "zh-CN");
+    await client.listKnots(
+      {
+        offset: 0,
+        limit: 24,
+        category: "camping-knots",
+        difficulty: "beginner",
+        q: "风绳",
+      },
+      "zh-CN",
+    );
 
     expect(requests).toHaveLength(1);
     const url = new URL(`https://example.test${requests[0].url}`);
     expect(url.pathname).toBe("/api/skills/knots/list");
     expect(url.searchParams.get("offset")).toBe("0");
     expect(url.searchParams.get("limit")).toBe("24");
+    expect(url.searchParams.get("category")).toBe("camping-knots");
+    expect(url.searchParams.get("difficulty")).toBe("beginner");
     expect(url.searchParams.get("q")).toBe("风绳");
+    expect(requests[0].headers.get("X-StellarTrail-Locale")).toBe("zh-CN");
+    expect(requests[0].headers.get("authorization")).toBeNull();
+  });
+
+  it("lists knot filter options with zh-CN locale header without authorization", async () => {
+    const requests: Array<{ url: string; headers: Headers }> = [];
+    const fetcher = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({
+          url: String(input),
+          headers: new Headers(init?.headers),
+        });
+        return new Response(
+          JSON.stringify({
+            locale: "zh-CN",
+            categories: [],
+            difficulties: [],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      },
+    );
+    const client = new StellarTrailApiClient({
+      baseUrl: "",
+      fetcher: fetcher as typeof fetch,
+      accessToken: "[REDACTED]",
+    });
+
+    await client.listKnotFilters("zh-CN");
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].url).toBe("/api/skills/knots/filters");
     expect(requests[0].headers.get("X-StellarTrail-Locale")).toBe("zh-CN");
     expect(requests[0].headers.get("authorization")).toBeNull();
   });

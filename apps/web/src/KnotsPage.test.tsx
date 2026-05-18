@@ -145,7 +145,11 @@ const secondRichKnotDetail = {
 
 type KnotsApi = Pick<
   WebGearApi,
-  "listSkills" | "listKnots" | "getKnotDetail" | "resolveAssetUrl"
+  | "listSkills"
+  | "listKnotFilters"
+  | "listKnots"
+  | "getKnotDetail"
+  | "resolveAssetUrl"
 >;
 
 function buildKnotsApi(): KnotsApi {
@@ -160,6 +164,27 @@ function buildKnotsApi(): KnotsApi {
           item_count: 1,
           href: "/api/skills/knots/list",
         },
+      ],
+    }),
+    listKnotFilters: vi.fn().mockResolvedValue({
+      locale: "zh-CN",
+      categories: [
+        {
+          id: "camping-knots",
+          slug: "lu-ying-sheng-jie",
+          title: "露营绳结",
+          count: 1,
+        },
+        {
+          id: "basic-knots",
+          slug: "ji-chu-sheng-jie",
+          title: "基础绳结",
+          count: 1,
+        },
+      ],
+      difficulties: [
+        { id: "beginner", slug: null, title: "新手", count: 1 },
+        { id: "leisure", slug: null, title: "入门", count: 1 },
       ],
     }),
     listKnots: vi.fn().mockResolvedValue({
@@ -190,6 +215,7 @@ describe("KnotsPage", () => {
       await screen.findByRole("heading", { name: "绳结" }),
     ).toBeInTheDocument();
     expect(api.listSkills).toHaveBeenCalledWith("zh-CN");
+    expect(api.listKnotFilters).toHaveBeenCalledWith("zh-CN");
     expect(api.listKnots).toHaveBeenCalledWith(
       { offset: 0, limit: 24 },
       "zh-CN",
@@ -202,7 +228,27 @@ describe("KnotsPage", () => {
     expect(screen.queryByText(/API|后端|接口|游客/)).not.toBeInTheDocument();
   });
 
-  it("searches knots with the submitted keyword", async () => {
+  it("renders only the usage category filter control", async () => {
+    const api = buildKnotsApi();
+
+    render(<KnotsPage api={api} />);
+    expect(await screen.findByText("可调节绳结")).toBeInTheDocument();
+
+    const categorySelect = screen.getByLabelText("用途分类");
+    expect(categorySelect).toHaveClass("knot-category-select");
+    expect(categorySelect).toHaveDisplayValue("全部用途");
+    expect(screen.getByText("按用途分类快速筛选")).toBeInTheDocument();
+    expect(screen.queryByLabelText("搜索绳结")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("难度")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "搜索" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "清空筛选" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("filters knots by usage category", async () => {
     const api = buildKnotsApi();
     vi.mocked(api.listKnots)
       .mockResolvedValueOnce({
@@ -219,14 +265,13 @@ describe("KnotsPage", () => {
     render(<KnotsPage api={api} />);
     expect(await screen.findByText("可调节绳结")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("搜索绳结"), {
-      target: { value: "风绳" },
+    fireEvent.change(screen.getByLabelText("用途分类"), {
+      target: { value: "basic-knots" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
 
     await waitFor(() => {
       expect(api.listKnots).toHaveBeenLastCalledWith(
-        { offset: 0, limit: 24, q: "风绳" },
+        { offset: 0, limit: 24, category: "basic-knots" },
         "zh-CN",
       );
     });
@@ -264,6 +309,92 @@ describe("KnotsPage", () => {
     expect(
       screen.queryByRole("button", { name: "加载更多" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("preserves the selected usage category when loading more", async () => {
+    const api = buildKnotsApi();
+    vi.mocked(api.listKnots)
+      .mockResolvedValueOnce({
+        locale: "zh-CN",
+        items: [knotSummary],
+        page: { offset: 0, limit: 24, next_offset: null },
+      })
+      .mockResolvedValueOnce({
+        locale: "zh-CN",
+        items: [secondKnotSummary],
+        page: { offset: 0, limit: 24, next_offset: 24 },
+      })
+      .mockResolvedValueOnce({
+        locale: "zh-CN",
+        items: [knotSummary],
+        page: { offset: 24, limit: 24, next_offset: null },
+      });
+
+    render(<KnotsPage api={api} />);
+    expect(await screen.findByText("可调节绳结")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("用途分类"), {
+      target: { value: "camping-knots" },
+    });
+
+    await waitFor(() => {
+      expect(api.listKnots).toHaveBeenLastCalledWith(
+        { offset: 0, limit: 24, category: "camping-knots" },
+        "zh-CN",
+      );
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "加载更多" }));
+
+    await waitFor(() => {
+      expect(api.listKnots).toHaveBeenLastCalledWith(
+        { offset: 24, limit: 24, category: "camping-knots" },
+        "zh-CN",
+      );
+    });
+  });
+
+  it("clears the usage category by selecting all usages", async () => {
+    const api = buildKnotsApi();
+    vi.mocked(api.listKnots)
+      .mockResolvedValueOnce({
+        locale: "zh-CN",
+        items: [knotSummary],
+        page: { offset: 0, limit: 24, next_offset: null },
+      })
+      .mockResolvedValueOnce({
+        locale: "zh-CN",
+        items: [secondKnotSummary],
+        page: { offset: 0, limit: 24, next_offset: null },
+      })
+      .mockResolvedValueOnce({
+        locale: "zh-CN",
+        items: [knotSummary],
+        page: { offset: 0, limit: 24, next_offset: null },
+      });
+
+    render(<KnotsPage api={api} />);
+    expect(await screen.findByText("可调节绳结")).toBeInTheDocument();
+
+    const categorySelect = screen.getByLabelText("用途分类");
+    fireEvent.change(categorySelect, { target: { value: "basic-knots" } });
+
+    await waitFor(() => {
+      expect(api.listKnots).toHaveBeenLastCalledWith(
+        { offset: 0, limit: 24, category: "basic-knots" },
+        "zh-CN",
+      );
+    });
+
+    fireEvent.change(categorySelect, { target: { value: "" } });
+
+    await waitFor(() => {
+      expect(api.listKnots).toHaveBeenLastCalledWith(
+        { offset: 0, limit: 24 },
+        "zh-CN",
+      );
+    });
+    expect(categorySelect).toHaveValue("");
   });
 
   it("opens a knot detail drawer with steps and high-resolution media first", async () => {
@@ -393,7 +524,7 @@ describe("KnotsPage", () => {
     expect(await screen.findByText("可调节绳结")).toBeInTheDocument();
   });
 
-  it("shows an empty state when no knots match the search", async () => {
+  it("shows an empty state when no knots match the usage category", async () => {
     const api = buildKnotsApi();
     vi.mocked(api.listKnots)
       .mockResolvedValueOnce({
@@ -410,12 +541,12 @@ describe("KnotsPage", () => {
     render(<KnotsPage api={api} />);
     expect(await screen.findByText("可调节绳结")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("搜索绳结"), {
-      target: { value: "不存在" },
+    fireEvent.change(screen.getByLabelText("用途分类"), {
+      target: { value: "basic-knots" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
 
     expect(await screen.findByText("没有找到相关绳结")).toBeInTheDocument();
+    expect(screen.getByText("换个用途分类试试。")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "加载更多" }),
     ).not.toBeInTheDocument();

@@ -79,6 +79,63 @@ fn seed() -> KnotSeed {
     }
 }
 
+fn technical_seed() -> KnotSeed {
+    KnotSeed {
+        id: "figure-eight-knot".to_owned(),
+        source_name: "Knots 3D".to_owned(),
+        source_url: Some("https://knots3d.com/en/figure-eight-knot".to_owned()),
+        source_slug_en: "figure-eight-knot".to_owned(),
+        source_slug_zh: Some("ba-zi-jie".to_owned()),
+        difficulty: Some("technical".to_owned()),
+        localizations: vec![
+            KnotLocalizationSeed {
+                locale: Locale::En,
+                slug: "figure-eight-knot".to_owned(),
+                title: "Figure Eight Knot".to_owned(),
+                summary: "Stopper knot for rope ends.".to_owned(),
+                description: None,
+                steps: vec![],
+            },
+            KnotLocalizationSeed {
+                locale: Locale::ZhCn,
+                slug: "ba-zi-jie".to_owned(),
+                title: "八字结".to_owned(),
+                summary: "用于绳端防脱的基础结。".to_owned(),
+                description: None,
+                steps: vec![],
+            },
+        ],
+        categories: vec![KnotCategorySeed {
+            id: "basic-knots".to_owned(),
+            localizations: vec![
+                (
+                    Locale::En,
+                    "basic-knots".to_owned(),
+                    "Basic Knots".to_owned(),
+                ),
+                (
+                    Locale::ZhCn,
+                    "ji-chu-sheng-jie".to_owned(),
+                    "基础绳结".to_owned(),
+                ),
+            ],
+        }],
+        types: vec![KnotTypeSeed {
+            id: "stopper-knots".to_owned(),
+            localizations: vec![
+                (
+                    Locale::En,
+                    "stopper-knots".to_owned(),
+                    "Stopper Knots".to_owned(),
+                ),
+                (Locale::ZhCn, "zhi-dong-jie".to_owned(), "止动结".to_owned()),
+            ],
+        }],
+        media: vec![],
+        raw_metadata: serde_json::json!({"english_slug":"figure-eight-knot","zh_slug":"ba-zi-jie"}),
+    }
+}
+
 #[tokio::test]
 async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offset() {
     let config = DatabaseConfig::new(temp_db_url("repo")).expect("db config");
@@ -98,7 +155,7 @@ async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offs
     assert_eq!(categories[0].item_count, 1);
 
     let page = repo
-        .list_knots(Locale::En, 0, 20, None, None)
+        .list_knots(Locale::En, 0, 20, None, None, None)
         .await
         .expect("list");
     assert_eq!(page.page.offset, 0);
@@ -146,6 +203,63 @@ async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offs
     );
     assert_eq!(detail.media[0].size_bytes, 12345);
     assert_eq!(detail.media[0].id, "thumbnail");
+}
+
+#[tokio::test]
+async fn repository_lists_filter_options_and_filters_knots_by_category_difficulty_and_query() {
+    let config = DatabaseConfig::new(temp_db_url("filters")).expect("db config");
+    let db = connect_database(&config).await.expect("connect");
+    Migrator::up(&db, None).await.expect("migrate");
+    let repo = KnotRepository::new(db.clone());
+    repo.replace_all_knots("unit-test", &[seed(), technical_seed()])
+        .await
+        .expect("seed");
+
+    let filters = repo.list_knot_filters(Locale::ZhCn).await.expect("filters");
+    assert_eq!(filters.locale, Locale::ZhCn);
+    let camping = filters
+        .categories
+        .iter()
+        .find(|option| option.id == "camping-knots")
+        .expect("camping option");
+    assert_eq!(camping.slug.as_deref(), Some("lu-ying"));
+    assert_eq!(camping.title, "露营");
+    assert_eq!(camping.count, 1);
+    let technical = filters
+        .difficulties
+        .iter()
+        .find(|option| option.id == "technical")
+        .expect("technical option");
+    assert_eq!(technical.title, "技术");
+    assert_eq!(technical.count, 1);
+
+    let page = repo
+        .list_knots(
+            Locale::ZhCn,
+            0,
+            20,
+            Some("camping-knots"),
+            Some("beginner"),
+            Some("调节"),
+        )
+        .await
+        .expect("filtered list");
+    assert_eq!(page.items.len(), 1);
+    assert_eq!(page.items[0].id, "adjustable-grip-hitch-knot");
+
+    let empty = repo
+        .list_knots(
+            Locale::ZhCn,
+            0,
+            20,
+            Some("camping-knots"),
+            Some("technical"),
+            None,
+        )
+        .await
+        .expect("empty filtered list");
+    assert!(empty.items.is_empty());
+    assert_eq!(empty.page.next_offset, None);
 }
 
 #[tokio::test]

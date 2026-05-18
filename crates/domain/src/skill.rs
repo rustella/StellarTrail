@@ -80,6 +80,23 @@ pub struct KnotListResponse {
     pub page: PageInfo,
 }
 
+/// Locale-resolved filter option for the public knot catalog.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct KnotFilterOption {
+    pub id: String,
+    pub slug: Option<String>,
+    pub title: String,
+    pub count: u32,
+}
+
+/// Public knot filters response with counts across the full catalog.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct KnotFiltersResponse {
+    pub locale: Locale,
+    pub categories: Vec<KnotFilterOption>,
+    pub difficulties: Vec<KnotFilterOption>,
+}
+
 /// Knot summary for list cards.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct KnotSummary {

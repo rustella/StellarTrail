@@ -151,6 +151,18 @@ function buildClient(): WebGearApi {
         },
       ],
     }),
+    listKnotFilters: vi.fn().mockResolvedValue({
+      locale: "zh-CN",
+      categories: [
+        {
+          id: "camping-knots",
+          slug: "lu-ying-sheng-jie",
+          title: "露营绳结",
+          count: 1,
+        },
+      ],
+      difficulties: [],
+    }),
     listKnots: vi.fn().mockResolvedValue({
       locale: "zh-CN",
       items: [sampleKnotSummary],

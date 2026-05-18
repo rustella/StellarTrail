@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   KnotDetail,
+  KnotFilterOption,
+  KnotFiltersResponse,
   KnotMediaAsset,
   KnotSummary,
   ListKnotsRequest,
@@ -11,11 +13,24 @@ import type { WebGearApi } from "./api";
 
 const KNOTS_LOCALE = "zh-CN";
 const KNOTS_PAGE_SIZE = 24;
+const EMPTY_KNOT_FILTERS: KnotFiltersResponse = {
+  locale: KNOTS_LOCALE,
+  categories: [],
+  difficulties: [],
+};
 
 type KnotsApi = Pick<
   WebGearApi,
-  "listSkills" | "listKnots" | "getKnotDetail" | "resolveAssetUrl"
+  | "listSkills"
+  | "listKnotFilters"
+  | "listKnots"
+  | "getKnotDetail"
+  | "resolveAssetUrl"
 >;
+
+interface ActiveKnotFilters {
+  category: string;
+}
 
 interface KnotsPageProps {
   api: KnotsApi;
@@ -24,9 +39,14 @@ interface KnotsPageProps {
 export default function KnotsPage({ api }: KnotsPageProps) {
   const [categorySummary, setCategorySummary] =
     useState<SkillCategorySummary | null>(null);
+  const [knotFilters, setKnotFilters] =
+    useState<KnotFiltersResponse>(EMPTY_KNOT_FILTERS);
+  const [filtersLoading, setFiltersLoading] = useState(true);
   const [knots, setKnots] = useState<KnotSummary[]>([]);
-  const [query, setQuery] = useState("");
-  const [activeQuery, setActiveQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [activeFilters, setActiveFilters] = useState<ActiveKnotFilters>({
+    category: "",
+  });
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -49,14 +69,26 @@ export default function KnotsPage({ api }: KnotsPageProps) {
     }
   }, [api]);
 
+  const loadKnotFilters = useCallback(async () => {
+    setFiltersLoading(true);
+    try {
+      const response = await api.listKnotFilters(KNOTS_LOCALE);
+      setKnotFilters(response);
+    } catch {
+      setKnotFilters(EMPTY_KNOT_FILTERS);
+    } finally {
+      setFiltersLoading(false);
+    }
+  }, [api]);
+
   const loadKnots = useCallback(
     async ({
       offset,
-      q,
+      category,
       append,
     }: {
       offset: number;
-      q: string;
+      category: string;
       append: boolean;
     }) => {
       const requestId = listRequestRef.current + 1;
@@ -67,14 +99,14 @@ export default function KnotsPage({ api }: KnotsPageProps) {
         setLoading(true);
         setError(null);
       }
+      const normalizedCategory = category.trim();
       try {
         const request: ListKnotsRequest = {
           offset,
           limit: KNOTS_PAGE_SIZE,
         };
-        const trimmedQuery = q.trim();
-        if (trimmedQuery) {
-          request.q = trimmedQuery;
+        if (normalizedCategory) {
+          request.category = normalizedCategory;
         }
         const response = await api.listKnots(request, KNOTS_LOCALE);
         if (requestId !== listRequestRef.current) {
@@ -84,7 +116,7 @@ export default function KnotsPage({ api }: KnotsPageProps) {
           append ? [...current, ...response.items] : response.items,
         );
         setNextOffset(response.page.next_offset ?? null);
-        setActiveQuery(trimmedQuery);
+        setActiveFilters({ category: normalizedCategory });
       } catch {
         if (requestId !== listRequestRef.current) {
           return;
@@ -106,23 +138,33 @@ export default function KnotsPage({ api }: KnotsPageProps) {
 
   useEffect(() => {
     void loadOverview();
-    void loadKnots({ offset: 0, q: "", append: false });
-  }, [loadKnots, loadOverview]);
+    void loadKnotFilters();
+    void loadKnots({
+      offset: 0,
+      category: "",
+      append: false,
+    });
+  }, [loadKnots, loadKnotFilters, loadOverview]);
 
-  function handleSearch(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void loadKnots({ offset: 0, q: query, append: false });
+  function handleCategoryChange(event: React.ChangeEvent<HTMLSelectElement>) {
+    const category = event.target.value;
+    setSelectedCategory(category);
+    void loadKnots({
+      offset: 0,
+      category,
+      append: false,
+    });
   }
 
   function handleRetry() {
-    void loadKnots({ offset: 0, q: activeQuery, append: false });
+    void loadKnots({ offset: 0, ...activeFilters, append: false });
   }
 
   function handleLoadMore() {
     if (nextOffset === null || loadingMore) {
       return;
     }
-    void loadKnots({ offset: nextOffset, q: activeQuery, append: true });
+    void loadKnots({ offset: nextOffset, ...activeFilters, append: true });
   }
 
   async function openDetail(id: string) {
@@ -176,26 +218,39 @@ export default function KnotsPage({ api }: KnotsPageProps) {
         </div>
       </header>
 
-      <form className="filter-panel knots-search" onSubmit={handleSearch}>
-        <label htmlFor="knots-query">搜索绳结</label>
-        <div className="filter-row">
-          <input
-            id="knots-query"
-            aria-label="搜索绳结"
-            value={query}
-            placeholder="按用途、名称或场景搜索"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <button className="primary-button" type="submit" disabled={loading}>
-            搜索
-          </button>
+      <div className="filter-panel knots-filter-panel" aria-label="筛选绳结">
+        <div className="knot-filter-copy">
+          <span>按用途分类快速筛选</span>
+          <strong>选择绳结用途</strong>
+          <p>按露营、基础等用途查看绳结。</p>
         </div>
-      </form>
+        <label
+          className="knot-category-select-card"
+          htmlFor="knots-category-filter"
+        >
+          <span>用途分类</span>
+          <select
+            id="knots-category-filter"
+            className="knot-category-select"
+            aria-label="用途分类"
+            value={selectedCategory}
+            onChange={handleCategoryChange}
+            disabled={filtersLoading}
+          >
+            <option value="">全部用途</option>
+            {knotFilters.categories.map((option) => (
+              <option key={option.id} value={option.id}>
+                {filterOptionLabel(option)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       {error ? (
         <section className="empty-state knots-state" role="status">
           <h2>{error}</h2>
-          <p>可以稍后再试，或换一个关键词重新查找。</p>
+          <p>可以稍后再试，或换一个用途分类重新查找。</p>
           <button
             className="primary-button"
             type="button"
@@ -212,7 +267,7 @@ export default function KnotsPage({ api }: KnotsPageProps) {
           {!loading && knots.length === 0 ? (
             <div className="empty-state knots-state">
               <h2>没有找到相关绳结</h2>
-              <p>换个用途、场景或名称试试。</p>
+              <p>换个用途分类试试。</p>
             </div>
           ) : null}
           <div className="knot-grid">
@@ -259,6 +314,10 @@ export default function KnotsPage({ api }: KnotsPageProps) {
       ) : null}
     </section>
   );
+}
+
+function filterOptionLabel(option: KnotFilterOption): string {
+  return `${option.title}（${option.count}）`;
 }
 
 function KnotCard({

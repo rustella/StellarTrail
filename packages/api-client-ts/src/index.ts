@@ -16,6 +16,7 @@ import type {
   GearStatsResponse,
   HealthResponse,
   KnotDetail,
+  KnotFiltersResponse,
   KnotListResponse,
   KnotMediaAssetId,
   KnotMediaUploadResponse,
@@ -108,6 +109,10 @@ export class StellarTrailApiClient {
 
   async listSkills(locale?: SkillLocale): Promise<SkillCategoriesResponse> {
     return this.get("/api/skills", false, locale);
+  }
+
+  async listKnotFilters(locale?: SkillLocale): Promise<KnotFiltersResponse> {
+    return this.get("/api/skills/knots/filters", false, locale);
   }
 
   async listKnots(
