@@ -19,6 +19,37 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   exit 1
 fi
 
+detect_deploy_timezone() {
+  local timezone=""
+  if [[ -n "${TZ:-}" ]]; then
+    printf '%s\n' "$TZ"
+    return
+  fi
+  if command -v timedatectl >/dev/null 2>&1; then
+    timezone="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
+    if [[ -n "$timezone" ]]; then
+      printf '%s\n' "$timezone"
+      return
+    fi
+  fi
+  if [[ -f /etc/timezone ]]; then
+    timezone="$(head -n 1 /etc/timezone | tr -d '[:space:]')"
+    if [[ -n "$timezone" ]]; then
+      printf '%s\n' "$timezone"
+      return
+    fi
+  fi
+  if [[ -L /etc/localtime ]]; then
+    timezone="$(readlink /etc/localtime)"
+    case "$timezone" in
+      *zoneinfo/*)
+        printf '%s\n' "${timezone#*zoneinfo/}"
+        return
+        ;;
+    esac
+  fi
+}
+
 assignments="$("$PYTHON_BIN" - "$CONFIG_FILE" <<'PY'
 import sys
 from pathlib import Path
@@ -159,12 +190,14 @@ while IFS= read -r assignment; do
 done <<< "$assignments"
 
 export STELLARTAIL_DEPLOY_ROOT="$DEPLOY_ROOT"
+export STELLARTAIL_DEPLOY_TIMEZONE="${STELLARTAIL_DEPLOY_TIMEZONE:-$(detect_deploy_timezone)}"
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-stellartail-api}"
 
 if [[ "${1:-}" == "--print-derived-env" ]]; then
   for key in \
     COMPOSE_PROJECT_NAME \
     STELLARTAIL_DEPLOY_ROOT \
+    STELLARTAIL_DEPLOY_TIMEZONE \
     POSTGRES_USER \
     POSTGRES_PASSWORD \
     POSTGRES_DB \

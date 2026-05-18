@@ -3,6 +3,8 @@ services:
     build:
       context: ../../..
       dockerfile: infra/production/api/Dockerfile
+      args:
+        STELLARTAIL_DEPLOY_TIMEZONE: ${STELLARTAIL_DEPLOY_TIMEZONE:-}
     image: ${STELLARTAIL_API_IMAGE:-ghcr.io/rustella/stellartrail-api:latest}
     restart: unless-stopped
     depends_on:
