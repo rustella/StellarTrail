@@ -339,3 +339,27 @@ test("captcha required errors keep status code and response code", async () => {
     },
   );
 });
+
+test("not found API errors can be identified without exposing raw messages", async () => {
+  const storage = installWxMock((options) => {
+    assert.equal(options.url, "https://api.example.test/api/me/profile");
+    options.success({
+      statusCode: 404,
+      data: { code: "not_found", message: "resource not found" },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  const {
+    getCurrentUser,
+    isNotFoundApiError,
+  } = require("../.tmp-test/utils/api.js");
+
+  await assert.rejects(
+    () => getCurrentUser(),
+    (error) => {
+      assert.equal(isNotFoundApiError(error), true);
+      assert.equal(error.statusCode, 404);
+      return true;
+    },
+  );
+});

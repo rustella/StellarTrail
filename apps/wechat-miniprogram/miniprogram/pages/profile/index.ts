@@ -5,6 +5,8 @@ import {
   getStoredUser,
   hasAccessToken,
   isLoginRequiredError,
+  isNotFoundApiError,
+  uploadWechatAvatar,
 } from "../../utils/api";
 import { loginPageUrl } from "../../utils/auth-prompt";
 import {
@@ -19,6 +21,7 @@ Page({
     loggedIn: hasAccessToken(),
     accountProfile: buildAccountProfile(hasAccessToken()),
     accountError: "",
+    avatarLoading: false,
     ...getThemeViewData(),
   },
 
@@ -53,7 +56,57 @@ Page({
         });
         return;
       }
+      if (isNotFoundApiError(error)) {
+        this.setData({
+          loggedIn: hasAccessToken(),
+          accountProfile: buildAccountProfile(hasAccessToken()),
+          accountError: "",
+        });
+        return;
+      }
       this.setData({ accountError: getErrorMessage(error) });
+    }
+  },
+
+  onChooseWechatAvatar(
+    event: WechatMiniprogram.CustomEvent<{ avatarUrl?: string }>,
+  ) {
+    const avatarPath = event.detail.avatarUrl || "";
+    if (!avatarPath || !this.data.loggedIn || this.data.avatarLoading) {
+      return;
+    }
+    void this.uploadProfileAvatar(avatarPath);
+  },
+
+  async uploadProfileAvatar(filePath: string) {
+    this.setData({ avatarLoading: true, accountError: "" });
+    try {
+      await uploadWechatAvatar(filePath);
+      this.setData({
+        loggedIn: hasAccessToken(),
+        accountProfile: buildAccountProfile(true),
+        accountError: "",
+      });
+      wx.showToast({ title: "头像已更新", icon: "success" });
+    } catch (error) {
+      if (isLoginRequiredError(error)) {
+        this.setData({
+          loggedIn: false,
+          accountProfile: buildAccountProfile(false),
+          accountError: "",
+        });
+        wx.showToast({ title: "请重新登录", icon: "none" });
+        return;
+      }
+      if (isNotFoundApiError(error)) {
+        this.setData({ accountError: "头像保存暂不可用，请稍后再试" });
+        return;
+      }
+      this.setData({
+        accountError: `头像保存失败：${getErrorMessage(error)}`,
+      });
+    } finally {
+      this.setData({ avatarLoading: false });
     }
   },
 
@@ -103,7 +156,8 @@ function buildAccountProfile(loggedIn: boolean): {
       avatarInitial: "微",
     };
   }
-  const displayName = user.nickname || user.username || user.email || "微信用户";
+  const displayName =
+    user.nickname || user.username || user.email || "微信用户";
   return {
     displayName,
     avatarUrl: user.avatar_url || "",

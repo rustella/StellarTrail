@@ -158,7 +158,9 @@
 
   <view wx:if="{{wechatProfilePromptVisible}}" class="login-prompt-mask">
     <view class="login-prompt-card profile-import-card">
-      <view class="login-prompt-close" bindtap="skipWechatProfileImport">×</view>
+      <view class="login-prompt-close" bindtap="skipWechatProfileImport"
+        >×</view
+      >
       <view class="login-prompt-title">导入微信资料</view>
       <view class="login-prompt-message"
         >可以导入微信头像和昵称，跳过也不会影响使用。</view
