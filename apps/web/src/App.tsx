@@ -1236,7 +1236,7 @@ export default function App({ client }: AppProps) {
             aria-current={activePage === "atlasReview" ? "page" : undefined}
             onClick={() => navigateToPage("atlasReview")}
           >
-            装备图鉴审核
+            管理员后台
           </button>
           <div
             className="nav-group"
