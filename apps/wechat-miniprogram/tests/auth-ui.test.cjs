@@ -67,8 +67,10 @@ ${ts}`;
 
   assert.match(wxml, /accountProfile\.avatarUrl/);
   assert.match(wxml, /accountProfile\.displayName/);
+  assert.match(wxml, /wx:if="{{loggedIn}}"/);
   assert.match(wxml, /account-avatar-image/);
   assert.match(pageSource, /buildAccountProfile/);
+  assert.match(pageSource, /getCurrentUser/);
   assert.match(pageSource, /user\.nickname \|\| user\.username \|\| user\.email/);
   assert.match(pageSource, /user\.avatar_url \|\| ""/);
 });

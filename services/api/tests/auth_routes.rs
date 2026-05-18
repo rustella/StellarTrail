@@ -242,6 +242,46 @@ async fn local_mock_login_returns_token_and_user() {
 }
 
 #[tokio::test]
+async fn current_profile_returns_authenticated_user_snapshot() {
+    let app = test_app().await;
+
+    let (login_status, login_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/wechat-login",
+        None,
+        json!({
+            "code": "profile-current-user",
+            "profile": {
+                "nickname": "微信昵称",
+                "avatar_url": "https://assets.example.test/avatar.png"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(login_status, StatusCode::OK, "{login_value}");
+    let access_token = login_value["access_token"].as_str().unwrap();
+
+    let (unauthorized_status, unauthorized_value) =
+        send_empty(&app.router, "GET", "/api/me/profile", None).await;
+    assert_eq!(
+        unauthorized_status,
+        StatusCode::UNAUTHORIZED,
+        "{unauthorized_value}"
+    );
+
+    let (profile_status, profile_value) =
+        send_empty(&app.router, "GET", "/api/me/profile", Some(access_token)).await;
+
+    assert_eq!(profile_status, StatusCode::OK, "{profile_value}");
+    assert_eq!(profile_value["user"]["nickname"], "微信昵称");
+    assert_eq!(
+        profile_value["user"]["avatar_url"],
+        "https://assets.example.test/avatar.png"
+    );
+}
+
+#[tokio::test]
 async fn wechat_login_without_profile_preserves_existing_nickname_and_avatar() {
     let app = test_app().await;
 

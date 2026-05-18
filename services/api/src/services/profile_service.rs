@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use sha2::{Digest, Sha256};
 use stellartrail_db::repositories::{AuthRepository, UserRecord};
-use stellartrail_domain::upload::validate_image_upload;
+use stellartrail_domain::upload::{detect_image_type, validate_image_upload};
 use uuid::Uuid;
 
 use crate::{
@@ -13,6 +13,13 @@ use crate::{
 };
 
 const CACHE_CONTROL_AVATAR: &str = "public, max-age=31536000, immutable";
+
+/// Builds the current authenticated user's profile response.
+pub fn current_profile(user: &UserRecord) -> ProfileUserResponse {
+    ProfileUserResponse {
+        user: auth_service::login_user_response(user.clone()),
+    }
+}
 
 /// Validates and uploads the authenticated user's avatar, then updates the user row.
 pub async fn upload_avatar(
@@ -26,7 +33,22 @@ pub async fn upload_avatar(
     if bytes.len() as u64 > max_bytes {
         return Err(ApiError::PayloadTooLarge { max_bytes });
     }
-    let validated = validate_image_upload(original_filename, declared_content_type, &bytes)?;
+    let fallback_filename;
+    let upload_filename = match original_filename.filter(|filename| has_image_extension(filename)) {
+        Some(filename) => Some(filename),
+        None => {
+            let image_type = detect_image_type(&bytes).ok_or_else(|| {
+                stellartrail_domain::validation::ValidationError::single(
+                    "file",
+                    "unsupported or invalid image content",
+                )
+            })?;
+            fallback_filename = format!("wechat-avatar.{}", image_type.safe_extension());
+            Some(fallback_filename.as_str())
+        }
+    };
+    let upload_content_type = declared_content_type.filter(|value| is_supported_image_type(value));
+    let validated = validate_image_upload(upload_filename, upload_content_type, &bytes)?;
     let sha256 = sha256_hex(&bytes);
     let object_key = format!(
         "users/{}/avatar/{}-{}.{}",
@@ -101,4 +123,19 @@ fn safe_metadata_value(value: &str) -> String {
         .filter(|ch| !ch.is_control() && *ch != '\0')
         .take(160)
         .collect()
+}
+
+fn has_image_extension(filename: &str) -> bool {
+    let lower = filename.trim().to_ascii_lowercase();
+    lower.ends_with(".jpg")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".png")
+        || lower.ends_with(".webp")
+}
+
+fn is_supported_image_type(value: &&str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "image/jpeg" | "image/jpg" | "image/png" | "image/webp"
+    )
 }

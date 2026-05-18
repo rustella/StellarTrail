@@ -1,7 +1,10 @@
 import {
   clearLoginState,
+  getCurrentUser,
+  getErrorMessage,
   getStoredUser,
   hasAccessToken,
+  isLoginRequiredError,
 } from "../../utils/api";
 import { loginPageUrl } from "../../utils/auth-prompt";
 import {
@@ -14,20 +17,44 @@ Page({
   data: {
     title: "我的寻径星野",
     loggedIn: hasAccessToken(),
-    accountProfile: buildAccountProfile(),
+    accountProfile: buildAccountProfile(hasAccessToken()),
+    accountError: "",
     ...getThemeViewData(),
   },
 
   onShow() {
     syncPageTheme(this);
-    this.refreshAccountState();
+    void this.refreshAccountState();
   },
 
-  refreshAccountState() {
+  async refreshAccountState() {
+    const loggedIn = hasAccessToken();
     this.setData({
-      loggedIn: hasAccessToken(),
-      accountProfile: buildAccountProfile(),
+      loggedIn,
+      accountProfile: buildAccountProfile(loggedIn),
+      accountError: "",
     });
+    if (!loggedIn) {
+      return;
+    }
+    try {
+      await getCurrentUser();
+      this.setData({
+        loggedIn: hasAccessToken(),
+        accountProfile: buildAccountProfile(true),
+        accountError: "",
+      });
+    } catch (error) {
+      if (isLoginRequiredError(error)) {
+        this.setData({
+          loggedIn: false,
+          accountProfile: buildAccountProfile(false),
+          accountError: "",
+        });
+        return;
+      }
+      this.setData({ accountError: getErrorMessage(error) });
+    }
   },
 
   goLogin() {
@@ -45,7 +72,7 @@ Page({
           return;
         }
         clearLoginState();
-        this.refreshAccountState();
+        void this.refreshAccountState();
         wx.showToast({ title: "已退出", icon: "success" });
       },
     });
@@ -56,17 +83,24 @@ Page({
   },
 });
 
-function buildAccountProfile(): {
+function buildAccountProfile(loggedIn: boolean): {
   displayName: string;
   avatarUrl: string;
   avatarInitial: string;
 } {
   const user = getStoredUser();
+  if (!loggedIn) {
+    return {
+      displayName: "",
+      avatarUrl: "",
+      avatarInitial: "",
+    };
+  }
   if (!user) {
     return {
-      displayName: "未登录",
+      displayName: "微信用户",
       avatarUrl: "",
-      avatarInitial: "未",
+      avatarInitial: "微",
     };
   }
   const displayName = user.nickname || user.username || user.email || "微信用户";
