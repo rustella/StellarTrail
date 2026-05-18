@@ -67,25 +67,21 @@
     <view class="profile-modal-card">
       <view class="profile-modal-title">修改名称</view>
       <view wx:if="{{!nicknameEditMode}}" class="profile-name-methods">
-        <button class="profile-name-method" bindtap="useWechatNickname">
-          导入微信名称
-        </button>
+        <input
+          class="profile-name-method profile-name-method-input"
+          type="nickname"
+          placeholder="导入微信名称"
+          disabled="{{nicknameLoading}}"
+          confirm-type="done"
+          bindblur="saveWechatNickname"
+          bindconfirm="saveWechatNickname"
+        />
         <button class="profile-name-method" bindtap="useCustomNickname">
           使用自定义名称
         </button>
       </view>
       <view wx:else class="profile-name-form">
         <input
-          wx:if="{{nicknameEditMode === 'wechat'}}"
-          class="profile-name-input"
-          type="nickname"
-          placeholder="微信名称"
-          value="{{nicknameDraft}}"
-          disabled="{{nicknameLoading}}"
-          bindinput="onNicknameInput"
-        />
-        <input
-          wx:else
           class="profile-name-input"
           type="text"
           placeholder="自定义名称"

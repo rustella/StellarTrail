@@ -181,6 +181,11 @@
   border: 0;
 }
 
+.profile-name-method-input {
+  height: 88rpx;
+  box-sizing: border-box;
+}
+
 .profile-name-form {
   margin-top: 24rpx;
 }
