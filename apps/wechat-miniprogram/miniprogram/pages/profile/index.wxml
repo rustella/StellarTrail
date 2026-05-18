@@ -79,20 +79,21 @@
           使用自定义名称
         </button>
       </view>
-      <view
+      <form
         wx:elif="{{nicknameEditMode === 'wechat'}}"
         class="profile-name-form"
+        bindsubmit="saveWechatNickname"
       >
         <input
           class="profile-name-input"
+          name="nickname"
           type="nickname"
-          placeholder="微信名称"
+          placeholder="点击选择微信名称"
           value="{{nicknameDraft}}"
           disabled="{{nicknameLoading}}"
           confirm-type="done"
           bindinput="onNicknameInput"
-          bindblur="saveWechatNickname"
-          bindconfirm="saveWechatNickname"
+          bindnicknamereview="onWechatNicknameReview"
         />
         <view wx:if="{{accountError}}" class="profile-modal-error"
           >{{accountError}}</view
@@ -108,12 +109,12 @@
           <button
             class="account-inline-button"
             loading="{{nicknameLoading}}"
-            bindtap="saveNickname"
+            form-type="submit"
           >
             保存
           </button>
         </view>
-      </view>
+      </form>
       <view wx:else class="profile-name-form">
         <input
           class="profile-name-input"
