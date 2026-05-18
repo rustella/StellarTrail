@@ -38,12 +38,18 @@ interface ApiRequestOptions {
   locale?: SkillLocale;
 }
 
+export interface WechatLoginProfile {
+  nickname?: string | null;
+  avatar_url?: string | null;
+}
+
 interface WechatLoginRequest {
   code: string;
-  profile?: {
-    nickname?: string | null;
-    avatar_url?: string | null;
-  };
+  profile?: WechatLoginProfile;
+}
+
+interface ProfileUserResponse {
+  user: WechatLoginResponse["user"];
 }
 
 export interface EmailVerificationCodeRequest {
@@ -248,9 +254,11 @@ export async function ensureAccessToken(): Promise<string> {
   throw new LoginRequiredError("登录后继续");
 }
 
-export async function loginWithWechat(): Promise<string> {
+export async function loginWithWechat(
+  profile?: WechatLoginProfile,
+): Promise<string> {
   if (!loginPromise) {
-    loginPromise = runWechatLogin().finally(() => {
+    loginPromise = runWechatLogin(profile).finally(() => {
       loginPromise = null;
     });
   }
@@ -346,23 +354,40 @@ export function createCaptcha(
   });
 }
 
-async function runWechatLogin(): Promise<string> {
+async function runWechatLogin(profile?: WechatLoginProfile): Promise<string> {
   const code = await getWechatLoginCode();
+  const normalizedProfile = normalizeWechatLoginProfile(profile);
   const response = await requestJson<WechatLoginResponse>(
     "/api/auth/wechat-login",
     {
       method: "POST",
       data: {
         code,
-        profile: {
-          nickname: "寻径星野用户",
-          avatar_url: null,
-        },
+        ...(normalizedProfile ? { profile: normalizedProfile } : {}),
       } satisfies WechatLoginRequest,
     },
   );
   saveLoginResponse(response);
   return response.access_token;
+}
+
+export async function uploadWechatAvatar(
+  filePath: string,
+): Promise<WechatLoginResponse["user"]> {
+  const token = await ensureAccessToken();
+  try {
+    const response = await uploadWechatAvatarOnce(filePath, token);
+    saveUser(response.user);
+    return response.user;
+  } catch (error) {
+    if (isApiResponseError(error) && error.statusCode === 401) {
+      const refreshedToken = await refreshAccessToken();
+      const response = await uploadWechatAvatarOnce(filePath, refreshedToken);
+      saveUser(response.user);
+      return response.user;
+    }
+    throw error;
+  }
 }
 
 export async function refreshAccessToken(): Promise<string> {
@@ -562,6 +587,76 @@ function saveLoginResponse(response: WechatLoginResponse): void {
     response.refresh_expires_at,
   );
   wx.setStorageSync(USER_STORAGE_KEY, response.user);
+}
+
+function saveUser(user: WechatLoginResponse["user"]): void {
+  wx.setStorageSync(USER_STORAGE_KEY, user);
+}
+
+function normalizeWechatLoginProfile(
+  profile?: WechatLoginProfile,
+): WechatLoginProfile | undefined {
+  if (!profile) {
+    return undefined;
+  }
+  const nickname = normalizeOptionalString(profile.nickname);
+  const avatarUrl = normalizeOptionalString(profile.avatar_url);
+  if (!nickname && !avatarUrl) {
+    return undefined;
+  }
+  return {
+    ...(nickname ? { nickname } : {}),
+    ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
+  };
+}
+
+function normalizeOptionalString(value?: string | null): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function uploadWechatAvatarOnce(
+  filePath: string,
+  token: string,
+): Promise<ProfileUserResponse> {
+  return new Promise((resolve, reject) => {
+    wx.uploadFile({
+      url: `${getApiBaseUrl()}/api/me/profile/avatar`,
+      filePath,
+      name: "file",
+      header: {
+        authorization: `Bearer ${token}`,
+      },
+      success: (response) => {
+        const data = parseUploadResponseData(response.data);
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          resolve(data as ProfileUserResponse);
+          return;
+        }
+        reject(new ApiResponseError(response.statusCode, data));
+      },
+      fail: (error) => {
+        reject(new Error(error.errMsg || "头像上传失败，请稍后再试"));
+      },
+    });
+  });
+}
+
+function parseUploadResponseData(data: string | object): unknown {
+  if (typeof data !== "string") {
+    return data;
+  }
+  if (!data) {
+    return {};
+  }
+  try {
+    return JSON.parse(data) as unknown;
+  } catch {
+    return { message: data };
+  }
 }
 
 function normalizePasswordLoginRequest(

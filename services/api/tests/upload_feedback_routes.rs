@@ -9,7 +9,8 @@ use serde_json::{Value, json};
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
     config::{
-        ApiConfig, CorsConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig,
+        ApiConfig, AvatarStorageConfig, CorsConfig, ObjectStorageConfig, PublicApiConfig,
+        RedisCacheConfig, UploadConfig,
     },
     migrate_database,
     object_store::InMemoryObjectStore,
@@ -57,6 +58,11 @@ async fn test_app(max_images_per_window: u64) -> TestApp {
         minio: Default::default(),
         object_storage: ObjectStorageConfig {
             bucket: "test-uploads".to_owned(),
+        },
+        avatar_storage: AvatarStorageConfig {
+            bucket: "test-avatars".to_owned(),
+            public_base_url: "https://assets.example.test/test-avatars".to_owned(),
+            max_image_bytes: 2_000_000,
         },
         knots_media_storage: Default::default(),
         admin: Default::default(),
@@ -205,6 +211,50 @@ async fn upload_image(
     (status, value)
 }
 
+async fn upload_avatar(
+    app: &Router,
+    token: Option<&str>,
+    filename: &str,
+    declared_content_type: &str,
+    bytes: &[u8],
+) -> (StatusCode, Value) {
+    let boundary = "stellartrail-avatar-test-boundary";
+    let mut body = Vec::new();
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(
+        format!(
+            "Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: {declared_content_type}\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(bytes);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+
+    let mut builder = Request::builder()
+        .method("PUT")
+        .uri("/api/me/profile/avatar")
+        .header(
+            header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={boundary}"),
+        );
+    if let Some(token) = token {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(builder.body(Body::from(body)).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let value = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap()
+    };
+    (status, value)
+}
+
 #[tokio::test]
 async fn authenticated_user_can_upload_png_feedback_image_to_object_store() {
     let app = test_app(30).await;
@@ -236,6 +286,71 @@ async fn authenticated_user_can_upload_png_feedback_image_to_object_store() {
     assert!(stored.object_key.starts_with("feedback-images/"));
     assert!(stored.object_key.ends_with(".png"));
     assert_eq!(stored.content_type, "image/png");
+}
+
+#[tokio::test]
+async fn authenticated_user_can_upload_avatar_to_public_bucket_and_update_profile() {
+    let app = test_app(30).await;
+    let token = register_password_user(&app.router, "avatar").await;
+
+    let (status, value) = upload_avatar(
+        &app.router,
+        Some(&token),
+        "avatar.png",
+        "image/png",
+        PNG_1X1,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "{value}");
+    assert_eq!(value["user"]["username"], "upload_avatar");
+    let avatar_url = value["user"]["avatar_url"].as_str().unwrap();
+    assert!(
+        avatar_url.starts_with("https://assets.example.test/test-avatars/users/"),
+        "{avatar_url}"
+    );
+    assert!(avatar_url.ends_with(".png"), "{avatar_url}");
+    assert_eq!(app.object_store.object_count(), 1);
+    let stored = app.object_store.only_object().unwrap();
+    assert_eq!(stored.bucket.as_deref(), Some("test-avatars"));
+    assert!(stored.object_key.starts_with("users/"));
+    assert!(stored.object_key.ends_with(".png"));
+    assert_eq!(stored.content_type, "image/png");
+    assert_eq!(
+        stored.cache_control.as_deref(),
+        Some("public, max-age=31536000, immutable")
+    );
+}
+
+#[tokio::test]
+async fn avatar_upload_requires_authentication() {
+    let app = test_app(30).await;
+
+    let (status, value) =
+        upload_avatar(&app.router, None, "avatar.png", "image/png", PNG_1X1).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "{value}");
+    assert_eq!(value["code"], "unauthorized");
+    assert_eq!(app.object_store.object_count(), 0);
+}
+
+#[tokio::test]
+async fn avatar_upload_rejects_invalid_image_without_storing_object() {
+    let app = test_app(30).await;
+    let token = register_password_user(&app.router, "avatar-invalid").await;
+
+    let (status, value) = upload_avatar(
+        &app.router,
+        Some(&token),
+        "avatar.png",
+        "image/png",
+        b"<html>not an image</html>",
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{value}");
+    assert_eq!(value["code"], "validation_failed");
+    assert_eq!(app.object_store.object_count(), 0);
 }
 
 #[tokio::test]

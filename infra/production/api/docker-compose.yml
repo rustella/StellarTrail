@@ -129,6 +129,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?run infra/production/api/compose-from-config.sh so minio.access_key_id in config.yaml is exported}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?run infra/production/api/compose-from-config.sh so minio.secret_access_key in config.yaml is exported}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-stellartrail-uploads}
+      AVATAR_STORAGE_BUCKET: ${AVATAR_STORAGE_BUCKET:-stellartrail-avatars}
       KNOTS_MEDIA_BUCKET: ${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
     networks:
       - backend
@@ -138,6 +139,8 @@ services:
         mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
         mc mb -p "local/$${OBJECT_STORAGE_BUCKET}" || true
         mc anonymous set none "local/$${OBJECT_STORAGE_BUCKET}"
+        mc mb -p "local/$${AVATAR_STORAGE_BUCKET}" || true
+        mc anonymous set download "local/$${AVATAR_STORAGE_BUCKET}"
         mc mb -p "local/$${KNOTS_MEDIA_BUCKET}" || true
         mc anonymous set download "local/$${KNOTS_MEDIA_BUCKET}"
 

@@ -382,6 +382,10 @@ export interface BindEmailResponse {
   user: AuthUserResponse;
 }
 
+export interface ProfileUserResponse {
+  user: AuthUserResponse;
+}
+
 export interface ImportGearsRequest {
   dry_run?: boolean;
   items: CreateGearRequest[];

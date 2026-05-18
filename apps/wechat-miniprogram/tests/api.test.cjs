@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-function installWxMock(handler) {
+function installWxMock(handler, uploadHandler) {
   const storage = new Map();
   global.getApp = () => ({ globalData: { apiBaseUrl: "https://api.example.test" } });
   global.wx = {
@@ -20,6 +20,12 @@ function installWxMock(handler) {
     request(options) {
       handler(options, storage);
     },
+    uploadFile(options) {
+      if (!uploadHandler) {
+        throw new Error("unexpected wx.uploadFile call");
+      }
+      uploadHandler(options, storage);
+    },
   };
   return storage;
 }
@@ -35,19 +41,73 @@ function loginResponse(accessToken, refreshToken) {
 }
 
 test("loginWithWechat persists access and refresh tokens", async () => {
+  const calls = [];
   const storage = installWxMock((options) => {
+    calls.push({ url: options.url, method: options.method, data: options.data });
     assert.equal(options.url, "https://api.example.test/api/auth/wechat-login");
     options.success({ statusCode: 200, data: loginResponse("access-new", "refresh-new") });
   });
   const { loginWithWechat } = require("../.tmp-test/utils/api.js");
 
   await assert.doesNotReject(loginWithWechat());
+  assert.deepEqual(calls[0].data, { code: "wx-login-code" });
   assert.equal(storage.get("stellartrail_access_token"), "access-new");
   assert.equal(storage.get("stellartrail_refresh_token"), "refresh-new");
   assert.deepEqual(storage.get("stellartrail_user"), {
     id: "u1",
     nickname: "小程序用户",
     avatar_url: null,
+  });
+});
+
+test("loginWithWechat sends provided profile without default nickname", async () => {
+  const calls = [];
+  installWxMock((options) => {
+    calls.push({ url: options.url, data: options.data });
+    options.success({ statusCode: 200, data: loginResponse("access-profile", "refresh-profile") });
+  });
+  const { loginWithWechat } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(loginWithWechat({ nickname: " 微信昵称 ", avatar_url: "" }));
+
+  assert.deepEqual(calls[0].data, {
+    code: "wx-login-code",
+    profile: { nickname: "微信昵称" },
+  });
+});
+
+test("uploadWechatAvatar uploads with bearer token and stores returned user", async () => {
+  const storage = installWxMock(
+    () => {
+      throw new Error("unexpected wx.request call");
+    },
+    (options) => {
+      assert.equal(options.url, "https://api.example.test/api/me/profile/avatar");
+      assert.equal(options.filePath, "/tmp/avatar.png");
+      assert.equal(options.name, "file");
+      assert.equal(options.header.authorization, "Bearer access-old");
+      options.success({
+        statusCode: 200,
+        data: JSON.stringify({
+          user: {
+            id: "u1",
+            nickname: "小程序用户",
+            avatar_url: "https://assets.example.test/avatar.png",
+          },
+        }),
+      });
+    },
+  );
+  storage.set("stellartrail_access_token", "access-old");
+  const { uploadWechatAvatar } = require("../.tmp-test/utils/api.js");
+
+  const user = await uploadWechatAvatar("/tmp/avatar.png");
+
+  assert.equal(user.avatar_url, "https://assets.example.test/avatar.png");
+  assert.deepEqual(storage.get("stellartrail_user"), {
+    id: "u1",
+    nickname: "小程序用户",
+    avatar_url: "https://assets.example.test/avatar.png",
   });
 });
 

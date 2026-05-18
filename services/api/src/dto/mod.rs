@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod feedback;
 pub mod gear;
+pub mod profile;
 pub mod upload;
 
 pub mod knot_media;

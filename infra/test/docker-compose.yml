@@ -65,6 +65,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-stellartrail-local-secret}
       MINIO_API_HOST_PORT: ${MINIO_API_HOST_PORT:-19000}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-stellartrail-uploads}
+      AVATAR_STORAGE_BUCKET: ${AVATAR_STORAGE_BUCKET:-stellartrail-avatars}
       KNOTS_MEDIA_BUCKET: ${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
     entrypoint: ["/bin/sh", "-c"]
     command:
@@ -72,6 +73,8 @@ services:
         mc alias set local "http://host.docker.internal:$${MINIO_API_HOST_PORT}" "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
         mc mb -p "local/$${OBJECT_STORAGE_BUCKET}" || true
         mc anonymous set none "local/$${OBJECT_STORAGE_BUCKET}"
+        mc mb -p "local/$${AVATAR_STORAGE_BUCKET}" || true
+        mc anonymous set download "local/$${AVATAR_STORAGE_BUCKET}"
         mc mb -p "local/$${KNOTS_MEDIA_BUCKET}" || true
         mc anonymous set download "local/$${KNOTS_MEDIA_BUCKET}"
 
@@ -120,6 +123,9 @@ services:
       MINIO_SECRET_ACCESS_KEY: ${MINIO_SECRET_ACCESS_KEY:-stellartrail-local-secret}
       MINIO_FORCE_PATH_STYLE: "true"
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-stellartrail-uploads}
+      AVATAR_STORAGE_BUCKET: ${AVATAR_STORAGE_BUCKET:-stellartrail-avatars}
+      AVATAR_STORAGE_PUBLIC_BASE_URL: http://127.0.0.1:${MINIO_API_HOST_PORT:-19000}/${AVATAR_STORAGE_BUCKET:-stellartrail-avatars}
+      AVATAR_STORAGE_MAX_IMAGE_BYTES: ${AVATAR_STORAGE_MAX_IMAGE_BYTES:-2000000}
       KNOTS_MEDIA_STORAGE_PROFILE: ${KNOTS_MEDIA_STORAGE_PROFILE:-knots-public}
       KNOTS_MEDIA_BUCKET: ${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
       KNOTS_MEDIA_PUBLIC_BASE_URL: http://127.0.0.1:${MINIO_API_HOST_PORT:-19000}/${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}

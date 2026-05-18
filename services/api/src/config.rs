@@ -23,6 +23,7 @@ struct FileConfig {
     upload: FileUploadConfig,
     minio: FileMinioConfig,
     object_storage: FileObjectStorageConfig,
+    avatar_storage: FileAvatarStorageConfig,
     knots_media_storage: FileKnotsMediaStorageConfig,
     admin: FileAdminConfig,
     public_api: FilePublicApiConfig,
@@ -82,6 +83,14 @@ struct FileMinioConfig {
 #[serde(default, deny_unknown_fields)]
 struct FileObjectStorageConfig {
     bucket: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct FileAvatarStorageConfig {
+    bucket: Option<String>,
+    public_base_url: Option<String>,
+    max_image_bytes: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -276,6 +285,24 @@ impl Default for ObjectStorageConfig {
     }
 }
 
+/// Public profile avatar bucket configuration. Public URLs can point at a different MinIO/CDN domain than the API.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AvatarStorageConfig {
+    pub bucket: String,
+    pub public_base_url: String,
+    pub max_image_bytes: u64,
+}
+
+impl Default for AvatarStorageConfig {
+    fn default() -> Self {
+        Self {
+            bucket: "stellartrail-avatars".to_owned(),
+            public_base_url: "http://127.0.0.1:19000/stellartrail-avatars".to_owned(),
+            max_image_bytes: 2_000_000,
+        }
+    }
+}
+
 /// Public Knots3D media bucket configuration. Public URLs can point at a different MinIO/CDN domain than the API.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct KnotsMediaStorageConfig {
@@ -377,6 +404,7 @@ pub struct ApiConfig {
     pub upload: UploadConfig,
     pub minio: MinioConfig,
     pub object_storage: ObjectStorageConfig,
+    pub avatar_storage: AvatarStorageConfig,
     pub knots_media_storage: KnotsMediaStorageConfig,
     pub admin: AdminConfig,
     pub public_api: PublicApiConfig,
@@ -395,6 +423,7 @@ impl ApiConfig {
             upload: file_upload,
             minio: file_minio,
             object_storage: file_object_storage,
+            avatar_storage: file_avatar_storage,
             knots_media_storage: file_knots_media_storage,
             admin: file_admin,
             public_api: file_public_api,
@@ -490,6 +519,28 @@ impl ApiConfig {
             ),
         };
         validate_object_storage_config(&object_storage)?;
+
+        let default_avatar_storage = AvatarStorageConfig::default();
+        let avatar_bucket = config_string_env(
+            "AVATAR_STORAGE_BUCKET",
+            file_avatar_storage.bucket,
+            &default_avatar_storage.bucket,
+        );
+        let avatar_public_base_url = config_optional_string_env(
+            "AVATAR_STORAGE_PUBLIC_BASE_URL",
+            file_avatar_storage.public_base_url,
+        )
+        .unwrap_or_else(|| format!("{}/{}", minio.endpoint.trim_end_matches('/'), avatar_bucket));
+        let avatar_storage = AvatarStorageConfig {
+            bucket: avatar_bucket,
+            public_base_url: avatar_public_base_url.trim_end_matches('/').to_owned(),
+            max_image_bytes: config_u64_env(
+                "AVATAR_STORAGE_MAX_IMAGE_BYTES",
+                file_avatar_storage.max_image_bytes,
+                default_avatar_storage.max_image_bytes,
+            )?,
+        };
+        validate_avatar_storage_config(&avatar_storage)?;
 
         let default_knots_storage = KnotsMediaStorageConfig::default();
         let knots_media_bucket = config_string_env(
@@ -652,6 +703,7 @@ impl ApiConfig {
             upload,
             minio,
             object_storage,
+            avatar_storage,
             knots_media_storage,
             admin,
             public_api,
@@ -798,6 +850,19 @@ fn validate_minio_config(config: &MinioConfig) -> anyhow::Result<()> {
 fn validate_object_storage_config(config: &ObjectStorageConfig) -> anyhow::Result<()> {
     if config.bucket.trim().is_empty() {
         anyhow::bail!("OBJECT_STORAGE_BUCKET must not be empty");
+    }
+    Ok(())
+}
+
+fn validate_avatar_storage_config(config: &AvatarStorageConfig) -> anyhow::Result<()> {
+    if config.bucket.trim().is_empty() {
+        anyhow::bail!("AVATAR_STORAGE_BUCKET must not be empty");
+    }
+    if config.public_base_url.trim().is_empty() {
+        anyhow::bail!("AVATAR_STORAGE_PUBLIC_BASE_URL must not be empty");
+    }
+    if config.max_image_bytes == 0 {
+        anyhow::bail!("AVATAR_STORAGE_MAX_IMAGE_BYTES must be greater than 0");
     }
     Ok(())
 }
@@ -1027,6 +1092,10 @@ minio:
   force_path_style: true
 object_storage:
   bucket: yaml-uploads
+avatar_storage:
+  bucket: yaml-avatars
+  public_base_url: https://cdn.example.invalid/avatars
+  max_image_bytes: 444444
 knots_media_storage:
   storage_profile: yaml-knots
   bucket: yaml-knots-media
@@ -1087,6 +1156,12 @@ mail:
         assert_eq!(config.upload.max_image_bytes, 111111);
         assert_eq!(config.minio.endpoint, "http://minio.example.invalid");
         assert_eq!(config.object_storage.bucket, "yaml-uploads");
+        assert_eq!(config.avatar_storage.bucket, "yaml-avatars");
+        assert_eq!(
+            config.avatar_storage.public_base_url,
+            "https://cdn.example.invalid/avatars"
+        );
+        assert_eq!(config.avatar_storage.max_image_bytes, 444444);
         assert_eq!(config.knots_media_storage.storage_profile, "yaml-knots");
         assert_eq!(config.knots_media_storage.max_video_bytes, 333333);
         assert_eq!(config.admin.user_ids, vec!["user-a".to_owned()]);
@@ -1190,6 +1265,12 @@ public_api:
             env::set_var("MINIO_SECRET_ACCESS_KEY", " local-secret ");
             env::set_var("MINIO_FORCE_PATH_STYLE", "true");
             env::set_var("OBJECT_STORAGE_BUCKET", " stellartrail-test ");
+            env::set_var("AVATAR_STORAGE_BUCKET", " stellartrail-avatar-test ");
+            env::set_var(
+                "AVATAR_STORAGE_PUBLIC_BASE_URL",
+                " https://assets.example.test/avatars ",
+            );
+            env::set_var("AVATAR_STORAGE_MAX_IMAGE_BYTES", "234567");
         }
 
         let config = ApiConfig::from_env().unwrap();
@@ -1207,6 +1288,12 @@ public_api:
         assert_eq!(config.minio.secret_access_key, "local-secret");
         assert!(config.minio.force_path_style);
         assert_eq!(config.object_storage.bucket, "stellartrail-test");
+        assert_eq!(config.avatar_storage.bucket, "stellartrail-avatar-test");
+        assert_eq!(
+            config.avatar_storage.public_base_url,
+            "https://assets.example.test/avatars"
+        );
+        assert_eq!(config.avatar_storage.max_image_bytes, 234567);
 
         restore_env(saved);
     }
@@ -1375,6 +1462,9 @@ public_api:
         "OBJECT_STORAGE_ACCESS_KEY_ID",
         "OBJECT_STORAGE_SECRET_ACCESS_KEY",
         "OBJECT_STORAGE_FORCE_PATH_STYLE",
+        "AVATAR_STORAGE_BUCKET",
+        "AVATAR_STORAGE_PUBLIC_BASE_URL",
+        "AVATAR_STORAGE_MAX_IMAGE_BYTES",
         "PUBLIC_API_RATE_LIMIT_ENABLED",
         "PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS",
         "PUBLIC_API_RATE_LIMIT_MAX_REQUESTS_PER_IP",
