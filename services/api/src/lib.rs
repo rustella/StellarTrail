@@ -41,7 +41,7 @@ pub async fn build_state(config: ApiConfig) -> anyhow::Result<AppState> {
         AppState::new_with_wechat_client_cache_object_store_and_email_sender(
             config,
             db,
-            Arc::new(services::wechat::CurlWechatCodeSessionClient),
+            Arc::new(services::wechat::HttpWechatCodeSessionClient),
             cache,
             Arc::new(object_store),
             email_sender,

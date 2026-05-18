@@ -21,6 +21,8 @@ lettre.workspace = true
 http-body-util.workspace = true
 rand.workspace = true
 redis.workspace = true
+rustls.workspace = true
+rustls-pki-types.workspace = true
 sea-orm.workspace = true
 sea-orm-migration.workspace = true
 serde.workspace = true
@@ -37,6 +39,7 @@ tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
+webpki-roots.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

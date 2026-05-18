@@ -19,9 +19,7 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   exit 1
 fi
 
-while IFS= read -r assignment; do
-  export "$assignment"
-done < <("$PYTHON_BIN" - "$CONFIG_FILE" <<'PY'
+assignments="$("$PYTHON_BIN" - "$CONFIG_FILE" <<'PY'
 import sys
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -143,12 +141,18 @@ emit("MINIO_ROOT_PASSWORD", require("minio", "secret_access_key"))
 emit("OBJECT_STORAGE_BUCKET", get("object_storage", "bucket", "stellartrail-uploads"))
 emit("KNOTS_MEDIA_BUCKET", get("knots_media_storage", "bucket", "stellartrail-knots-media"))
 PY
-)
+)"
+
+while IFS= read -r assignment; do
+  export "$assignment"
+done <<< "$assignments"
 
 export STELLARTAIL_DEPLOY_ROOT="$DEPLOY_ROOT"
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-stellartail-api}"
 
 if [[ "${1:-}" == "--print-derived-env" ]]; then
   for key in \
+    COMPOSE_PROJECT_NAME \
     STELLARTAIL_DEPLOY_ROOT \
     POSTGRES_USER \
     POSTGRES_PASSWORD \
