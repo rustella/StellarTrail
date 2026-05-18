@@ -442,13 +442,15 @@ GET /api/admin/api-usage?from=2026-05-01&to=2026-05-18&method=GET&route=/api/me/
 
 ## Cache / performance
 
-服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/me/gears`、`PATCH /api/me/gears/:id`、`DELETE /api/me/gears/:id`、`POST /api/me/gears/:id/restore` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境。
+服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/me/gears`、`PATCH /api/me/gears/:id`、`DELETE /api/me/gears/:id`、`POST /api/me/gears/:id/restore` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境。装备 specs 字段频次也只保存在 Redis sorted set 中，key 为 `<prefix>:gear:<user_id>:spec-keys:<category>`，member 只保存 spec key，不保存用户填写的具体值。用户标签建议也只保存在 Redis：标签频次 key 为 `<prefix>:gear:<user_id>:tags`，标签颜色偏好 hash key 为 `<prefix>:gear:<user_id>:tag-colors`。
 
 ## Gear inventory
 
 ```http
 GET /api/me/gears/categories?tab=available
 GET /api/me/gears/stats?tab=available
+GET /api/me/gears/spec-key-rankings?category=electronics_system
+GET /api/me/gears/tag-suggestions?limit=20
 GET /api/me/gears?tab=available&category=electronics_system&status=available&q=nitecore&sort=created_at_desc&limit=20&cursor=0
 POST /api/me/gears
 GET /api/me/gears/:id
@@ -478,27 +480,60 @@ POST /api/me/gears/import
   "name": "NITECORE奈特科尔SUMMIT 20000超薄充电宝",
   "brand": "NITECORE奈特科尔",
   "model": "SUMMIT 20000",
-  "color": null,
-  "material": null,
-  "capacity": "20000mAh",
-  "size": null,
   "description": "冬季徒步备用电源",
   "weight_g": 315,
-  "warmth_index": null,
-  "waterproof_index": null,
+  "official_price_cents": 69900,
+  "official_price_currency": "CNY",
   "purchase_date": "2026-01-22",
   "purchase_price_cents": 63900,
-  "expiry_or_warranty_date": null,
+  "purchase_price_currency": "CNY",
   "purchase_location": "京东",
   "status": "available",
   "storage_location": "装备柜 A1",
+  "specs": {
+    "battery_capacity": "20000 mAh",
+    "rated_energy": "74 Wh"
+  },
   "tags": ["冬季", "电子"],
+  "tag_colors": {
+    "冬季": "blue",
+    "电子": "teal"
+  },
   "share_enabled": false,
   "notes": "充满电后入库"
 }
 ```
 
+装备表只保存 `tags` 文本数组；`tag_colors` 是用户标签库颜色偏好，只写入 Redis，不写入装备表。装备列表和详情响应会返回当前装备标签对应的 `tag_colors` 映射，客户端刷新后即可按后端最新颜色重新渲染。支持颜色 token：`teal`、`blue`、`violet`、`rose`、`orange`、`amber`、`green`、`slate`。
+
 删除接口是软删除：`DELETE /api/me/gears/:id` 会进入 `tab=history`；`POST /api/me/gears/:id/restore` 可恢复。
+
+### Spec key rankings
+
+`GET /api/me/gears/spec-key-rankings?category=electronics_system` 返回当前登录用户在该装备分类下常填写的 specs 字段 key：
+
+```json
+{
+  "keys": ["battery_capacity", "rated_energy"]
+}
+```
+
+该接口只返回当前分类允许的 spec key。Redis 未启用或不可用时返回空数组，装备保存不受影响。
+
+### Tag suggestions
+
+`GET /api/me/gears/tag-suggestions?limit=20` 返回当前登录用户常用装备标签，以及该标签当前颜色偏好：
+
+```json
+{
+  "items": [
+    { "tag": "冬季", "color": "blue" },
+    { "tag": "电子", "color": "teal" }
+  ]
+}
+```
+
+标签建议按 Redis 频次倒序返回，`limit` 默认 20、最大 50。Redis 未启用或不可用时返回空数组；装备保存不受影响。
 
 ## Enums
 

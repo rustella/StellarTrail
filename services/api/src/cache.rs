@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use redis::AsyncCommands;
 use serde::{Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
+use stellartrail_domain::gear::{GearCategory, GearSpecs, allowed_spec_keys};
 use tracing::warn;
 
 use crate::config::RedisCacheConfig;
@@ -169,6 +170,158 @@ impl Cache {
         }
     }
 
+    /// Records which normalized spec fields the current user submitted for a category without storing any spec values.
+    pub async fn record_gear_spec_keys(
+        &self,
+        user_id: &str,
+        category: GearCategory,
+        specs: &GearSpecs,
+    ) {
+        let Some(store) = self.store.as_ref() else {
+            return;
+        };
+        let allowed_keys = allowed_spec_keys(category);
+        let key = self.gear_spec_keys_key(user_id, category);
+        for spec_key in specs
+            .iter()
+            .filter(|(spec_key, value)| {
+                allowed_keys.contains(&spec_key.as_str()) && !value.trim().is_empty()
+            })
+            .map(|(spec_key, _)| spec_key)
+        {
+            if let Err(error) = store.sorted_set_increment(&key, spec_key, 1.0).await {
+                warn!(key, spec_key, error = %error, "redis gear spec-key frequency write failed");
+                return;
+            }
+        }
+    }
+
+    /// Reads the user's high-frequency spec fields for a category, returning only fields supported by the current category config.
+    pub async fn gear_spec_key_rankings(
+        &self,
+        user_id: &str,
+        category: GearCategory,
+    ) -> Vec<String> {
+        let Some(store) = self.store.as_ref() else {
+            return Vec::new();
+        };
+        let allowed_keys = allowed_spec_keys(category);
+        let key = self.gear_spec_keys_key(user_id, category);
+        let ranked_keys = match store
+            .sorted_set_rev_range(&key, GEAR_SPEC_KEY_RANKING_SCAN_LIMIT)
+            .await
+        {
+            Ok(keys) => keys,
+            Err(error) => {
+                warn!(key, error = %error, "redis gear spec-key frequency read failed");
+                return Vec::new();
+            }
+        };
+        ranked_keys
+            .into_iter()
+            .filter(|spec_key| allowed_keys.contains(&spec_key.as_str()))
+            .take(allowed_keys.len())
+            .collect()
+    }
+
+    /// Records normalized gear tags and optional user color preferences in Redis-only per-user stores.
+    pub async fn record_gear_tags(
+        &self,
+        user_id: &str,
+        tags: &[String],
+        tag_colors: &HashMap<String, String>,
+    ) {
+        let Some(store) = self.store.as_ref() else {
+            return;
+        };
+        let ranking_key = self.gear_tags_key(user_id);
+        let colors_key = self.gear_tag_colors_key(user_id);
+        for tag in tags
+            .iter()
+            .map(|value| value.trim())
+            .filter(|tag| !tag.is_empty())
+        {
+            if let Err(error) = store.sorted_set_increment(&ranking_key, tag, 1.0).await {
+                warn!(key = ranking_key, tag, error = %error, "redis gear tag frequency write failed");
+                return;
+            }
+            if let Some(color) = tag_colors
+                .get(tag)
+                .map(|value| value.trim())
+                .filter(|color| is_supported_gear_tag_color(color))
+            {
+                if let Err(error) = store.hash_set(&colors_key, tag, color).await {
+                    warn!(key = colors_key, tag, error = %error, "redis gear tag color write failed");
+                    return;
+                }
+            }
+        }
+    }
+
+    /// Reads high-frequency tag suggestions with their current user-level color preference.
+    pub async fn gear_tag_suggestions(
+        &self,
+        user_id: &str,
+        limit: usize,
+    ) -> Vec<(String, Option<String>)> {
+        if limit == 0 {
+            return Vec::new();
+        }
+        let Some(store) = self.store.as_ref() else {
+            return Vec::new();
+        };
+        let ranking_key = self.gear_tags_key(user_id);
+        let colors_key = self.gear_tag_colors_key(user_id);
+        let tags = match store.sorted_set_rev_range(&ranking_key, limit).await {
+            Ok(tags) => tags,
+            Err(error) => {
+                warn!(key = ranking_key, error = %error, "redis gear tag frequency read failed");
+                return Vec::new();
+            }
+        };
+        let mut suggestions = Vec::with_capacity(tags.len());
+        for tag in tags {
+            let color = match store.hash_get(&colors_key, &tag).await {
+                Ok(value) => value.filter(|color| is_supported_gear_tag_color(color)),
+                Err(error) => {
+                    warn!(key = colors_key, tag, error = %error, "redis gear tag color read failed");
+                    None
+                }
+            };
+            suggestions.push((tag, color));
+        }
+        suggestions
+    }
+
+    /// Returns the current user-level tag color mapping for the requested tag names.
+    pub async fn gear_tag_colors(&self, user_id: &str, tags: &[String]) -> HashMap<String, String> {
+        let Some(store) = self.store.as_ref() else {
+            return HashMap::new();
+        };
+        let key = self.gear_tag_colors_key(user_id);
+        let mut colors = HashMap::new();
+        for tag in tags
+            .iter()
+            .map(|value| value.trim())
+            .filter(|tag| !tag.is_empty())
+        {
+            if colors.contains_key(tag) {
+                continue;
+            }
+            match store.hash_get(&key, tag).await {
+                Ok(Some(color)) if is_supported_gear_tag_color(&color) => {
+                    colors.insert(tag.to_owned(), color);
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    warn!(key, tag, error = %error, "redis gear tag color read failed");
+                    return colors;
+                }
+            }
+        }
+        colors
+    }
+
     /// Runs the `disabled with config` server-side flow while preserving input validation, error propagation, and state invariants.
     fn disabled_with_config(config: &RedisCacheConfig) -> Self {
         Self {
@@ -182,9 +335,37 @@ impl Cache {
     fn gear_version_key(&self, user_id: &str) -> String {
         format!("{}:gear:{user_id}:version", self.key_prefix)
     }
+
+    /// Builds the Redis sorted-set key for user/category spec-field frequency counts.
+    fn gear_spec_keys_key(&self, user_id: &str, category: GearCategory) -> String {
+        format!(
+            "{}:gear:{user_id}:spec-keys:{}",
+            self.key_prefix,
+            category.as_str()
+        )
+    }
+
+    /// Builds the Redis sorted-set key for user tag frequency counts.
+    fn gear_tags_key(&self, user_id: &str) -> String {
+        format!("{}:gear:{user_id}:tags", self.key_prefix)
+    }
+
+    /// Builds the Redis hash key for user tag color preferences.
+    fn gear_tag_colors_key(&self, user_id: &str) -> String {
+        format!("{}:gear:{user_id}:tag-colors", self.key_prefix)
+    }
 }
 
 const DEFAULT_GEAR_CACHE_TTL_SECONDS: u64 = 30;
+const GEAR_SPEC_KEY_RANKING_SCAN_LIMIT: usize = 64;
+const GEAR_TAG_COLOR_TOKENS: [&str; 8] = [
+    "teal", "blue", "violet", "rose", "orange", "amber", "green", "slate",
+];
+
+/// Checks whether a user-supplied tag color token is supported by the Mini Program tag palette.
+pub fn is_supported_gear_tag_color(value: &str) -> bool {
+    GEAR_TAG_COLOR_TOKENS.contains(&value)
+}
 
 /// Cache store abstraction requiring both Redis and in-memory test stores to support read, write, and version increment operations.
 #[async_trait]
@@ -197,6 +378,19 @@ pub trait CacheStore: Send + Sync {
     async fn increment(&self, key: &str) -> anyhow::Result<u64>;
     /// Increments a key and sets a TTL on first use.
     async fn increment_with_ttl(&self, key: &str, ttl: Duration) -> anyhow::Result<u64>;
+    /// Increments a sorted-set member and returns the resulting score.
+    async fn sorted_set_increment(
+        &self,
+        key: &str,
+        member: &str,
+        amount: f64,
+    ) -> anyhow::Result<f64>;
+    /// Returns sorted-set members ordered by score descending.
+    async fn sorted_set_rev_range(&self, key: &str, limit: usize) -> anyhow::Result<Vec<String>>;
+    /// Sets a hash field to a string value.
+    async fn hash_set(&self, key: &str, field: &str, value: &str) -> anyhow::Result<()>;
+    /// Reads a hash field as a string value.
+    async fn hash_get(&self, key: &str, field: &str) -> anyhow::Result<Option<String>>;
 }
 
 /// Stable data boundary for `InMemoryCacheStore`, exposed by or reused within this module.
@@ -209,6 +403,8 @@ pub struct InMemoryCacheStore {
 #[derive(Default)]
 struct InMemoryCacheInner {
     entries: HashMap<String, InMemoryCacheEntry>,
+    sorted_sets: HashMap<String, HashMap<String, f64>>,
+    hashes: HashMap<String, HashMap<String, String>>,
     stats: InMemoryCacheStats,
 }
 
@@ -225,12 +421,38 @@ pub struct InMemoryCacheStats {
     pub hit_count: usize,
     pub set_count: usize,
     pub increment_count: usize,
+    pub sorted_set_increment_count: usize,
+    pub sorted_set_read_count: usize,
+    pub hash_set_count: usize,
+    pub hash_get_count: usize,
 }
 
 impl InMemoryCacheStore {
     /// Runs the `stats` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn stats(&self) -> InMemoryCacheStats {
         self.inner.lock().unwrap().stats
+    }
+
+    /// Returns sorted-set members for route tests without exposing any stored values.
+    pub fn sorted_set_members(&self, key: &str) -> Vec<String> {
+        self.inner
+            .lock()
+            .unwrap()
+            .sorted_sets
+            .get(key)
+            .map(|items| items.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Returns hash fields for route tests without exposing Redis implementation details.
+    pub fn hash_entries(&self, key: &str) -> HashMap<String, String> {
+        self.inner
+            .lock()
+            .unwrap()
+            .hashes
+            .get(key)
+            .cloned()
+            .unwrap_or_default()
     }
 }
 
@@ -317,6 +539,63 @@ impl CacheStore for InMemoryCacheStore {
         );
         Ok(next)
     }
+
+    async fn sorted_set_increment(
+        &self,
+        key: &str,
+        member: &str,
+        amount: f64,
+    ) -> anyhow::Result<f64> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.stats.sorted_set_increment_count += 1;
+        let members = inner.sorted_sets.entry(key.to_owned()).or_default();
+        let score = members.entry(member.to_owned()).or_insert(0.0);
+        *score += amount;
+        Ok(*score)
+    }
+
+    async fn sorted_set_rev_range(&self, key: &str, limit: usize) -> anyhow::Result<Vec<String>> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.stats.sorted_set_read_count += 1;
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let Some(members) = inner.sorted_sets.get(key) else {
+            return Ok(Vec::new());
+        };
+        let mut ranked_members: Vec<_> = members.iter().collect();
+        ranked_members.sort_by(|(left_key, left_score), (right_key, right_score)| {
+            right_score
+                .partial_cmp(left_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| left_key.cmp(right_key))
+        });
+        Ok(ranked_members
+            .into_iter()
+            .take(limit)
+            .map(|(member, _)| member.clone())
+            .collect())
+    }
+
+    async fn hash_set(&self, key: &str, field: &str, value: &str) -> anyhow::Result<()> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.stats.hash_set_count += 1;
+        inner
+            .hashes
+            .entry(key.to_owned())
+            .or_default()
+            .insert(field.to_owned(), value.to_owned());
+        Ok(())
+    }
+
+    async fn hash_get(&self, key: &str, field: &str) -> anyhow::Result<Option<String>> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.stats.hash_get_count += 1;
+        Ok(inner
+            .hashes
+            .get(key)
+            .and_then(|fields| fields.get(field).cloned()))
+    }
 }
 
 /// Stable data boundary for `RedisCacheStore`, exposed by or reused within this module.
@@ -368,6 +647,47 @@ impl CacheStore for RedisCacheStore {
                 .await?;
         }
         Ok(value.max(0) as u64)
+    }
+
+    async fn sorted_set_increment(
+        &self,
+        key: &str,
+        member: &str,
+        amount: f64,
+    ) -> anyhow::Result<f64> {
+        let mut connection = self.connection.clone();
+        let value: String = redis::cmd("ZINCRBY")
+            .arg(key)
+            .arg(amount)
+            .arg(member)
+            .query_async(&mut connection)
+            .await?;
+        Ok(value.parse::<f64>().unwrap_or(0.0))
+    }
+
+    async fn sorted_set_rev_range(&self, key: &str, limit: usize) -> anyhow::Result<Vec<String>> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let mut connection = self.connection.clone();
+        let stop = limit.saturating_sub(1) as isize;
+        Ok(redis::cmd("ZREVRANGE")
+            .arg(key)
+            .arg(0)
+            .arg(stop)
+            .query_async(&mut connection)
+            .await?)
+    }
+
+    async fn hash_set(&self, key: &str, field: &str, value: &str) -> anyhow::Result<()> {
+        let mut connection = self.connection.clone();
+        let _: () = connection.hset(key, field, value).await?;
+        Ok(())
+    }
+
+    async fn hash_get(&self, key: &str, field: &str) -> anyhow::Result<Option<String>> {
+        let mut connection = self.connection.clone();
+        Ok(connection.hget(key, field).await?)
     }
 }
 

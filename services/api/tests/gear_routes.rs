@@ -113,6 +113,11 @@ async fn send_empty(
 }
 
 async fn login(app: &Router, code: &str) -> String {
+    let value = login_response(app, code).await;
+    value["access_token"].as_str().unwrap().to_owned()
+}
+
+async fn login_response(app: &Router, code: &str) -> Value {
     let (status, value) = send_json(
         app,
         "POST",
@@ -122,7 +127,7 @@ async fn login(app: &Router, code: &str) -> String {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{value}");
-    value["access_token"].as_str().unwrap().to_owned()
+    value
 }
 
 #[tokio::test]
@@ -189,6 +194,367 @@ async fn gear_stats_reads_are_cached_and_mutations_invalidate_cache_version() {
         send_empty(&app.router, "GET", "/api/me/gears/stats", Some(&token)).await;
     assert_eq!(fresh_status, StatusCode::OK, "{fresh_stats}");
     assert_eq!(fresh_stats["current_count"], 2);
+}
+
+#[tokio::test]
+async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user() {
+    let store = InMemoryCacheStore::default();
+    let app = test_app_with_cache(Cache::with_store_for_tests(
+        store.clone(),
+        "test-stellartrail",
+        Duration::from_secs(300),
+    ))
+    .await;
+    let login_body = login_response(&app.router, "spec-rank-user").await;
+    let token = login_body["access_token"].as_str().unwrap().to_owned();
+    let user_id = login_body["user"]["id"].as_str().unwrap();
+
+    let (initial_status, initial) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/spec-key-rankings?category=electronics_system",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(initial_status, StatusCode::OK, "{initial}");
+    assert_eq!(initial, json!({"keys": []}));
+
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({
+            "category": "electronics_system",
+            "name": "充电宝",
+            "specs": {
+                "battery_capacity": "20000 mAh",
+                "output_power": "65 W",
+                "ports": "",
+                "material": "铝合金"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+    let gear_id = created["id"].as_str().unwrap();
+
+    let (second_create_status, second_created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({
+            "category": "electronics_system",
+            "name": "备用电源",
+            "specs": {
+                "battery_capacity": "10000 mAh"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(
+        second_create_status,
+        StatusCode::CREATED,
+        "{second_created}",
+    );
+
+    let (ranking_status, ranking) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/spec-key-rankings?category=electronics_system",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(ranking_status, StatusCode::OK, "{ranking}");
+    assert_eq!(ranking["keys"][0], "battery_capacity");
+    assert!(
+        ranking["keys"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("output_power"))
+    );
+    assert!(
+        !ranking["keys"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("material")),
+        "legacy specs are not part of the current category ranking response: {ranking}",
+    );
+
+    let key = format!("test-stellartrail:gear:{user_id}:spec-keys:electronics_system");
+    let members = store.sorted_set_members(&key);
+    assert!(members.contains(&"battery_capacity".to_owned()));
+    assert!(!members.iter().any(|member| member.contains("20000")));
+    assert!(!members.iter().any(|member| member.contains("65 W")));
+
+    let (update_status, updated) = send_json(
+        &app.router,
+        "PATCH",
+        &format!("/api/me/gears/{gear_id}"),
+        Some(&token),
+        json!({
+            "specs": {
+                "battery_capacity": "20000 mAh",
+                "rated_energy": "74 Wh"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(update_status, StatusCode::OK, "{updated}");
+
+    let (updated_ranking_status, updated_ranking) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/spec-key-rankings?category=electronics_system",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(updated_ranking_status, StatusCode::OK, "{updated_ranking}",);
+    assert_eq!(updated_ranking["keys"][0], "battery_capacity");
+    assert!(
+        updated_ranking["keys"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("rated_energy"))
+    );
+
+    let other_token = login(&app.router, "spec-rank-other-user").await;
+    let (other_status, other_ranking) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/spec-key-rankings?category=electronics_system",
+        Some(&other_token),
+    )
+    .await;
+    assert_eq!(other_status, StatusCode::OK, "{other_ranking}");
+    assert_eq!(other_ranking, json!({"keys": []}));
+}
+
+#[tokio::test]
+async fn spec_key_rankings_degrade_when_cache_is_disabled() {
+    let app = test_app().await;
+    let token = login(&app.router, "spec-rank-disabled-cache-user").await;
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({
+            "category": "electronics_system",
+            "name": "无 Redis 充电宝",
+            "specs": {
+                "battery_capacity": "20000 mAh"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+
+    let (ranking_status, ranking) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/spec-key-rankings?category=electronics_system",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(ranking_status, StatusCode::OK, "{ranking}");
+    assert_eq!(ranking, json!({"keys": []}));
+}
+
+#[tokio::test]
+async fn tag_suggestions_track_tag_frequency_and_colors_without_changing_gear_tags() {
+    let store = InMemoryCacheStore::default();
+    let app = test_app_with_cache(Cache::with_store_for_tests(
+        store.clone(),
+        "test-stellartrail",
+        Duration::from_secs(300),
+    ))
+    .await;
+    let login_body = login_response(&app.router, "tag-suggestion-user").await;
+    let token = login_body["access_token"].as_str().unwrap().to_owned();
+    let user_id = login_body["user"]["id"].as_str().unwrap();
+
+    let (initial_status, initial) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/tag-suggestions",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(initial_status, StatusCode::OK, "{initial}");
+    assert_eq!(initial, json!({"items": []}));
+
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({
+            "category": "electronics_system",
+            "name": "冬季充电宝",
+            "tags": ["冬季", "电子", "电子"],
+            "tag_colors": {
+                "冬季": "blue",
+                "电子": "teal"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["tags"], json!(["冬季", "电子"]));
+    assert_eq!(
+        created["tag_colors"],
+        json!({"冬季": "blue", "电子": "teal"})
+    );
+
+    let color_key = format!("test-stellartrail:gear:{user_id}:tag-colors");
+    let colors = store.hash_entries(&color_key);
+    assert_eq!(colors.get("冬季").map(String::as_str), Some("blue"));
+    assert_eq!(colors.get("电子").map(String::as_str), Some("teal"));
+
+    let (suggestion_status, suggestions) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/tag-suggestions?limit=20",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(suggestion_status, StatusCode::OK, "{suggestions}");
+    let suggestion_items = suggestions["items"].as_array().unwrap();
+    assert!(suggestion_items.contains(&json!({"tag": "冬季", "color": "blue"})));
+    assert!(suggestion_items.contains(&json!({"tag": "电子", "color": "teal"})));
+
+    let (list_status, list) = send_empty(&app.router, "GET", "/api/me/gears", Some(&token)).await;
+    assert_eq!(list_status, StatusCode::OK, "{list}");
+    assert_eq!(list["items"][0]["tags"], json!(["冬季", "电子"]));
+    assert_eq!(
+        list["items"][0]["tag_colors"],
+        json!({"冬季": "blue", "电子": "teal"})
+    );
+
+    let other_token = login(&app.router, "tag-suggestion-other-user").await;
+    let (other_status, other_suggestions) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/tag-suggestions",
+        Some(&other_token),
+    )
+    .await;
+    assert_eq!(other_status, StatusCode::OK, "{other_suggestions}");
+    assert_eq!(other_suggestions, json!({"items": []}));
+}
+
+#[tokio::test]
+async fn tag_color_validation_and_disabled_cache_degrade_cleanly() {
+    let app = test_app().await;
+    let token = login(&app.router, "tag-color-disabled-cache-user").await;
+
+    let (invalid_status, invalid) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({
+            "category": "electronics_system",
+            "name": "错误标签色装备",
+            "tags": ["冬季"],
+            "tag_colors": {"冬季": "neon"}
+        }),
+    )
+    .await;
+    assert_eq!(
+        invalid_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{invalid}"
+    );
+    assert_eq!(invalid["code"], "validation_failed");
+    assert!(
+        invalid["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "tag_colors.冬季")
+    );
+
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({
+            "category": "electronics_system",
+            "name": "无 Redis 标签装备",
+            "tags": ["冬季"],
+            "tag_colors": {"冬季": "blue"}
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["tags"], json!(["冬季"]));
+    assert_eq!(created["tag_colors"], json!({}));
+
+    let (suggestion_status, suggestions) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/tag-suggestions",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(suggestion_status, StatusCode::OK, "{suggestions}");
+    assert_eq!(suggestions, json!({"items": []}));
+}
+
+#[tokio::test]
+async fn backpack_specs_split_back_length_and_size() {
+    let app = test_app().await;
+    let token = login(&app.router, "backpack-spec-user").await;
+
+    let (backpack_status, backpack) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({
+            "category": "backpack_system",
+            "name": "分体背包",
+            "specs": {
+                "back_length": "48 cm",
+                "backpack_size": "M"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(backpack_status, StatusCode::CREATED, "{backpack}");
+    assert_eq!(backpack["specs"]["back_length"], "48 cm");
+    assert_eq!(backpack["specs"]["backpack_size"], "M");
+
+    let (old_backpack_status, old_backpack) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({
+            "category": "backpack_system",
+            "name": "旧字段背包",
+            "specs": {
+                "back_length_or_size": "M / 48"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(
+        old_backpack_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{old_backpack}"
+    );
+    assert!(
+        old_backpack["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "specs.back_length_or_size")
+    );
 }
 
 #[tokio::test]

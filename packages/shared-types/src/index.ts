@@ -194,6 +194,16 @@ export type GearSort =
 
 export type GearCurrency = "CNY" | "USD" | "EUR" | "JPY" | "HKD";
 export type GearSpecs = Record<string, string>;
+export type GearTagColor =
+  | "teal"
+  | "blue"
+  | "violet"
+  | "rose"
+  | "orange"
+  | "amber"
+  | "green"
+  | "slate";
+export type GearTagColorMap = Record<string, GearTagColor | string>;
 
 export interface GearItem {
   id: string;
@@ -214,6 +224,7 @@ export interface GearItem {
   storage_location?: string | null;
   specs?: GearSpecs | null;
   tags: string[];
+  tag_colors?: GearTagColorMap | null;
   share_enabled: boolean;
   share_status: GearShareStatus;
   notes?: string | null;
@@ -238,6 +249,8 @@ export interface GearSummary {
   purchase_price_currency?: GearCurrency | string | null;
   purchase_date?: string | null;
   specs?: GearSpecs | null;
+  tags: string[];
+  tag_colors?: GearTagColorMap | null;
   created_at: string;
   updated_at: string;
 }
@@ -259,6 +272,7 @@ export interface CreateGearRequest {
   storage_location?: string | null;
   specs?: GearSpecs | null;
   tags?: string[];
+  tag_colors?: GearTagColorMap | null;
   share_enabled?: boolean;
   notes?: string | null;
 }
@@ -294,6 +308,19 @@ export interface GearCategoryFilter {
 
 export interface GearCategoriesResponse {
   items: GearCategoryFilter[];
+}
+
+export interface GearSpecKeyRankingsResponse {
+  keys: string[];
+}
+
+export interface GearTagSuggestion {
+  tag: string;
+  color?: GearTagColor | string | null;
+}
+
+export interface GearTagSuggestionsResponse {
+  items: GearTagSuggestion[];
 }
 
 export interface ListGearsRequest {

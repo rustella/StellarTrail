@@ -397,7 +397,8 @@ pub fn allowed_spec_keys(category: GearCategory) -> &'static [&'static str] {
         GearCategory::BackpackSystem => &[
             "capacity",
             "recommended_load",
-            "back_length_or_size",
+            "back_length",
+            "backpack_size",
             "waterproof_rating",
         ],
         GearCategory::SleepSystem => &[

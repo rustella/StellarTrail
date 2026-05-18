@@ -1,5 +1,7 @@
 //! Gear inventory HTTP DTOs that convert query parameters and request bodies into domain gear drafts and response payloads.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use stellartrail_domain::gear::{
     GearCategory, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs, GearStatus, GearTab,
@@ -24,6 +26,18 @@ pub struct ListGearQuery {
 pub struct GearStatsQuery {
     #[serde(default)]
     pub tab: GearTab,
+}
+
+/// Query parameters for the per-user spec-field ranking endpoint.
+#[derive(Debug, Deserialize)]
+pub struct GearSpecKeyRankingsQuery {
+    pub category: GearCategory,
+}
+
+/// Query parameters for tag suggestions backed by Redis-only user tag history.
+#[derive(Debug, Deserialize)]
+pub struct GearTagSuggestionsQuery {
+    pub limit: Option<usize>,
 }
 
 /// Stable data boundary for `GearExportQuery`, exposed by or reused within this module.
@@ -62,6 +76,8 @@ pub struct CreateGearRequest {
     pub specs: GearSpecs,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub tag_colors: Option<HashMap<String, String>>,
     #[serde(default)]
     pub share_enabled: bool,
     pub notes: Option<String>,
@@ -114,6 +130,7 @@ pub struct UpdateGearRequest {
     pub storage_location: Option<String>,
     pub specs: Option<GearSpecs>,
     pub tags: Option<Vec<String>>,
+    pub tag_colors: Option<HashMap<String, String>>,
     pub share_enabled: Option<bool>,
     pub notes: Option<String>,
 }
@@ -173,6 +190,8 @@ pub struct GearSummaryResponse {
     pub purchase_price_currency: Option<String>,
     pub purchase_date: Option<String>,
     pub specs: GearSpecs,
+    pub tags: Vec<String>,
+    pub tag_colors: HashMap<String, String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -196,9 +215,54 @@ impl From<&GearItem> for GearSummaryResponse {
             purchase_price_currency: item.purchase_price_currency.clone(),
             purchase_date: item.purchase_date.clone(),
             specs: item.specs.clone(),
+            tags: item.tags.clone(),
+            tag_colors: HashMap::new(),
             created_at: item.created_at.clone(),
             updated_at: item.updated_at.clone(),
         }
+    }
+}
+
+impl GearSummaryResponse {
+    /// Builds a list response item with only colors for tags present on that item.
+    pub fn from_item(item: &GearItem, all_tag_colors: &HashMap<String, String>) -> Self {
+        Self {
+            id: item.id.clone(),
+            category: item.category,
+            category_label: item.category.label().to_owned(),
+            name: item.name.clone(),
+            brand: item.brand.clone(),
+            model: item.model.clone(),
+            status: item.status,
+            status_label: item.status.label().to_owned(),
+            weight_g: item.weight_g,
+            official_price_cents: item.official_price_cents,
+            official_price_currency: item.official_price_currency.clone(),
+            purchase_price_cents: item.purchase_price_cents,
+            purchase_price_currency: item.purchase_price_currency.clone(),
+            purchase_date: item.purchase_date.clone(),
+            specs: item.specs.clone(),
+            tags: item.tags.clone(),
+            tag_colors: tag_colors_for_tags(&item.tags, all_tag_colors),
+            created_at: item.created_at.clone(),
+            updated_at: item.updated_at.clone(),
+        }
+    }
+}
+
+/// Detail/create/update response for one gear item plus user-level tag color mapping.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GearItemResponse {
+    #[serde(flatten)]
+    pub item: GearItem,
+    pub tag_colors: HashMap<String, String>,
+}
+
+impl GearItemResponse {
+    /// Builds a gear item response with only colors for tags present on that item.
+    pub fn from_item(item: GearItem, all_tag_colors: &HashMap<String, String>) -> Self {
+        let tag_colors = tag_colors_for_tags(&item.tags, all_tag_colors);
+        Self { item, tag_colors }
     }
 }
 
@@ -221,6 +285,25 @@ pub struct GearCategoryFilterResponse {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearCategoriesResponse {
     pub items: Vec<GearCategoryFilterResponse>,
+}
+
+/// Redis-backed ranking response for spec keys the current user often fills in a category.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GearSpecKeyRankingsResponse {
+    pub keys: Vec<String>,
+}
+
+/// Suggested tag plus the current user-level color preference, when one exists.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GearTagSuggestionResponse {
+    pub tag: String,
+    pub color: Option<String>,
+}
+
+/// Redis-backed tag suggestions for tags the current user often adds.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GearTagSuggestionsResponse {
+    pub items: Vec<GearTagSuggestionResponse>,
 }
 
 /// Stable data boundary for `ImportGearsRequest`, exposed by or reused within this module.
@@ -247,4 +330,18 @@ pub struct ImportGearError {
     pub row: usize,
     pub field: String,
     pub message: String,
+}
+
+/// Filters a user tag-color map down to tags present on the gear item.
+fn tag_colors_for_tags(
+    tags: &[String],
+    all_tag_colors: &HashMap<String, String>,
+) -> HashMap<String, String> {
+    tags.iter()
+        .filter_map(|tag| {
+            all_tag_colors
+                .get(tag)
+                .map(|color| (tag.clone(), color.clone()))
+        })
+        .collect()
 }
