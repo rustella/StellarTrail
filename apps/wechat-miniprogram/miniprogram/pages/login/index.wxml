@@ -26,19 +26,19 @@
         class="auth-tab {{loginMode === 'wechat' ? 'active' : ''}}"
         bindtap="switchToWechat"
       >
-        微信一键登录
+        微信登录
       </button>
       <button
         class="auth-tab {{loginMode === 'password' ? 'active' : ''}}"
         bindtap="switchToPassword"
       >
-        账号密码登录
+        账号登录
       </button>
       <button
         class="auth-tab {{loginMode === 'email' ? 'active' : ''}}"
         bindtap="switchToEmail"
       >
-        邮箱验证码
+        邮箱登陆
       </button>
     </view>
 
@@ -46,15 +46,12 @@
     <view wx:if="{{notice}}" class="notice-text">{{notice}}</view>
 
     <view wx:if="{{loginMode === 'wechat'}}" class="auth-panel">
-      <view class="panel-desc"
-        >使用微信身份快速进入，之后可以保存和管理自己的装备。</view
-      >
       <button
         class="primary"
         loading="{{loading}}"
         bindtap="loginWechat"
       >
-        {{loggedIn ? '重新登录' : '微信一键登录'}}
+        {{loggedIn ? '重新登录' : '微信登录'}}
       </button>
     </view>
 
@@ -103,11 +100,11 @@
       </view>
 
       <button class="primary" loading="{{loading}}" bindtap="loginWithAccount">
-        账号密码登录
+        账号登录
       </button>
       <view class="action-row">
         <button class="link-button" bindtap="switchToEmail">
-          邮箱验证码登录
+          邮箱登陆
         </button>
         <button class="link-button" bindtap="switchToReset">找回密码</button>
         <button class="link-button" bindtap="goRegister">注册账号</button>
@@ -146,10 +143,10 @@
         loading="{{loading}}"
         bindtap="loginWithEmailCode"
       >
-        邮箱验证码登录
+        邮箱登陆
       </button>
       <button class="link-button" bindtap="switchToPassword">
-        返回账号密码登录
+        返回账号登录
       </button>
     </view>
 
@@ -206,7 +203,7 @@
         重设密码并登录
       </button>
       <button class="link-button" bindtap="switchToPassword">
-        返回账号密码登录
+        返回账号登录
       </button>
     </view>
 
