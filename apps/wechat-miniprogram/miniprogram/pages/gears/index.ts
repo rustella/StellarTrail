@@ -406,7 +406,7 @@ Page({
         }
         try {
           await archiveGear(id);
-          wx.showToast({ title: "已移入历史", icon: "success" });
+          wx.showToast({ title: "已归档", icon: "success" });
           this.refreshPage();
         } catch (error) {
           if (isLoginRequiredError(error)) {
@@ -503,7 +503,7 @@ function buildStatCards(stats: GearStatsResponse): StatCard[] {
     {
       label: "历史装备",
       value: String(stats.archived_count),
-      hint: "已移入历史",
+      hint: "已归档",
     },
     {
       label: "总重量",
