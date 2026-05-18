@@ -418,7 +418,7 @@ describe("App", () => {
 
     expect(
       Array.from(navigation.children).map((item) => item.textContent?.trim()),
-    ).toEqual(["装备库", "装备图鉴审核", "户外技能绳结", "路线清单 · 待接入"]);
+    ).toEqual(["装备库", "管理员后台", "户外技能绳结", "路线清单 · 待接入"]);
     expect(screen.getByRole("button", { name: /户外技能/ })).toHaveAttribute(
       "aria-expanded",
       "true",
@@ -497,7 +497,7 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "装备管理" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "装备图鉴审核" }));
+    fireEvent.click(screen.getByRole("button", { name: "管理员后台" }));
 
     expect(
       await screen.findByRole("heading", { name: "装备图鉴审核" }),
@@ -525,9 +525,10 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "装备图鉴审核" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "装备图鉴审核" }),
-    ).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "管理员后台" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
       status: "pending",
       limit: 50,
