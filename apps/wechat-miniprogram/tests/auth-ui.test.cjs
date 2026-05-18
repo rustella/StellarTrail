@@ -163,9 +163,14 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
 
 test("gear form cancel falls back when there is no previous page", () => {
   const wxml = read("pages/gears/form/index.wxml");
+  const wxss = read("pages/gears/form/index.wxss");
   const ts = read("pages/gears/form/index.ts");
 
   assert.match(wxml, /bindtap="cancel"/);
+  assert.ok(wxml.indexOf('class="form-actions"') < wxml.indexOf('class="intro-card"'));
+  assert.doesNotMatch(wxml, /footer-actions/);
+  assert.match(wxss, /\.form-actions \{/);
+  assert.doesNotMatch(wxss, /position: fixed/);
   assert.match(ts, /getCurrentPages\(\)\.length > 1/);
   assert.match(ts, /wx\.navigateBack\(\)/);
   assert.match(ts, /wx\.switchTab\(\{ url: "\/pages\/gears\/index" \}\)/);

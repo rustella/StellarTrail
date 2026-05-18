@@ -13,6 +13,13 @@
     <view wx:if="{{error}}" class="error-card">{{error}}</view>
     <view wx:if="{{loading}}" class="state-card">正在加载装备信息...</view>
 
+    <view class="form-actions">
+      <button class="secondary" bindtap="cancel">取消</button>
+      <button class="primary" loading="{{submitting}}" bindtap="submitForm">
+        {{mode === 'edit' ? '保存' : '添加'}}
+      </button>
+    </view>
+
     <view class="intro-card">
       <view class="intro-title"
         >{{mode === 'edit' ? '编辑装备信息' : '添加一件装备'}}</view
@@ -253,13 +260,6 @@
           bindinput="onInput"
         />
       </view>
-    </view>
-
-    <view class="footer-actions">
-      <button class="secondary" bindtap="cancel">取消</button>
-      <button class="primary" loading="{{submitting}}" bindtap="submitForm">
-        {{mode === 'edit' ? '保存' : '添加'}}
-      </button>
     </view>
   </block>
 
