@@ -13,6 +13,36 @@
   box-shadow: var(--shadow-soft);
 }
 
+.account-main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 20rpx;
+}
+
+.account-avatar {
+  flex: 0 0 auto;
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 34rpx;
+  font-weight: 900;
+  line-height: 96rpx;
+  text-align: center;
+  overflow: hidden;
+}
+
+.account-avatar-image {
+  width: 96rpx;
+  height: 96rpx;
+}
+
+.account-copy {
+  min-width: 0;
+}
+
 .account-title {
   color: var(--text-color);
   font-size: 30rpx;
@@ -24,6 +54,9 @@
   color: var(--heading-muted-color);
   font-size: 26rpx;
   font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .account-hint {

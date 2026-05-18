@@ -14,7 +14,7 @@ Page({
   data: {
     title: "我的寻径星野",
     loggedIn: hasAccessToken(),
-    userDisplay: buildUserDisplay(),
+    accountProfile: buildAccountProfile(),
     ...getThemeViewData(),
   },
 
@@ -26,7 +26,7 @@ Page({
   refreshAccountState() {
     this.setData({
       loggedIn: hasAccessToken(),
-      userDisplay: buildUserDisplay(),
+      accountProfile: buildAccountProfile(),
     });
   },
 
@@ -56,10 +56,23 @@ Page({
   },
 });
 
-function buildUserDisplay(): string {
+function buildAccountProfile(): {
+  displayName: string;
+  avatarUrl: string;
+  avatarInitial: string;
+} {
   const user = getStoredUser();
   if (!user) {
-    return "未登录";
+    return {
+      displayName: "未登录",
+      avatarUrl: "",
+      avatarInitial: "未",
+    };
   }
-  return user.nickname || user.username || user.email || "微信用户";
+  const displayName = user.nickname || user.username || user.email || "微信用户";
+  return {
+    displayName,
+    avatarUrl: user.avatar_url || "",
+    avatarInitial: displayName.trim().slice(0, 1) || "微",
+  };
 }
