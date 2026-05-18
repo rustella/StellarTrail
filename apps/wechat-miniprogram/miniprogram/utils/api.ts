@@ -239,6 +239,14 @@ export function getStoredUser(): WechatLoginResponse["user"] | null {
   return user ?? null;
 }
 
+export async function getCurrentUser(): Promise<WechatLoginResponse["user"]> {
+  const response = await requestJson<ProfileUserResponse>("/api/me/profile", {
+    auth: true,
+  });
+  saveUser(response.user);
+  return response.user;
+}
+
 export async function ensureAccessToken(): Promise<string> {
   const cached = wx.getStorageSync(TOKEN_STORAGE_KEY) as string | undefined;
   if (cached && !shouldRefreshAccessToken()) {

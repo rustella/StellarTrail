@@ -323,6 +323,31 @@ async fn authenticated_user_can_upload_avatar_to_public_bucket_and_update_profil
 }
 
 #[tokio::test]
+async fn avatar_upload_accepts_wechat_temp_file_without_extension() {
+    let app = test_app(30).await;
+    let token = register_password_user(&app.router, "wechat_avatar").await;
+
+    let (status, value) = upload_avatar(
+        &app.router,
+        Some(&token),
+        "tmp_avatar",
+        "application/octet-stream",
+        PNG_1X1,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "{value}");
+    let avatar_url = value["user"]["avatar_url"].as_str().unwrap();
+    assert!(
+        avatar_url.starts_with("https://assets.example.test/test-avatars/users/"),
+        "{avatar_url}"
+    );
+    assert!(avatar_url.ends_with(".png"), "{avatar_url}");
+    let stored = app.object_store.only_object().unwrap();
+    assert_eq!(stored.content_type, "image/png");
+}
+
+#[tokio::test]
 async fn avatar_upload_requires_authentication() {
     let app = test_app(30).await;
 

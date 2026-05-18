@@ -66,6 +66,13 @@
   line-height: 1.5;
 }
 
+.account-error {
+  margin-top: 8rpx;
+  color: var(--status-danger-text);
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
 .account-button {
   flex: 0 0 auto;
   margin: 0;

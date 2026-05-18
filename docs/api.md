@@ -20,11 +20,12 @@ POST /api/auth/password-reset-code
 POST /api/auth/password-reset
 POST /api/me/email-binding-code
 POST /api/me/email-binding
-PUT /api/me/profile/avatar
 POST /api/auth/register
 POST /api/auth/login
 POST /api/auth/refresh
 POST /api/auth/captcha
+GET /api/me/profile
+PUT /api/me/profile/avatar
 ```
 
 ### WeChat login
@@ -186,9 +187,32 @@ Authorization: Bearer ***
 
 若当前账号已经绑定邮箱，或目标邮箱已被其他账号使用，会返回 `validation_failed`。绑定成功后，可继续使用找回密码流程为该账号设置密码。
 
+### Current profile
+
+登录后可读取当前用户资料，用于客户端从后端刷新头像和昵称。
+
+```http
+GET /api/me/profile
+Authorization: Bearer ***
+```
+
+成功响应：
+
+```json
+{
+  "user": {
+    "id": "user-id",
+    "username": null,
+    "email": null,
+    "nickname": "微信用户",
+    "avatar_url": "https://assets.example.invalid/stellartrail-avatars/users/user-id/avatar/hash.png"
+  }
+}
+```
+
 ### Profile avatar upload
 
-登录后可上传当前用户头像。服务端会校验图片扩展名、声明 MIME 和文件签名，上传到公开头像 bucket，并更新当前用户的 `avatar_url`。微信小程序 `wx.uploadFile` 只发起 `POST` 上传，因此服务端同时接受 `PUT` 和 `POST`，推荐通用客户端使用 `PUT`。
+登录后可上传当前用户头像。服务端会校验图片文件签名，上传到公开头像 bucket，并更新当前用户的 `avatar_url`。通用客户端传入标准文件名和 MIME 时仍会校验扩展名、声明 MIME 与文件签名一致；微信小程序 `chooseAvatar` 产生的临时文件名或 `application/octet-stream` 会按文件签名推断图片类型。微信小程序 `wx.uploadFile` 只发起 `POST` 上传，因此服务端同时接受 `PUT` 和 `POST`，推荐通用客户端使用 `PUT`。
 
 ```http
 PUT /api/me/profile/avatar

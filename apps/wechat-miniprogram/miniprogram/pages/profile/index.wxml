@@ -6,7 +6,7 @@
 
   <view class="card account-card">
     <view class="account-main">
-      <view class="account-avatar">
+      <view wx:if="{{loggedIn}}" class="account-avatar">
         <image
           wx:if="{{accountProfile.avatarUrl}}"
           class="account-avatar-image"
@@ -17,10 +17,15 @@
       </view>
       <view class="account-copy">
         <view class="account-title">账号状态</view>
-        <view class="account-desc">{{accountProfile.displayName}}</view>
+        <view wx:if="{{loggedIn}}" class="account-desc"
+          >{{accountProfile.displayName}}</view
+        >
         <view class="account-hint"
           >{{loggedIn ? '可以管理自己的装备清单。' :
           '未登录也可以先看出行装备参考和绳结教学。'}}</view
+        >
+        <view wx:if="{{accountError}}" class="account-error"
+          >{{accountError}}</view
         >
       </view>
     </view>

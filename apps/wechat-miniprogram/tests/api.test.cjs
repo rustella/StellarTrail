@@ -111,6 +111,36 @@ test("uploadWechatAvatar uploads with bearer token and stores returned user", as
   });
 });
 
+test("getCurrentUser refreshes stored profile from backend", async () => {
+  const storage = installWxMock((options) => {
+    assert.equal(options.url, "https://api.example.test/api/me/profile");
+    assert.equal(options.method, "GET");
+    assert.equal(options.header.authorization, "Bearer access-old");
+    options.success({
+      statusCode: 200,
+      data: {
+        user: {
+          id: "u1",
+          nickname: "后端昵称",
+          avatar_url: "https://assets.example.test/avatar.png",
+        },
+      },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  const { getCurrentUser } = require("../.tmp-test/utils/api.js");
+
+  const user = await getCurrentUser();
+
+  assert.equal(user.nickname, "后端昵称");
+  assert.equal(user.avatar_url, "https://assets.example.test/avatar.png");
+  assert.deepEqual(storage.get("stellartrail_user"), {
+    id: "u1",
+    nickname: "后端昵称",
+    avatar_url: "https://assets.example.test/avatar.png",
+  });
+});
+
 test("authenticated requests refresh once on 401 and retry with the new access token", async () => {
   const calls = [];
   const storage = installWxMock((options) => {

@@ -148,7 +148,8 @@ fn content_type_to_image_type(value: &str) -> Option<ImageType> {
     }
 }
 
-fn detect_image_type(bytes: &[u8]) -> Option<ImageType> {
+/// Detects a supported image type from trusted file bytes.
+pub fn detect_image_type(bytes: &[u8]) -> Option<ImageType> {
     if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
         return Some(ImageType::Jpeg);
     }

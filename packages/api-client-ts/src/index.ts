@@ -242,6 +242,10 @@ export class StellarTrailApiClient {
     return this.post<BindEmailResponse>("/api/me/email-binding", request, true);
   }
 
+  async getProfile(): Promise<ProfileUserResponse> {
+    return this.get<ProfileUserResponse>("/api/me/profile", true);
+  }
+
   async uploadProfileAvatar(
     file: Blob,
     filename = "avatar.png",
