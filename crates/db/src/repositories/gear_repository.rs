@@ -381,10 +381,10 @@ fn gear_select_sql(where_clause: &str) -> String {
 
 /// Runs the `gear select columns` server-side flow while preserving input validation, error propagation, and state invariants.
 fn gear_select_columns() -> &'static str {
-    r#"SELECT id, user_id, category, name, brand, model, color, material, capacity, size, description,
-        weight_g, official_price_cents, official_price_currency, warmth_index, waterproof_index,
+    r#"SELECT id, user_id, category, name, brand, model, description,
+        weight_g, official_price_cents, official_price_currency,
         purchase_date, purchase_price_cents, purchase_price_currency,
-        expiry_or_warranty_date, purchase_location, status, storage_location, tags_json,
+        purchase_location, status, storage_location, tags_json,
         specs_json, share_enabled, share_status, notes, archived_at, created_at, updated_at
        FROM user_gear_items"#
 }
@@ -458,20 +458,13 @@ fn map_gear(row: &sea_orm::QueryResult) -> Result<GearItem, DbErr> {
         name: row.try_get("", "name")?,
         brand: row.try_get("", "brand")?,
         model: row.try_get("", "model")?,
-        color: row.try_get("", "color")?,
-        material: row.try_get("", "material")?,
-        capacity: row.try_get("", "capacity")?,
-        size: row.try_get("", "size")?,
         description: row.try_get("", "description")?,
         weight_g: row.try_get("", "weight_g")?,
         official_price_cents: row.try_get("", "official_price_cents")?,
         official_price_currency: row.try_get("", "official_price_currency")?,
-        warmth_index: row.try_get("", "warmth_index")?,
-        waterproof_index: row.try_get("", "waterproof_index")?,
         purchase_date: row.try_get("", "purchase_date")?,
         purchase_price_cents: row.try_get("", "purchase_price_cents")?,
         purchase_price_currency: row.try_get("", "purchase_price_currency")?,
-        expiry_or_warranty_date: row.try_get("", "expiry_or_warranty_date")?,
         purchase_location: row.try_get("", "purchase_location")?,
         status: GearStatus::from_key(&status_raw)
             .ok_or_else(|| DbErr::Custom(format!("invalid gear status: {status_raw}")))?,
