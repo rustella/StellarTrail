@@ -7,6 +7,8 @@
     </view>
   </view>
 
+  <view wx:if="{{offlineNotice}}" class="offline-notice">{{offlineNotice}}</view>
+
   <view wx:if="{{error}}" class="state-card error">
     <view>{{error}}</view>
     <button class="retry-button" bindtap="loadKnots">重试</button>

@@ -1,7 +1,9 @@
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import {
+  consumeOfflineCacheNotice,
   getErrorMessage,
   hasAccessToken,
+  isOfflineCacheMissError,
   isNotFoundApiError,
   listGearAtlas,
 } from "../../utils/api";
@@ -13,6 +15,10 @@ import {
   type GearAtlasPublicItem,
   type GearCategory,
 } from "../../utils/gear-utils";
+import {
+  isOffline,
+  showOfflineWriteBlockedToast,
+} from "../../utils/network-state";
 
 interface AtlasCategoryChip {
   id: "all" | GearCategory;
@@ -48,6 +54,7 @@ Page({
     loadingMore: false,
     error: "",
     errorIsUnavailable: false,
+    offlineNotice: "",
     isLoggedIn: hasAccessToken(),
     ...getThemeViewData(),
   },
@@ -78,11 +85,17 @@ Page({
     });
     try {
       const response = await listGearAtlas(this.buildRequest(null));
+      const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         items: response.items.map(mapAtlasCard),
         nextCursor: response.next_cursor ?? null,
+        ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
+      if (isOfflineCacheMissError(error) && this.data.items.length) {
+        wx.showToast({ title: getErrorMessage(error), icon: "none" });
+        return;
+      }
       this.setData({
         error: atlasErrorMessage(error),
         errorIsUnavailable: isNotFoundApiError(error),
@@ -102,11 +115,17 @@ Page({
       const response = await listGearAtlas(
         this.buildRequest(this.data.nextCursor),
       );
+      const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         items: [...this.data.items, ...response.items.map(mapAtlasCard)],
         nextCursor: response.next_cursor ?? null,
+        ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
+      if (isOfflineCacheMissError(error)) {
+        wx.showToast({ title: getErrorMessage(error), icon: "none" });
+        return;
+      }
       this.setData({
         error: atlasErrorMessage(error),
         errorIsUnavailable: isNotFoundApiError(error),
@@ -148,6 +167,10 @@ Page({
   },
 
   goSubmit() {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     if (!hasAccessToken()) {
       wx.showModal({
         title: "登录后投稿",

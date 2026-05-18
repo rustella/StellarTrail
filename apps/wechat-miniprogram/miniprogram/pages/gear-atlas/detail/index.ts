@@ -1,5 +1,10 @@
 import { getThemeViewData, syncPageTheme } from "../../../utils/theme";
-import { getErrorMessage, getGearAtlasItem } from "../../../utils/api";
+import {
+  consumeOfflineCacheNotice,
+  getErrorMessage,
+  getGearAtlasItem,
+  isOfflineCacheMissError,
+} from "../../../utils/api";
 import {
   formatDateText,
   formatGearPrice,
@@ -32,6 +37,7 @@ Page({
     groups: [] as DetailGroup[],
     loading: false,
     error: "",
+    offlineNotice: "",
     ...getThemeViewData(),
   },
 
@@ -60,8 +66,16 @@ Page({
     this.setData({ loading: true, error: "" });
     try {
       const item = await getGearAtlasItem(this.data.id);
-      this.setData(buildDetailData(item));
+      const offlineNotice = consumeOfflineCacheNotice();
+      this.setData({
+        ...buildDetailData(item),
+        ...(offlineNotice ? { offlineNotice } : {}),
+      });
     } catch (error) {
+      if (isOfflineCacheMissError(error) && this.data.item) {
+        wx.showToast({ title: getErrorMessage(error), icon: "none" });
+        return;
+      }
       this.setData({ error: getErrorMessage(error), item: null });
     } finally {
       this.setData({ loading: false });

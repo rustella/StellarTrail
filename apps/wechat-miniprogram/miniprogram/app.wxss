@@ -180,6 +180,18 @@ picker {
   line-height: 1.6;
 }
 
+.offline-notice {
+  margin-top: 20rpx;
+  padding: 18rpx 22rpx;
+  border: 1rpx solid rgba(180, 83, 9, 0.18);
+  border-radius: 20rpx;
+  color: var(--notice-text);
+  background: var(--notice-bg);
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 .theme-settings-card {
   display: flex;
   align-items: center;

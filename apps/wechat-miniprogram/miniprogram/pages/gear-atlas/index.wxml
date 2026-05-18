@@ -10,6 +10,10 @@
     <button class="primary-action" bindtap="goSubmit">投稿</button>
   </view>
 
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
   <view class="search-card">
     <input
       class="search-input"

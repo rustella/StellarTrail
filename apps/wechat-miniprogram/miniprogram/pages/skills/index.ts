@@ -1,4 +1,10 @@
-import { getErrorMessage, listKnots, resolveAssetUrl } from "../../utils/api";
+import {
+  consumeOfflineCacheNotice,
+  getErrorMessage,
+  isOfflineCacheMissError,
+  listKnots,
+  resolveAssetUrl,
+} from "../../utils/api";
 import {
   mapSkillCard,
   type KnotMediaAsset,
@@ -6,6 +12,7 @@ import {
   type SkillCard,
 } from "../../utils/skill-utils";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
+import { resolveCachedMediaUrl } from "../../utils/media-cache";
 
 type SkillsMode = "catalog" | "knots";
 
@@ -59,6 +66,7 @@ Page({
     listResultText: "",
     loading: false,
     error: "",
+    offlineNotice: "",
     ...getThemeViewData(),
   },
 
@@ -80,7 +88,7 @@ Page({
       return;
     }
     wx.setNavigationBarTitle({ title: "绳结" });
-    this.setData({ mode: "knots", error: "" });
+    this.setData({ mode: "knots", error: "", offlineNotice: "" });
     this.loadKnots();
   },
 
@@ -93,7 +101,7 @@ Page({
     this.setData({ loading: true, error: "" });
     try {
       const items = await loadAllKnots();
-      const allKnots = items.map(mapKnotListCard);
+      const allKnots = await Promise.all(items.map(mapKnotListCard));
       const categoryFilters = buildCategoryFilters(allKnots);
       const selectedCategoryIndex = validCategoryIndex(
         categoryFilters,
@@ -105,6 +113,7 @@ Page({
         selectedCategoryId,
         this.data.searchQuery,
       );
+      const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         allKnots,
         knots: filteredKnots,
@@ -115,8 +124,14 @@ Page({
         hasActiveFilters: hasActiveFilters(selectedCategoryId, this.data.searchQuery),
         listResultText: listResultText(filteredKnots.length, allKnots.length),
         loading: false,
+        ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
+      if (isOfflineCacheMissError(error) && this.data.allKnots.length) {
+        this.setData({ loading: false });
+        wx.showToast({ title: getErrorMessage(error), icon: "none" });
+        return;
+      }
       this.setData({
         error: getErrorMessage(error),
         loading: false,
@@ -196,8 +211,11 @@ async function loadAllKnots(): Promise<KnotSummary[]> {
   }
 }
 
-function mapKnotListCard(item: KnotSummary): KnotListCard {
+async function mapKnotListCard(item: KnotSummary): Promise<KnotListCard> {
   const thumbnail = findThumbnail(item.media);
+  const thumbnailUrl = thumbnail
+    ? await resolveCachedMediaUrl(resolveAssetUrl(thumbnail.url))
+    : "";
   const categoryIds = item.categories.map((category) => category.id || category.slug);
   const categoryTitles = item.categories.map((category) => category.title);
   const searchParts = [item.title, item.summary].concat(
@@ -206,8 +224,8 @@ function mapKnotListCard(item: KnotSummary): KnotListCard {
   );
   return {
     ...mapSkillCard(item),
-    thumbnailUrl: thumbnail ? resolveAssetUrl(thumbnail.url) : "",
-    hasThumbnail: Boolean(thumbnail),
+    thumbnailUrl,
+    hasThumbnail: Boolean(thumbnailUrl),
     categoryIds,
     categoryTitles,
     searchText: searchParts.join(" ").toLocaleLowerCase(),

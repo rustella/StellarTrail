@@ -1,9 +1,11 @@
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import {
   archiveGear,
+  consumeOfflineCacheNotice,
   getErrorMessage,
   getGearStats,
   hasAccessToken,
+  isOfflineCacheMissError,
   isLoginRequiredError,
   listGearCategories,
   listGears,
@@ -34,6 +36,10 @@ import {
   requireLoginForAction,
   showLoginPrompt,
 } from "../../utils/auth-prompt";
+import {
+  isOffline,
+  showOfflineWriteBlockedToast,
+} from "../../utils/network-state";
 
 interface GearCard extends GearSummary {
   categoryText: string;
@@ -83,6 +89,7 @@ Page({
     loading: false,
     loadingMore: false,
     error: "",
+    offlineNotice: "",
     emptyText: "还没有装备，先添加第一件户外装备吧",
     loginPrompt: getDefaultLoginPrompt(),
     ...getThemeViewData(),
@@ -141,6 +148,7 @@ Page({
           getGearStats(tab),
           listGears(this.buildListRequest(null)),
         ]);
+      const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         categories: categoryFilterItems(categoriesResponse.items),
         stats: statsResponse,
@@ -151,6 +159,7 @@ Page({
           tab === "history"
             ? "历史装备为空，软删除后的装备会出现在这里"
             : "还没有装备，先添加第一件户外装备吧",
+        ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
       if (isLoginRequiredError(error)) {
@@ -159,6 +168,10 @@ Page({
           message: "登录状态已过期，请重新登录后查看自己的装备。",
           redirectUrl: "/pages/gears/index",
         });
+        return;
+      }
+      if (isOfflineCacheMissError(error) && this.data.gears.length) {
+        wx.showToast({ title: getErrorMessage(error), icon: "none" });
         return;
       }
       this.setData({ error: getErrorMessage(error) });
@@ -181,9 +194,11 @@ Page({
       const response = await listGears(
         this.buildListRequest(this.data.nextCursor),
       );
+      const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         gears: [...this.data.gears, ...response.items.map(mapGearCard)],
         nextCursor: response.next_cursor ?? null,
+        ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
       if (isLoginRequiredError(error)) {
@@ -192,6 +207,10 @@ Page({
           message: "登录状态已过期，请重新登录后继续查看自己的装备。",
           redirectUrl: "/pages/gears/index",
         });
+        return;
+      }
+      if (isOfflineCacheMissError(error)) {
+        wx.showToast({ title: getErrorMessage(error), icon: "none" });
         return;
       }
       this.setData({ error: getErrorMessage(error) });
@@ -294,6 +313,10 @@ Page({
   },
 
   goCreate() {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     if (
       !requireLoginForAction(this, {
         message: "登录后就能把这件装备保存到自己的清单里。",
@@ -323,6 +346,10 @@ Page({
   },
 
   goEdit(event: WechatMiniprogram.BaseEvent) {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     if (
       !requireLoginForAction(this, {
         message: "登录后可以编辑自己的装备。",
@@ -338,6 +365,10 @@ Page({
   },
 
   archiveItem(event: WechatMiniprogram.BaseEvent) {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     if (
       !requireLoginForAction(this, {
         message: "登录后可以归档或恢复自己的装备。",
@@ -375,6 +406,10 @@ Page({
   },
 
   async restoreItem(event: WechatMiniprogram.BaseEvent) {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     if (
       !requireLoginForAction(this, {
         message: "登录后可以把历史装备恢复到可用列表。",

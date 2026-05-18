@@ -1,9 +1,11 @@
 import { getThemeViewData, syncPageTheme } from "../../../utils/theme";
 import {
   archiveGear,
+  consumeOfflineCacheNotice,
   getErrorMessage,
   getGear,
   hasAccessToken,
+  isOfflineCacheMissError,
   isLoginRequiredError,
   listMyGearAtlasSubmissions,
   restoreGear,
@@ -33,6 +35,10 @@ import {
   requireLoginForAction,
   showLoginPrompt,
 } from "../../../utils/auth-prompt";
+import {
+  isOffline,
+  showOfflineWriteBlockedToast,
+} from "../../../utils/network-state";
 
 interface DetailRow {
   label: string;
@@ -64,6 +70,7 @@ Page({
     loading: false,
     requiresLogin: false,
     error: "",
+    offlineNotice: "",
     loginPrompt: getDefaultLoginPrompt(),
     ...getThemeViewData(),
   },
@@ -110,7 +117,11 @@ Page({
     try {
       const item = await getGear(this.data.id);
       const submission = await findAtlasSubmission(item.id);
-      this.setData(buildDetailData(item, submission));
+      const offlineNotice = consumeOfflineCacheNotice();
+      this.setData({
+        ...buildDetailData(item, submission),
+        ...(offlineNotice ? { offlineNotice } : {}),
+      });
     } catch (error) {
       if (isLoginRequiredError(error)) {
         this.setData({ requiresLogin: true, item: null, error: "" });
@@ -120,6 +131,10 @@ Page({
         });
         return;
       }
+      if (isOfflineCacheMissError(error) && this.data.item) {
+        wx.showToast({ title: getErrorMessage(error), icon: "none" });
+        return;
+      }
       this.setData({ error: getErrorMessage(error) });
     } finally {
       this.setData({ loading: false });
@@ -127,6 +142,10 @@ Page({
   },
 
   goEdit() {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     if (
       !requireLoginForAction(this, {
         message: "登录后可以编辑自己的装备。",
@@ -139,6 +158,10 @@ Page({
   },
 
   archiveItem() {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     if (
       !requireLoginForAction(this, {
         message: "登录后可以归档或恢复自己的装备。",
@@ -176,6 +199,10 @@ Page({
   },
 
   async restoreItem() {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     if (
       !requireLoginForAction(this, {
         message: "登录后可以把历史装备恢复到可用列表。",
@@ -202,6 +229,10 @@ Page({
   },
 
   submitToAtlas() {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     if (
       !requireLoginForAction(this, {
         message: "登录后可以把自己的装备投稿到装备图鉴。",

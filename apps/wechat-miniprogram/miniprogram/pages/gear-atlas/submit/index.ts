@@ -25,6 +25,10 @@ import {
   openLoginPageFromPrompt,
   showLoginPrompt,
 } from "../../../utils/auth-prompt";
+import {
+  isOffline,
+  showOfflineWriteBlockedToast,
+} from "../../../utils/network-state";
 
 Page({
   data: {
@@ -130,6 +134,10 @@ Page({
 
   async submitForm() {
     if (this.data.submitting) {
+      return;
+    }
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
       return;
     }
     if (!hasAccessToken()) {

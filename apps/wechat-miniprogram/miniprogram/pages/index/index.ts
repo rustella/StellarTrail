@@ -1,7 +1,9 @@
 import {
+  consumeOfflineCacheNotice,
   getErrorMessage,
   getGearStats,
   hasAccessToken,
+  isOfflineCacheMissError,
   isLoginRequiredError,
   listGears,
   listKnots,
@@ -22,6 +24,10 @@ import {
   requireLoginForAction,
 } from "../../utils/auth-prompt";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
+import {
+  isOffline,
+  showOfflineWriteBlockedToast,
+} from "../../utils/network-state";
 
 interface QuickAction {
   id: string;
@@ -149,6 +155,7 @@ Page({
     gearError: "",
     skillLoading: false,
     skillError: "",
+    offlineNotice: "",
     gearStatCards: INITIAL_LOGGED_IN
       ? buildGearStatCards(EMPTY_STATS)
       : LOCKED_GEAR_STATS,
@@ -179,7 +186,7 @@ Page({
 
   loadHomeDashboard() {
     const isLoggedIn = hasAccessToken();
-    this.setData({ isLoggedIn });
+    this.setData({ isLoggedIn, offlineNotice: "" });
     if (isLoggedIn) {
       this.loadGearSummary();
     } else {
@@ -200,11 +207,13 @@ Page({
         getGearStats("available"),
         listGears({ tab: "available", limit: 2, sort: "created_at_desc" }),
       ]);
+      const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         isLoggedIn: true,
         gearStatCards: buildGearStatCards(stats),
         recentGears: gears.items.map(mapHomeGearCard),
         gearLoading: false,
+        ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
       if (isLoginRequiredError(error)) {
@@ -215,6 +224,11 @@ Page({
           gearStatCards: buildGearStatCards(EMPTY_STATS),
           recentGears: [] as HomeGearCard[],
         });
+        return;
+      }
+      if (isOfflineCacheMissError(error) && this.data.recentGears.length) {
+        this.setData({ gearLoading: false });
+        wx.showToast({ title: getErrorMessage(error), icon: "none" });
         return;
       }
       this.setData({
@@ -229,11 +243,18 @@ Page({
     this.setData({ skillLoading: true, skillError: "" });
     try {
       const response = await listKnots({ offset: 0, limit: 3 });
+      const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         featuredSkills: response.items.slice(0, 3).map(mapSkillCard),
         skillLoading: false,
+        ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
+      if (isOfflineCacheMissError(error) && this.data.featuredSkills.length) {
+        this.setData({ skillLoading: false });
+        wx.showToast({ title: getErrorMessage(error), icon: "none" });
+        return;
+      }
       this.setData({
         skillError: getErrorMessage(error),
         skillLoading: false,
@@ -277,6 +298,10 @@ Page({
   },
 
   goAddGear() {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     if (
       !requireLoginForAction(this, {
         message: "登录后就能把这件装备保存到自己的清单里。",
