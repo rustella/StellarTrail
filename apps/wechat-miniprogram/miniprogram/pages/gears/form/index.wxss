@@ -103,6 +103,14 @@ textarea {
   min-width: 0;
 }
 
+.price-pair {
+  align-items: stretch;
+}
+
+.price-pair .field {
+  min-height: 126rpx;
+}
+
 .spec-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -138,6 +146,24 @@ textarea {
   font-weight: 800;
   text-align: center;
   white-space: nowrap;
+}
+
+.picker-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.field-value.placeholder {
+  color: var(--muted-color);
+  font-weight: 600;
+}
+
+.mini-chevron {
+  color: var(--muted-color);
+  font-size: 34rpx;
+  line-height: 1;
 }
 
 .picker-row,

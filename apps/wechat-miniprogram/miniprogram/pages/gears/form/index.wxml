@@ -120,16 +120,7 @@
 
     <view class="form-card">
       <view class="section-title">购买与存放</view>
-      <view class="two-column">
-        <view class="field compact">
-          <view class="field-label">购买日期</view>
-          <input
-            value="{{form.purchaseDate}}"
-            data-field="purchaseDate"
-            placeholder="YYYY-MM-DD"
-            bindinput="onInput"
-          />
-        </view>
+      <view class="two-column price-pair">
         <view class="field compact">
           <view class="field-label">官方价格</view>
           <view class="price-input-row">
@@ -151,8 +142,6 @@
             </picker>
           </view>
         </view>
-      </view>
-      <view class="two-column">
         <view class="field compact">
           <view class="field-label">购入价格</view>
           <view class="price-input-row">
@@ -174,6 +163,26 @@
             </picker>
           </view>
         </view>
+      </view>
+      <view class="two-column">
+        <picker
+          mode="date"
+          value="{{form.purchaseDate}}"
+          start="2000-01-01"
+          end="2099-12-31"
+          bindchange="onPurchaseDateChange"
+        >
+          <view class="field compact date-picker-field">
+            <view class="field-label">购买日期</view>
+            <view class="picker-value-row">
+              <view
+                class="field-value {{form.purchaseDate ? '' : 'placeholder'}}"
+                >{{form.purchaseDate || '选择购买日期'}}</view
+              >
+              <view class="mini-chevron">›</view>
+            </view>
+          </view>
+        </picker>
         <view class="field compact">
           <view class="field-label">购买渠道</view>
           <input

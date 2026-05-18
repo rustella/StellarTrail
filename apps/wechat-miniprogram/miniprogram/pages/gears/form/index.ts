@@ -162,6 +162,10 @@ Page({
     this.setData({ "form.shareEnabled": Boolean(event.detail.value) });
   },
 
+  onPurchaseDateChange(event: any) {
+    this.setData({ "form.purchaseDate": event.detail.value });
+  },
+
   onOfficialPriceCurrencyChange(event: any) {
     const index = Number(event.detail.value || 0);
     const currency = GEAR_CURRENCY_OPTIONS[index].value as GearCurrency;
