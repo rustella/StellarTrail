@@ -26,6 +26,7 @@ struct FileConfig {
     avatar_storage: FileAvatarStorageConfig,
     knots_media_storage: FileKnotsMediaStorageConfig,
     admin: FileAdminConfig,
+    rate_limit: FileRateLimitConfig,
     public_api: FilePublicApiConfig,
     cors: FileCorsConfig,
     mail: FileMailConfig,
@@ -109,6 +110,17 @@ struct FileAdminConfig {
     user_ids: Option<Vec<String>>,
     emails: Option<Vec<String>>,
     usernames: Option<Vec<String>>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct FileRateLimitConfig {
+    enabled: Option<bool>,
+    window_seconds: Option<u64>,
+    max_requests_per_ip: Option<u64>,
+    max_requests_per_user: Option<u64>,
+    trust_proxy_headers: Option<bool>,
+    trusted_proxy_cidrs: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -218,6 +230,30 @@ impl Default for PublicApiConfig {
 pub struct CorsConfig {
     pub allowed_origins: Vec<String>,
     pub allow_credentials: bool,
+}
+
+/// Global application route rate limit configuration.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RateLimitConfig {
+    pub enabled: bool,
+    pub window_seconds: u64,
+    pub max_requests_per_ip: u64,
+    pub max_requests_per_user: u64,
+    pub trust_proxy_headers: bool,
+    pub trusted_proxy_cidrs: Vec<String>,
+}
+
+impl Default for RateLimitConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            window_seconds: 60,
+            max_requests_per_ip: 120,
+            max_requests_per_user: 240,
+            trust_proxy_headers: false,
+            trusted_proxy_cidrs: Vec::new(),
+        }
+    }
 }
 
 impl RedisCacheConfig {
@@ -408,6 +444,7 @@ pub struct ApiConfig {
     pub knots_media_storage: KnotsMediaStorageConfig,
     pub admin: AdminConfig,
     pub public_api: PublicApiConfig,
+    pub rate_limit: RateLimitConfig,
     pub cors: CorsConfig,
     pub mail: MailConfig,
 }
@@ -426,6 +463,7 @@ impl ApiConfig {
             avatar_storage: file_avatar_storage,
             knots_media_storage: file_knots_media_storage,
             admin: file_admin,
+            rate_limit: file_rate_limit,
             public_api: file_public_api,
             cors: file_cors,
             mail: file_mail,
@@ -592,6 +630,35 @@ impl ApiConfig {
                 .collect(),
         };
 
+        let rate_limit = RateLimitConfig {
+            enabled: config_bool_env("RATE_LIMIT_ENABLED", file_rate_limit.enabled, true)?,
+            window_seconds: config_u64_env(
+                "RATE_LIMIT_WINDOW_SECONDS",
+                file_rate_limit.window_seconds,
+                60,
+            )?,
+            max_requests_per_ip: config_u64_env(
+                "RATE_LIMIT_MAX_REQUESTS_PER_IP",
+                file_rate_limit.max_requests_per_ip,
+                120,
+            )?,
+            max_requests_per_user: config_u64_env(
+                "RATE_LIMIT_MAX_REQUESTS_PER_USER",
+                file_rate_limit.max_requests_per_user,
+                240,
+            )?,
+            trust_proxy_headers: config_bool_env(
+                "RATE_LIMIT_TRUST_PROXY_HEADERS",
+                file_rate_limit.trust_proxy_headers,
+                false,
+            )?,
+            trusted_proxy_cidrs: config_list_env(
+                "RATE_LIMIT_TRUSTED_PROXY_CIDRS",
+                file_rate_limit.trusted_proxy_cidrs,
+            ),
+        };
+        validate_rate_limit_config(&rate_limit)?;
+
         let public_api = PublicApiConfig {
             rate_limit_enabled: config_bool_env(
                 "PUBLIC_API_RATE_LIMIT_ENABLED",
@@ -707,6 +774,7 @@ impl ApiConfig {
             knots_media_storage,
             admin,
             public_api,
+            rate_limit,
             cors,
             mail,
         })
@@ -928,6 +996,24 @@ fn parse_mail_tls(name: &str, value: &str) -> anyhow::Result<MailSmtpTls> {
     }
 }
 
+fn validate_rate_limit_config(config: &RateLimitConfig) -> anyhow::Result<()> {
+    if config.window_seconds == 0 {
+        anyhow::bail!("RATE_LIMIT_WINDOW_SECONDS must be greater than 0");
+    }
+    if config.max_requests_per_ip == 0 {
+        anyhow::bail!("RATE_LIMIT_MAX_REQUESTS_PER_IP must be greater than 0");
+    }
+    if config.max_requests_per_user == 0 {
+        anyhow::bail!("RATE_LIMIT_MAX_REQUESTS_PER_USER must be greater than 0");
+    }
+    if config.trust_proxy_headers && config.trusted_proxy_cidrs.is_empty() {
+        anyhow::bail!(
+            "RATE_LIMIT_TRUSTED_PROXY_CIDRS must be set when RATE_LIMIT_TRUST_PROXY_HEADERS=true"
+        );
+    }
+    Ok(())
+}
+
 fn validate_public_api_config(config: &PublicApiConfig) -> anyhow::Result<()> {
     if config.rate_limit_window_seconds == 0 {
         anyhow::bail!("PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS must be greater than 0");
@@ -1109,6 +1195,14 @@ admin:
     - Admin@Example.Invalid
   usernames:
     - TrailAdmin
+rate_limit:
+  enabled: true
+  window_seconds: 20
+  max_requests_per_ip: 6
+  max_requests_per_user: 12
+  trust_proxy_headers: true
+  trusted_proxy_cidrs:
+    - 172.16.0.0/12
 public_api:
   rate_limit_enabled: true
   rate_limit_window_seconds: 15
@@ -1170,6 +1264,14 @@ mail:
             vec!["admin@example.invalid".to_owned()]
         );
         assert_eq!(config.admin.usernames, vec!["trailadmin".to_owned()]);
+        assert_eq!(config.rate_limit.window_seconds, 20);
+        assert_eq!(config.rate_limit.max_requests_per_ip, 6);
+        assert_eq!(config.rate_limit.max_requests_per_user, 12);
+        assert!(config.rate_limit.trust_proxy_headers);
+        assert_eq!(
+            config.rate_limit.trusted_proxy_cidrs,
+            vec!["172.16.0.0/12".to_owned()]
+        );
         assert_eq!(config.public_api.rate_limit_window_seconds, 15);
         assert_eq!(
             config.public_api.trusted_proxy_cidrs,
@@ -1295,6 +1397,55 @@ public_api:
         );
         assert_eq!(config.avatar_storage.max_image_bytes, 234567);
 
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_reads_global_rate_limit_config() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("RATE_LIMIT_ENABLED", "true");
+            env::set_var("RATE_LIMIT_WINDOW_SECONDS", "45");
+            env::set_var("RATE_LIMIT_MAX_REQUESTS_PER_IP", "11");
+            env::set_var("RATE_LIMIT_MAX_REQUESTS_PER_USER", "22");
+            env::set_var("RATE_LIMIT_TRUST_PROXY_HEADERS", "true");
+            env::set_var(
+                "RATE_LIMIT_TRUSTED_PROXY_CIDRS",
+                "172.16.0.0/12,127.0.0.1/32",
+            );
+        }
+
+        let config = ApiConfig::from_env().unwrap();
+
+        assert!(config.rate_limit.enabled);
+        assert_eq!(config.rate_limit.window_seconds, 45);
+        assert_eq!(config.rate_limit.max_requests_per_ip, 11);
+        assert_eq!(config.rate_limit.max_requests_per_user, 22);
+        assert!(config.rate_limit.trust_proxy_headers);
+        assert_eq!(
+            config.rate_limit.trusted_proxy_cidrs,
+            vec!["172.16.0.0/12".to_owned(), "127.0.0.1/32".to_owned()],
+        );
+
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_rejects_invalid_global_rate_limit_config() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("RATE_LIMIT_WINDOW_SECONDS", "0");
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(error.contains("RATE_LIMIT_WINDOW_SECONDS"), "{error}");
         restore_env(saved);
     }
 
@@ -1465,6 +1616,12 @@ public_api:
         "AVATAR_STORAGE_BUCKET",
         "AVATAR_STORAGE_PUBLIC_BASE_URL",
         "AVATAR_STORAGE_MAX_IMAGE_BYTES",
+        "RATE_LIMIT_ENABLED",
+        "RATE_LIMIT_WINDOW_SECONDS",
+        "RATE_LIMIT_MAX_REQUESTS_PER_IP",
+        "RATE_LIMIT_MAX_REQUESTS_PER_USER",
+        "RATE_LIMIT_TRUST_PROXY_HEADERS",
+        "RATE_LIMIT_TRUSTED_PROXY_CIDRS",
         "PUBLIC_API_RATE_LIMIT_ENABLED",
         "PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS",
         "PUBLIC_API_RATE_LIMIT_MAX_REQUESTS_PER_IP",

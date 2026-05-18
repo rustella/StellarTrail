@@ -24,7 +24,9 @@ use axum::{
 };
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
-use crate::{api_usage, config::CorsConfig, error::ApiError, state::AppState};
+use crate::{
+    api_usage, config::CorsConfig, error::ApiError, services::rate_limit_service, state::AppState,
+};
 
 /// Combines all business routes, health checks, and the 404 fallback.
 pub fn build_router(state: AppState) -> Router {
@@ -37,6 +39,10 @@ pub fn build_router(state: AppState) -> Router {
         .saturating_add(1_000_000) as usize;
     let cors_layer = build_cors_layer(&state.config().cors);
     let usage_state = state.clone();
+    let rate_limit_layer = axum::middleware::from_fn_with_state(
+        state.clone(),
+        rate_limit_service::enforce_global_rate_limit,
+    );
     Router::new()
         .route("/healthz", get(health::healthz))
         .route("/api/meta", get(meta::meta))
@@ -49,13 +55,14 @@ pub fn build_router(state: AppState) -> Router {
         .merge(profile::routes())
         .merge(uploads::routes())
         .merge(feedback::routes())
+        .fallback(not_found)
         .layer(DefaultBodyLimit::max(body_limit))
+        .layer(rate_limit_layer)
         .route_layer(middleware::from_fn_with_state(
             usage_state,
             api_usage::track_api_usage,
         ))
         .layer(cors_layer)
-        .fallback(not_found)
         .with_state(state)
 }
 

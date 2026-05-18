@@ -61,6 +61,14 @@ admin:
   emails: []
   usernames: []
 
+rate_limit:
+  enabled: true
+  window_seconds: 60
+  max_requests_per_ip: 120
+  max_requests_per_user: 240
+  trust_proxy_headers: false
+  trusted_proxy_cidrs: []
+
 mail:
   enabled: false
   smtp_host: smtp.example.invalid

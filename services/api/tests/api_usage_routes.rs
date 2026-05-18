@@ -52,6 +52,7 @@ async fn test_app(admin_emails: Vec<String>) -> TestApp {
             ..Default::default()
         },
         public_api: Default::default(),
+        rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
     };

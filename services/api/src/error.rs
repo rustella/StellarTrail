@@ -1,6 +1,10 @@
 //! API error model and Axum response conversion module for consistent HTTP representations of business, validation, and authentication errors.
 
-use axum::{Json, http::StatusCode, response::IntoResponse};
+use axum::{
+    Json,
+    http::{HeaderValue, StatusCode, header},
+    response::IntoResponse,
+};
 use serde::Serialize;
 use stellartrail_domain::validation::FieldViolation;
 
@@ -90,11 +94,12 @@ impl ApiError {
 impl IntoResponse for ApiError {
     /// Runs the `into response` server-side flow while preserving input validation, error propagation, and state invariants.
     fn into_response(self) -> axum::response::Response {
-        let (status, code, message, fields, captcha, parameter) = match self {
+        let (status, code, message, fields, captcha, parameter, retry_after) = match self {
             Self::BadRequest(message) => (
                 StatusCode::BAD_REQUEST,
                 "bad_request",
                 message,
+                None,
                 None,
                 None,
                 None,
@@ -110,11 +115,13 @@ impl IntoResponse for ApiError {
                 None,
                 None,
                 parameter,
+                None,
             ),
             Self::Unauthorized => (
                 StatusCode::UNAUTHORIZED,
                 "unauthorized",
                 "missing or invalid bearer token".to_owned(),
+                None,
                 None,
                 None,
                 None,
@@ -126,11 +133,13 @@ impl IntoResponse for ApiError {
                 None,
                 None,
                 None,
+                None,
             ),
             Self::InvalidCredentials => (
                 StatusCode::UNAUTHORIZED,
                 "invalid_credentials",
                 "用户名/邮箱或密码不正确".to_owned(),
+                None,
                 None,
                 None,
                 None,
@@ -145,11 +154,13 @@ impl IntoResponse for ApiError {
                     endpoint: "/api/auth/captcha",
                 }),
                 None,
+                None,
             ),
             Self::NotFound => (
                 StatusCode::NOT_FOUND,
                 "not_found",
                 "resource not found".to_owned(),
+                None,
                 None,
                 None,
                 None,
@@ -161,6 +172,7 @@ impl IntoResponse for ApiError {
                 Some(fields),
                 None,
                 None,
+                None,
             ),
             Self::PayloadTooLarge { max_bytes } => (
                 StatusCode::PAYLOAD_TOO_LARGE,
@@ -169,11 +181,13 @@ impl IntoResponse for ApiError {
                 None,
                 None,
                 None,
+                None,
             ),
             Self::UnsupportedMediaType(message) => (
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
                 "unsupported_media_type",
                 message,
+                None,
                 None,
                 None,
                 None,
@@ -187,11 +201,13 @@ impl IntoResponse for ApiError {
                 None,
                 None,
                 None,
+                Some(retry_after_seconds),
             ),
             Self::EmailDeliveryFailed => (
                 StatusCode::BAD_GATEWAY,
                 "email_delivery_failed",
                 "邮箱验证码发送失败，请稍后重试".to_owned(),
+                None,
                 None,
                 None,
                 None,
@@ -205,11 +221,12 @@ impl IntoResponse for ApiError {
                     None,
                     None,
                     None,
+                    None,
                 )
             }
         };
 
-        (
+        let mut response = (
             status,
             Json(ErrorBody {
                 code,
@@ -219,7 +236,13 @@ impl IntoResponse for ApiError {
                 parameter,
             }),
         )
-            .into_response()
+            .into_response();
+        if let Some(retry_after) = retry_after {
+            if let Ok(value) = HeaderValue::from_str(&retry_after.to_string()) {
+                response.headers_mut().insert(header::RETRY_AFTER, value);
+            }
+        }
+        response
     }
 }
 

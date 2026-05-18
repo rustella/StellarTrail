@@ -107,6 +107,7 @@ async fn test_app() -> TestApp {
             usernames: vec!["admin_upload".to_owned()],
         },
         public_api: PublicApiConfig::default(),
+        rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
     };
