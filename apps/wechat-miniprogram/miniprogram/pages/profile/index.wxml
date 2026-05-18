@@ -66,29 +66,12 @@
   <view wx:if="{{nicknameModalVisible}}" class="profile-modal-mask">
     <view class="profile-modal-card">
       <view class="profile-modal-title">修改名称</view>
-      <view wx:if="{{!nicknameEditMode}}" class="profile-name-methods">
-        <button
-          class="profile-name-method"
-          loading="{{nicknameLoading}}"
-          disabled="{{nicknameLoading}}"
-          bindtap="importWechatNickname"
-        >
-          导入微信名称
-        </button>
-        <button class="profile-name-method" bindtap="useCustomNickname">
-          使用自定义名称
-        </button>
-      </view>
-      <form
-        wx:elif="{{nicknameEditMode === 'wechat'}}"
-        class="profile-name-form"
-        bindsubmit="saveWechatNickname"
-      >
+      <form class="profile-name-form" bindsubmit="saveWechatNickname">
         <input
           class="profile-name-input"
           name="nickname"
           type="nickname"
-          placeholder="点击选择微信名称"
+          placeholder="点击选择微信名称或输入名称"
           value="{{nicknameDraft}}"
           disabled="{{nicknameLoading}}"
           confirm-type="done"
@@ -100,13 +83,6 @@
         >
         <view class="profile-modal-actions">
           <button
-            class="account-inline-button muted"
-            disabled="{{nicknameLoading}}"
-            bindtap="backToNicknameMethods"
-          >
-            返回
-          </button>
-          <button
             class="account-inline-button"
             loading="{{nicknameLoading}}"
             form-type="submit"
@@ -115,35 +91,6 @@
           </button>
         </view>
       </form>
-      <view wx:else class="profile-name-form">
-        <input
-          class="profile-name-input"
-          type="text"
-          placeholder="自定义名称"
-          value="{{nicknameDraft}}"
-          disabled="{{nicknameLoading}}"
-          bindinput="onNicknameInput"
-        />
-        <view wx:if="{{accountError}}" class="profile-modal-error"
-          >{{accountError}}</view
-        >
-        <view class="profile-modal-actions">
-          <button
-            class="account-inline-button muted"
-            disabled="{{nicknameLoading}}"
-            bindtap="backToNicknameMethods"
-          >
-            返回
-          </button>
-          <button
-            class="account-inline-button"
-            loading="{{nicknameLoading}}"
-            bindtap="saveNickname"
-          >
-            保存
-          </button>
-        </view>
-      </view>
       <view class="profile-modal-footer">
         <button
           class="account-inline-button muted"

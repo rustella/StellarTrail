@@ -24,7 +24,6 @@ Page({
     accountError: "",
     avatarLoading: false,
     nicknameDraft: "",
-    nicknameEditMode: "" as "" | "wechat" | "custom",
     nicknameModalVisible: false,
     nicknameLoading: false,
     nicknameReviewBlocked: false,
@@ -79,32 +78,7 @@ Page({
       return;
     }
     this.setData({
-      nicknameEditMode: "",
       nicknameModalVisible: true,
-      nicknameDraft: "",
-      nicknameReviewBlocked: false,
-      accountError: "",
-    });
-  },
-
-  importWechatNickname() {
-    if (!this.data.loggedIn || this.data.nicknameLoading) {
-      return;
-    }
-    this.setData({
-      nicknameEditMode: "wechat",
-      nicknameDraft: "",
-      nicknameReviewBlocked: false,
-      accountError: "",
-    });
-  },
-
-  useCustomNickname() {
-    if (this.data.nicknameLoading) {
-      return;
-    }
-    this.setData({
-      nicknameEditMode: "custom",
       nicknameDraft: this.data.accountProfile.hasNickname
         ? this.data.accountProfile.displayName
         : "",
@@ -124,7 +98,7 @@ Page({
     this.setData({
       nicknameReviewBlocked: reviewBlocked,
       accountError: reviewBlocked
-        ? "微信名称未通过安全检测，请重新选择或使用自定义名称"
+        ? "微信名称未通过安全检测，请重新选择或手动输入名称"
         : "",
     });
   },
@@ -135,12 +109,12 @@ Page({
     }
     const nickname = getSubmittedWechatNickname(event, this.data.nicknameDraft);
     if (!nickname) {
-      this.setData({ accountError: "请选择微信名称" });
+      this.setData({ accountError: "请选择或输入名称" });
       return;
     }
     if (this.data.nicknameReviewBlocked) {
       this.setData({
-        accountError: "微信名称未通过安全检测，请重新选择或使用自定义名称",
+        accountError: "微信名称未通过安全检测，请重新选择或手动输入名称",
       });
       return;
     }
@@ -148,45 +122,16 @@ Page({
     await this.saveNicknameValue(nickname);
   },
 
-  backToNicknameMethods() {
-    if (this.data.nicknameLoading) {
-      return;
-    }
-    this.setData({
-      nicknameEditMode: "",
-      nicknameDraft: "",
-      nicknameReviewBlocked: false,
-      accountError: "",
-    });
-  },
-
   closeNicknameModal() {
     if (this.data.nicknameLoading) {
       return;
     }
     this.setData({
-      nicknameEditMode: "",
       nicknameModalVisible: false,
       nicknameDraft: "",
       nicknameReviewBlocked: false,
       accountError: "",
     });
-  },
-
-  async saveNickname() {
-    if (!this.data.loggedIn || this.data.nicknameLoading) {
-      return;
-    }
-    if (this.data.nicknameEditMode !== "custom") {
-      this.setData({ accountError: "请选择修改方式" });
-      return;
-    }
-    const nickname = this.data.nicknameDraft.trim();
-    if (!nickname) {
-      this.setData({ accountError: "请输入自定义名称" });
-      return;
-    }
-    await this.saveNicknameValue(nickname);
   },
 
   async saveNicknameValue(nickname: string) {
@@ -196,7 +141,6 @@ Page({
       this.setData({
         loggedIn: hasAccessToken(),
         accountProfile: buildAccountProfile(true),
-        nicknameEditMode: "",
         nicknameModalVisible: false,
         nicknameDraft: "",
         nicknameReviewBlocked: false,
@@ -208,7 +152,6 @@ Page({
         this.setData({
           loggedIn: false,
           accountProfile: buildAccountProfile(false),
-          nicknameEditMode: "",
           nicknameModalVisible: false,
           nicknameDraft: "",
           nicknameReviewBlocked: false,
