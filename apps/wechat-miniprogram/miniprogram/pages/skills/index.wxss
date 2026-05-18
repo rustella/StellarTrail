@@ -12,6 +12,8 @@
 
 .hero-card,
 .state-card,
+.skill-category-card,
+.knot-filter-card,
 .skill-card {
   border: 1rpx solid var(--border-color);
   border-radius: var(--card-radius);
@@ -63,7 +65,7 @@
   background: var(--status-danger-bg);
 }
 
-.state-card button {
+.retry-button {
   margin: 20rpx auto 0;
   padding: 0 28rpx;
   border-radius: 999rpx;
@@ -84,6 +86,182 @@
   margin-top: 10rpx;
 }
 
+.skill-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  margin-top: 24rpx;
+}
+
+.skill-category-card {
+  display: grid;
+  grid-template-columns: 88rpx 1fr;
+  gap: 22rpx;
+  align-items: center;
+  padding: 28rpx;
+}
+
+.category-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+  font-size: 42rpx;
+}
+
+.category-content {
+  min-width: 0;
+}
+
+.category-subtitle {
+  color: var(--accent-color);
+  font-size: 21rpx;
+  font-weight: 900;
+}
+
+.category-title {
+  margin-top: 8rpx;
+  color: var(--text-color);
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.category-summary {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 25rpx;
+  line-height: 1.55;
+}
+
+.category-action {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 12rpx 22rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin-top: 26rpx;
+}
+
+.list-eyebrow {
+  color: var(--accent-color);
+  font-size: 21rpx;
+  font-weight: 900;
+}
+
+.list-title {
+  margin-top: 6rpx;
+  color: var(--text-color);
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.ghost-button {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 26rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: 999rpx;
+  color: var(--text-color);
+  background: var(--surface-color);
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 62rpx;
+}
+
+.ghost-button::after,
+.clear-filter-button::after,
+.retry-button::after {
+  border: 0;
+}
+
+.knot-filter-card {
+  margin-top: 20rpx;
+  padding: 18rpx;
+}
+
+.knot-search-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.knot-search-input {
+  flex: 1;
+  height: 72rpx;
+  min-width: 0;
+  padding: 0 22rpx;
+  border: 1rpx solid var(--soft-border-color);
+  border-radius: 20rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 26rpx;
+  box-sizing: border-box;
+}
+
+.clear-filter-button {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 64rpx;
+}
+
+.knot-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14rpx;
+  margin-top: 16rpx;
+}
+
+.category-filter-picker {
+  min-width: 0;
+  flex: 1;
+}
+
+.category-filter-pill {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  min-width: 0;
+  min-height: 64rpx;
+  padding: 0 22rpx;
+  border-radius: 999rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.filter-label {
+  color: var(--muted-color);
+  font-weight: 700;
+}
+
+.result-count {
+  flex-shrink: 0;
+  color: var(--muted-color);
+  font-size: 23rpx;
+  font-weight: 800;
+}
+
 .skill-list {
   display: flex;
   flex-direction: column;
@@ -92,11 +270,44 @@
 }
 
 .skill-card {
+  display: flex;
+  gap: 22rpx;
+  align-items: stretch;
   padding: 28rpx;
+}
+
+.skill-thumb {
+  display: flex;
+  flex: 0 0 164rpx;
+  align-items: center;
+  justify-content: center;
+  width: 164rpx;
+  height: 124rpx;
+  overflow: hidden;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.skill-thumb-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.thumb-placeholder {
+  color: var(--muted-color);
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.skill-content {
+  min-width: 0;
+  flex: 1;
 }
 
 .skill-tags {
   display: flex;
+  flex-wrap: wrap;
   gap: 12rpx;
 }
 

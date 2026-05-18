@@ -9,7 +9,8 @@
     "enhance": true,
     "postcss": true,
     "minified": true,
-    "compileHotReLoad": true
+    "compileHotReLoad": true,
+    "useCompilerPlugins": ["typescript"]
   },
   "miniprogramRoot": "miniprogram/"
 }

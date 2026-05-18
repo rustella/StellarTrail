@@ -1,7 +1,7 @@
 <view class="skill-detail-page {{themeClass}}">
   <view wx:if="{{error}}" class="state-card error">
     <view>{{error}}</view>
-    <button bindtap="loadDetail">重试</button>
+    <button class="retry-button" bindtap="loadDetail">重试</button>
   </view>
 
   <view wx:elif="{{loading && !detail}}" class="state-card">正在加载绳结详情...</view>
@@ -10,44 +10,54 @@
 
   <block wx:else>
     <view class="detail-hero">
-      <view class="tag-row">
-        <text class="tag">{{categoriesText}}</text>
-        <text class="tag {{difficultyTone}}">{{difficultyText}}</text>
-      </view>
-      <view class="detail-title">{{detail.title}}</view>
-      <view class="detail-summary">{{detail.summary}}</view>
-      <view wx:if="{{typesText}}" class="detail-meta">{{typesText}}</view>
-    </view>
-
-    <view wx:if="{{media.length}}" class="media-card">
-      <view class="section-title">演示素材</view>
-      <block wx:for="{{media}}" wx:key="id">
-        <view class="media-item">
-          <image mode="widthFix" src="{{item.resolvedUrl}}" />
-          <view class="media-caption">
-            <text>{{item.mediaTypeText}}</text>
-            <text wx:if="{{item.attribution}}">{{item.attribution}}</text>
-          </view>
+      <view class="media-stage">
+        <view class="media-frame">
+          <image
+            wx:if="{{activeMedia && activeMedia.resolvedUrl}}"
+            class="stage-image"
+            mode="aspectFit"
+            src="{{activeMedia.resolvedUrl}}"
+          />
+          <view wx:else class="stage-placeholder">暂无演示图</view>
         </view>
-      </block>
+
+        <view wx:if="{{media.length}}" class="media-toolbar">
+          <block wx:for="{{media}}" wx:key="id">
+            <button
+              class="media-control {{activeMediaIndex === index ? 'active' : ''}}"
+              data-index="{{index}}"
+              bindtap="selectMedia"
+            >
+              <text class="media-control-icon">{{item.icon}}</text>
+              <text class="media-control-label">{{item.mediaTypeText}}</text>
+            </button>
+          </block>
+        </view>
+
+        <view wx:if="{{activeMedia}}" class="media-help">
+          <text class="media-help-name">{{activeMedia.mediaTypeText}}</text>
+          <text>{{mediaHelpText}}</text>
+        </view>
+      </view>
+
+      <view class="detail-summary-panel">
+        <view class="detail-copy">
+          <view class="detail-title">{{detail.title}}</view>
+          <view class="detail-summary">{{detail.summary}}</view>
+          <view wx:if="{{detailTags.length}}" class="tag-row">
+            <block wx:for="{{detailTags}}" wx:key="*this">
+              <text class="tag">{{item}}</text>
+            </block>
+          </view>
+          <view class="detail-meta">{{mediaCredit}}</view>
+        </view>
+        <view class="difficulty-pill {{difficultyTone}}">{{difficultyText}}</view>
+      </view>
     </view>
 
     <view wx:if="{{detail.description}}" class="info-card">
       <view class="section-title">用途说明</view>
       <view class="paragraph">{{detail.description}}</view>
-    </view>
-
-    <view class="info-card">
-      <view class="section-title">练习步骤</view>
-      <block wx:if="{{steps.length}}">
-        <block wx:for="{{steps}}" wx:key="*this">
-          <view class="step-row">
-            <view class="step-index">{{index + 1}}</view>
-            <view class="step-text">{{item}}</view>
-          </view>
-        </block>
-      </block>
-      <view wx:else class="paragraph muted">步骤整理中。</view>
     </view>
   </block>
 </view>
