@@ -11,6 +11,11 @@ import {
   type KnotSummary,
   type SkillCard,
 } from "../../utils/skill-utils";
+import {
+  cacheAllKnotsForOffline,
+  type KnotOfflineCacheProgress,
+  type KnotOfflineCacheResult,
+} from "../../utils/knot-offline-cache";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import { resolveCachedMediaUrl } from "../../utils/media-cache";
 
@@ -39,6 +44,8 @@ interface KnotCategoryFilter {
   count: number;
 }
 
+const KNOTS_PAGE_SIZE = 10;
+
 const SKILL_CATEGORIES: SkillCategoryCard[] = [
   {
     id: "knots",
@@ -64,7 +71,12 @@ Page({
     searchQuery: "",
     hasActiveFilters: false,
     listResultText: "",
+    nextOffset: null as number | null,
     loading: false,
+    loadingMore: false,
+    cachingKnots: false,
+    cacheProgressText: "",
+    cacheSummaryText: "",
     error: "",
     offlineNotice: "",
     ...getThemeViewData(),
@@ -80,6 +92,12 @@ Page({
       return;
     }
     wx.stopPullDownRefresh();
+  },
+
+  onReachBottom() {
+    if (this.data.mode === "knots") {
+      this.loadMoreKnots();
+    }
   },
 
   openSkillCategory(event: WechatMiniprogram.BaseEvent) {
@@ -98,31 +116,26 @@ Page({
   },
 
   async loadKnots() {
-    this.setData({ loading: true, error: "" });
+    this.setData({
+      loading: true,
+      loadingMore: false,
+      error: "",
+    });
     try {
-      const items = await loadAllKnots();
-      const allKnots = await Promise.all(items.map(mapKnotListCard));
-      const categoryFilters = buildCategoryFilters(allKnots);
-      const selectedCategoryIndex = validCategoryIndex(
-        categoryFilters,
-        this.data.selectedCategoryId,
-      );
-      const selectedCategoryId = categoryFilters[selectedCategoryIndex]?.id ?? "all";
-      const filteredKnots = filterKnots(
+      const response = await loadKnotsPage(0);
+      const allKnots = await Promise.all(response.items.map(mapKnotListCard));
+      const nextOffset = response.page.next_offset ?? null;
+      const listState = buildKnotListState(
         allKnots,
-        selectedCategoryId,
+        this.data.selectedCategoryId,
         this.data.searchQuery,
+        nextOffset,
       );
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         allKnots,
-        knots: filteredKnots,
-        categoryFilters,
-        categoryFilterLabels: categoryFilters.map(formatCategoryFilterLabel),
-        selectedCategoryId,
-        selectedCategoryIndex,
-        hasActiveFilters: hasActiveFilters(selectedCategoryId, this.data.searchQuery),
-        listResultText: listResultText(filteredKnots.length, allKnots.length),
+        ...listState,
+        nextOffset,
         loading: false,
         ...(offlineNotice ? { offlineNotice } : {}),
       });
@@ -135,9 +148,100 @@ Page({
       this.setData({
         error: getErrorMessage(error),
         loading: false,
+        loadingMore: false,
         allKnots: [] as KnotListCard[],
         knots: [] as KnotListCard[],
+        nextOffset: null,
       });
+    }
+  },
+
+  async loadMoreKnots() {
+    const nextOffset = this.data.nextOffset;
+    if (nextOffset == null || this.data.loadingMore || this.data.loading) {
+      return;
+    }
+    this.setData({ loadingMore: true, error: "" });
+    try {
+      const response = await loadKnotsPage(nextOffset);
+      const nextKnots = await Promise.all(response.items.map(mapKnotListCard));
+      const allKnots = appendUniqueKnots(this.data.allKnots, nextKnots);
+      const nextPageOffset = response.page.next_offset ?? null;
+      const listState = buildKnotListState(
+        allKnots,
+        this.data.selectedCategoryId,
+        this.data.searchQuery,
+        nextPageOffset,
+      );
+      const offlineNotice = consumeOfflineCacheNotice();
+      this.setData({
+        allKnots,
+        ...listState,
+        nextOffset: nextPageOffset,
+        ...(offlineNotice ? { offlineNotice } : {}),
+      });
+    } catch (error) {
+      wx.showToast({ title: getErrorMessage(error), icon: "none" });
+    } finally {
+      this.setData({ loadingMore: false });
+    }
+  },
+
+  async cacheAllKnots() {
+    if (this.data.cachingKnots) {
+      return;
+    }
+    const confirmed = await confirmKnotOfflineCache();
+    if (!confirmed) {
+      return;
+    }
+    this.setData({
+      cachingKnots: true,
+      cacheProgressText: "准备缓存绳结资料...",
+      cacheSummaryText: "",
+      error: "",
+    });
+    try {
+      const result = await cacheAllKnotsForOffline({
+        pageSize: KNOTS_PAGE_SIZE,
+        onProgress: (progress) => {
+          this.setData({
+            cacheProgressText: formatKnotCacheProgress(progress),
+          });
+        },
+      });
+      const allKnots = await Promise.all(result.items.map(mapKnotListCard));
+      const listState = buildKnotListState(
+        allKnots,
+        this.data.selectedCategoryId,
+        this.data.searchQuery,
+        null,
+      );
+      const cacheSummaryText = formatKnotCacheResult(result);
+      this.setData({
+        allKnots,
+        ...listState,
+        nextOffset: null,
+        cachingKnots: false,
+        cacheProgressText: "",
+        cacheSummaryText,
+      });
+      wx.showToast({
+        title:
+          result.failedDetailCount || result.failedMediaCount
+            ? "部分缓存完成"
+            : "缓存完成",
+        icon:
+          result.failedDetailCount || result.failedMediaCount
+            ? "none"
+            : "success",
+      });
+    } catch (error) {
+      this.setData({
+        cachingKnots: false,
+        cacheProgressText: "",
+      });
+      wx.showToast({ title: getErrorMessage(error), icon: "none" });
     }
   },
 
@@ -180,35 +284,69 @@ Page({
     selectedCategoryId: string;
     selectedCategoryIndex: number;
   }) {
-    const knots = filterKnots(
+    const listState = buildKnotListState(
       this.data.allKnots,
       filterState.selectedCategoryId,
       filterState.searchQuery,
+      this.data.nextOffset,
     );
     this.setData({
-      ...filterState,
-      knots,
-      hasActiveFilters: hasActiveFilters(
-        filterState.selectedCategoryId,
-        filterState.searchQuery,
-      ),
-      listResultText: listResultText(knots.length, this.data.allKnots.length),
+      ...listState,
+      searchQuery: filterState.searchQuery,
     });
   },
 });
 
-async function loadAllKnots(): Promise<KnotSummary[]> {
-  const limit = 100;
-  let offset = 0;
-  const items: KnotSummary[] = [];
-  for (;;) {
-    const response = await listKnots({ offset, limit });
-    response.items.forEach((item) => items.push(item));
-    if (response.page.next_offset == null) {
-      return items;
-    }
-    offset = response.page.next_offset;
+function loadKnotsPage(offset: number) {
+  return listKnots({ offset, limit: KNOTS_PAGE_SIZE });
+}
+
+function confirmKnotOfflineCache(): Promise<boolean> {
+  return new Promise((resolve) => {
+    wx.showModal({
+      title: "缓存全部绳结",
+      content: "将下载绳结详情和图片、动图资源，建议在 Wi-Fi 下进行。",
+      confirmText: "开始缓存",
+      success: (result) => resolve(Boolean(result.confirm)),
+      fail: () => resolve(false),
+    });
+  });
+}
+
+function formatKnotCacheProgress(progress: KnotOfflineCacheProgress): string {
+  if (progress.phase === "list") {
+    return `已读取 ${progress.loadedCount ?? 0} 个绳结`;
   }
+  if (progress.phase === "detail") {
+    return `正在缓存详情 ${progress.currentIndex ?? 0}/${progress.totalCount ?? 0}：${
+      progress.currentTitle ?? "绳结"
+    }`;
+  }
+  return `正在缓存媒体 ${progress.mediaReadyCount ?? 0}/${
+    progress.mediaTotal ?? 0
+  }`;
+}
+
+function formatKnotCacheResult(result: KnotOfflineCacheResult): string {
+  const failedCount = result.failedDetailCount + result.failedMediaCount;
+  const failedText = failedCount ? `，${failedCount} 项未成功，可稍后重试` : "";
+  return `已缓存 ${result.items.length} 个绳结、${result.detailCount} 个详情、${result.mediaReadyCount}/${result.mediaTotal} 个媒体资源${failedText}`;
+}
+
+function appendUniqueKnots(
+  current: KnotListCard[],
+  incoming: KnotListCard[],
+): KnotListCard[] {
+  const seen = new Set(current.map((item) => item.id));
+  const merged = current.slice();
+  incoming.forEach((item) => {
+    if (seen.has(item.id)) {
+      return;
+    }
+    seen.add(item.id);
+    merged.push(item);
+  });
+  return merged;
 }
 
 async function mapKnotListCard(item: KnotSummary): Promise<KnotListCard> {
@@ -271,6 +409,34 @@ function formatCategoryFilterLabel(filter: KnotCategoryFilter): string {
   return `${filter.label}（${filter.count}）`;
 }
 
+function buildKnotListState(
+  allKnots: KnotListCard[],
+  selectedCategoryId: string,
+  searchQuery: string,
+  nextOffset: number | null,
+) {
+  const categoryFilters = buildCategoryFilters(allKnots);
+  const selectedCategoryIndex = validCategoryIndex(
+    categoryFilters,
+    selectedCategoryId,
+  );
+  const resolvedCategoryId = categoryFilters[selectedCategoryIndex]?.id ?? "all";
+  const knots = filterKnots(allKnots, resolvedCategoryId, searchQuery);
+  return {
+    knots,
+    categoryFilters,
+    categoryFilterLabels: categoryFilters.map(formatCategoryFilterLabel),
+    selectedCategoryId: resolvedCategoryId,
+    selectedCategoryIndex,
+    hasActiveFilters: hasActiveFilters(resolvedCategoryId, searchQuery),
+    listResultText: listResultText(
+      knots.length,
+      allKnots.length,
+      nextOffset !== null,
+    ),
+  };
+}
+
 function filterKnots(
   knots: KnotListCard[],
   selectedCategoryId: string,
@@ -289,12 +455,17 @@ function hasActiveFilters(selectedCategoryId: string, searchQuery: string): bool
   return selectedCategoryId !== "all" || Boolean(searchQuery.trim());
 }
 
-function listResultText(filteredCount: number, totalCount: number): string {
-  if (!totalCount) {
+function listResultText(
+  filteredCount: number,
+  loadedCount: number,
+  hasMore: boolean,
+): string {
+  if (!loadedCount) {
     return "";
   }
-  if (filteredCount === totalCount) {
-    return `共 ${totalCount} 个绳结`;
+  if (filteredCount === loadedCount) {
+    return hasMore ? `已加载 ${loadedCount} 个绳结` : `共 ${loadedCount} 个绳结`;
   }
-  return `已筛出 ${filteredCount} / ${totalCount} 个绳结`;
+  const totalText = hasMore ? `已加载 ${loadedCount}` : `${loadedCount}`;
+  return `已筛出 ${filteredCount} / ${totalText} 个绳结`;
 }

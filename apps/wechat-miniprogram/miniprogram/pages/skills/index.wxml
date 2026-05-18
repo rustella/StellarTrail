@@ -35,7 +35,24 @@
           <view class="list-eyebrow">绳结技能</view>
           <view class="list-title">绳结列表</view>
         </view>
-        <button class="ghost-button" bindtap="showSkillCatalog">返回</button>
+        <view class="list-actions">
+          <button
+            class="cache-button"
+            loading="{{cachingKnots}}"
+            disabled="{{cachingKnots || loading}}"
+            bindtap="cacheAllKnots"
+          >
+            {{cachingKnots ? '缓存中' : '缓存全部'}}
+          </button>
+          <button class="ghost-button" bindtap="showSkillCatalog">返回</button>
+        </view>
+      </view>
+
+      <view wx:if="{{cachingKnots || cacheSummaryText}}" class="cache-status-card">
+        <view class="cache-status-title">{{cachingKnots ? '正在缓存离线内容' : '离线缓存完成'}}</view>
+        <view class="cache-status-text">
+          {{cachingKnots ? cacheProgressText : cacheSummaryText}}
+        </view>
       </view>
 
       <view wx:if="{{!loading && allKnots.length}}" class="knot-filter-card">
@@ -103,6 +120,11 @@
           {{hasActiveFilters ? '换个关键词或类别试试。' : '稍后会展示常用绳结。'}}
         </view>
       </view>
+
+      <view wx:if="{{loadingMore}}" class="load-more">继续加载...</view>
+      <view wx:elif="{{allKnots.length && !nextOffset}}" class="load-more muted"
+        >没有更多绳结了</view
+      >
     </block>
   </block>
 </view>
