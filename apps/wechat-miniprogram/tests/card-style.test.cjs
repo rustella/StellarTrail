@@ -124,7 +124,6 @@ test("page hero cards align with homepage in light and dark modes", () => {
     ["pages/login/index.wxss", ".login-card.hero"],
     ["pages/register/index.wxss", ".register-card.hero"],
     ["pages/gears/form/index.wxss", ".intro-card"],
-    ["pages/skills/detail/index.wxss", ".detail-hero"],
   ];
   for (const [file, heroSelector] of cases) {
     const wxss = read(file);
@@ -169,7 +168,15 @@ test("primary page cards share homepage surface tokens", () => {
         ".template-card",
       ],
     ],
-    ["pages/skills/index.wxss", [".state-card", ".skill-card"]],
+    [
+      "pages/skills/index.wxss",
+      [
+        ".state-card",
+        ".skill-category-card",
+        ".knot-filter-card",
+        ".skill-card",
+      ],
+    ],
     ["pages/login/index.wxss", [".login-card"]],
     ["pages/register/index.wxss", [".register-card"]],
     ["pages/profile/index.wxss", [".account-card"]],
@@ -178,7 +185,10 @@ test("primary page cards share homepage surface tokens", () => {
       "pages/gears/form/index.wxss",
       [".form-card", ".error-card", ".state-card"],
     ],
-    ["pages/skills/detail/index.wxss", [".info-card", ".state-card"]],
+    [
+      "pages/skills/detail/index.wxss",
+      [".detail-hero", ".info-card", ".state-card"],
+    ],
   ];
   for (const [file, selectors] of cases) {
     const wxss = read(file);
@@ -215,7 +225,7 @@ test("inner cards and panels use homepage inner surface tokens", () => {
     ["pages/login/index.wxss", [".auth-panel"]],
     ["pages/gears/detail/index.wxss", [".summary-item"]],
     ["pages/gears/form/index.wxss", [".field", ".picker-row", ".switch-row"]],
-    ["pages/skills/detail/index.wxss", [".media-item"]],
+    ["pages/skills/index.wxss", [".category-icon", ".skill-thumb"]],
   ];
   for (const [file, selectors] of cases) {
     const wxss = read(file);
@@ -233,4 +243,87 @@ test("inner cards and panels use homepage inner surface tokens", () => {
       );
     }
   }
+});
+
+test("skill detail page uses a media-first layout without practice steps", () => {
+  const wxml = read("pages/skills/detail/index.wxml");
+  const wxss = read("pages/skills/detail/index.wxss");
+  const ts = read("pages/skills/detail/index.ts");
+  assert.doesNotMatch(wxml, /练习步骤/);
+  assert.doesNotMatch(wxml, /steps/);
+  assert.match(wxml, /class="media-stage"/);
+  assert.match(wxml, /class="stage-image"/);
+  assert.match(wxml, /mode="aspectFit"/);
+  assert.doesNotMatch(wxml, /<video/);
+  assert.match(wxml, /class="detail-summary-panel"/);
+  assert.match(wxml, /class="media-control-label"/);
+  assert.match(wxml, /class="media-help"/);
+
+  const mediaStage = selectorBlock(wxss, ".media-stage");
+  assert.match(mediaStage, /background:\s*#020617/);
+  const mediaFrame = selectorBlock(wxss, ".media-frame");
+  assert.match(mediaFrame, /height:\s*430rpx/);
+  assert.match(mediaFrame, /background:\s*#f8fafc/);
+  const detailHero = exactSelectorBlock(wxss, ".detail-hero");
+  assert.match(detailHero, /overflow:\s*hidden/);
+  const mediaHelp = selectorBlock(wxss, ".media-help");
+  assert.match(mediaHelp, /text-align:\s*center/);
+  const mediaToolbar = selectorBlock(wxss, ".media-toolbar");
+  assert.match(mediaToolbar, /justify-content:\s*center/);
+  assert.match(ts, /filter\(isDetailMediaAsset\)/);
+  assert.match(
+    ts,
+    /media_type === "preview"[\s\S]*media_type === "draw_gif"[\s\S]*media_type === "turntable_gif"/,
+  );
+  assert.doesNotMatch(ts, /thumbnail|draw_mp4|turntable_mp4/);
+  assert.match(ts, /静态图/);
+  assert.match(ts, /旋转动图/);
+  assert.doesNotMatch(ts, /高清图|系法视频|旋转视频/);
+});
+
+test("skills knot list thumbnails preserve the full image", () => {
+  const wxml = read("pages/skills/index.wxml");
+  const wxss = read("pages/skills/index.wxss");
+  assert.match(
+    wxml,
+    /<image[\s\S]*wx:if="{{item\.hasThumbnail}}"[\s\S]*class="skill-thumb-image"[\s\S]*mode="aspectFit"[\s\S]*src="{{item\.thumbnailUrl}}"[\s\S]*\/>/,
+  );
+  const thumb = selectorBlock(wxss, ".skill-thumb");
+  assert.match(thumb, /width:\s*164rpx/);
+  assert.match(thumb, /height:\s*124rpx/);
+  const image = selectorBlock(wxss, ".skill-thumb-image");
+  assert.match(image, /width:\s*100%/);
+  assert.match(image, /height:\s*100%/);
+});
+
+test("skills knot list offers search and category-only filtering", () => {
+  const wxml = read("pages/skills/index.wxml");
+  const wxss = read("pages/skills/index.wxss");
+  const ts = read("pages/skills/index.ts");
+
+  assert.match(wxml, /class="knot-filter-card"/);
+  assert.match(wxml, /placeholder="搜索绳结名称、用途"/);
+  assert.match(wxml, /bindinput="onSearchInput"/);
+  assert.match(wxml, /bindchange="onCategoryFilterChange"/);
+  assert.match(wxml, /class="category-filter-picker"/);
+  assert.match(wxml, /range="{{categoryFilterLabels}}"/);
+  assert.match(wxml, /class="category-filter-pill"/);
+  assert.match(wxml, /class="result-count"/);
+
+  const filterCard = selectorBlock(wxss, ".knot-filter-card");
+  assert.match(filterCard, /border-radius:\s*var\(--card-radius\)/);
+  assert.match(filterCard, /background:\s*var\(--surface-color\)/);
+  const searchInput = selectorBlock(wxss, ".knot-search-input");
+  assert.match(searchInput, /background:\s*var\(--control-bg\)/);
+  const filterPill = selectorBlock(wxss, ".category-filter-pill");
+  assert.match(filterPill, /background:\s*var\(--control-bg\)/);
+
+  assert.match(ts, /categoryFilters/);
+  assert.match(ts, /categoryFilterLabels/);
+  assert.match(
+    ts,
+    /item\.categories\.map\(\(category\) => category\.id \|\| category\.slug\)/,
+  );
+  assert.match(ts, /knot\.categoryIds\.includes\(selectedCategoryId\)/);
+  assert.match(ts, /item\.types\.map\(\(type\) => type\.title\)/);
 });

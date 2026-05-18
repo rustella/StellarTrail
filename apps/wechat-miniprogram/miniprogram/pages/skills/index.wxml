@@ -9,28 +9,98 @@
 
   <view wx:if="{{error}}" class="state-card error">
     <view>{{error}}</view>
-    <button bindtap="loadSkills">重试</button>
+    <button class="retry-button" bindtap="loadKnots">重试</button>
   </view>
 
   <block wx:else>
-    <view wx:if="{{loading}}" class="state-card">正在加载户外技能...</view>
-
-    <view wx:elif="{{skills.length}}" class="skill-list">
-      <block wx:for="{{skills}}" wx:key="id">
-        <view class="skill-card" data-id="{{item.id}}" bindtap="goDetail">
-          <view class="skill-tags">
-            <text class="skill-tag">{{item.categoryText}}</text>
-            <text class="skill-tag {{item.difficultyTone}}">{{item.difficultyText}}</text>
+    <view wx:if="{{mode === 'catalog'}}" class="skill-category-list">
+      <block wx:for="{{skillCategories}}" wx:key="id">
+        <view class="skill-category-card" data-id="{{item.id}}" bindtap="openSkillCategory">
+          <view class="category-icon">{{item.icon}}</view>
+          <view class="category-content">
+            <view class="category-subtitle">{{item.subtitle}}</view>
+            <view class="category-title">{{item.title}}</view>
+            <view class="category-summary">{{item.summary}}</view>
           </view>
-          <view class="skill-title">{{item.title}}</view>
-          <view class="skill-summary">{{item.summary}}</view>
+          <view class="category-action">{{item.actionText}}</view>
         </view>
       </block>
     </view>
 
-    <view wx:else class="state-card empty">
-      <view class="empty-title">技能内容准备中</view>
-      <view class="empty-subtitle">稍后会展示绳结、急救、天气和营地实践。</view>
-    </view>
+    <block wx:else>
+      <view class="list-header">
+        <view>
+          <view class="list-eyebrow">绳结技能</view>
+          <view class="list-title">绳结列表</view>
+        </view>
+        <button class="ghost-button" bindtap="showSkillCatalog">返回</button>
+      </view>
+
+      <view wx:if="{{!loading && allKnots.length}}" class="knot-filter-card">
+        <view class="knot-search-row">
+          <input
+            class="knot-search-input"
+            value="{{searchQuery}}"
+            placeholder="搜索绳结名称、用途"
+            confirm-type="search"
+            bindinput="onSearchInput"
+          />
+          <button
+            wx:if="{{hasActiveFilters}}"
+            class="clear-filter-button"
+            bindtap="clearKnotFilters"
+          >
+            清除
+          </button>
+        </view>
+        <view class="knot-filter-row">
+          <picker
+            class="category-filter-picker"
+            value="{{selectedCategoryIndex}}"
+            range="{{categoryFilterLabels}}"
+            bindchange="onCategoryFilterChange"
+          >
+            <view class="category-filter-pill">
+              <text class="filter-label">类别</text>
+              <text>{{categoryFilterLabels[selectedCategoryIndex]}}</text>
+            </view>
+          </picker>
+          <view wx:if="{{listResultText}}" class="result-count">{{listResultText}}</view>
+        </view>
+      </view>
+
+      <view wx:if="{{loading}}" class="state-card">正在加载绳结列表...</view>
+
+      <view wx:elif="{{knots.length}}" class="skill-list">
+        <block wx:for="{{knots}}" wx:key="id">
+          <view class="skill-card" data-id="{{item.id}}" bindtap="goDetail">
+            <view class="skill-thumb">
+              <image
+                wx:if="{{item.hasThumbnail}}"
+                class="skill-thumb-image"
+                mode="aspectFit"
+                src="{{item.thumbnailUrl}}"
+              />
+              <view wx:else class="thumb-placeholder">绳结</view>
+            </view>
+            <view class="skill-content">
+              <view class="skill-tags">
+                <text class="skill-tag">{{item.categoryText}}</text>
+                <text class="skill-tag {{item.difficultyTone}}">{{item.difficultyText}}</text>
+              </view>
+              <view class="skill-title">{{item.title}}</view>
+              <view class="skill-summary">{{item.summary}}</view>
+            </view>
+          </view>
+        </block>
+      </view>
+
+      <view wx:else class="state-card empty">
+        <view class="empty-title">{{hasActiveFilters ? '没有找到匹配绳结' : '绳结内容准备中'}}</view>
+        <view class="empty-subtitle">
+          {{hasActiveFilters ? '换个关键词或类别试试。' : '稍后会展示常用绳结。'}}
+        </view>
+      </view>
+    </block>
   </block>
 </view>

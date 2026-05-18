@@ -1,5 +1,5 @@
 {
-  "appid": "touristappid",
+  "appid": "wx926a64f76ca56c5f",
   "compileType": "miniprogram",
   "libVersion": "latest",
   "projectname": "寻径星野",
@@ -9,7 +9,8 @@
     "enhance": true,
     "postcss": true,
     "minified": true,
-    "compileHotReLoad": true
+    "compileHotReLoad": true,
+    "useCompilerPlugins": ["typescript"]
   },
   "miniprogramRoot": "miniprogram/"
 }

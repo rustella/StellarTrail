@@ -1,4 +1,8 @@
-import { getErrorMessage, getKnotDetail, resolveAssetUrl } from "../../../utils/api";
+import {
+  getErrorMessage,
+  getKnotDetail,
+  resolveAssetUrl,
+} from "../../../utils/api";
 import {
   getSkillDifficultyLabel,
   getSkillDifficultyTone,
@@ -10,18 +14,22 @@ import { getThemeViewData, syncPageTheme } from "../../../utils/theme";
 interface MediaView extends KnotMediaAsset {
   resolvedUrl: string;
   mediaTypeText: string;
+  helpText: string;
+  icon: string;
 }
 
 Page({
   data: {
     id: "",
     detail: null as KnotDetail | null,
-    categoriesText: "绳结",
-    typesText: "",
-    difficultyText: "未分级",
+    detailTags: [] as string[],
+    difficultyText: "常用",
     difficultyTone: "success",
     media: [] as MediaView[],
-    steps: [] as string[],
+    activeMediaIndex: 0,
+    activeMedia: null as MediaView | null,
+    mediaCredit: "系法动图 · Knots 3D",
+    mediaHelpText: "自动循环演示打结步骤。",
     loading: false,
     error: "",
     ...getThemeViewData(),
@@ -52,15 +60,20 @@ Page({
     this.setData({ loading: true, error: "" });
     try {
       const detail = await getKnotDetail(this.data.id);
+      const media = detail.media.filter(isDetailMediaAsset).map(mapMedia);
+      const activeMediaIndex = preferredMediaIndex(media);
+      const activeMedia = media[activeMediaIndex] ?? null;
       wx.setNavigationBarTitle({ title: detail.title });
       this.setData({
         detail,
-        categoriesText: detail.categories.map((item) => item.title).join(" · ") || "绳结",
-        typesText: detail.types.map((item) => item.title).join(" · "),
-        difficultyText: getSkillDifficultyLabel(detail.difficulty),
+        detailTags: detailTags(detail),
+        difficultyText: detail.difficulty ? getSkillDifficultyLabel(detail.difficulty) : "常用",
         difficultyTone: getSkillDifficultyTone(detail.difficulty),
-        media: detail.media.map(mapMedia),
-        steps: detail.steps,
+        media,
+        activeMediaIndex,
+        activeMedia,
+        mediaCredit: mediaCredit(activeMedia),
+        mediaHelpText: activeMedia?.helpText ?? "",
         loading: false,
       });
     } catch (error) {
@@ -71,12 +84,81 @@ Page({
       });
     }
   },
+
+  selectMedia(event: WechatMiniprogram.BaseEvent) {
+    const index = Number(event.currentTarget.dataset.index);
+    const activeMedia = this.data.media[index];
+    if (!activeMedia) {
+      return;
+    }
+    this.setData({
+      activeMediaIndex: index,
+      activeMedia,
+      mediaCredit: mediaCredit(activeMedia),
+      mediaHelpText: activeMedia.helpText,
+    });
+  },
 });
 
+function isDetailMediaAsset(item: KnotMediaAsset): boolean {
+  return (
+    item.media_type === "preview" ||
+    item.media_type === "draw_gif" ||
+    item.media_type === "turntable_gif"
+  );
+}
+
 function mapMedia(item: KnotMediaAsset): MediaView {
+  const meta = mediaMeta(item.media_type);
   return {
     ...item,
     resolvedUrl: resolveAssetUrl(item.url),
-    mediaTypeText: item.media_type.toUpperCase(),
+    mediaTypeText: meta.label,
+    helpText: meta.helpText,
+    icon: meta.icon,
   };
+}
+
+function mediaMeta(mediaType: string): {
+  label: string;
+  icon: string;
+  helpText: string;
+} {
+  if (mediaType === "preview") {
+    return { label: "静态图", icon: "◉", helpText: "查看绳结的清晰定格图。" };
+  }
+  if (mediaType === "draw_gif") {
+    return { label: "系法动图", icon: "▷", helpText: "自动循环演示打结步骤。" };
+  }
+  if (mediaType === "turntable_gif") {
+    return {
+      label: "旋转动图",
+      icon: "◎",
+      helpText: "自动循环展示绳结结构的旋转动图。",
+    };
+  }
+  return { label: "动图", icon: "•", helpText: "查看绳结动图。" };
+}
+
+function preferredMediaIndex(media: MediaView[]): number {
+  const drawGifIndex = media.findIndex((item) => item.media_type === "draw_gif");
+  if (drawGifIndex >= 0) {
+    return drawGifIndex;
+  }
+  return 0;
+}
+
+function detailTags(detail: KnotDetail): string[] {
+  const tags = [
+    ...detail.categories.map((item) => item.title),
+    ...detail.types.map((item) => item.title),
+  ];
+  return tags.filter((item, index) => item && tags.indexOf(item) === index);
+}
+
+function mediaCredit(media: MediaView | null): string {
+  if (!media) {
+    return "演示素材 · Knots 3D";
+  }
+  return `${media.mediaTypeText} · ${media.attribution || "Knots 3D"}`;
 }
