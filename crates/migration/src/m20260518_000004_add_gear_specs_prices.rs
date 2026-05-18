@@ -87,14 +87,29 @@ impl MigrationTrait for Migration {
             .await?;
         }
 
+        for column in LEGACY_SPEC_COLUMNS {
+            db.execute_unprepared(&format!("ALTER TABLE user_gear_items DROP COLUMN {column}"))
+                .await?;
+        }
+
         Ok(())
     }
 
-    /// Keeps the added columns on rollback to avoid discarding user-entered specs.
+    /// This migration is not reversible because legacy columns are folded into `specs_json` and dropped.
     async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
         Ok(())
     }
 }
+
+const LEGACY_SPEC_COLUMNS: &[&str] = &[
+    "color",
+    "material",
+    "capacity",
+    "size",
+    "warmth_index",
+    "waterproof_index",
+    "expiry_or_warranty_date",
+];
 
 fn json_string(specs: &BTreeMap<String, String>) -> Result<String, DbErr> {
     serde_json::to_string(specs).map_err(|err| DbErr::Custom(err.to_string()))

@@ -62,20 +62,13 @@ export interface GearItem {
   name: string;
   brand?: string | null;
   model?: string | null;
-  color?: string | null;
-  material?: string | null;
-  capacity?: string | null;
-  size?: string | null;
   description?: string | null;
   weight_g?: number | null;
   official_price_cents?: number | null;
   official_price_currency?: GearCurrency | string | null;
-  warmth_index?: string | null;
-  waterproof_index?: string | null;
   purchase_date?: string | null;
   purchase_price_cents?: number | null;
   purchase_price_currency?: GearCurrency | string | null;
-  expiry_or_warranty_date?: string | null;
   purchase_location?: string | null;
   status: GearStatus;
   storage_location?: string | null;
@@ -114,20 +107,13 @@ export interface CreateGearRequest {
   name: string;
   brand?: string | null;
   model?: string | null;
-  color?: string | null;
-  material?: string | null;
-  capacity?: string | null;
-  size?: string | null;
   description?: string | null;
   weight_g?: number | null;
   official_price_cents?: number | null;
   official_price_currency?: GearCurrency | string | null;
-  warmth_index?: string | null;
-  waterproof_index?: string | null;
   purchase_date?: string | null;
   purchase_price_cents?: number | null;
   purchase_price_currency?: GearCurrency | string | null;
-  expiry_or_warranty_date?: string | null;
   purchase_location?: string | null;
   status?: GearStatus | null;
   storage_location?: string | null;
@@ -441,7 +427,6 @@ export function createDefaultGearFormData(): GearFormData {
 }
 
 export function gearToFormData(item: GearItem): GearFormData {
-  const specs = mergeLegacySpecs(item);
   return {
     category: item.category,
     name: item.name,
@@ -466,7 +451,7 @@ export function gearToFormData(item: GearItem): GearFormData {
     purchaseLocation: item.purchase_location ?? "",
     status: item.status,
     storageLocation: item.storage_location ?? "",
-    specs,
+    specs: { ...(item.specs ?? {}) },
     tagsText: item.tags.join("，"),
     shareEnabled: item.share_enabled,
     notes: item.notes ?? "",
@@ -780,33 +765,6 @@ function splitSpecValue(
     valueText: text === matched ? "" : text.slice(0, -matched.length).trim(),
     unitIndex: units.indexOf(matched),
   };
-}
-
-function mergeLegacySpecs(item: GearItem): GearSpecs {
-  const specs: GearSpecs = { ...(item.specs ?? {}) };
-  insertSpecIfPresent(specs, "color", item.color);
-  insertSpecIfPresent(specs, "material", item.material);
-  insertSpecIfPresent(specs, "capacity", item.capacity);
-  insertSpecIfPresent(specs, "size", item.size);
-  insertSpecIfPresent(specs, "warmth_index", item.warmth_index);
-  insertSpecIfPresent(specs, "waterproof_index", item.waterproof_index);
-  insertSpecIfPresent(
-    specs,
-    "expiry_or_warranty_date",
-    item.expiry_or_warranty_date,
-  );
-  return specs;
-}
-
-function insertSpecIfPresent(
-  specs: GearSpecs,
-  key: string,
-  value?: string | null,
-): void {
-  const text = value?.trim() ?? "";
-  if (text && !specs[key]) {
-    specs[key] = text;
-  }
 }
 
 function trimTrailingZeros(value: string): string {
