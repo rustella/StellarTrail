@@ -190,9 +190,7 @@ export default function App({ client }: AppProps) {
     activePageFromPath(window.location.pathname),
   );
   const [outdoorSkillsOpen, setOutdoorSkillsOpen] = useState(true);
-  const [adminNavOpen, setAdminNavOpen] = useState(
-    () => activePageFromPath(window.location.pathname) === "atlasReview",
-  );
+  const [adminNavOpen, setAdminNavOpen] = useState(false);
   const [passwordLogin, setPasswordLogin] =
     useState<PasswordLoginState>(emptyPasswordLogin);
   const [registerForm, setRegisterForm] =
@@ -250,11 +248,7 @@ export default function App({ client }: AppProps) {
 
   useEffect(() => {
     const handlePopState = () => {
-      const nextPage = activePageFromPath(window.location.pathname);
-      setActivePage(nextPage);
-      if (nextPage === "atlasReview") {
-        setAdminNavOpen(true);
-      }
+      setActivePage(activePageFromPath(window.location.pathname));
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -620,9 +614,6 @@ export default function App({ client }: AppProps) {
 
   function navigateToPage(page: ActivePage) {
     setActivePage(page);
-    if (page === "atlasReview") {
-      setAdminNavOpen(true);
-    }
     const nextPath = pathForActivePage(page);
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, "", nextPath);
