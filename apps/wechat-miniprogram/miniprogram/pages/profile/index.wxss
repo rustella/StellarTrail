@@ -21,9 +21,12 @@
 }
 
 .account-avatar {
+  position: relative;
   flex: 0 0 auto;
   width: 96rpx;
   height: 96rpx;
+  margin: 0;
+  padding: 0;
   border-radius: 999rpx;
   color: var(--brand-text-color);
   background: var(--brand-color);
@@ -34,9 +37,29 @@
   overflow: hidden;
 }
 
+.account-avatar::after {
+  border: 0;
+}
+
 .account-avatar-image {
   width: 96rpx;
   height: 96rpx;
+}
+
+.account-avatar-badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 30rpx;
+  height: 30rpx;
+  border: 3rpx solid var(--surface-color);
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--accent-color);
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 28rpx;
+  text-align: center;
 }
 
 .account-copy {

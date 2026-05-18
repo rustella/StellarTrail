@@ -46,11 +46,7 @@
     <view wx:if="{{notice}}" class="notice-text">{{notice}}</view>
 
     <view wx:if="{{loginMode === 'wechat'}}" class="auth-panel">
-      <button
-        class="primary"
-        loading="{{loading}}"
-        bindtap="loginWechat"
-      >
+      <button class="primary" loading="{{loading}}" bindtap="loginWechat">
         {{loggedIn ? '重新登录' : '微信登录'}}
       </button>
     </view>
@@ -103,9 +99,7 @@
         账号登录
       </button>
       <view class="action-row">
-        <button class="link-button" bindtap="switchToEmail">
-          邮箱登陆
-        </button>
+        <button class="link-button" bindtap="switchToEmail">邮箱登陆</button>
         <button class="link-button" bindtap="switchToReset">找回密码</button>
         <button class="link-button" bindtap="goRegister">注册账号</button>
       </view>

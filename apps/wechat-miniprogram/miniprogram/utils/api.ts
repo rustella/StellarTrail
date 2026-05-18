@@ -186,6 +186,10 @@ export function isCaptchaRequiredError(error: unknown): boolean {
   );
 }
 
+export function isNotFoundApiError(error: unknown): boolean {
+  return isApiResponseError(error) && error.statusCode === 404;
+}
+
 export function getApiBaseUrl(): string {
   const stored = wx.getStorageSync(API_BASE_URL_STORAGE_KEY) as
     | string

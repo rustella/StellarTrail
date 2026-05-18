@@ -6,7 +6,14 @@
 
   <view class="card account-card">
     <view class="account-main">
-      <view wx:if="{{loggedIn}}" class="account-avatar">
+      <button
+        wx:if="{{loggedIn}}"
+        class="account-avatar"
+        open-type="chooseAvatar"
+        bindchooseavatar="onChooseWechatAvatar"
+        disabled="{{avatarLoading}}"
+        aria-label="导入微信头像"
+      >
         <image
           wx:if="{{accountProfile.avatarUrl}}"
           class="account-avatar-image"
@@ -14,7 +21,8 @@
           mode="aspectFill"
         />
         <text wx:else>{{accountProfile.avatarInitial}}</text>
-      </view>
+        <view class="account-avatar-badge">+</view>
+      </button>
       <view class="account-copy">
         <view class="account-title">账号状态</view>
         <view wx:if="{{loggedIn}}" class="account-desc"
