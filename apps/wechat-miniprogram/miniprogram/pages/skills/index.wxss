@@ -168,6 +168,24 @@
   font-weight: 900;
 }
 
+.list-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.cache-button {
+  margin: 0;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 62rpx;
+}
+
 .ghost-button {
   flex-shrink: 0;
   margin: 0;
@@ -182,9 +200,32 @@
 }
 
 .ghost-button::after,
+.cache-button::after,
 .clear-filter-button::after,
 .retry-button::after {
   border: 0;
+}
+
+.cache-status-card {
+  margin-top: 18rpx;
+  padding: 22rpx 24rpx;
+  border: 1rpx solid var(--soft-border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.cache-status-title {
+  color: var(--text-color);
+  font-size: 25rpx;
+  font-weight: 900;
+}
+
+.cache-status-text {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  line-height: 1.5;
 }
 
 .knot-filter-card {
@@ -260,6 +301,13 @@
   color: var(--muted-color);
   font-size: 23rpx;
   font-weight: 800;
+}
+
+.load-more {
+  padding: 28rpx 0;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  text-align: center;
 }
 
 .skill-list {

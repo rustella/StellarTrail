@@ -308,6 +308,10 @@ test("skills knot list offers search and category-only filtering", () => {
   assert.match(wxml, /range="{{categoryFilterLabels}}"/);
   assert.match(wxml, /class="category-filter-pill"/);
   assert.match(wxml, /class="result-count"/);
+  assert.match(wxml, /loadingMore/);
+  assert.match(wxml, /bindtap="cacheAllKnots"/);
+  assert.match(wxml, /缓存全部/);
+  assert.match(wxml, /class="cache-status-card"/);
 
   const filterCard = selectorBlock(wxss, ".knot-filter-card");
   assert.match(filterCard, /border-radius:\s*var\(--card-radius\)/);
@@ -316,9 +320,16 @@ test("skills knot list offers search and category-only filtering", () => {
   assert.match(searchInput, /background:\s*var\(--control-bg\)/);
   const filterPill = selectorBlock(wxss, ".category-filter-pill");
   assert.match(filterPill, /background:\s*var\(--control-bg\)/);
+  const cacheButton = selectorBlock(wxss, ".cache-button");
+  assert.match(cacheButton, /background:\s*var\(--brand-color\)/);
 
   assert.match(ts, /categoryFilters/);
   assert.match(ts, /categoryFilterLabels/);
+  assert.match(ts, /const KNOTS_PAGE_SIZE = 10/);
+  assert.match(ts, /onReachBottom\(\)/);
+  assert.match(ts, /loadMoreKnots/);
+  assert.match(ts, /cacheAllKnotsForOffline/);
+  assert.doesNotMatch(ts, /loadAllKnots/);
   assert.match(
     ts,
     /item\.categories\.map\(\(category\) => category\.id \|\| category\.slug\)/,

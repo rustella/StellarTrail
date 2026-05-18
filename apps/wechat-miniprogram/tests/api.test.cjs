@@ -4,7 +4,10 @@ const assert = require("node:assert/strict");
 function installWxMock(handler, uploadHandler, extraHandlers = {}) {
   const storage = new Map();
   global.getApp = () => ({
-    globalData: { apiBaseUrl: "https://api.example.test" },
+    globalData: {
+      apiBaseUrl: "https://api.example.test",
+      assetsBaseUrl: "https://assets.example.test",
+    },
   });
   global.wx = {
     getStorageSync(key) {
@@ -659,6 +662,177 @@ test("media cache returns saved files and ignores missing files", async () => {
     await resolveCachedMediaUrl("https://assets.example.test/knot.gif"),
     "https://assets.example.test/knot.gif",
   );
+});
+
+test("cacheAllKnotsForOffline stores paged lists, details, and media resources", async () => {
+  const requests = [];
+  const downloads = [];
+  const storage = installWxMock(
+    (options) => {
+      const path = options.url.replace("https://api.example.test", "");
+      requests.push(path);
+      if (path === "/api/skills/knots/list?offset=0&limit=1") {
+        options.success({
+          statusCode: 200,
+          data: {
+            locale: "zh-CN",
+            items: [
+              {
+                id: "bowline",
+                slug: "bowline",
+                title: "布林结",
+                summary: "固定绳圈",
+                categories: [],
+                types: [],
+                media: [
+                  {
+                    id: "thumb-bowline",
+                    media_type: "thumbnail",
+                    url: "/knots/bowline-thumb.png",
+                    mime_type: "image/png",
+                    size_bytes: 128,
+                  },
+                ],
+                href: "/skills/knots/bowline",
+              },
+            ],
+            page: { limit: 1, offset: 0, next_offset: 1 },
+          },
+        });
+        return;
+      }
+      if (path === "/api/skills/knots/list?offset=1&limit=1") {
+        options.success({
+          statusCode: 200,
+          data: {
+            locale: "zh-CN",
+            items: [
+              {
+                id: "clove",
+                slug: "clove",
+                title: "丁香结",
+                summary: "快速固定",
+                categories: [],
+                types: [],
+                media: [],
+                href: "/skills/knots/clove",
+              },
+            ],
+            page: { limit: 1, offset: 1, next_offset: null },
+          },
+        });
+        return;
+      }
+      if (path === "/api/skills/knots/detail/bowline") {
+        options.success({
+          statusCode: 200,
+          data: {
+            id: "bowline",
+            slug: "bowline",
+            title: "布林结",
+            summary: "固定绳圈",
+            categories: [],
+            types: [],
+            media: [
+              {
+                id: "thumb-bowline",
+                media_type: "thumbnail",
+                url: "/knots/bowline-thumb.png",
+                mime_type: "image/png",
+                size_bytes: 128,
+              },
+              {
+                id: "gif-bowline",
+                media_type: "draw_gif",
+                url: "/knots/bowline.gif",
+                mime_type: "image/gif",
+                size_bytes: 256,
+              },
+            ],
+            href: "/skills/knots/bowline",
+            description: "绳圈详情",
+            steps: [],
+            locale: "zh-CN",
+          },
+        });
+        return;
+      }
+      if (path === "/api/skills/knots/detail/clove") {
+        options.success({
+          statusCode: 200,
+          data: {
+            id: "clove",
+            slug: "clove",
+            title: "丁香结",
+            summary: "快速固定",
+            categories: [],
+            types: [],
+            media: [
+              {
+                id: "gif-clove",
+                media_type: "draw_gif",
+                url: "https://cdn.example.test/knots/clove.gif",
+                mime_type: "image/gif",
+                size_bytes: 512,
+              },
+            ],
+            href: "/skills/knots/clove",
+            description: "固定详情",
+            steps: [],
+            locale: "zh-CN",
+          },
+        });
+        return;
+      }
+      throw new Error(`unexpected request ${path}`);
+    },
+    undefined,
+    {
+      downloadFile(options) {
+        downloads.push(options.url);
+        options.success({
+          statusCode: 200,
+          tempFilePath: `/tmp/media-${downloads.length}`,
+        });
+        options.complete();
+      },
+      saveFile(options) {
+        options.success({
+          savedFilePath: `wxfile://saved/${downloads.length}`,
+        });
+      },
+    },
+  );
+  const {
+    cacheAllKnotsForOffline,
+  } = require("../.tmp-test/utils/knot-offline-cache.js");
+  require("../.tmp-test/utils/network-state.js").initNetworkState();
+
+  const progress = [];
+  const result = await cacheAllKnotsForOffline({
+    pageSize: 1,
+    onProgress: (item) => progress.push(item.phase),
+  });
+
+  assert.deepEqual(requests, [
+    "/api/skills/knots/list?offset=0&limit=1",
+    "/api/skills/knots/list?offset=1&limit=1",
+    "/api/skills/knots/detail/bowline",
+    "/api/skills/knots/detail/clove",
+  ]);
+  assert.equal(result.items.length, 2);
+  assert.equal(result.detailCount, 2);
+  assert.equal(result.mediaReadyCount, 3);
+  assert.equal(result.mediaTotal, 3);
+  assert.equal(result.failedDetailCount, 0);
+  assert.equal(result.failedMediaCount, 0);
+  assert.deepEqual(downloads, [
+    "https://assets.example.test/knots/bowline-thumb.png",
+    "https://assets.example.test/knots/bowline.gif",
+    "https://cdn.example.test/knots/clove.gif",
+  ]);
+  assert.deepEqual(progress.slice(0, 2), ["list", "list"]);
+  assert.equal(hasOfflineCacheStorage(storage), true);
 });
 
 function hasOfflineCacheStorage(storage) {
