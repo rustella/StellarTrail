@@ -434,9 +434,14 @@ td small {
   padding-inline: 12px;
 }
 
-.sidebar-global-actions {
+.sidebar-admin-nav {
   margin-top: auto;
   padding-top: 18px;
+}
+
+.sidebar-global-actions {
+  margin-top: 12px;
+  padding-top: 12px;
 }
 
 .sidebar-global-actions .theme-toggle {

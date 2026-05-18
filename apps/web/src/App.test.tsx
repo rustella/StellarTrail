@@ -418,12 +418,21 @@ describe("App", () => {
 
     expect(
       Array.from(navigation.children).map((item) => item.textContent?.trim()),
-    ).toEqual(["装备库", "管理员后台", "户外技能绳结", "路线清单 · 待接入"]);
+    ).toEqual(["装备库", "户外技能绳结", "路线清单 · 待接入"]);
     expect(screen.getByRole("button", { name: /户外技能/ })).toHaveAttribute(
       "aria-expanded",
       "true",
     );
     expect(screen.getByRole("button", { name: "绳结" })).toBeInTheDocument();
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    expect(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(adminNavigation).queryByRole("button", { name: "装备图鉴审核" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the sidebar brand as a separated bilingual wordmark", async () => {
@@ -497,7 +506,15 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "装备管理" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "管理员后台" }));
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    );
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
+    );
 
     expect(
       await screen.findByRole("heading", { name: "装备图鉴审核" }),
@@ -525,10 +542,15 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "装备图鉴审核" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "管理员后台" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    expect(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
+    ).toHaveAttribute("aria-current", "page");
     expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
       status: "pending",
       limit: 50,
