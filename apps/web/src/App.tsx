@@ -190,6 +190,9 @@ export default function App({ client }: AppProps) {
     activePageFromPath(window.location.pathname),
   );
   const [outdoorSkillsOpen, setOutdoorSkillsOpen] = useState(true);
+  const [adminNavOpen, setAdminNavOpen] = useState(
+    () => activePageFromPath(window.location.pathname) === "atlasReview",
+  );
   const [passwordLogin, setPasswordLogin] =
     useState<PasswordLoginState>(emptyPasswordLogin);
   const [registerForm, setRegisterForm] =
@@ -247,7 +250,11 @@ export default function App({ client }: AppProps) {
 
   useEffect(() => {
     const handlePopState = () => {
-      setActivePage(activePageFromPath(window.location.pathname));
+      const nextPage = activePageFromPath(window.location.pathname);
+      setActivePage(nextPage);
+      if (nextPage === "atlasReview") {
+        setAdminNavOpen(true);
+      }
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -613,6 +620,9 @@ export default function App({ client }: AppProps) {
 
   function navigateToPage(page: ActivePage) {
     setActivePage(page);
+    if (page === "atlasReview") {
+      setAdminNavOpen(true);
+    }
     const nextPath = pathForActivePage(page);
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, "", nextPath);
@@ -1230,14 +1240,6 @@ export default function App({ client }: AppProps) {
           >
             装备库
           </button>
-          <button
-            type="button"
-            className={activePage === "atlasReview" ? "active" : ""}
-            aria-current={activePage === "atlasReview" ? "page" : undefined}
-            onClick={() => navigateToPage("atlasReview")}
-          >
-            管理员后台
-          </button>
           <div
             className="nav-group"
             data-active-parent={activePage === "knots" ? "true" : undefined}
@@ -1267,6 +1269,42 @@ export default function App({ client }: AppProps) {
             ) : null}
           </div>
           <span>路线清单 · 待接入</span>
+        </nav>
+        <nav className="sidebar-admin-nav" aria-label="管理员导航">
+          <div
+            className="nav-group"
+            data-active-parent={
+              activePage === "atlasReview" ? "true" : undefined
+            }
+          >
+            <button
+              type="button"
+              className="nav-group-trigger"
+              aria-expanded={adminNavOpen}
+              aria-controls="admin-nav"
+              onClick={() => setAdminNavOpen((open) => !open)}
+            >
+              管理员后台
+            </button>
+            {adminNavOpen ? (
+              <div className="nav-children" id="admin-nav">
+                <button
+                  type="button"
+                  className={
+                    activePage === "atlasReview"
+                      ? "nav-child active"
+                      : "nav-child"
+                  }
+                  aria-current={
+                    activePage === "atlasReview" ? "page" : undefined
+                  }
+                  onClick={() => navigateToPage("atlasReview")}
+                >
+                  装备图鉴审核
+                </button>
+              </div>
+            ) : null}
+          </div>
         </nav>
         <div
           className="sidebar-global-actions"
