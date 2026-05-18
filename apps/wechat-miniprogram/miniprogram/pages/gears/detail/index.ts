@@ -147,7 +147,7 @@ Page({
         try {
           await archiveGear(this.data.id);
           wx.setStorageSync("stellartrail_gears_should_refresh", true);
-          wx.showToast({ title: "已移入历史", icon: "success" });
+          wx.showToast({ title: "已归档", icon: "success" });
           wx.navigateBack();
         } catch (error) {
           if (isLoginRequiredError(error)) {
