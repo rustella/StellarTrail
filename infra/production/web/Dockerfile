@@ -9,6 +9,7 @@ COPY packages/shared-types/package.json packages/shared-types/package.json
 RUN npm ci
 COPY apps/web apps/web
 COPY packages packages
+COPY tsconfig.base.json tsconfig.base.json
 RUN npm run build --workspace @stellartrail/web
 
 FROM nginx:1.27-alpine AS runtime
