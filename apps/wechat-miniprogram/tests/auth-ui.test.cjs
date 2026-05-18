@@ -136,6 +136,8 @@ test("home gear summary aligns logged-out and logged-in card surfaces", () => {
   assert.match(wxml, /showLoginForGearSummary/);
   assert.match(ts, /LOCKED_GEAR_STATS/);
   assert.match(ts, /登录后可见/);
+  assert.match(ts, /快速添加新装备/);
+  assert.doesNotMatch(ts, /登录后快速记录装备/);
   assert.match(ts, /value: "—"/);
   assert.match(
     guestInlineBlock,
@@ -239,6 +241,7 @@ test("gear form uses explicit share review actions", () => {
   const ts = read("pages/gears/form/index.ts");
 
   assert.match(wxml, /共享给搭子参考/);
+  assert.match(wxml, /审核通过后会出现在装备图鉴/);
   assert.match(wxml, /申请共享/);
   assert.match(wxml, /取消共享/);
   assert.match(wxml, /已申请/);
@@ -249,6 +252,7 @@ test("gear form uses explicit share review actions", () => {
   assert.match(ts, /confirmEnableShare/);
   assert.match(ts, /wx\.showModal/);
   assert.match(ts, /提交共享审核/);
+  assert.match(ts, /审核通过后会出现在装备图鉴/);
   assert.match(ts, /confirmText: "提交审核"/);
   assert.match(ts, /"form\.shareEnabled": true/);
   assert.match(ts, /disableShare/);

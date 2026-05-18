@@ -226,8 +226,7 @@ Page({
   confirmEnableShare() {
     wx.showModal({
       title: "提交共享审核？",
-      content:
-        "确认后，保存装备时会提交共享审核，审核通过后搭子可以参考这件装备。",
+      content: "确认后，保存装备时会提交共享审核；审核通过后会出现在装备图鉴。",
       confirmText: "提交审核",
       confirmColor: "#0f766e",
       success: (result) => {
