@@ -13,7 +13,7 @@ use crate::{
     services::{
         public_rate_limit_service::InMemoryPublicRateLimiter,
         public_response_cache::InMemoryPublicResponseCache,
-        wechat::{CurlWechatCodeSessionClient, WechatCodeSessionClient},
+        wechat::{HttpWechatCodeSessionClient, WechatCodeSessionClient},
     },
 };
 
@@ -47,7 +47,7 @@ impl AppState {
         Self::new_with_wechat_client_cache_object_store_and_email_sender(
             config,
             db,
-            Arc::new(CurlWechatCodeSessionClient),
+            Arc::new(HttpWechatCodeSessionClient),
             cache,
             Arc::new(InMemoryObjectStore::default()),
             Arc::new(NoopEmailSender),
@@ -64,7 +64,7 @@ impl AppState {
         Self::new_with_wechat_client_cache_object_store_and_email_sender(
             config,
             db,
-            Arc::new(CurlWechatCodeSessionClient),
+            Arc::new(HttpWechatCodeSessionClient),
             cache,
             object_store,
             Arc::new(NoopEmailSender),
@@ -96,7 +96,7 @@ impl AppState {
         Self::new_with_wechat_client_cache_object_store_and_email_sender(
             config,
             db,
-            Arc::new(CurlWechatCodeSessionClient),
+            Arc::new(HttpWechatCodeSessionClient),
             Cache::disabled(),
             Arc::new(InMemoryObjectStore::default()),
             email_sender,
