@@ -67,6 +67,7 @@ async fn test_app(max_images_per_window: u64) -> TestApp {
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: PublicApiConfig::default(),
+        rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
     };

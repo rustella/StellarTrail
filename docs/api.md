@@ -9,6 +9,43 @@ GET /healthz
 GET /api/meta
 ```
 
+## 全局限流
+
+所有非 `OPTIONS` 请求都会经过全局限流。未登录请求按客户端 IP 计数；带有效 Bearer Token 的请求会同时按客户端 IP 和用户 ID 计数，任一维度超限都会返回 `429 Too Many Requests`。
+
+默认配置为每 60 秒同一 IP 最多 120 次、同一用户最多 240 次，可通过 `rate_limit` 配置块或 `RATE_LIMIT_*` 环境变量调整：
+
+```yaml
+rate_limit:
+  enabled: true
+  window_seconds: 60
+  max_requests_per_ip: 120
+  max_requests_per_user: 240
+  trust_proxy_headers: false
+  trusted_proxy_cidrs: []
+```
+
+服务默认只使用直连 IP。只有在 `RATE_LIMIT_TRUST_PROXY_HEADERS=true` 且直连 IP 命中 `RATE_LIMIT_TRUSTED_PROXY_CIDRS` 时，才会读取 `X-Forwarded-For` 第一段作为客户端 IP；不要无条件信任客户端传入的转发头。生产反向代理必须覆盖或清洗外部传入的 `X-Forwarded-For`，避免客户端伪造第一段 IP。
+
+Redis 可用时限流计数写入 Redis；Redis 未配置或不可用时会退回单进程内存计数，仅作为降级保护。生产多实例部署应配置 Redis 并监控限流降级日志。
+
+超限响应示例：
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 42
+X-RateLimit-Limit: 120
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1770000000
+```
+
+```json
+{
+  "code": "rate_limited",
+  "message": "Too many requests. Please retry after 42 seconds."
+}
+```
+
 ## Auth
 
 ```http

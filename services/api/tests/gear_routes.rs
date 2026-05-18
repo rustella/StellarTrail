@@ -48,6 +48,7 @@ async fn test_app_with_cache(cache: Cache) -> TestApp {
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),
+        rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
     };

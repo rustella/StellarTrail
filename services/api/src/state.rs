@@ -12,8 +12,8 @@ use crate::{
     email::{EmailSender, NoopEmailSender},
     object_store::{InMemoryObjectStore, ObjectStore},
     services::{
-        public_rate_limit_service::InMemoryPublicRateLimiter,
         public_response_cache::InMemoryPublicResponseCache,
+        rate_limit_service::InMemoryRateLimiter,
         wechat::{HttpWechatCodeSessionClient, WechatCodeSessionClient},
     },
 };
@@ -33,7 +33,7 @@ struct AppStateInner {
     email_sender: Arc<dyn EmailSender>,
     knot_repository: KnotRepository,
     gear_template_repository: GearTemplateRepository,
-    public_rate_limiter: InMemoryPublicRateLimiter,
+    rate_limiter: InMemoryRateLimiter,
     public_response_cache: InMemoryPublicResponseCache,
     api_usage_reporter: ApiUsageReporter,
 }
@@ -145,7 +145,7 @@ impl AppState {
                 email_sender,
                 knot_repository,
                 gear_template_repository,
-                public_rate_limiter: InMemoryPublicRateLimiter::default(),
+                rate_limiter: InMemoryRateLimiter::default(),
                 public_response_cache: InMemoryPublicResponseCache::default(),
                 api_usage_reporter,
             }),
@@ -192,9 +192,9 @@ impl AppState {
         &self.inner.gear_template_repository
     }
 
-    /// Returns the in-memory fallback public API limiter.
-    pub fn public_rate_limiter(&self) -> &InMemoryPublicRateLimiter {
-        &self.inner.public_rate_limiter
+    /// Returns the in-memory fallback global API limiter.
+    pub fn rate_limiter(&self) -> &InMemoryRateLimiter {
+        &self.inner.rate_limiter
     }
 
     /// Returns the in-memory fallback public response cache.

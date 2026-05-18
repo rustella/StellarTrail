@@ -243,6 +243,7 @@ async fn seeded_app_with_uploaded_media() -> TestApp {
             trust_proxy_headers: false,
             trusted_proxy_cidrs: Vec::new(),
         },
+        rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
     };
@@ -323,6 +324,7 @@ async fn seeded_app() -> TestApp {
             trust_proxy_headers: false,
             trusted_proxy_cidrs: Vec::new(),
         },
+        rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
     };
@@ -370,6 +372,7 @@ async fn seeded_filter_app() -> TestApp {
             trust_proxy_headers: false,
             trusted_proxy_cidrs: Vec::new(),
         },
+        rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
     };
