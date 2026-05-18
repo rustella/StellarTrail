@@ -131,7 +131,8 @@ textarea {
 .form-actions {
   display: flex;
   gap: 18rpx;
-  margin-bottom: 24rpx;
+  margin-top: 4rpx;
+  margin-bottom: calc(18rpx + env(safe-area-inset-bottom));
 }
 
 .form-actions button {

@@ -167,9 +167,10 @@ test("gear form cancel falls back when there is no previous page", () => {
   const ts = read("pages/gears/form/index.ts");
 
   assert.match(wxml, /bindtap="cancel"/);
-  assert.ok(wxml.indexOf('class="form-actions"') < wxml.indexOf('class="intro-card"'));
+  assert.ok(wxml.lastIndexOf('class="form-actions"') > wxml.lastIndexOf('class="form-card"'));
   assert.doesNotMatch(wxml, /footer-actions/);
   assert.match(wxss, /\.form-actions \{/);
+  assert.match(wxss, /env\(safe-area-inset-bottom\)/);
   assert.doesNotMatch(wxss, /position: fixed/);
   assert.match(ts, /getCurrentPages\(\)\.length > 1/);
   assert.match(ts, /wx\.navigateBack\(\)/);
