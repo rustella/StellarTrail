@@ -194,7 +194,17 @@ Page({
   },
 
   cancel() {
-    wx.navigateBack();
+    if (getCurrentPages().length > 1) {
+      wx.navigateBack();
+      return;
+    }
+    if (this.data.mode === "edit" && this.data.id) {
+      wx.redirectTo({
+        url: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}`,
+      });
+      return;
+    }
+    wx.switchTab({ url: "/pages/gears/index" });
   },
 
   loginPromptClose() {
