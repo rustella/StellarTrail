@@ -160,3 +160,15 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
   assert.match(metricBlock, /background: var\(--control-bg\)/);
   assert.match(metricValueBlock, /color: var\(--text-color\)/);
 });
+
+test("gear form cancel falls back when there is no previous page", () => {
+  const wxml = read("pages/gears/form/index.wxml");
+  const ts = read("pages/gears/form/index.ts");
+
+  assert.match(wxml, /bindtap="cancel"/);
+  assert.match(ts, /getCurrentPages\(\)\.length > 1/);
+  assert.match(ts, /wx\.navigateBack\(\)/);
+  assert.match(ts, /wx\.switchTab\(\{ url: "\/pages\/gears\/index" \}\)/);
+  assert.match(ts, /wx\.redirectTo\(\{/);
+  assert.match(ts, /\/pages\/gears\/detail\/index\?id=/);
+});
