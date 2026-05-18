@@ -1,7 +1,7 @@
 <view class="atlas-page {{themeClass}}">
   <view class="hero-card">
     <view>
-      <view class="eyebrow">PUBLIC GEAR ATLAS</view>
+      <view class="eyebrow">装备图鉴</view>
       <view class="hero-title">装备图鉴</view>
       <view class="hero-subtitle"
         >浏览已审核收录的市面装备，也可以投稿补充新装备。</view

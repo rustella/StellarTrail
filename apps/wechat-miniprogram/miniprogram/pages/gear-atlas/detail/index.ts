@@ -44,7 +44,7 @@ Page({
   onLoad(options: Record<string, string | undefined>) {
     const id = options.id;
     if (!id) {
-      this.setData({ error: "缺少图鉴 ID" });
+      this.setData({ error: "没有找到这条内容，请返回后重试" });
       return;
     }
     this.setData({ id });
@@ -120,7 +120,7 @@ function buildGroups(item: GearAtlasPublicItem): DetailGroup[] {
       ],
     },
     {
-      title: "公开参数",
+      title: "可公开信息",
       items: [
         { label: "重量", value: formatGearWeight(item.weight_g) },
         {

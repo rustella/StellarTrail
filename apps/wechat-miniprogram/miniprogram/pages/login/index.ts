@@ -177,8 +177,8 @@ Page({
     }
     this.setData({ codeLoading: true, error: "", notice: "" });
     try {
-      const response = await sendEmailLoginCode(email);
-      this.setData({ notice: buildCodeNotice(response) });
+      await sendEmailLoginCode(email);
+      this.setData({ notice: buildCodeNotice() });
     } catch (error) {
       this.setData({ error: getErrorMessage(error) });
     } finally {
@@ -233,8 +233,8 @@ Page({
     }
     this.setData({ codeLoading: true, error: "", notice: "" });
     try {
-      const response = await sendPasswordResetCode(email);
-      this.setData({ notice: buildCodeNotice(response) });
+      await sendPasswordResetCode(email);
+      this.setData({ notice: buildCodeNotice() });
     } catch (error) {
       this.setData({ error: getErrorMessage(error) });
     } finally {
@@ -347,13 +347,8 @@ function markWechatProfilePromptPending(): void {
   }
 }
 
-function buildCodeNotice(response: {
-  email: string;
-  debug_code?: string;
-}): string {
-  return response.debug_code
-    ? `本地验证码：${response.debug_code}`
-    : `验证码已发送，请查看 ${response.email}`;
+function buildCodeNotice(): string {
+  return "验证码已发送，请查看邮箱";
 }
 
 function isEmailLike(value: string): boolean {

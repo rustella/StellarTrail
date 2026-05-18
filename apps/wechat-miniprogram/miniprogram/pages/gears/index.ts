@@ -157,7 +157,7 @@ Page({
         nextCursor: listResponse.next_cursor ?? null,
         emptyText:
           tab === "history"
-            ? "历史装备为空，软删除后的装备会出现在这里"
+            ? "历史装备为空，删除后的装备会出现在这里"
             : "还没有装备，先添加第一件户外装备吧",
         ...(offlineNotice ? { offlineNotice } : {}),
       });

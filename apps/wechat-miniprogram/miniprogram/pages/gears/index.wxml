@@ -125,7 +125,7 @@
       <view wx:elif="{{!gears.length}}" class="empty-card">
         <view class="empty-title">{{emptyText}}</view>
         <view class="empty-subtitle"
-          >用移动端卡片记录重量、价格、存放位置和标签备注。</view
+          >用装备卡片记录重量、价格、存放位置和标签备注。</view
         >
         <button
           wx:if="{{tab === 'available'}}"

@@ -61,7 +61,7 @@ Page({
     atlasSubmissionStatus: "" as "" | GearAtlasStatus,
     atlasSubmissionText: "未投稿",
     atlasSubmissionHint:
-      "投稿只复制公开参数，不包含购入价、购买渠道、存放位置和备注。",
+      "投稿只复制可公开信息，不包含购入价、购买渠道、存放位置和备注。",
     submittingAtlas: false,
     weightText: "未记录",
     priceText: "未记录",
@@ -78,7 +78,7 @@ Page({
   onLoad(options: Record<string, string | undefined>) {
     const id = options.id;
     if (!id) {
-      this.setData({ error: "缺少装备 ID" });
+      this.setData({ error: "没有找到这条内容，请返回后重试" });
       return;
     }
     this.setData({ id, tab: (options.tab as GearTab) || "available" });
@@ -251,7 +251,7 @@ Page({
     wx.showModal({
       title: "投稿到装备图鉴？",
       content:
-        "只会复制分类、名称、品牌、型号、描述、重量、官方价和分类参数，不包含购入价、购买渠道、存放位置、备注、标签等个人信息。",
+        "只会复制分类、名称、品牌、型号、描述、重量、官方价和详细信息，不包含购入价、购买渠道、存放位置、备注、标签等个人信息。",
       confirmText: "提交审核",
       confirmColor: "#0f766e",
       success: async (result) => {
@@ -330,7 +330,7 @@ function buildAtlasSubmissionData(submission: GearAtlasSubmission | null) {
       atlasSubmissionStatus: "" as "" | GearAtlasStatus,
       atlasSubmissionText: "未投稿",
       atlasSubmissionHint:
-        "投稿只复制公开参数，不包含购入价、购买渠道、存放位置和备注。",
+        "投稿只复制可公开信息，不包含购入价、购买渠道、存放位置和备注。",
     };
   }
   const hint =
@@ -365,7 +365,7 @@ function buildGroups(item: GearItem): DetailGroup[] {
       ],
     },
     {
-      title: "重量与分类参数",
+      title: "重量与详细信息",
       items: [
         { label: "重量", value: formatGearWeight(item.weight_g) },
         ...specs,

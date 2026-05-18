@@ -79,7 +79,7 @@
     </view>
 
     <view class="form-card">
-      <view class="section-title">重量与分类参数</view>
+      <view class="section-title">重量与详细信息</view>
       <view class="field">
         <view class="field-label">重量</view>
         <view class="spec-input-row">

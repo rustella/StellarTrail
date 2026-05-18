@@ -38,7 +38,7 @@
         class="auth-tab {{loginMode === 'email' ? 'active' : ''}}"
         bindtap="switchToEmail"
       >
-        邮箱登陆
+        邮箱登录
       </button>
     </view>
 
@@ -99,7 +99,7 @@
         账号登录
       </button>
       <view class="action-row">
-        <button class="link-button" bindtap="switchToEmail">邮箱登陆</button>
+        <button class="link-button" bindtap="switchToEmail">邮箱登录</button>
         <button class="link-button" bindtap="switchToReset">找回密码</button>
         <button class="link-button" bindtap="goRegister">注册账号</button>
       </view>
@@ -137,7 +137,7 @@
         loading="{{loading}}"
         bindtap="loginWithEmailCode"
       >
-        邮箱登陆
+        邮箱登录
       </button>
       <button class="link-button" bindtap="switchToPassword">
         返回账号登录
