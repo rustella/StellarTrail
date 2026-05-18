@@ -59,6 +59,20 @@ ${ts}`;
   assert.match(pageSource, /WECHAT_PROFILE_PROMPT_PENDING_KEY/);
 });
 
+test("profile page renders stored WeChat nickname and avatar", () => {
+  const wxml = read("pages/profile/index.wxml");
+  const ts = read("pages/profile/index.ts");
+  const pageSource = `${wxml}
+${ts}`;
+
+  assert.match(wxml, /accountProfile\.avatarUrl/);
+  assert.match(wxml, /accountProfile\.displayName/);
+  assert.match(wxml, /account-avatar-image/);
+  assert.match(pageSource, /buildAccountProfile/);
+  assert.match(pageSource, /user\.nickname \|\| user\.username \|\| user\.email/);
+  assert.match(pageSource, /user\.avatar_url \|\| ""/);
+});
+
 test("register page captures account email verification and password confirmation", () => {
   const wxml = read("pages/register/index.wxml");
   const ts = read("pages/register/index.ts");
