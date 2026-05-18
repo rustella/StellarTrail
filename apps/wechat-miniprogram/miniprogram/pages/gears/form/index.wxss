@@ -1,6 +1,6 @@
 .form-page {
   min-height: 100vh;
-  padding: 28rpx 28rpx 140rpx;
+  padding: 28rpx;
   background: var(--page-bg);
   box-sizing: border-box;
   color: var(--text-color);
@@ -128,19 +128,13 @@ textarea {
   text-align: center;
 }
 
-.footer-actions {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
+.form-actions {
   display: flex;
   gap: 18rpx;
-  padding: 18rpx 28rpx calc(18rpx + env(safe-area-inset-bottom));
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 -8rpx 28rpx rgba(15, 23, 42, 0.08);
+  margin-bottom: 24rpx;
 }
 
-.footer-actions button {
+.form-actions button {
   flex: 1;
   margin: 0;
   border-radius: 999rpx;
@@ -149,12 +143,12 @@ textarea {
   line-height: 82rpx;
 }
 
-.footer-actions .secondary {
+.form-actions .secondary {
   color: var(--heading-muted-color);
   background: #e2e8f0;
 }
 
-.footer-actions .primary {
+.form-actions .primary {
   color: var(--brand-text-color);
   background: var(--brand-color);
 }
@@ -206,17 +200,12 @@ textarea {
   background: var(--status-danger-bg);
 }
 
-.form-page.theme-dark .footer-actions {
-  background: var(--footer-bg);
-  box-shadow: 0 -8rpx 28rpx rgba(3, 1, 12, 0.42);
-}
-
-.form-page.theme-dark .footer-actions .secondary {
+.form-page.theme-dark .form-actions .secondary {
   color: var(--soft-control-text);
   background: var(--soft-control-bg);
 }
 
-.form-page.theme-dark .footer-actions .primary {
+.form-page.theme-dark .form-actions .primary {
   color: var(--brand-text-color);
   background: var(--brand-color);
 }
