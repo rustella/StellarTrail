@@ -74,20 +74,6 @@
   gap: 12rpx;
 }
 
-.account-nickname-input {
-  width: 210rpx;
-  min-width: 0;
-  height: 54rpx;
-  padding: 0 16rpx;
-  border: 1rpx solid var(--control-border);
-  border-radius: 16rpx;
-  color: var(--text-color);
-  background: var(--control-bg);
-  font-size: 25rpx;
-  font-weight: 800;
-  box-sizing: border-box;
-}
-
 .account-inline-button {
   flex: 0 0 auto;
   margin: 0;
@@ -139,4 +125,95 @@
 .account-button.danger {
   color: var(--status-danger-text);
   background: var(--status-danger-bg);
+}
+
+.profile-modal-mask {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 32rpx;
+  background: rgba(15, 23, 42, 0.42);
+  box-sizing: border-box;
+}
+
+.profile-modal-card {
+  width: 100%;
+  padding: 30rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: 28rpx;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-card);
+  box-sizing: border-box;
+}
+
+.profile-modal-title {
+  color: var(--text-color);
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.profile-name-methods {
+  display: grid;
+  gap: 18rpx;
+  margin-top: 24rpx;
+}
+
+.profile-name-method {
+  margin: 0;
+  padding: 0 24rpx;
+  border: 1rpx solid var(--control-border);
+  border-radius: 18rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 27rpx;
+  font-weight: 900;
+  line-height: 88rpx;
+  text-align: left;
+}
+
+.profile-name-method::after {
+  border: 0;
+}
+
+.profile-name-form {
+  margin-top: 24rpx;
+}
+
+.profile-name-input {
+  width: 100%;
+  height: 78rpx;
+  padding: 0 22rpx;
+  border: 1rpx solid var(--control-border);
+  border-radius: 18rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 27rpx;
+  font-weight: 800;
+  box-sizing: border-box;
+}
+
+.profile-modal-error {
+  margin-top: 14rpx;
+  color: var(--status-danger-text);
+  font-size: 23rpx;
+  line-height: 1.4;
+}
+
+.profile-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14rpx;
+  margin-top: 24rpx;
+}
+
+.profile-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18rpx;
 }
