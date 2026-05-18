@@ -54,6 +54,7 @@ async fn test_app() -> TestApp {
         upload: Default::default(),
         minio: Default::default(),
         object_storage: Default::default(),
+        avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),
@@ -240,6 +241,45 @@ async fn local_mock_login_returns_token_and_user() {
     assert_eq!(value["user"]["nickname"], "测试用户");
 }
 
+#[tokio::test]
+async fn wechat_login_without_profile_preserves_existing_nickname_and_avatar() {
+    let app = test_app().await;
+
+    let (first_status, first_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/wechat-login",
+        None,
+        json!({
+            "code": "profile-preserve-user",
+            "profile": {
+                "nickname": "微信昵称",
+                "avatar_url": "https://assets.example.test/avatar.png"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(first_status, StatusCode::OK, "{first_value}");
+    assert_eq!(first_value["user"]["nickname"], "微信昵称");
+
+    let (second_status, second_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/auth/wechat-login",
+        None,
+        json!({"code": "profile-preserve-user"}),
+    )
+    .await;
+
+    assert_eq!(second_status, StatusCode::OK, "{second_value}");
+    assert_eq!(second_value["user"]["id"], first_value["user"]["id"]);
+    assert_eq!(second_value["user"]["nickname"], "微信昵称");
+    assert_eq!(
+        second_value["user"]["avatar_url"],
+        "https://assets.example.test/avatar.png"
+    );
+}
+
 /// Verifies every password-login response includes both access and refresh credentials.
 #[tokio::test]
 async fn login_response_includes_refresh_token() {
@@ -353,6 +393,7 @@ async fn production_email_verification_sends_mail_and_hides_debug_code() {
         upload: Default::default(),
         minio: Default::default(),
         object_storage: Default::default(),
+        avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),
@@ -417,6 +458,7 @@ async fn production_email_verification_delivery_failure_returns_safe_error() {
         upload: Default::default(),
         minio: Default::default(),
         object_storage: Default::default(),
+        avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),
@@ -474,6 +516,7 @@ async fn production_wechat_login_uses_code2session_client() {
         upload: Default::default(),
         minio: Default::default(),
         object_storage: Default::default(),
+        avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),
@@ -1214,6 +1257,7 @@ async fn production_email_login_and_reset_codes_send_mail_and_hide_debug_code() 
         upload: Default::default(),
         minio: Default::default(),
         object_storage: Default::default(),
+        avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),
@@ -1300,6 +1344,7 @@ async fn production_bind_email_code_sends_mail_and_hides_debug_code() {
         upload: Default::default(),
         minio: Default::default(),
         object_storage: Default::default(),
+        avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: Default::default(),

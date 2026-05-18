@@ -228,6 +228,7 @@ async fn seeded_app_with_uploaded_media() -> TestApp {
         upload: UploadConfig::default(),
         minio: Default::default(),
         object_storage: ObjectStorageConfig::default(),
+        avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: PublicApiConfig {
@@ -307,6 +308,7 @@ async fn seeded_app() -> TestApp {
         upload: UploadConfig::default(),
         minio: Default::default(),
         object_storage: ObjectStorageConfig::default(),
+        avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: PublicApiConfig {
@@ -353,6 +355,7 @@ async fn seeded_filter_app() -> TestApp {
         upload: UploadConfig::default(),
         minio: Default::default(),
         object_storage: ObjectStorageConfig::default(),
+        avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
         admin: Default::default(),
         public_api: PublicApiConfig {

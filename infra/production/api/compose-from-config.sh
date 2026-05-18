@@ -139,6 +139,7 @@ emit("REDIS_PASSWORD", redis_password)
 emit("MINIO_ROOT_USER", require("minio", "access_key_id"))
 emit("MINIO_ROOT_PASSWORD", require("minio", "secret_access_key"))
 emit("OBJECT_STORAGE_BUCKET", get("object_storage", "bucket", "stellartrail-uploads"))
+emit("AVATAR_STORAGE_BUCKET", get("avatar_storage", "bucket", "stellartrail-avatars"))
 emit("KNOTS_MEDIA_BUCKET", get("knots_media_storage", "bucket", "stellartrail-knots-media"))
 PY
 )"
@@ -161,6 +162,7 @@ if [[ "${1:-}" == "--print-derived-env" ]]; then
     MINIO_ROOT_USER \
     MINIO_ROOT_PASSWORD \
     OBJECT_STORAGE_BUCKET \
+    AVATAR_STORAGE_BUCKET \
     KNOTS_MEDIA_BUCKET; do
     value="${!key:-}"
     case "$key" in

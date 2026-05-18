@@ -42,6 +42,12 @@ minio:
 object_storage:
   bucket: stellartrail-uploads
 
+# Public user avatar images. These are returned in auth/profile responses.
+avatar_storage:
+  bucket: stellartrail-avatars
+  public_base_url: http://127.0.0.1:19000/stellartrail-avatars
+  max_image_bytes: 2000000
+
 # Public Knots3D media objects. Public URLs are stored in DB media_resources.
 knots_media_storage:
   storage_profile: knots-public

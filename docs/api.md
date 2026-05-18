@@ -20,6 +20,7 @@ POST /api/auth/password-reset-code
 POST /api/auth/password-reset
 POST /api/me/email-binding-code
 POST /api/me/email-binding
+PUT /api/me/profile/avatar
 POST /api/auth/register
 POST /api/auth/login
 POST /api/auth/refresh
@@ -36,9 +37,11 @@ POST /api/auth/captcha
 ```json
 {
   "code": "wx-js-code",
-  "profile": { "nickname": "测试用户", "avatar_url": null }
+  "profile": { "nickname": "测试用户" }
 }
 ```
+
+`profile` 可以省略。省略时服务端不会清空用户已有昵称或头像；传入非空 `nickname` / `avatar_url` 时才更新对应字段。小程序端头像导入使用微信 `chooseAvatar` 选择本地临时文件，登录成功拿到 Bearer Token 后再调用头像上传接口保存公开头像 URL。
 
 ### Email / username registration, email-code login, and password reset
 
@@ -182,6 +185,34 @@ Authorization: Bearer ***
 ```
 
 若当前账号已经绑定邮箱，或目标邮箱已被其他账号使用，会返回 `validation_failed`。绑定成功后，可继续使用找回密码流程为该账号设置密码。
+
+### Profile avatar upload
+
+登录后可上传当前用户头像。服务端会校验图片扩展名、声明 MIME 和文件签名，上传到公开头像 bucket，并更新当前用户的 `avatar_url`。微信小程序 `wx.uploadFile` 只发起 `POST` 上传，因此服务端同时接受 `PUT` 和 `POST`，推荐通用客户端使用 `PUT`。
+
+```http
+PUT /api/me/profile/avatar
+Authorization: Bearer ***
+Content-Type: multipart/form-data
+```
+
+Multipart 字段：
+
+- `file`：必填，支持 `jpg` / `jpeg` / `png` / `webp`。
+
+成功响应：
+
+```json
+{
+  "user": {
+    "id": "user-id",
+    "username": null,
+    "email": null,
+    "nickname": "微信用户",
+    "avatar_url": "https://assets.example.invalid/stellartrail-avatars/users/user-id/avatar/hash.png"
+  }
+}
+```
 
 登录、注册、邮箱验证码登录、找回密码成功响应会返回短期 `access_token` 和长期 `refresh_token`。服务端只保存 token hash，不保存明文 token；客户端后续私有请求使用：
 

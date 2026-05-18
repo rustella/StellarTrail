@@ -36,6 +36,11 @@ minio:
 object_storage:
   bucket: stellartrail-uploads
 
+avatar_storage:
+  bucket: stellartrail-avatars
+  public_base_url: https://assets.example.invalid/stellartrail-avatars
+  max_image_bytes: 2000000
+
 knots_media_storage:
   storage_profile: knots-public
   bucket: stellartrail-knots-media

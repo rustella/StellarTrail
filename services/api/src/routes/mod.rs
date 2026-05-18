@@ -7,6 +7,7 @@ mod feedback;
 mod gears;
 mod health;
 mod meta;
+mod profile;
 mod skills;
 mod uploads;
 
@@ -31,6 +32,7 @@ pub fn build_router(state: AppState) -> Router {
         .config()
         .upload
         .max_image_bytes
+        .max(state.config().avatar_storage.max_image_bytes)
         .max(state.config().knots_media_storage.max_video_bytes)
         .saturating_add(1_000_000) as usize;
     let cors_layer = build_cors_layer(&state.config().cors);
@@ -42,6 +44,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(content::routes())
         .merge(skills::routes())
         .merge(gears::routes())
+        .merge(profile::routes())
         .merge(uploads::routes())
         .merge(feedback::routes())
         .layer(DefaultBodyLimit::max(body_limit))

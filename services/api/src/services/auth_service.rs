@@ -57,7 +57,7 @@ pub async fn wechat_login(
     // Only the local environment may use mocked WeChat login so production cannot bypass code2session.
     if state.config().wechat_mock_login && state.config().app_env == "local" {
         let profile = profile.unwrap_or(LoginProfileRequest {
-            nickname: Some("本地测试用户".to_owned()),
+            nickname: None,
             avatar_url: None,
         });
         let openid = format!("mock:{code}");
@@ -480,7 +480,7 @@ pub async fn mock_login(
     }
     let code = validate_code(code)?;
     let profile = profile.unwrap_or(LoginProfileRequest {
-        nickname: Some("本地测试用户".to_owned()),
+        nickname: None,
         avatar_url: None,
     });
     let openid = format!("mock:{code}");
@@ -499,7 +499,11 @@ async fn issue_login_for_openid(
 ) -> Result<LoginResponse, ApiError> {
     let repo = AuthRepository::new(state.db().clone());
     let user = repo
-        .upsert_wechat_user(openid, profile.nickname, profile.avatar_url)
+        .upsert_wechat_user(
+            openid,
+            normalize_optional_profile_field(profile.nickname),
+            normalize_optional_profile_field(profile.avatar_url),
+        )
         .await?;
     issue_login_for_user(&repo, user).await
 }
@@ -598,7 +602,7 @@ fn login_response(user: UserRecord, token_pair: TokenPair) -> Result<LoginRespon
     })
 }
 
-fn login_user_response(user: UserRecord) -> LoginUserResponse {
+pub(crate) fn login_user_response(user: UserRecord) -> LoginUserResponse {
     LoginUserResponse {
         id: user.id,
         username: user.username,
@@ -606,6 +610,12 @@ fn login_user_response(user: UserRecord) -> LoginUserResponse {
         nickname: user.nickname,
         avatar_url: user.avatar_url,
     }
+}
+
+fn normalize_optional_profile_field(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
 }
 
 fn ensure_user_can_bind_email(user: &UserRecord, email: &str) -> Result<(), ApiError> {

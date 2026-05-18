@@ -93,6 +93,7 @@ async fn test_app() -> TestApp {
         object_storage: ObjectStorageConfig {
             bucket: "test-feedback-uploads".to_owned(),
         },
+        avatar_storage: Default::default(),
         knots_media_storage: KnotsMediaStorageConfig {
             storage_profile: "knots-public".to_owned(),
             bucket: "stellartrail-knots-media".to_owned(),

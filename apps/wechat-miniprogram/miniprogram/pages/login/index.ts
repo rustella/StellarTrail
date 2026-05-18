@@ -10,11 +10,14 @@ import {
   resetPassword,
   sendEmailLoginCode,
   sendPasswordResetCode,
+  uploadWechatAvatar,
 } from "../../utils/api";
 import { decodeRedirect, navigateToRedirect } from "../../utils/navigation";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 
 type LoginMode = "wechat" | "password" | "email" | "reset";
+const WECHAT_PROFILE_PROMPT_SEEN_KEY =
+  "stellartrail_wechat_profile_prompt_seen";
 
 Page({
   data: {
@@ -36,6 +39,10 @@ Page({
     captchaAnswer: "",
     captchaTicket: "",
     captchaImageSrc: "",
+    wechatProfilePromptVisible: false,
+    wechatProfilePromptCanRetry: false,
+    wechatNickname: "",
+    wechatAvatarPath: "",
     ...getThemeViewData(),
   },
 
@@ -56,7 +63,13 @@ Page({
   },
 
   switchToWechat() {
-    this.setData({ loginMode: "wechat", error: "", notice: "" });
+    this.setData({
+      loginMode: "wechat",
+      error: "",
+      notice: "",
+      wechatProfilePromptVisible: false,
+      wechatProfilePromptCanRetry: false,
+    });
   },
 
   switchToPassword() {
@@ -90,9 +103,120 @@ Page({
     if (this.data.loading) {
       return;
     }
+    if (shouldShowWechatProfilePrompt()) {
+      this.setData({
+        wechatProfilePromptVisible: true,
+        wechatProfilePromptCanRetry: false,
+        wechatNickname: "",
+        wechatAvatarPath: "",
+        error: "",
+        notice: "",
+      });
+      return;
+    }
+    await this.loginWechatWithoutProfilePrompt();
+  },
+
+  async loginWechatWithoutProfilePrompt() {
     this.setData({ loading: true, error: "", notice: "" });
     try {
       await loginWithWechat();
+      this.afterLoginSuccess();
+    } catch (error) {
+      this.setData({ error: getErrorMessage(error) });
+    } finally {
+      this.setData({ loading: false });
+    }
+  },
+
+  onWechatNicknameInput(event: WechatMiniprogram.Input) {
+    this.setData({ wechatNickname: event.detail.value });
+  },
+
+  onChooseWechatAvatar(
+    event: WechatMiniprogram.CustomEvent<{ avatarUrl?: string }>,
+  ) {
+    const avatarPath = event.detail.avatarUrl || "";
+    if (avatarPath) {
+      this.setData({ wechatAvatarPath: avatarPath, error: "", notice: "" });
+    }
+  },
+
+  async importWechatProfileAndLogin() {
+    if (this.data.loading) {
+      return;
+    }
+    await this.finishWechatProfileLogin({
+      nickname: this.data.wechatNickname,
+      avatarPath: this.data.wechatAvatarPath,
+    });
+  },
+
+  async skipWechatProfileImport() {
+    if (this.data.loading) {
+      return;
+    }
+    await this.finishWechatProfileLogin({
+      nickname: "",
+      avatarPath: "",
+    });
+  },
+
+  async retryWechatAvatarUpload() {
+    if (this.data.loading) {
+      return;
+    }
+    if (!this.data.wechatAvatarPath) {
+      this.setData({ error: "请先选择头像", notice: "" });
+      return;
+    }
+    this.setData({ loading: true, error: "", notice: "" });
+    try {
+      await uploadWechatAvatar(this.data.wechatAvatarPath);
+      markWechatProfilePromptSeen();
+      this.setData({
+        wechatProfilePromptVisible: false,
+        wechatProfilePromptCanRetry: false,
+      });
+      this.afterLoginSuccess();
+    } catch (error) {
+      this.setData({
+        error: `头像保存失败：${getErrorMessage(error)}`,
+        notice: "",
+      });
+    } finally {
+      this.setData({ loading: false });
+    }
+  },
+
+  async finishWechatProfileLogin(options: {
+    nickname: string;
+    avatarPath: string;
+  }) {
+    const nickname = options.nickname.trim();
+    this.setData({ loading: true, error: "", notice: "" });
+    try {
+      await loginWithWechat(nickname ? { nickname } : undefined);
+      markWechatProfilePromptSeen();
+      if (options.avatarPath) {
+        try {
+          await uploadWechatAvatar(options.avatarPath);
+        } catch (avatarError) {
+          this.setData({
+            loggedIn: true,
+            userDisplay: buildUserDisplay(),
+            wechatProfilePromptVisible: true,
+            wechatProfilePromptCanRetry: true,
+            error: `已登录，但头像保存失败：${getErrorMessage(avatarError)}`,
+            notice: "",
+          });
+          return;
+        }
+      }
+      this.setData({
+        wechatProfilePromptVisible: false,
+        wechatProfilePromptCanRetry: false,
+      });
       this.afterLoginSuccess();
     } catch (error) {
       this.setData({ error: getErrorMessage(error) });
@@ -300,7 +424,21 @@ function buildUserDisplay(): string {
   return user.nickname || user.username || user.email || "寻径星野用户";
 }
 
-function buildCodeNotice(response: { email: string; debug_code?: string }): string {
+function shouldShowWechatProfilePrompt(): boolean {
+  return (
+    !hasAccessToken() &&
+    wx.getStorageSync(WECHAT_PROFILE_PROMPT_SEEN_KEY) !== true
+  );
+}
+
+function markWechatProfilePromptSeen(): void {
+  wx.setStorageSync(WECHAT_PROFILE_PROMPT_SEEN_KEY, true);
+}
+
+function buildCodeNotice(response: {
+  email: string;
+  debug_code?: string;
+}): string {
   return response.debug_code
     ? `本地验证码：${response.debug_code}`
     : `验证码已发送，请查看 ${response.email}`;

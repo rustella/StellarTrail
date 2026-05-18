@@ -90,7 +90,11 @@ impl AuthRepository {
             self.db
                 .execute(statement(
                     self.db.get_database_backend(),
-                    "UPDATE users SET nickname = ?, avatar_url = ?, updated_at = ? WHERE id = ?",
+                    r#"UPDATE users
+                       SET nickname = COALESCE(?, nickname),
+                           avatar_url = COALESCE(?, avatar_url),
+                           updated_at = ?
+                       WHERE id = ?"#,
                     vec![
                         nickname.into(),
                         avatar_url.into(),
@@ -133,6 +137,35 @@ impl AuthRepository {
             ))
             .await?;
         Ok(user)
+    }
+
+    /// Updates the current user's public avatar URL after a validated profile-image upload.
+    pub async fn update_user_avatar_url(
+        &self,
+        user_id: &str,
+        avatar_url: &str,
+    ) -> Result<Option<UserRecord>, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                r#"UPDATE users
+                   SET avatar_url = ?,
+                       updated_at = ?
+                   WHERE id = ?
+                     AND deleted_at IS NULL"#,
+                vec![
+                    avatar_url.to_owned().into(),
+                    now.into(),
+                    user_id.to_owned().into(),
+                ],
+            ))
+            .await?;
+        if result.rows_affected() == 0 {
+            return Ok(None);
+        }
+        self.find_user_by_id(user_id).await
     }
 
     /// Inserts a password-based account after service-layer validation succeeds.
@@ -809,6 +842,34 @@ mod tests {
 
         assert_eq!(found.id, user.id);
         assert_eq!(found.nickname.as_deref(), Some("测试"));
+    }
+
+    /// Verifies an omitted WeChat profile does not erase previously imported display data.
+    #[tokio::test]
+    async fn wechat_upsert_preserves_existing_profile_when_new_values_are_missing() {
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        Migrator::up(&db, None).await.unwrap();
+        let repo = AuthRepository::new(db);
+        let created = repo
+            .upsert_mock_user(
+                "mock:profile-preserve",
+                Some("微信昵称".to_owned()),
+                Some("https://assets.example.test/avatar.png".to_owned()),
+            )
+            .await
+            .unwrap();
+
+        let updated = repo
+            .upsert_mock_user("mock:profile-preserve", None, None)
+            .await
+            .unwrap();
+
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.nickname.as_deref(), Some("微信昵称"));
+        assert_eq!(
+            updated.avatar_url.as_deref(),
+            Some("https://assets.example.test/avatar.png")
+        );
     }
 
     /// Verifies password resets update the stored digest and clear brute-force counters.

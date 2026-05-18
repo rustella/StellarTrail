@@ -29,6 +29,7 @@ import type {
   PasswordLoginRequest,
   PasswordResetCodeRequest,
   PasswordResetRequest,
+  ProfileUserResponse,
   RefreshTokenRequest,
   RegisterRequest,
   SkillCategoriesResponse,
@@ -239,6 +240,20 @@ export class StellarTrailApiClient {
 
   async bindEmail(request: BindEmailRequest): Promise<BindEmailResponse> {
     return this.post<BindEmailResponse>("/api/me/email-binding", request, true);
+  }
+
+  async uploadProfileAvatar(
+    file: Blob,
+    filename = "avatar.png",
+  ): Promise<ProfileUserResponse> {
+    const form = new FormData();
+    form.set("file", file, filename);
+    const response = await this.request(
+      "/api/me/profile/avatar",
+      { method: "PUT", body: form },
+      true,
+    );
+    return response.json() as Promise<ProfileUserResponse>;
   }
 
   async createCaptcha(
