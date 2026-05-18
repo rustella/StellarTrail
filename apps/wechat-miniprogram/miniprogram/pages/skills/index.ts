@@ -7,12 +7,15 @@ import {
 } from "../../utils/api";
 import {
   mapSkillCard,
+  type KnotDetail,
   type KnotMediaAsset,
   type KnotSummary,
   type SkillCard,
 } from "../../utils/skill-utils";
 import {
   cacheAllKnotsForOffline,
+  prepareAllKnotsOfflineCache,
+  type KnotOfflineCachePlan,
   type KnotOfflineCacheProgress,
   type KnotOfflineCacheResult,
 } from "../../utils/knot-offline-cache";
@@ -74,6 +77,7 @@ Page({
     nextOffset: null as number | null,
     loading: false,
     loadingMore: false,
+    preparingKnotCache: false,
     cachingKnots: false,
     cacheProgressText: "",
     cacheSummaryText: "",
@@ -188,21 +192,46 @@ Page({
   },
 
   async cacheAllKnots() {
-    if (this.data.cachingKnots) {
-      return;
-    }
-    const confirmed = await confirmKnotOfflineCache();
-    if (!confirmed) {
+    if (this.data.preparingKnotCache || this.data.cachingKnots) {
       return;
     }
     this.setData({
-      cachingKnots: true,
-      cacheProgressText: "准备缓存绳结资料...",
+      preparingKnotCache: true,
+      cachingKnots: false,
+      cacheProgressText: "正在统计绳结数量和资源大小...",
       cacheSummaryText: "",
       error: "",
     });
     try {
+      const plan = await prepareAllKnotsOfflineCache({
+        pageSize: KNOTS_PAGE_SIZE,
+        onProgress: (progress) => {
+          this.setData({
+            cacheProgressText: formatKnotCacheProgress(progress),
+          });
+        },
+      });
+      this.setData({
+        cacheProgressText: `已统计 ${plan.items.length} 个绳结，预计约 ${formatBytes(
+          plan.estimatedBytes,
+        )}`,
+      });
+      const confirmed = await confirmKnotOfflineCache(plan);
+      if (!confirmed) {
+        this.setData({
+          preparingKnotCache: false,
+          cachingKnots: false,
+          cacheProgressText: "",
+        });
+        return;
+      }
+      this.setData({
+        preparingKnotCache: false,
+        cachingKnots: true,
+        cacheProgressText: "准备下载离线媒体资源...",
+      });
       const result = await cacheAllKnotsForOffline({
+        plan,
         pageSize: KNOTS_PAGE_SIZE,
         onProgress: (progress) => {
           this.setData({
@@ -222,6 +251,7 @@ Page({
         allKnots,
         ...listState,
         nextOffset: null,
+        preparingKnotCache: false,
         cachingKnots: false,
         cacheProgressText: "",
         cacheSummaryText,
@@ -238,6 +268,7 @@ Page({
       });
     } catch (error) {
       this.setData({
+        preparingKnotCache: false,
         cachingKnots: false,
         cacheProgressText: "",
       });
@@ -301,11 +332,16 @@ function loadKnotsPage(offset: number) {
   return listKnots({ offset, limit: KNOTS_PAGE_SIZE });
 }
 
-function confirmKnotOfflineCache(): Promise<boolean> {
+function confirmKnotOfflineCache(plan: KnotOfflineCachePlan): Promise<boolean> {
   return new Promise((resolve) => {
+    const detailWarning = plan.failedDetailCount
+      ? `\n${plan.failedDetailCount} 个详情暂未统计，实际大小可能略有差异。`
+      : "";
     wx.showModal({
       title: "缓存全部绳结",
-      content: "将下载绳结详情和图片、动图资源，建议在 Wi-Fi 下进行。",
+      content: `主要用于离线模式下查询绳结。将缓存 ${plan.items.length} 个绳结的详情和图片、动图资源，预计约 ${formatBytes(
+        plan.estimatedBytes,
+      )}。建议在 Wi-Fi 下进行。${detailWarning}`,
       confirmText: "开始缓存",
       success: (result) => resolve(Boolean(result.confirm)),
       fail: () => resolve(false),
@@ -318,11 +354,11 @@ function formatKnotCacheProgress(progress: KnotOfflineCacheProgress): string {
     return `已读取 ${progress.loadedCount ?? 0} 个绳结`;
   }
   if (progress.phase === "detail") {
-    return `正在缓存详情 ${progress.currentIndex ?? 0}/${progress.totalCount ?? 0}：${
+    return `正在读取详情 ${progress.currentIndex ?? 0}/${progress.totalCount ?? 0}：${
       progress.currentTitle ?? "绳结"
     }`;
   }
-  return `正在缓存媒体 ${progress.mediaReadyCount ?? 0}/${
+  return `正在下载媒体 ${progress.mediaReadyCount ?? 0}/${
     progress.mediaTotal ?? 0
   }`;
 }
@@ -330,7 +366,20 @@ function formatKnotCacheProgress(progress: KnotOfflineCacheProgress): string {
 function formatKnotCacheResult(result: KnotOfflineCacheResult): string {
   const failedCount = result.failedDetailCount + result.failedMediaCount;
   const failedText = failedCount ? `，${failedCount} 项未成功，可稍后重试` : "";
-  return `已缓存 ${result.items.length} 个绳结、${result.detailCount} 个详情、${result.mediaReadyCount}/${result.mediaTotal} 个媒体资源${failedText}`;
+  return `已缓存 ${result.items.length} 个绳结、${result.detailCount} 个详情、${result.mediaReadyCount}/${result.mediaTotal} 个媒体资源，约 ${formatBytes(
+    result.estimatedBytes,
+  )}${failedText}`;
+}
+
+function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0 MB";
+  }
+  if (value < 1024 * 1024) {
+    return `${Math.max(1, Math.round(value / 1024))} KB`;
+  }
+  const mb = value / 1024 / 1024;
+  return `${mb >= 10 ? Math.round(mb) : mb.toFixed(1)} MB`;
 }
 
 function appendUniqueKnots(
@@ -349,7 +398,9 @@ function appendUniqueKnots(
   return merged;
 }
 
-async function mapKnotListCard(item: KnotSummary): Promise<KnotListCard> {
+async function mapKnotListCard(
+  item: KnotSummary | KnotDetail,
+): Promise<KnotListCard> {
   const thumbnail = findThumbnail(item.media);
   const thumbnailUrl = thumbnail
     ? await resolveCachedMediaUrl(resolveAssetUrl(thumbnail.url))

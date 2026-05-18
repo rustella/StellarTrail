@@ -32,6 +32,7 @@ import type {
   KnotListResponse,
   KnotMediaAssetId,
   KnotMediaUploadResponse,
+  KnotOfflineManifestResponse,
   ListKnotsRequest,
   ImportGearsRequest,
   ImportGearsResponse,
@@ -150,6 +151,12 @@ export class StellarTrailApiClient {
       false,
       locale,
     );
+  }
+
+  async getKnotOfflineManifest(
+    locale?: SkillLocale,
+  ): Promise<KnotOfflineManifestResponse> {
+    return this.get("/api/skills/knots/offline-manifest", false, locale);
   }
 
   async listApiUsage(

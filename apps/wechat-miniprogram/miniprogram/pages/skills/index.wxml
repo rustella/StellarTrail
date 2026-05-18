@@ -38,21 +38,25 @@
         <view class="list-actions">
           <button
             class="cache-button"
-            loading="{{cachingKnots}}"
-            disabled="{{cachingKnots || loading}}"
+            loading="{{preparingKnotCache || cachingKnots}}"
+            disabled="{{preparingKnotCache || cachingKnots || loading}}"
             bindtap="cacheAllKnots"
           >
-            {{cachingKnots ? '缓存中' : '缓存全部'}}
+            {{preparingKnotCache ? '统计中' : (cachingKnots ? '缓存中' : '缓存全部')}}
           </button>
           <button class="ghost-button" bindtap="showSkillCatalog">返回</button>
         </view>
       </view>
 
-      <view wx:if="{{cachingKnots || cacheSummaryText}}" class="cache-status-card">
-        <view class="cache-status-title">{{cachingKnots ? '正在缓存离线内容' : '离线缓存完成'}}</view>
+      <view wx:if="{{preparingKnotCache || cachingKnots || cacheSummaryText}}" class="cache-status-card">
+        <view class="cache-status-title">{{preparingKnotCache ? '正在统计缓存信息' : (cachingKnots ? '正在缓存离线内容' : '离线缓存完成')}}</view>
         <view class="cache-status-text">
-          {{cachingKnots ? cacheProgressText : cacheSummaryText}}
+          {{preparingKnotCache || cachingKnots ? cacheProgressText : cacheSummaryText}}
         </view>
+      </view>
+
+      <view class="cache-help-text">
+        缓存全部后，离线模式也能查询绳结详情和动图。
       </view>
 
       <view wx:if="{{!loading && allKnots.length}}" class="knot-filter-card">

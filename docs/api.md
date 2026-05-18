@@ -316,6 +316,7 @@ POST /api/auth/refresh
 GET /api/skills
 GET /api/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=beginner&q=wind
 GET /api/skills/knots/filters
+GET /api/skills/knots/offline-manifest
 GET /api/skills/knots/detail/:id
 GET /api/gear-templates
 GET /api/gear-templates/:id
@@ -337,7 +338,7 @@ X-StellarTrail-Locale: zh-CN
 X-StellarTrail-Locale: en
 ```
 
-未显式传 `X-StellarTrail-Locale` 时会尝试 `Accept-Language`，再 fallback 到 `zh-CN`。`?locale=...` 会返回 `400 unsupported_query_parameter`。分页参数为 `offset`/`limit`，筛选参数为 `category`、`difficulty`，关键词为 `q`；响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`。`/api/skills/knots/filters` 返回当前语言下可选用途、难度及数量。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
+未显式传 `X-StellarTrail-Locale` 时会尝试 `Accept-Language`，再 fallback 到 `zh-CN`。`?locale=...` 会返回 `400 unsupported_query_parameter`。分页参数为 `offset`/`limit`，筛选参数为 `category`、`difficulty`，关键词为 `q`；响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`。`/api/skills/knots/filters` 返回当前语言下可选用途、难度及数量。`/api/skills/knots/offline-manifest` 不接受 query 参数，返回完整离线清单、`item_count`、去重后的 `media_count` 和 `estimated_bytes`，并复用 public response cache 与 `ETag`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
 
 ### Admin knot media upload
 
