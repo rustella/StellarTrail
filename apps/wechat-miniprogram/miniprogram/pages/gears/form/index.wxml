@@ -271,7 +271,7 @@
       <view class="share-review-card">
         <view>
           <view class="field-label">共享给搭子参考</view>
-          <view class="field-hint">确认后，保存装备时会提交共享审核。</view>
+          <view class="field-hint">审核通过后会出现在装备图鉴。</view>
         </view>
         <view class="share-review-actions">
           <view wx:if="{{form.shareEnabled}}" class="share-review-status"

@@ -104,7 +104,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     id: "addGear",
     icon: "➕",
     title: "添加装备",
-    description: "登录后快速记录装备",
+    description: "快速添加新装备",
     target: "addGear",
   },
   {
