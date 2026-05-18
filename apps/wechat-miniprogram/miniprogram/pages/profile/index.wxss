@@ -158,29 +158,6 @@
   font-weight: 900;
 }
 
-.profile-name-methods {
-  display: grid;
-  gap: 18rpx;
-  margin-top: 24rpx;
-}
-
-.profile-name-method {
-  margin: 0;
-  padding: 0 24rpx;
-  border: 1rpx solid var(--control-border);
-  border-radius: 18rpx;
-  color: var(--text-color);
-  background: var(--control-bg);
-  font-size: 27rpx;
-  font-weight: 900;
-  line-height: 88rpx;
-  text-align: left;
-}
-
-.profile-name-method::after {
-  border: 0;
-}
-
 .profile-name-form {
   margin-top: 24rpx;
 }
