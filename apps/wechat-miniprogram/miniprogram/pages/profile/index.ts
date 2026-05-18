@@ -24,7 +24,7 @@ Page({
     accountError: "",
     avatarLoading: false,
     nicknameDraft: "",
-    nicknameEditMode: "" as "" | "custom",
+    nicknameEditMode: "" as "" | "wechat" | "custom",
     nicknameModalVisible: false,
     nicknameLoading: false,
     ...getThemeViewData(),
@@ -85,6 +85,34 @@ Page({
     });
   },
 
+  async importWechatNickname() {
+    if (!this.data.loggedIn || this.data.nicknameLoading) {
+      return;
+    }
+    this.setData({ nicknameLoading: true, accountError: "" });
+    try {
+      const profile = await requestWechatUserProfile();
+      const nickname = normalizeWechatNickname(profile.userInfo?.nickName);
+      if (!nickname) {
+        this.showWechatNicknameSelector("微信未返回可用名称，请选择微信名称");
+        return;
+      }
+      await this.saveNicknameValue(nickname);
+    } catch (_error) {
+      this.showWechatNicknameSelector("未获取到微信名称，请选择微信名称");
+    } finally {
+      this.setData({ nicknameLoading: false });
+    }
+  },
+
+  showWechatNicknameSelector(accountError: string) {
+    this.setData({
+      nicknameEditMode: "wechat",
+      nicknameDraft: "",
+      accountError,
+    });
+  },
+
   useCustomNickname() {
     if (this.data.nicknameLoading) {
       return;
@@ -138,13 +166,21 @@ Page({
     if (!this.data.loggedIn || this.data.nicknameLoading) {
       return;
     }
-    if (this.data.nicknameEditMode !== "custom") {
+    if (
+      this.data.nicknameEditMode !== "custom" &&
+      this.data.nicknameEditMode !== "wechat"
+    ) {
       this.setData({ accountError: "请选择修改方式" });
       return;
     }
     const nickname = this.data.nicknameDraft.trim();
     if (!nickname) {
-      this.setData({ accountError: "请输入自定义名称" });
+      this.setData({
+        accountError:
+          this.data.nicknameEditMode === "wechat"
+            ? "请选择微信名称"
+            : "请输入自定义名称",
+      });
       return;
     }
     await this.saveNicknameValue(nickname);
@@ -250,6 +286,37 @@ Page({
   },
 });
 
+interface WechatProfileResult {
+  userInfo?: {
+    nickName?: string;
+  };
+}
+
+interface WechatProfileApi {
+  getUserProfile?: (options: {
+    desc: string;
+    lang?: string;
+    success: (result: WechatProfileResult) => void;
+    fail: (error: unknown) => void;
+  }) => void;
+}
+
+function requestWechatUserProfile(): Promise<WechatProfileResult> {
+  return new Promise((resolve, reject) => {
+    const getUserProfile = (wx as WechatProfileApi).getUserProfile;
+    if (!getUserProfile) {
+      reject(new Error("当前微信版本不支持直接获取名称"));
+      return;
+    }
+    getUserProfile({
+      desc: "用于导入你的微信名称",
+      lang: "zh_CN",
+      success: resolve,
+      fail: reject,
+    });
+  });
+}
+
 function buildAccountProfile(loggedIn: boolean): {
   displayName: string;
   avatarUrl: string;
@@ -284,6 +351,11 @@ function buildAccountProfile(loggedIn: boolean): {
 }
 
 function normalizeProfileNickname(value?: string | null): string {
+  return normalizeWechatNickname(value);
+}
+
+function normalizeWechatNickname(value?: string | null): string {
   const nickname = value?.trim() ?? "";
-  return nickname && nickname !== "寻径星野用户" ? nickname : "";
+  const defaultNames = ["寻径星野用户", "微信用户", "WeChat User"];
+  return nickname && !defaultNames.includes(nickname) ? nickname : "";
 }
