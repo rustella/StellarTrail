@@ -265,20 +265,25 @@ async fn export_csv(
             "size",
             "description",
             "weight_g",
+            "official_price_cents",
+            "official_price_currency",
             "warmth_index",
             "waterproof_index",
             "purchase_date",
             "purchase_price_cents",
+            "purchase_price_currency",
             "expiry_or_warranty_date",
             "purchase_location",
             "status",
             "storage_location",
+            "specs_json",
             "tags",
             "share_enabled",
             "notes",
         ])
         .map_err(ApiError::internal)?;
     for item in items {
+        let specs_json = serde_json::to_string(&item.specs).map_err(ApiError::internal)?;
         writer
             .write_record([
                 item.category.as_str().to_owned(),
@@ -291,16 +296,22 @@ async fn export_csv(
                 item.size.unwrap_or_default(),
                 item.description.unwrap_or_default(),
                 item.weight_g.map(|v| v.to_string()).unwrap_or_default(),
+                item.official_price_cents
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+                item.official_price_currency.unwrap_or_default(),
                 item.warmth_index.unwrap_or_default(),
                 item.waterproof_index.unwrap_or_default(),
                 item.purchase_date.unwrap_or_default(),
                 item.purchase_price_cents
                     .map(|v| v.to_string())
                     .unwrap_or_default(),
+                item.purchase_price_currency.unwrap_or_default(),
                 item.expiry_or_warranty_date.unwrap_or_default(),
                 item.purchase_location.unwrap_or_default(),
                 item.status.as_str().to_owned(),
                 item.storage_location.unwrap_or_default(),
+                specs_json,
                 item.tags.join(";"),
                 item.share_enabled.to_string(),
                 item.notes.unwrap_or_default(),

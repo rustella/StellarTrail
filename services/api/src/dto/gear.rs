@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use stellartrail_domain::gear::{
-    GearCategory, GearDraft, GearItem, GearShareStatus, GearSort, GearStatus, GearTab,
+    GearCategory, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs, GearStatus, GearTab,
 };
 
 /// Stable data boundary for `ListGearQuery`, exposed by or reused within this module.
@@ -47,20 +47,32 @@ pub struct CreateGearRequest {
     pub name: String,
     pub brand: Option<String>,
     pub model: Option<String>,
+    #[serde(default)]
     pub color: Option<String>,
+    #[serde(default)]
     pub material: Option<String>,
+    #[serde(default)]
     pub capacity: Option<String>,
+    #[serde(default)]
     pub size: Option<String>,
     pub description: Option<String>,
     pub weight_g: Option<i32>,
+    pub official_price_cents: Option<i64>,
+    pub official_price_currency: Option<String>,
+    #[serde(default)]
     pub warmth_index: Option<String>,
+    #[serde(default)]
     pub waterproof_index: Option<String>,
     pub purchase_date: Option<String>,
     pub purchase_price_cents: Option<i64>,
+    pub purchase_price_currency: Option<String>,
+    #[serde(default)]
     pub expiry_or_warranty_date: Option<String>,
     pub purchase_location: Option<String>,
     pub status: Option<GearStatus>,
     pub storage_location: Option<String>,
+    #[serde(default)]
+    pub specs: GearSpecs,
     #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default)]
@@ -71,25 +83,35 @@ pub struct CreateGearRequest {
 impl CreateGearRequest {
     /// Runs the `into draft` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn into_draft(self) -> GearDraft {
+        let mut specs = self.specs;
+        insert_legacy_spec(&mut specs, "color", self.color);
+        insert_legacy_spec(&mut specs, "material", self.material);
+        insert_legacy_spec(&mut specs, "capacity", self.capacity);
+        insert_legacy_spec(&mut specs, "size", self.size);
+        insert_legacy_spec(&mut specs, "warmth_index", self.warmth_index);
+        insert_legacy_spec(&mut specs, "waterproof_index", self.waterproof_index);
+        insert_legacy_spec(
+            &mut specs,
+            "expiry_or_warranty_date",
+            self.expiry_or_warranty_date,
+        );
+
         GearDraft {
             category: self.category,
             name: self.name,
             brand: self.brand,
             model: self.model,
-            color: self.color,
-            material: self.material,
-            capacity: self.capacity,
-            size: self.size,
             description: self.description,
             weight_g: self.weight_g,
-            warmth_index: self.warmth_index,
-            waterproof_index: self.waterproof_index,
+            official_price_cents: self.official_price_cents,
+            official_price_currency: self.official_price_currency,
             purchase_date: self.purchase_date,
             purchase_price_cents: self.purchase_price_cents,
-            expiry_or_warranty_date: self.expiry_or_warranty_date,
+            purchase_price_currency: self.purchase_price_currency,
             purchase_location: self.purchase_location,
             status: self.status.unwrap_or_default(),
             storage_location: self.storage_location,
+            specs,
             tags: self.tags,
             share_enabled: self.share_enabled,
             share_status: GearShareStatus::NotShared,
@@ -105,20 +127,31 @@ pub struct UpdateGearRequest {
     pub name: Option<String>,
     pub brand: Option<String>,
     pub model: Option<String>,
+    #[serde(default)]
     pub color: Option<String>,
+    #[serde(default)]
     pub material: Option<String>,
+    #[serde(default)]
     pub capacity: Option<String>,
+    #[serde(default)]
     pub size: Option<String>,
     pub description: Option<String>,
     pub weight_g: Option<i32>,
+    pub official_price_cents: Option<i64>,
+    pub official_price_currency: Option<String>,
+    #[serde(default)]
     pub warmth_index: Option<String>,
+    #[serde(default)]
     pub waterproof_index: Option<String>,
     pub purchase_date: Option<String>,
     pub purchase_price_cents: Option<i64>,
+    pub purchase_price_currency: Option<String>,
+    #[serde(default)]
     pub expiry_or_warranty_date: Option<String>,
     pub purchase_location: Option<String>,
     pub status: Option<GearStatus>,
     pub storage_location: Option<String>,
+    pub specs: Option<GearSpecs>,
     pub tags: Option<Vec<String>>,
     pub share_enabled: Option<bool>,
     pub notes: Option<String>,
@@ -127,28 +160,37 @@ pub struct UpdateGearRequest {
 impl UpdateGearRequest {
     /// Runs the `merge into` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn merge_into(self, existing: &GearItem) -> GearDraft {
+        let mut specs = self.specs.unwrap_or_else(|| existing.specs.clone());
+        insert_legacy_spec(&mut specs, "color", self.color);
+        insert_legacy_spec(&mut specs, "material", self.material);
+        insert_legacy_spec(&mut specs, "capacity", self.capacity);
+        insert_legacy_spec(&mut specs, "size", self.size);
+        insert_legacy_spec(&mut specs, "warmth_index", self.warmth_index);
+        insert_legacy_spec(&mut specs, "waterproof_index", self.waterproof_index);
+        insert_legacy_spec(
+            &mut specs,
+            "expiry_or_warranty_date",
+            self.expiry_or_warranty_date,
+        );
+
         GearDraft {
             category: self.category.unwrap_or(existing.category),
             name: self.name.unwrap_or_else(|| existing.name.clone()),
             brand: self.brand.or_else(|| existing.brand.clone()),
             model: self.model.or_else(|| existing.model.clone()),
-            color: self.color.or_else(|| existing.color.clone()),
-            material: self.material.or_else(|| existing.material.clone()),
-            capacity: self.capacity.or_else(|| existing.capacity.clone()),
-            size: self.size.or_else(|| existing.size.clone()),
             description: self.description.or_else(|| existing.description.clone()),
             weight_g: self.weight_g.or(existing.weight_g),
-            warmth_index: self.warmth_index.or_else(|| existing.warmth_index.clone()),
-            waterproof_index: self
-                .waterproof_index
-                .or_else(|| existing.waterproof_index.clone()),
+            official_price_cents: self.official_price_cents.or(existing.official_price_cents),
+            official_price_currency: self
+                .official_price_currency
+                .or_else(|| existing.official_price_currency.clone()),
             purchase_date: self
                 .purchase_date
                 .or_else(|| existing.purchase_date.clone()),
             purchase_price_cents: self.purchase_price_cents.or(existing.purchase_price_cents),
-            expiry_or_warranty_date: self
-                .expiry_or_warranty_date
-                .or_else(|| existing.expiry_or_warranty_date.clone()),
+            purchase_price_currency: self
+                .purchase_price_currency
+                .or_else(|| existing.purchase_price_currency.clone()),
             purchase_location: self
                 .purchase_location
                 .or_else(|| existing.purchase_location.clone()),
@@ -156,6 +198,7 @@ impl UpdateGearRequest {
             storage_location: self
                 .storage_location
                 .or_else(|| existing.storage_location.clone()),
+            specs,
             tags: self.tags.unwrap_or_else(|| existing.tags.clone()),
             share_enabled: self.share_enabled.unwrap_or(existing.share_enabled),
             share_status: existing.share_status,
@@ -176,8 +219,12 @@ pub struct GearSummaryResponse {
     pub status: GearStatus,
     pub status_label: String,
     pub weight_g: Option<i32>,
+    pub official_price_cents: Option<i64>,
+    pub official_price_currency: Option<String>,
     pub purchase_price_cents: Option<i64>,
+    pub purchase_price_currency: Option<String>,
     pub purchase_date: Option<String>,
+    pub specs: GearSpecs,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -195,8 +242,12 @@ impl From<&GearItem> for GearSummaryResponse {
             status: item.status,
             status_label: item.status.label().to_owned(),
             weight_g: item.weight_g,
+            official_price_cents: item.official_price_cents,
+            official_price_currency: item.official_price_currency.clone(),
             purchase_price_cents: item.purchase_price_cents,
+            purchase_price_currency: item.purchase_price_currency.clone(),
             purchase_date: item.purchase_date.clone(),
+            specs: item.specs.clone(),
             created_at: item.created_at.clone(),
             updated_at: item.updated_at.clone(),
         }
@@ -248,4 +299,15 @@ pub struct ImportGearError {
     pub row: usize,
     pub field: String,
     pub message: String,
+}
+
+fn insert_legacy_spec(specs: &mut GearSpecs, key: &'static str, value: Option<String>) {
+    let Some(value) = value else {
+        return;
+    };
+    let value = value.trim();
+    if value.is_empty() || specs.contains_key(key) {
+        return;
+    }
+    specs.insert(key.to_owned(), value.to_owned());
 }

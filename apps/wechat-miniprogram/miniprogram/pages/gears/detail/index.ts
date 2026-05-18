@@ -12,6 +12,7 @@ import {
   formatGearPrice,
   formatGearWeight,
   getGearCategoryLabel,
+  getGearSpecFieldViews,
   getGearShareStatusLabel,
   getGearStatusLabel,
   getStatusTone,
@@ -210,7 +211,10 @@ function buildDetailData(item: GearItem) {
       ? `已开启 · ${getGearShareStatusLabel(item.share_status)}`
       : "未开启共享",
     weightText: formatGearWeight(item.weight_g),
-    priceText: formatGearPrice(item.purchase_price_cents),
+    priceText: formatGearPrice(
+      item.purchase_price_cents,
+      item.purchase_price_currency,
+    ),
     tagList: item.tags ?? [],
     tab: (archived ? "history" : "available") as GearTab,
     groups: buildGroups(item),
@@ -218,6 +222,12 @@ function buildDetailData(item: GearItem) {
 }
 
 function buildGroups(item: GearItem): DetailGroup[] {
+  const specs = getGearSpecFieldViews(item.category, item.specs ?? {})
+    .map((field) => ({
+      label: field.label,
+      value: valueOrUnset((item.specs ?? {})[field.key]),
+    }))
+    .filter((row) => row.value !== "未记录");
   return [
     {
       title: "基本信息",
@@ -226,19 +236,14 @@ function buildGroups(item: GearItem): DetailGroup[] {
         { label: "状态", value: getGearStatusLabel(item.status) },
         { label: "品牌", value: valueOrUnset(item.brand) },
         { label: "型号", value: valueOrUnset(item.model) },
-        { label: "颜色", value: valueOrUnset(item.color) },
-        { label: "材质", value: valueOrUnset(item.material) },
-        { label: "容量", value: valueOrUnset(item.capacity) },
-        { label: "尺寸", value: valueOrUnset(item.size) },
         { label: "描述", value: valueOrUnset(item.description) },
       ],
     },
     {
-      title: "性能指标",
+      title: "重量与分类参数",
       items: [
         { label: "重量", value: formatGearWeight(item.weight_g) },
-        { label: "保暖指数", value: valueOrUnset(item.warmth_index) },
-        { label: "防水指数", value: valueOrUnset(item.waterproof_index) },
+        ...specs,
       ],
     },
     {
@@ -246,12 +251,18 @@ function buildGroups(item: GearItem): DetailGroup[] {
       items: [
         { label: "购买日期", value: formatDateText(item.purchase_date) },
         {
-          label: "购买价格",
-          value: formatGearPrice(item.purchase_price_cents),
+          label: "官方价格",
+          value: formatGearPrice(
+            item.official_price_cents,
+            item.official_price_currency,
+          ),
         },
         {
-          label: "保修/到期",
-          value: formatDateText(item.expiry_or_warranty_date),
+          label: "购入价格",
+          value: formatGearPrice(
+            item.purchase_price_cents,
+            item.purchase_price_currency,
+          ),
         },
         { label: "购买渠道", value: valueOrUnset(item.purchase_location) },
         { label: "存放位置", value: valueOrUnset(item.storage_location) },

@@ -465,7 +465,10 @@ function mapGearCard(item: GearSummary): GearCard {
     statusText: item.status_label || getGearStatusLabel(item.status),
     statusTone: getStatusTone(item.status),
     weightText: formatGearWeight(item.weight_g),
-    priceText: formatGearPrice(item.purchase_price_cents),
+    priceText: formatGearPrice(
+      item.purchase_price_cents,
+      item.purchase_price_currency,
+    ),
     purchaseDateText: item.purchase_date
       ? item.purchase_date.slice(0, 10)
       : "未记录",

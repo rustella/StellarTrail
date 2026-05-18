@@ -103,6 +103,43 @@ textarea {
   min-width: 0;
 }
 
+.spec-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.spec-field {
+  min-width: 0;
+}
+
+.spec-input-row,
+.price-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.spec-input-row input,
+.price-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.unit-picker,
+.currency-picker {
+  min-width: 92rpx;
+  margin-top: 12rpx;
+  padding: 8rpx 12rpx;
+  border-radius: 999rpx;
+  color: var(--heading-muted-color);
+  background: var(--surface-color);
+  font-size: 22rpx;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .picker-row,
 .switch-row {
   display: flex;
@@ -194,6 +231,12 @@ textarea {
 .form-page.theme-dark .picker-row,
 .form-page.theme-dark .switch-row {
   background: var(--control-bg);
+}
+
+.form-page.theme-dark .unit-picker,
+.form-page.theme-dark .currency-picker {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
 }
 
 .form-page.theme-dark .error-card {

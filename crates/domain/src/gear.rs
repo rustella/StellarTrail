@@ -1,5 +1,7 @@
 //! Gear inventory domain model module defining categories, statuses, draft validation, and statistics.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use time::{Date, OffsetDateTime, format_description::well_known::Iso8601};
 
@@ -227,6 +229,8 @@ pub enum GearSort {
     PriceDesc,
 }
 
+pub type GearSpecs = BTreeMap<String, String>;
+
 /// Complete gear domain object representing one user gear record from the database.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearItem {
@@ -242,14 +246,18 @@ pub struct GearItem {
     pub size: Option<String>,
     pub description: Option<String>,
     pub weight_g: Option<i32>,
+    pub official_price_cents: Option<i64>,
+    pub official_price_currency: Option<String>,
     pub warmth_index: Option<String>,
     pub waterproof_index: Option<String>,
     pub purchase_date: Option<String>,
     pub purchase_price_cents: Option<i64>,
+    pub purchase_price_currency: Option<String>,
     pub expiry_or_warranty_date: Option<String>,
     pub purchase_location: Option<String>,
     pub status: GearStatus,
     pub storage_location: Option<String>,
+    pub specs: GearSpecs,
     pub tags: Vec<String>,
     pub share_enabled: bool,
     pub share_status: GearShareStatus,
@@ -266,20 +274,17 @@ pub struct GearDraft {
     pub name: String,
     pub brand: Option<String>,
     pub model: Option<String>,
-    pub color: Option<String>,
-    pub material: Option<String>,
-    pub capacity: Option<String>,
-    pub size: Option<String>,
     pub description: Option<String>,
     pub weight_g: Option<i32>,
-    pub warmth_index: Option<String>,
-    pub waterproof_index: Option<String>,
+    pub official_price_cents: Option<i64>,
+    pub official_price_currency: Option<String>,
     pub purchase_date: Option<String>,
     pub purchase_price_cents: Option<i64>,
-    pub expiry_or_warranty_date: Option<String>,
+    pub purchase_price_currency: Option<String>,
     pub purchase_location: Option<String>,
     pub status: GearStatus,
     pub storage_location: Option<String>,
+    pub specs: GearSpecs,
     pub tags: Vec<String>,
     pub share_enabled: bool,
     pub share_status: GearShareStatus,
@@ -294,20 +299,8 @@ impl GearDraft {
             normalize_required_text(std::mem::take(&mut self.name), 100, "name", &mut errors);
         self.brand = normalize_optional_text(self.brand.take(), 80, "brand", &mut errors);
         self.model = normalize_optional_text(self.model.take(), 80, "model", &mut errors);
-        self.color = normalize_optional_text(self.color.take(), 40, "color", &mut errors);
-        self.material = normalize_optional_text(self.material.take(), 100, "material", &mut errors);
-        self.capacity = normalize_optional_text(self.capacity.take(), 50, "capacity", &mut errors);
-        self.size = normalize_optional_text(self.size.take(), 50, "size", &mut errors);
         self.description =
             normalize_optional_text(self.description.take(), 100, "description", &mut errors);
-        self.warmth_index =
-            normalize_optional_text(self.warmth_index.take(), 30, "warmth_index", &mut errors);
-        self.waterproof_index = normalize_optional_text(
-            self.waterproof_index.take(),
-            30,
-            "waterproof_index",
-            &mut errors,
-        );
         self.purchase_location = normalize_optional_text(
             self.purchase_location.take(),
             100,
@@ -331,6 +324,15 @@ impl GearDraft {
             }
         }
 
+        if let Some(price) = self.official_price_cents {
+            if price < 0 {
+                errors.push(FieldViolation::new(
+                    "official_price_cents",
+                    "must be greater than or equal to 0",
+                ));
+            }
+        }
+
         if let Some(price) = self.purchase_price_cents {
             if price < 0 {
                 errors.push(FieldViolation::new(
@@ -340,23 +342,21 @@ impl GearDraft {
             }
         }
 
-        validate_date(self.purchase_date.as_deref(), "purchase_date", &mut errors);
-        validate_date(
-            self.expiry_or_warranty_date.as_deref(),
-            "expiry_or_warranty_date",
+        self.official_price_currency = normalize_price_currency(
+            self.official_price_cents,
+            self.official_price_currency.take(),
+            "official_price_currency",
             &mut errors,
         );
-        if let (Some(purchase_date), Some(expiry_date)) = (
-            parse_date(self.purchase_date.as_deref()),
-            parse_date(self.expiry_or_warranty_date.as_deref()),
-        ) {
-            if expiry_date < purchase_date {
-                errors.push(FieldViolation::new(
-                    "expiry_or_warranty_date",
-                    "must not be earlier than purchase_date",
-                ));
-            }
-        }
+        self.purchase_price_currency = normalize_price_currency(
+            self.purchase_price_cents,
+            self.purchase_price_currency.take(),
+            "purchase_price_currency",
+            &mut errors,
+        );
+
+        validate_date(self.purchase_date.as_deref(), "purchase_date", &mut errors);
+        self.specs = normalize_specs(self.category, std::mem::take(&mut self.specs), &mut errors);
 
         self.tags = normalize_tags(std::mem::take(&mut self.tags), &mut errors);
         self.share_status = derive_share_status(self.share_enabled, self.share_status);
@@ -384,6 +384,179 @@ pub fn derive_share_status(share_enabled: bool, previous: GearShareStatus) -> Ge
     } else {
         GearShareStatus::NotShared
     }
+}
+
+pub const SUPPORTED_CURRENCIES: [&str; 5] = ["CNY", "USD", "EUR", "JPY", "HKD"];
+
+const LEGACY_SPEC_KEYS: [&str; 7] = [
+    "color",
+    "material",
+    "capacity",
+    "size",
+    "warmth_index",
+    "waterproof_index",
+    "expiry_or_warranty_date",
+];
+
+/// Returns the first-version spec keys supported for a gear category.
+pub fn allowed_spec_keys(category: GearCategory) -> &'static [&'static str] {
+    match category {
+        GearCategory::BackpackSystem => &[
+            "capacity",
+            "recommended_load",
+            "back_length_or_size",
+            "waterproof_rating",
+        ],
+        GearCategory::SleepSystem => &[
+            "type",
+            "people_count",
+            "temperature_or_r_value",
+            "filling",
+            "packed_size",
+            "waterproof_rating",
+        ],
+        GearCategory::KitchenSystem => &[
+            "fuel_type",
+            "capacity",
+            "power",
+            "people_count",
+            "packed_size",
+        ],
+        GearCategory::WalkingSystem => &[
+            "size_or_length",
+            "terrain",
+            "waterproof_rating",
+            "material",
+            "support",
+        ],
+        GearCategory::ClothingSystem => &[
+            "size",
+            "layer",
+            "warmth_rating",
+            "waterproof_rating",
+            "breathability_rating",
+            "season",
+        ],
+        GearCategory::LightingSystem => &[
+            "max_brightness",
+            "runtime",
+            "battery_type",
+            "charging_port",
+            "waterproof_rating",
+            "beam_distance",
+        ],
+        GearCategory::FirstAidSystem => &[
+            "kit_size",
+            "expiry_date",
+            "people_count",
+            "days",
+            "waterproof_packaging",
+        ],
+        GearCategory::ElectronicsSystem => &[
+            "battery_capacity",
+            "rated_energy",
+            "output_power",
+            "ports",
+            "waterproof_rating",
+            "working_temperature",
+        ],
+        GearCategory::TechnicalGear => &[
+            "certification",
+            "strength",
+            "specification",
+            "length",
+            "material",
+            "retirement_date",
+        ],
+        GearCategory::OtherGear => &[
+            "use_case",
+            "specification",
+            "capacity",
+            "waterproof_rating",
+            "accessories",
+        ],
+        GearCategory::Consumable => &[
+            "type",
+            "net_content",
+            "quantity",
+            "expiry_date",
+            "storage_condition",
+            "restock_threshold",
+        ],
+    }
+}
+
+/// Checks whether a spec key is valid for the given category.
+pub fn is_allowed_spec_key(category: GearCategory, key: &str) -> bool {
+    allowed_spec_keys(category).contains(&key) || LEGACY_SPEC_KEYS.contains(&key)
+}
+
+fn normalize_price_currency(
+    price_cents: Option<i64>,
+    currency: Option<String>,
+    field: &str,
+    errors: &mut Vec<FieldViolation>,
+) -> Option<String> {
+    let _price_cents = price_cents?;
+    let normalized = normalize_currency(currency).unwrap_or_else(|| "CNY".to_owned());
+    if !SUPPORTED_CURRENCIES.contains(&normalized.as_str()) {
+        errors.push(FieldViolation::new(
+            field,
+            "must be one of CNY, USD, EUR, JPY, HKD",
+        ));
+    }
+    Some(normalized)
+}
+
+fn normalize_currency(value: Option<String>) -> Option<String> {
+    let currency = value?.trim().to_ascii_uppercase();
+    if currency.is_empty() {
+        None
+    } else {
+        Some(currency)
+    }
+}
+
+/// Normalizes specs by trimming values, enforcing supported keys, and deduplicating by key.
+pub fn normalize_specs(
+    category: GearCategory,
+    values: GearSpecs,
+    errors: &mut Vec<FieldViolation>,
+) -> GearSpecs {
+    let mut normalized = GearSpecs::new();
+    for (raw_key, raw_value) in values {
+        let key = raw_key.trim();
+        if key.is_empty() {
+            continue;
+        }
+        if !is_allowed_spec_key(category, key) {
+            errors.push(FieldViolation::new(
+                format!("specs.{key}"),
+                "is not supported for this category",
+            ));
+            continue;
+        }
+        let value = raw_value.trim();
+        if value.is_empty() {
+            continue;
+        }
+        if value.chars().count() > 100 {
+            errors.push(FieldViolation::new(
+                format!("specs.{key}"),
+                "must be at most 100 characters",
+            ));
+            continue;
+        }
+        normalized.insert(key.to_owned(), value.to_owned());
+    }
+    if normalized.len() > 32 {
+        errors.push(FieldViolation::new(
+            "specs",
+            "must contain at most 32 fields",
+        ));
+        normalized = normalized.into_iter().take(32).collect();
+    }
+    normalized
 }
 
 /// Sanitizes tag lists by removing empty values, enforcing length limits, and deduplicating entries.
@@ -474,20 +647,20 @@ mod tests {
             name: "  头灯  ".to_owned(),
             brand: Some("  Naturehike  ".to_owned()),
             model: Some("TD-02".to_owned()),
-            color: Some("".to_owned()),
-            material: None,
-            capacity: None,
-            size: None,
             description: Some("夜间备用".to_owned()),
             weight_g: Some(85),
-            warmth_index: None,
-            waterproof_index: Some("IPX4".to_owned()),
+            official_price_cents: Some(12900),
+            official_price_currency: Some("cny".to_owned()),
             purchase_date: Some("2026-01-01".to_owned()),
             purchase_price_cents: Some(9900),
-            expiry_or_warranty_date: Some("2027-01-01".to_owned()),
+            purchase_price_currency: None,
             purchase_location: Some("京东".to_owned()),
             status: GearStatus::Available,
             storage_location: Some("装备柜".to_owned()),
+            specs: GearSpecs::from([
+                ("waterproof_rating".to_owned(), " IPX4 ".to_owned()),
+                ("max_brightness".to_owned(), "450 lm".to_owned()),
+            ]),
             tags: vec![" 夜徒 ".to_owned(), "夜徒".to_owned(), "照明".to_owned()],
             share_enabled: true,
             share_status: GearShareStatus::NotShared,
@@ -522,7 +695,12 @@ mod tests {
 
         assert_eq!(draft.name, "头灯");
         assert_eq!(draft.brand.as_deref(), Some("Naturehike"));
-        assert_eq!(draft.color, None);
+        assert_eq!(draft.official_price_currency.as_deref(), Some("CNY"));
+        assert_eq!(draft.purchase_price_currency.as_deref(), Some("CNY"));
+        assert_eq!(
+            draft.specs.get("waterproof_rating").map(String::as_str),
+            Some("IPX4")
+        );
         assert_eq!(draft.tags, vec!["夜徒", "照明"]);
         assert_eq!(draft.share_status, GearShareStatus::Pending);
     }
@@ -534,8 +712,13 @@ mod tests {
         draft.name = "  ".to_owned();
         draft.description = Some("太".repeat(101));
         draft.weight_g = Some(-1);
+        draft.official_price_cents = Some(-1);
         draft.purchase_price_cents = Some(-1);
+        draft.purchase_price_currency = Some("GBP".to_owned());
         draft.purchase_date = Some("2026/01/01".to_owned());
+        draft
+            .specs
+            .insert("opening_style".to_owned(), "拉链".to_owned());
 
         let error = draft.validate_and_normalize().unwrap_err();
 
@@ -543,7 +726,10 @@ mod tests {
         assert!(fields.contains(&"name".to_owned()));
         assert!(fields.contains(&"description".to_owned()));
         assert!(fields.contains(&"weight_g".to_owned()));
+        assert!(fields.contains(&"official_price_cents".to_owned()));
         assert!(fields.contains(&"purchase_price_cents".to_owned()));
+        assert!(fields.contains(&"purchase_price_currency".to_owned()));
         assert!(fields.contains(&"purchase_date".to_owned()));
+        assert!(fields.contains(&"specs.opening_style".to_owned()));
     }
 }

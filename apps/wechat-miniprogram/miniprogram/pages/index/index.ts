@@ -460,7 +460,7 @@ function buildGearStatCards(stats: GearStatsResponse): HomeStatCard[] {
     {
       label: "装备估值",
       value: formatGearPrice(stats.total_value_cents),
-      hint: "按购买价格汇总",
+      hint: "按 CNY 购入价汇总",
     },
   ];
 }

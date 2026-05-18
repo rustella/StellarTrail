@@ -67,46 +67,6 @@
           />
         </view>
       </view>
-      <view class="two-column">
-        <view class="field compact">
-          <view class="field-label">颜色</view>
-          <input
-            value="{{form.color}}"
-            data-field="color"
-            placeholder="颜色"
-            bindinput="onInput"
-          />
-        </view>
-        <view class="field compact">
-          <view class="field-label">材质</view>
-          <input
-            value="{{form.material}}"
-            data-field="material"
-            placeholder="材质"
-            bindinput="onInput"
-          />
-        </view>
-      </view>
-      <view class="two-column">
-        <view class="field compact">
-          <view class="field-label">容量</view>
-          <input
-            value="{{form.capacity}}"
-            data-field="capacity"
-            placeholder="如 20000mAh"
-            bindinput="onInput"
-          />
-        </view>
-        <view class="field compact">
-          <view class="field-label">尺寸</view>
-          <input
-            value="{{form.size}}"
-            data-field="size"
-            placeholder="如 M / 55L"
-            bindinput="onInput"
-          />
-        </view>
-      </view>
       <view class="field">
         <view class="field-label">装备描述</view>
         <textarea
@@ -119,7 +79,7 @@
     </view>
 
     <view class="form-card">
-      <view class="section-title">性能指标</view>
+      <view class="section-title">重量与分类参数</view>
       <view class="field">
         <view class="field-label">重量（kg）</view>
         <input
@@ -131,24 +91,29 @@
         />
         <view class="field-hint">填写千克数即可，例如 0.315 kg。</view>
       </view>
-      <view class="two-column">
-        <view class="field compact">
-          <view class="field-label">保暖指数</view>
-          <input
-            value="{{form.warmthIndex}}"
-            data-field="warmthIndex"
-            placeholder="如 -10℃"
-            bindinput="onInput"
-          />
-        </view>
-        <view class="field compact">
-          <view class="field-label">防水指数</view>
-          <input
-            value="{{form.waterproofIndex}}"
-            data-field="waterproofIndex"
-            placeholder="如 IPX8"
-            bindinput="onInput"
-          />
+      <view class="spec-grid">
+        <view wx:for="{{specFields}}" wx:key="key" class="field spec-field">
+          <view class="field-label">{{item.label}}</view>
+          <view class="spec-input-row">
+            <input
+              value="{{item.valueText}}"
+              data-key="{{item.key}}"
+              data-index="{{index}}"
+              type="{{item.inputType === 'number' ? 'digit' : 'text'}}"
+              placeholder="{{item.placeholder}}"
+              bindinput="onSpecInput"
+            />
+            <picker
+              wx:if="{{item.units && item.units.length > 0}}"
+              value="{{item.unitIndex}}"
+              range="{{item.units}}"
+              data-key="{{item.key}}"
+              data-index="{{index}}"
+              bindchange="onSpecUnitChange"
+            >
+              <view class="unit-picker">{{item.unitLabel || '无单位'}} ›</view>
+            </picker>
+          </view>
         </view>
       </view>
     </view>
@@ -166,25 +131,48 @@
           />
         </view>
         <view class="field compact">
-          <view class="field-label">购买价格（元）</view>
-          <input
-            value="{{form.purchasePriceText}}"
-            data-field="purchasePriceText"
-            type="digit"
-            placeholder="639.50"
-            bindinput="onInput"
-          />
+          <view class="field-label">官方价格</view>
+          <view class="price-input-row">
+            <input
+              value="{{form.officialPriceText}}"
+              data-field="officialPriceText"
+              type="digit"
+              placeholder="699"
+              bindinput="onInput"
+            />
+            <picker
+              value="{{officialPriceCurrencyIndex}}"
+              range="{{currencyLabels}}"
+              bindchange="onOfficialPriceCurrencyChange"
+            >
+              <view class="currency-picker"
+                >{{currencyOptions[officialPriceCurrencyIndex].value}} ›</view
+              >
+            </picker>
+          </view>
         </view>
       </view>
       <view class="two-column">
         <view class="field compact">
-          <view class="field-label">保修/到期</view>
-          <input
-            value="{{form.expiryOrWarrantyDate}}"
-            data-field="expiryOrWarrantyDate"
-            placeholder="YYYY-MM-DD"
-            bindinput="onInput"
-          />
+          <view class="field-label">购入价格</view>
+          <view class="price-input-row">
+            <input
+              value="{{form.purchasePriceText}}"
+              data-field="purchasePriceText"
+              type="digit"
+              placeholder="639.50"
+              bindinput="onInput"
+            />
+            <picker
+              value="{{purchasePriceCurrencyIndex}}"
+              range="{{currencyLabels}}"
+              bindchange="onPurchasePriceCurrencyChange"
+            >
+              <view class="currency-picker"
+                >{{currencyOptions[purchasePriceCurrencyIndex].value}} ›</view
+              >
+            </picker>
+          </view>
         </view>
         <view class="field compact">
           <view class="field-label">购买渠道</view>
