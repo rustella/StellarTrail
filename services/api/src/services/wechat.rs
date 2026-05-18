@@ -5,7 +5,7 @@ use std::{
     fmt,
     io::{Read, Write},
     net::TcpStream,
-    sync::Arc,
+    sync::{Arc, Once},
     time::Duration,
 };
 
@@ -16,6 +16,7 @@ use serde::Deserialize;
 const WECHAT_API_HOST: &str = "api.weixin.qq.com";
 const CODE2SESSION_PATH: &str = "/sns/jscode2session";
 const CODE2SESSION_TIMEOUT: Duration = Duration::from_secs(10);
+static RUSTLS_CRYPTO_PROVIDER: Once = Once::new();
 
 /// Stable data boundary for `WechatCodeSession`, exposed by or reused within this module.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -157,6 +158,7 @@ fn build_code2session_path(app_id: &str, app_secret: &str, code: &str) -> String
 }
 
 fn https_get(host: &str, path: &str) -> Result<Vec<u8>, WechatCodeSessionError> {
+    install_rustls_crypto_provider();
     let root_store = RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let config = ClientConfig::builder()
         .with_root_certificates(root_store)
@@ -187,6 +189,12 @@ fn https_get(host: &str, path: &str) -> Result<Vec<u8>, WechatCodeSessionError> 
         .read_to_end(&mut response)
         .map_err(WechatCodeSessionError::Network)?;
     parse_http_response(&response)
+}
+
+fn install_rustls_crypto_provider() {
+    RUSTLS_CRYPTO_PROVIDER.call_once(|| {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    });
 }
 
 fn parse_http_response(response: &[u8]) -> Result<Vec<u8>, WechatCodeSessionError> {
