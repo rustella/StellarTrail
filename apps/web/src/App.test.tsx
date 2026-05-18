@@ -547,10 +547,10 @@ describe("App", () => {
     });
     expect(
       within(adminNavigation).getByRole("button", { name: "管理员后台" }),
-    ).toHaveAttribute("aria-expanded", "true");
+    ).toHaveAttribute("aria-expanded", "false");
     expect(
-      within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
-    ).toHaveAttribute("aria-current", "page");
+      within(adminNavigation).queryByRole("button", { name: "装备图鉴审核" }),
+    ).not.toBeInTheDocument();
     expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
       status: "pending",
       limit: 50,
