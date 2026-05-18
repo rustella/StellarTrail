@@ -1,4 +1,6 @@
 import type {
+  ApiUsageListRequest,
+  ApiUsageListResponse,
   BindEmailCodeRequest,
   BindEmailRequest,
   BindEmailResponse,
@@ -133,6 +135,12 @@ export class StellarTrailApiClient {
       false,
       locale,
     );
+  }
+
+  async listApiUsage(
+    request: ApiUsageListRequest = {},
+  ): Promise<ApiUsageListResponse> {
+    return this.get(`/api/admin/api-usage${queryString(request)}`, true);
   }
 
   async uploadKnotMedia(

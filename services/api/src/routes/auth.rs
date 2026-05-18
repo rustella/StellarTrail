@@ -6,7 +6,7 @@
 //! service layer makes the route table easy to audit for public authentication
 //! surface area.
 
-use axum::{Json, Router, http::HeaderMap, routing::post};
+use axum::{Json, Router, routing::post};
 
 use crate::{
     dto::auth::{
@@ -17,6 +17,7 @@ use crate::{
         RegisterRequest, WechatLoginRequest,
     },
     error::ApiError,
+    extractors::AuthenticatedUser,
     services::auth_service,
     state::AppState,
 };
@@ -106,10 +107,9 @@ async fn password_reset(
 /// Generates an email verification code for binding an email to the current account.
 async fn send_bind_email_code(
     axum::extract::State(state): axum::extract::State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Json(payload): Json<BindEmailCodeRequest>,
 ) -> Result<Json<EmailVerificationCodeResponse>, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let response = auth_service::send_bind_email_code(&state, &user, payload.email).await?;
     Ok(Json(response))
 }
@@ -117,10 +117,9 @@ async fn send_bind_email_code(
 /// Binds a verified email address to the current account.
 async fn bind_email(
     axum::extract::State(state): axum::extract::State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Json(payload): Json<BindEmailRequest>,
 ) -> Result<Json<BindEmailResponse>, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let response = auth_service::bind_email(&state, user, payload).await?;
     Ok(Json(response))
 }

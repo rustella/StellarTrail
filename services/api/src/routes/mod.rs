@@ -1,5 +1,6 @@
 //! Route aggregation module that combines all API subroutes and provides a consistent 404 fallback.
 
+mod admin_api_usage;
 mod admin_knots;
 mod auth;
 mod content;
@@ -18,13 +19,12 @@ use axum::{
         HeaderName, HeaderValue, Method,
         header::{AUTHORIZATION, CONTENT_TYPE},
     },
+    middleware,
     routing::get,
 };
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
-use crate::config::CorsConfig;
-use crate::error::ApiError;
-use crate::state::AppState;
+use crate::{api_usage, config::CorsConfig, error::ApiError, state::AppState};
 
 /// Combines all business routes, health checks, and the 404 fallback.
 pub fn build_router(state: AppState) -> Router {
@@ -36,10 +36,12 @@ pub fn build_router(state: AppState) -> Router {
         .max(state.config().knots_media_storage.max_video_bytes)
         .saturating_add(1_000_000) as usize;
     let cors_layer = build_cors_layer(&state.config().cors);
+    let usage_state = state.clone();
     Router::new()
         .route("/healthz", get(health::healthz))
         .route("/api/meta", get(meta::meta))
         .merge(auth::routes())
+        .merge(admin_api_usage::routes())
         .merge(admin_knots::routes())
         .merge(content::routes())
         .merge(skills::routes())
@@ -48,6 +50,10 @@ pub fn build_router(state: AppState) -> Router {
         .merge(uploads::routes())
         .merge(feedback::routes())
         .layer(DefaultBodyLimit::max(body_limit))
+        .route_layer(middleware::from_fn_with_state(
+            usage_state,
+            api_usage::track_api_usage,
+        ))
         .layer(cors_layer)
         .fallback(not_found)
         .with_state(state)

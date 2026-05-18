@@ -3,15 +3,13 @@
 use axum::{
     Json, Router,
     extract::{Multipart, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     routing::{get, put},
 };
 
 use crate::{
-    dto::profile::ProfileUserResponse,
-    error::ApiError,
-    services::{auth_service, profile_service},
-    state::AppState,
+    dto::profile::ProfileUserResponse, error::ApiError, extractors::AuthenticatedUser,
+    services::profile_service, state::AppState,
 };
 
 /// Profile route group.
@@ -26,20 +24,17 @@ pub fn routes() -> Router<AppState> {
 
 /// Returns the authenticated user's current profile snapshot.
 async fn current_profile(
-    State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
 ) -> Result<Json<ProfileUserResponse>, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     Ok(Json(profile_service::current_profile(&user)))
 }
 
 /// Accepts a multipart avatar image upload for the authenticated user.
 async fn upload_avatar(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<ProfileUserResponse>), ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let mut file_name = None;
     let mut content_type = None;
     let mut bytes = None;

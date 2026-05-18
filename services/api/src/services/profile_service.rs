@@ -47,7 +47,7 @@ pub async fn upload_avatar(
             Some(fallback_filename.as_str())
         }
     };
-    let upload_content_type = declared_content_type.filter(|value| is_supported_image_type(value));
+    let upload_content_type = declared_content_type.filter(is_supported_image_type);
     let validated = validate_image_upload(upload_filename, upload_content_type, &bytes)?;
     let sha256 = sha256_hex(&bytes);
     let object_key = format!(

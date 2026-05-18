@@ -6,6 +6,7 @@ use sea_orm::DatabaseConnection;
 use stellartrail_db::repositories::{GearTemplateRepository, KnotRepository};
 
 use crate::{
+    api_usage::ApiUsageReporter,
     cache::Cache,
     config::ApiConfig,
     email::{EmailSender, NoopEmailSender},
@@ -34,6 +35,7 @@ struct AppStateInner {
     gear_template_repository: GearTemplateRepository,
     public_rate_limiter: InMemoryPublicRateLimiter,
     public_response_cache: InMemoryPublicResponseCache,
+    api_usage_reporter: ApiUsageReporter,
 }
 
 impl AppState {
@@ -132,6 +134,7 @@ impl AppState {
     ) -> Self {
         let knot_repository = KnotRepository::new(db.clone());
         let gear_template_repository = GearTemplateRepository::new(db.clone());
+        let api_usage_reporter = ApiUsageReporter::new(db.clone());
         Self {
             inner: Arc::new(AppStateInner {
                 config,
@@ -144,6 +147,7 @@ impl AppState {
                 gear_template_repository,
                 public_rate_limiter: InMemoryPublicRateLimiter::default(),
                 public_response_cache: InMemoryPublicResponseCache::default(),
+                api_usage_reporter,
             }),
         }
     }
@@ -196,5 +200,10 @@ impl AppState {
     /// Returns the in-memory fallback public response cache.
     pub fn public_response_cache(&self) -> &InMemoryPublicResponseCache {
         &self.inner.public_response_cache
+    }
+
+    /// Returns the best-effort API usage reporter.
+    pub fn api_usage_reporter(&self) -> &ApiUsageReporter {
+        &self.inner.api_usage_reporter
     }
 }

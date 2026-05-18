@@ -112,6 +112,34 @@ export interface ListKnotsRequest {
   q?: string;
 }
 
+export type ApiUsageMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+export interface ApiUsageListRequest {
+  from?: string;
+  to?: string;
+  user_id?: string;
+  method?: ApiUsageMethod;
+  route?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ApiUsageSummary {
+  bucket_date: string;
+  user_id?: string | null;
+  method: ApiUsageMethod | string;
+  route_pattern: string;
+  status_code: number;
+  call_count: number;
+  first_called_at: string;
+  last_called_at: string;
+}
+
+export interface ApiUsageListResponse {
+  items: ApiUsageSummary[];
+  page: PageInfo;
+}
+
 export interface GearTemplateCategory {
   id: string;
   name: string;

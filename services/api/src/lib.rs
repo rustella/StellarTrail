@@ -1,10 +1,12 @@
 //! Public StellarTrail API crate entrypoint that assembles configuration, database, cache, DB-backed seeds, object storage, email, and route state.
 
+pub mod api_usage;
 pub mod cache;
 pub mod config;
 pub mod dto;
 pub mod email;
 pub mod error;
+pub mod extractors;
 pub mod object_store;
 pub mod routes;
 pub mod services;
