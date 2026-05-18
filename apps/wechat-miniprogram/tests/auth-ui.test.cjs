@@ -29,16 +29,33 @@ ${ts}`;
   assert.match(wxml, /placeholder="邮箱验证码"/);
   assert.match(wxml, /password="{{true}}"/);
   assert.match(wxml, /注册账号/);
-  assert.match(wxml, /open-type="chooseAvatar"/);
-  assert.match(wxml, /type="nickname"/);
-  assert.match(wxml, /导入并登录/);
-  assert.match(wxml, /跳过/);
-  assert.match(pageSource, /importWechatProfileAndLogin/);
-  assert.match(pageSource, /skipWechatProfileImport/);
-  assert.match(pageSource, /uploadWechatAvatar/);
+  assert.match(pageSource, /WECHAT_PROFILE_PROMPT_PENDING_KEY/);
+  assert.match(pageSource, /markWechatProfilePromptPending/);
+  assert.match(pageSource, /afterLoginSuccess\("\/pages\/index\/index"\)/);
+  assert.doesNotMatch(wxml, /open-type="chooseAvatar"/);
+  assert.doesNotMatch(wxml, /type="nickname"/);
+  assert.doesNotMatch(wxml, /导入并登录/);
   assert.match(pageSource, /sendLoginCode/);
   assert.match(pageSource, /sendResetCode/);
   assert.doesNotMatch(wxml, /API|后端|接口|游客|免登录|写操作|模板/);
+});
+
+test("home page prompts to import WeChat profile after login", () => {
+  const wxml = read("pages/index/index.wxml");
+  const ts = read("pages/index/index.ts");
+  const pageSource = `${wxml}
+${ts}`;
+
+  assert.match(wxml, /open-type="chooseAvatar"/);
+  assert.match(wxml, /type="nickname"/);
+  assert.match(wxml, /导入资料/);
+  assert.match(wxml, /跳过/);
+  assert.match(pageSource, /showWechatProfilePromptIfNeeded/);
+  assert.match(pageSource, /importWechatProfile/);
+  assert.match(pageSource, /skipWechatProfileImport/);
+  assert.match(pageSource, /uploadWechatAvatar/);
+  assert.match(pageSource, /loginWithWechat\(\{ nickname \}\)/);
+  assert.match(pageSource, /WECHAT_PROFILE_PROMPT_PENDING_KEY/);
 });
 
 test("register page captures account email verification and password confirmation", () => {

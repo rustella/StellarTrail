@@ -148,48 +148,6 @@
   background: var(--brand-soft-bg);
 }
 
-.wechat-profile-prompt {
-  margin-top: 22rpx;
-  padding: 24rpx;
-  border: 1rpx solid var(--border-color);
-  border-radius: var(--card-inner-radius);
-  background: var(--surface-color);
-}
-
-.profile-title {
-  color: var(--text-color);
-  font-size: 28rpx;
-  font-weight: 900;
-}
-
-.avatar-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 128rpx;
-  height: 128rpx;
-  margin: 22rpx 0 0;
-  padding: 0;
-  border-radius: 50%;
-  background: var(--soft-control-bg);
-  overflow: hidden;
-}
-
-.avatar-preview {
-  width: 128rpx;
-  height: 128rpx;
-}
-
-.avatar-placeholder {
-  color: var(--soft-control-text);
-  font-size: 24rpx;
-  font-weight: 900;
-}
-
-.nickname-input {
-  margin-top: 20rpx;
-}
-
 .captcha-image {
   width: 100%;
   height: 120rpx;
