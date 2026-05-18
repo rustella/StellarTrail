@@ -48,7 +48,7 @@
 
 .field,
 .picker-row,
-.switch-row {
+.share-review-card {
   margin-top: 18rpx;
   padding: 22rpx;
   border-radius: var(--card-inner-radius);
@@ -134,6 +134,21 @@ textarea {
   min-width: 0;
 }
 
+.choice-value {
+  flex: 1;
+  min-width: 0;
+  margin-top: 12rpx;
+  color: var(--text-color);
+  font-size: 28rpx;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.choice-value.placeholder {
+  color: var(--muted-color);
+  font-weight: 600;
+}
+
 .unit-picker,
 .currency-picker {
   min-width: 92rpx;
@@ -167,7 +182,7 @@ textarea {
 }
 
 .picker-row,
-.switch-row {
+.share-review-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -217,6 +232,296 @@ textarea {
   background: var(--brand-color);
 }
 
+.purchase-location-field {
+  min-height: 104rpx;
+}
+
+.tag-editor {
+  margin-top: 18rpx;
+  padding: 22rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.tag-editor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.add-tag-button {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 64rpx;
+}
+
+.tag-chip-list,
+.tag-suggestion-list,
+.tag-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.tag-chip,
+.tag-suggestion,
+.tag-color-option {
+  margin: 0;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 12rpx 16rpx;
+  line-height: 1.2;
+}
+
+.tag-remove {
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 999rpx;
+  background: rgba(15, 23, 42, 0.1);
+  font-size: 26rpx;
+  line-height: 32rpx;
+  text-align: center;
+}
+
+.empty-tags {
+  margin-top: 16rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+}
+
+.share-review-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.share-review-status,
+.share-review-button {
+  margin: 0;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 64rpx;
+}
+
+.share-review-status {
+  padding: 0 22rpx;
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.share-review-button {
+  padding: 0 28rpx;
+}
+
+.share-review-button.primary {
+  color: #ffffff;
+  background: var(--brand-color);
+}
+
+.share-review-button.secondary {
+  color: var(--heading-muted-color);
+  background: #e2e8f0;
+}
+
+.tag-mask {
+  position: fixed;
+  z-index: 32;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 24rpx;
+  background: rgba(15, 23, 42, 0.48);
+  box-sizing: border-box;
+}
+
+.tag-sheet {
+  width: 100%;
+  padding: 28rpx;
+  padding-bottom: calc(28rpx + env(safe-area-inset-bottom));
+  border-radius: 28rpx 28rpx 0 0;
+  background: var(--surface-color);
+  box-shadow: 0 -16rpx 48rpx rgba(15, 23, 42, 0.18);
+  box-sizing: border-box;
+}
+
+.sheet-subtitle {
+  margin-top: 24rpx;
+  color: var(--heading-muted-color);
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.tag-suggestion,
+.tag-color-option {
+  padding: 0 22rpx;
+  line-height: 62rpx;
+}
+
+.custom-tag-field {
+  margin-top: 24rpx;
+  padding: 20rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.tag-color-option.random {
+  color: var(--heading-muted-color);
+  background: var(--control-bg);
+}
+
+.tag-color-option.selected {
+  box-shadow: inset 0 0 0 4rpx rgba(15, 23, 42, 0.18);
+}
+
+.tag-color-teal {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.tag-color-blue {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.tag-color-violet {
+  color: #6d28d9;
+  background: #ede9fe;
+}
+
+.tag-color-rose {
+  color: #be123c;
+  background: #ffe4e6;
+}
+
+.tag-color-orange {
+  color: #c2410c;
+  background: #ffedd5;
+}
+
+.tag-color-amber {
+  color: #a16207;
+  background: #fef3c7;
+}
+
+.tag-color-green {
+  color: #15803d;
+  background: #dcfce7;
+}
+
+.tag-color-slate {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.purchase-location-mask {
+  position: fixed;
+  z-index: 30;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 24rpx;
+  background: rgba(15, 23, 42, 0.48);
+  box-sizing: border-box;
+}
+
+.purchase-location-sheet,
+.custom-location-modal {
+  width: 100%;
+  padding: 28rpx;
+  padding-bottom: calc(28rpx + env(safe-area-inset-bottom));
+  border-radius: 28rpx 28rpx 0 0;
+  background: var(--surface-color);
+  box-shadow: 0 -16rpx 48rpx rgba(15, 23, 42, 0.18);
+  box-sizing: border-box;
+}
+
+.custom-location-modal {
+  margin-bottom: 18vh;
+  border-radius: var(--card-radius);
+}
+
+.sheet-title {
+  color: var(--text-color);
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.purchase-location-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 22rpx;
+}
+
+.purchase-location-option,
+.sheet-action,
+.sheet-cancel {
+  margin: 0;
+  border-radius: 999rpx;
+  font-size: 26rpx;
+  font-weight: 800;
+  line-height: 72rpx;
+}
+
+.purchase-location-option {
+  color: var(--heading-muted-color);
+  background: var(--control-bg);
+}
+
+.purchase-location-option.selected,
+.sheet-action {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.sheet-action,
+.sheet-cancel {
+  width: 100%;
+  margin-top: 18rpx;
+}
+
+.sheet-cancel {
+  color: var(--heading-muted-color);
+  background: #e2e8f0;
+}
+
+.custom-location-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.custom-location-actions .sheet-action,
+.custom-location-actions .sheet-cancel {
+  margin-top: 0;
+}
+
 /* Dark theme overrides */
 .form-page.theme-dark {
   background: var(--body-gradient);
@@ -238,9 +543,14 @@ textarea {
 
 .form-page.theme-dark .section-title,
 .form-page.theme-dark .field-value,
+.form-page.theme-dark .choice-value,
 .form-page.theme-dark input,
 .form-page.theme-dark textarea {
   color: var(--text-color);
+}
+
+.form-page.theme-dark .choice-value.placeholder {
+  color: var(--muted-color);
 }
 
 .form-page.theme-dark .field-label {
@@ -255,8 +565,31 @@ textarea {
 
 .form-page.theme-dark .field,
 .form-page.theme-dark .picker-row,
-.form-page.theme-dark .switch-row {
+.form-page.theme-dark .share-review-card,
+.form-page.theme-dark .tag-editor,
+.form-page.theme-dark .custom-tag-field {
   background: var(--control-bg);
+}
+
+.form-page.theme-dark .purchase-location-sheet,
+.form-page.theme-dark .custom-location-modal,
+.form-page.theme-dark .tag-sheet {
+  background: var(--surface-color);
+}
+
+.form-page.theme-dark .purchase-location-option {
+  background: var(--control-bg);
+}
+
+.form-page.theme-dark .tag-color-option.random {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+}
+
+.form-page.theme-dark .purchase-location-option.selected,
+.form-page.theme-dark .sheet-action {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
 }
 
 .form-page.theme-dark .unit-picker,

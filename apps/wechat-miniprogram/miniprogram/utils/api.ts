@@ -1,8 +1,11 @@
 import type {
   CreateGearRequest,
   GearCategoriesResponse,
+  GearCategory,
   GearItem,
+  GearSpecKeyRankingsResponse,
   GearStatsResponse,
+  GearTagSuggestionsResponse,
   GearTemplate,
   ListGearTemplatesResponse,
   ListGearsRequest,
@@ -439,6 +442,23 @@ export async function getGearStats(
   tab: "available" | "history",
 ): Promise<GearStatsResponse> {
   return requestJson(`/api/me/gears/stats${queryString({ tab })}`, {
+    auth: true,
+  });
+}
+
+export async function getGearSpecKeyRankings(
+  category: GearCategory,
+): Promise<GearSpecKeyRankingsResponse> {
+  return requestJson(
+    `/api/me/gears/spec-key-rankings${queryString({ category })}`,
+    { auth: true },
+  );
+}
+
+export async function getGearTagSuggestions(
+  limit = 20,
+): Promise<GearTagSuggestionsResponse> {
+  return requestJson(`/api/me/gears/tag-suggestions${queryString({ limit })}`, {
     auth: true,
   });
 }

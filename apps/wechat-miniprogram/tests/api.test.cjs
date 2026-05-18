@@ -3,7 +3,9 @@ const assert = require("node:assert/strict");
 
 function installWxMock(handler, uploadHandler) {
   const storage = new Map();
-  global.getApp = () => ({ globalData: { apiBaseUrl: "https://api.example.test" } });
+  global.getApp = () => ({
+    globalData: { apiBaseUrl: "https://api.example.test" },
+  });
   global.wx = {
     getStorageSync(key) {
       return storage.get(key);
@@ -43,9 +45,16 @@ function loginResponse(accessToken, refreshToken) {
 test("loginWithWechat persists access and refresh tokens", async () => {
   const calls = [];
   const storage = installWxMock((options) => {
-    calls.push({ url: options.url, method: options.method, data: options.data });
+    calls.push({
+      url: options.url,
+      method: options.method,
+      data: options.data,
+    });
     assert.equal(options.url, "https://api.example.test/api/auth/wechat-login");
-    options.success({ statusCode: 200, data: loginResponse("access-new", "refresh-new") });
+    options.success({
+      statusCode: 200,
+      data: loginResponse("access-new", "refresh-new"),
+    });
   });
   const { loginWithWechat } = require("../.tmp-test/utils/api.js");
 
@@ -64,11 +73,16 @@ test("loginWithWechat sends provided profile without default nickname", async ()
   const calls = [];
   installWxMock((options) => {
     calls.push({ url: options.url, data: options.data });
-    options.success({ statusCode: 200, data: loginResponse("access-profile", "refresh-profile") });
+    options.success({
+      statusCode: 200,
+      data: loginResponse("access-profile", "refresh-profile"),
+    });
   });
   const { loginWithWechat } = require("../.tmp-test/utils/api.js");
 
-  await assert.doesNotReject(loginWithWechat({ nickname: " 微信昵称 ", avatar_url: "" }));
+  await assert.doesNotReject(
+    loginWithWechat({ nickname: " 微信昵称 ", avatar_url: "" }),
+  );
 
   assert.deepEqual(calls[0].data, {
     code: "wx-login-code",
@@ -82,7 +96,10 @@ test("uploadWechatAvatar uploads with bearer token and stores returned user", as
       throw new Error("unexpected wx.request call");
     },
     (options) => {
-      assert.equal(options.url, "https://api.example.test/api/me/profile/avatar");
+      assert.equal(
+        options.url,
+        "https://api.example.test/api/me/profile/avatar",
+      );
       assert.equal(options.filePath, "/tmp/avatar.png");
       assert.equal(options.name, "file");
       assert.equal(options.header.authorization, "Bearer access-old");
@@ -149,13 +166,19 @@ test("authenticated requests refresh once on 401 and retry with the new access t
       authorization: options.header && options.header.authorization,
       data: options.data,
     });
-    if (options.url.endsWith("/api/me/gears/stats?tab=available") && calls.length === 1) {
+    if (
+      options.url.endsWith("/api/me/gears/stats?tab=available") &&
+      calls.length === 1
+    ) {
       options.success({ statusCode: 401, data: { code: "unauthorized" } });
       return;
     }
     if (options.url.endsWith("/api/auth/refresh")) {
       assert.deepEqual(options.data, { refresh_token: "refresh-old" });
-      options.success({ statusCode: 200, data: loginResponse("access-new", "refresh-new") });
+      options.success({
+        statusCode: 200,
+        data: loginResponse("access-new", "refresh-new"),
+      });
       return;
     }
     if (options.url.endsWith("/api/me/gears/stats?tab=available")) {
@@ -181,7 +204,11 @@ test("authenticated requests refresh once on 401 and retry with the new access t
   await assert.doesNotReject(getGearStats("available"));
   assert.deepEqual(
     calls.map((call) => call.url.replace("https://api.example.test", "")),
-    ["/api/me/gears/stats?tab=available", "/api/auth/refresh", "/api/me/gears/stats?tab=available"],
+    [
+      "/api/me/gears/stats?tab=available",
+      "/api/auth/refresh",
+      "/api/me/gears/stats?tab=available",
+    ],
   );
   assert.equal(calls[0].authorization, "Bearer access-old");
   assert.equal(calls[2].authorization, "Bearer access-new");
@@ -189,6 +216,57 @@ test("authenticated requests refresh once on 401 and retry with the new access t
   assert.equal(storage.get("stellartrail_refresh_token"), "refresh-new");
 });
 
+test("getGearSpecKeyRankings calls authenticated category endpoint", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      authorization: options.header && options.header.authorization,
+    });
+    options.success({
+      statusCode: 200,
+      data: { keys: ["battery_capacity", "rated_energy"] },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  const { getGearSpecKeyRankings } = require("../.tmp-test/utils/api.js");
+
+  const response = await getGearSpecKeyRankings("electronics_system");
+
+  assert.deepEqual(response, { keys: ["battery_capacity", "rated_energy"] });
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.example.test/api/me/gears/spec-key-rankings?category=electronics_system",
+      authorization: "Bearer access-old",
+    },
+  ]);
+});
+
+test("getGearTagSuggestions calls authenticated suggestion endpoint", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      authorization: options.header && options.header.authorization,
+    });
+    options.success({
+      statusCode: 200,
+      data: { items: [{ tag: "冬季", color: "blue" }] },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  const { getGearTagSuggestions } = require("../.tmp-test/utils/api.js");
+
+  const response = await getGearTagSuggestions(12);
+
+  assert.deepEqual(response, { items: [{ tag: "冬季", color: "blue" }] });
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.example.test/api/me/gears/tag-suggestions?limit=12",
+      authorization: "Bearer access-old",
+    },
+  ]);
+});
 
 test("loginWithPassword persists access and refresh tokens", async () => {
   const calls = [];
@@ -200,7 +278,10 @@ test("loginWithPassword persists access and refresh tokens", async () => {
       authorization: options.header && options.header.authorization,
     });
     assert.equal(options.url, "https://api.example.test/api/auth/login");
-    options.success({ statusCode: 200, data: loginResponse("access-pass", "refresh-pass") });
+    options.success({
+      statusCode: 200,
+      data: loginResponse("access-pass", "refresh-pass"),
+    });
   });
   const { loginWithPassword } = require("../.tmp-test/utils/api.js");
 
@@ -222,9 +303,16 @@ test("loginWithPassword persists access and refresh tokens", async () => {
 test("registerWithPassword persists the returned session", async () => {
   const calls = [];
   const storage = installWxMock((options) => {
-    calls.push({ url: options.url, method: options.method, data: options.data });
+    calls.push({
+      url: options.url,
+      method: options.method,
+      data: options.data,
+    });
     assert.equal(options.url, "https://api.example.test/api/auth/register");
-    options.success({ statusCode: 200, data: loginResponse("access-register", "refresh-register") });
+    options.success({
+      statusCode: 200,
+      data: loginResponse("access-register", "refresh-register"),
+    });
   });
   const { registerWithPassword } = require("../.tmp-test/utils/api.js");
 
@@ -286,7 +374,10 @@ test("email code and captcha helpers call public auth endpoints", async () => {
     }
     options.success({ statusCode: 404, data: { message: "not found" } });
   });
-  const { createCaptcha, sendEmailVerificationCode } = require("../.tmp-test/utils/api.js");
+  const {
+    createCaptcha,
+    sendEmailVerificationCode,
+  } = require("../.tmp-test/utils/api.js");
 
   const email = await sendEmailVerificationCode("bob@example.com");
   const captcha = await createCaptcha("trail_bob");

@@ -153,6 +153,46 @@
   background: var(--brand-soft-bg);
 }
 
+.tag-color-teal {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.tag-color-blue {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.tag-color-violet {
+  color: #6d28d9;
+  background: #ede9fe;
+}
+
+.tag-color-rose {
+  color: #be123c;
+  background: #ffe4e6;
+}
+
+.tag-color-orange {
+  color: #c2410c;
+  background: #ffedd5;
+}
+
+.tag-color-amber {
+  color: #a16207;
+  background: #fef3c7;
+}
+
+.tag-color-green {
+  color: #15803d;
+  background: #dcfce7;
+}
+
+.tag-color-slate {
+  color: #475569;
+  background: #e2e8f0;
+}
+
 .info-row {
   display: flex;
   justify-content: space-between;
@@ -231,8 +271,7 @@
   background: var(--control-bg);
 }
 
-.detail-page.theme-dark .category-badge,
-.detail-page.theme-dark .tag {
+.detail-page.theme-dark .category-badge {
   color: var(--brand-color);
   background: var(--chip-bg);
 }

@@ -1809,6 +1809,7 @@ function GearDetailDrawer({
   onClose(): void;
   onEdit(): void;
 }) {
+  const specs = item.specs ?? {};
   return (
     <aside className="detail-drawer" aria-label="装备详情">
       <button className="icon-button" onClick={onClose} aria-label="关闭详情">
@@ -1839,7 +1840,7 @@ function GearDetailDrawer({
         <div>
           <dt>容量/尺寸</dt>
           <dd>
-            {[item.capacity, item.size].filter(Boolean).join(" · ") || "—"}
+            {[specs.capacity, specs.size].filter(Boolean).join(" · ") || "—"}
           </dd>
         </div>
         <div>
@@ -1868,20 +1869,14 @@ function formToPayload(form: GearFormState): CreateGearRequest {
     name: form.name.trim(),
     brand: optional(form.brand),
     model: optional(form.model),
-    color: optional(form.color),
-    material: optional(form.material),
-    capacity: optional(form.capacity),
-    size: optional(form.size),
     description: optional(form.description),
     weight_g: optionalNumber(form.weightG),
-    warmth_index: optional(form.warmthIndex),
-    waterproof_index: optional(form.waterproofIndex),
     purchase_date: optional(form.purchaseDate),
     purchase_price_cents: toPriceCents(form.purchasePrice),
-    expiry_or_warranty_date: optional(form.expiryOrWarrantyDate),
     purchase_location: optional(form.purchaseLocation),
     status: form.status,
     storage_location: optional(form.storageLocation),
+    specs: specsFromForm(form),
     tags: form.tags
       .split(/[,，]/)
       .map((tag) => tag.trim())
@@ -1892,25 +1887,26 @@ function formToPayload(form: GearFormState): CreateGearRequest {
 }
 
 function formFromGear(item: GearItem): GearFormState {
+  const specs = item.specs ?? {};
   return {
     category: item.category,
     name: item.name,
     brand: item.brand ?? "",
     model: item.model ?? "",
-    color: item.color ?? "",
-    material: item.material ?? "",
-    capacity: item.capacity ?? "",
-    size: item.size ?? "",
+    color: specs.color ?? "",
+    material: specs.material ?? "",
+    capacity: specs.capacity ?? "",
+    size: specs.size ?? "",
     description: item.description ?? "",
     weightG:
       item.weight_g === null || item.weight_g === undefined
         ? ""
         : String(item.weight_g),
-    warmthIndex: item.warmth_index ?? "",
-    waterproofIndex: item.waterproof_index ?? "",
+    warmthIndex: specs.warmth_index ?? "",
+    waterproofIndex: specs.waterproof_index ?? "",
     purchaseDate: item.purchase_date ?? "",
     purchasePrice: fromPriceCents(item.purchase_price_cents),
-    expiryOrWarrantyDate: item.expiry_or_warranty_date ?? "",
+    expiryOrWarrantyDate: specs.expiry_or_warranty_date ?? "",
     purchaseLocation: item.purchase_location ?? "",
     status: item.status,
     storageLocation: item.storage_location ?? "",
@@ -1918,6 +1914,25 @@ function formFromGear(item: GearItem): GearFormState {
     shareEnabled: item.share_enabled,
     notes: item.notes ?? "",
   };
+}
+
+function specsFromForm(form: GearFormState): Record<string, string> {
+  const specs: Record<string, string> = {};
+  setSpec(specs, "color", form.color);
+  setSpec(specs, "material", form.material);
+  setSpec(specs, "capacity", form.capacity);
+  setSpec(specs, "size", form.size);
+  setSpec(specs, "warmth_index", form.warmthIndex);
+  setSpec(specs, "waterproof_index", form.waterproofIndex);
+  setSpec(specs, "expiry_or_warranty_date", form.expiryOrWarrantyDate);
+  return specs;
+}
+
+function setSpec(specs: Record<string, string>, key: string, value: string) {
+  const trimmed = value.trim();
+  if (trimmed) {
+    specs[key] = trimmed;
+  }
 }
 
 function optional(value: string): string | null {

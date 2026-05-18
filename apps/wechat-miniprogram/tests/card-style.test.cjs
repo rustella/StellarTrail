@@ -224,7 +224,10 @@ test("inner cards and panels use homepage inner surface tokens", () => {
     ["pages/gears/index.wxss", [".stat-card", ".metric"]],
     ["pages/login/index.wxss", [".auth-panel"]],
     ["pages/gears/detail/index.wxss", [".summary-item"]],
-    ["pages/gears/form/index.wxss", [".field", ".picker-row", ".switch-row"]],
+    [
+      "pages/gears/form/index.wxss",
+      [".field", ".picker-row", ".share-review-card"],
+    ],
     ["pages/skills/index.wxss", [".category-icon", ".skill-thumb"]],
   ];
   for (const [file, selectors] of cases) {
