@@ -4,9 +4,11 @@ import {
   type ThemeMode,
 } from "./utils/theme";
 import { loadClientConfig } from "./utils/client-config";
+import { initNetworkState } from "./utils/network-state";
 
 App<IAppOption>({
   onLaunch() {
+    initNetworkState();
     const theme = loadThemePreference();
     const clientConfig = loadClientConfig();
     this.globalData.apiBaseUrl = clientConfig.apiBaseUrl;

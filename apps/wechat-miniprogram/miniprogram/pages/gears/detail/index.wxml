@@ -1,4 +1,8 @@
 <view class="detail-page {{themeClass}}">
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
   <view wx:if="{{requiresLogin}}" class="state-card login-required">
     <view class="login-required-title">登录后查看装备详情</view>
     <view class="login-required-desc"

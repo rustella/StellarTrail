@@ -15,6 +15,10 @@ import {
   syncPageTheme,
   togglePageTheme,
 } from "../../utils/theme";
+import {
+  isOffline,
+  showOfflineWriteBlockedToast,
+} from "../../utils/network-state";
 
 Page({
   data: {
@@ -135,6 +139,10 @@ Page({
   },
 
   async saveNicknameValue(nickname: string) {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     this.setData({ nicknameLoading: true, accountError: "" });
     try {
       await loginWithWechat({ nickname });
@@ -177,6 +185,10 @@ Page({
   },
 
   async uploadProfileAvatar(filePath: string) {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
     this.setData({ avatarLoading: true, accountError: "" });
     try {
       await uploadWechatAvatar(filePath);

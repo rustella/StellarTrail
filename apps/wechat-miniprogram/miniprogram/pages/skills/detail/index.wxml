@@ -1,4 +1,6 @@
 <view class="skill-detail-page {{themeClass}}">
+  <view wx:if="{{offlineNotice}}" class="offline-notice">{{offlineNotice}}</view>
+
   <view wx:if="{{error}}" class="state-card error">
     <view>{{error}}</view>
     <button class="retry-button" bindtap="loadDetail">重试</button>

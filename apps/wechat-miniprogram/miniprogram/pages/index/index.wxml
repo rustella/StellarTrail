@@ -15,6 +15,10 @@
     </view>
   </view>
 
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
   <view class="quick-grid">
     <block wx:for="{{quickActions}}" wx:key="id">
       <view

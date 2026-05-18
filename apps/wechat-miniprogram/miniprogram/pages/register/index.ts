@@ -5,6 +5,10 @@ import {
 } from "../../utils/api";
 import { decodeRedirect, navigateToRedirect } from "../../utils/navigation";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
+import {
+  isOffline,
+  OFFLINE_WRITE_BLOCKED_MESSAGE,
+} from "../../utils/network-state";
 
 Page({
   data: {
@@ -55,6 +59,10 @@ Page({
     if (this.data.codeLoading || this.data.codeCountdown > 0) {
       return;
     }
+    if (isOffline()) {
+      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
+      return;
+    }
     if (!isEmailLike(email)) {
       this.setData({ error: "请填写可用邮箱", notice: "" });
       return;
@@ -73,6 +81,10 @@ Page({
 
   async register() {
     if (this.data.loading) {
+      return;
+    }
+    if (isOffline()) {
+      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
       return;
     }
     const username = this.data.username.trim();

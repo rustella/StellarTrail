@@ -13,6 +13,10 @@
     <button class="primary-action" bindtap="goCreate">+ 添加</button>
   </view>
 
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
   <view class="atlas-entry-card" bindtap="goGearAtlas">
     <view class="atlas-entry-main">
       <view class="atlas-entry-icon" aria-hidden="true">

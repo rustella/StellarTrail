@@ -1,6 +1,8 @@
 import {
+  consumeOfflineCacheNotice,
   getErrorMessage,
   getKnotDetail,
+  isOfflineCacheMissError,
   resolveAssetUrl,
 } from "../../../utils/api";
 import {
@@ -10,6 +12,7 @@ import {
   type KnotMediaAsset,
 } from "../../../utils/skill-utils";
 import { getThemeViewData, syncPageTheme } from "../../../utils/theme";
+import { resolveCachedMediaUrl } from "../../../utils/media-cache";
 
 interface MediaView extends KnotMediaAsset {
   resolvedUrl: string;
@@ -32,6 +35,7 @@ Page({
     mediaHelpText: "自动循环演示打结步骤。",
     loading: false,
     error: "",
+    offlineNotice: "",
     ...getThemeViewData(),
   },
 
@@ -60,9 +64,12 @@ Page({
     this.setData({ loading: true, error: "" });
     try {
       const detail = await getKnotDetail(this.data.id);
-      const media = detail.media.filter(isDetailMediaAsset).map(mapMedia);
+      const media = await Promise.all(
+        detail.media.filter(isDetailMediaAsset).map(mapMedia),
+      );
       const activeMediaIndex = preferredMediaIndex(media);
       const activeMedia = media[activeMediaIndex] ?? null;
+      const offlineNotice = consumeOfflineCacheNotice();
       wx.setNavigationBarTitle({ title: detail.title });
       this.setData({
         detail,
@@ -75,8 +82,14 @@ Page({
         mediaCredit: mediaCredit(activeMedia),
         mediaHelpText: activeMedia?.helpText ?? "",
         loading: false,
+        ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
+      if (isOfflineCacheMissError(error) && this.data.detail) {
+        this.setData({ loading: false });
+        wx.showToast({ title: getErrorMessage(error), icon: "none" });
+        return;
+      }
       this.setData({
         error: getErrorMessage(error),
         loading: false,
@@ -108,11 +121,11 @@ function isDetailMediaAsset(item: KnotMediaAsset): boolean {
   );
 }
 
-function mapMedia(item: KnotMediaAsset): MediaView {
+async function mapMedia(item: KnotMediaAsset): Promise<MediaView> {
   const meta = mediaMeta(item.media_type);
   return {
     ...item,
-    resolvedUrl: resolveAssetUrl(item.url),
+    resolvedUrl: await resolveCachedMediaUrl(resolveAssetUrl(item.url)),
     mediaTypeText: meta.label,
     helpText: meta.helpText,
     icon: meta.icon,

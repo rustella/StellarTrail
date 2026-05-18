@@ -26,6 +26,26 @@ import type {
   ListSkillsResponse,
   SkillLocale,
 } from "./skill-utils";
+import {
+  clearUserOfflineCaches,
+  makeOfflineCacheKey,
+  readOfflineCache,
+  writeOfflineCache,
+  type OfflineCacheDescriptor,
+} from "./offline-cache";
+import {
+  OfflineCacheMissError,
+  OfflineWriteBlockedError,
+  isOffline,
+  isOfflineCacheMissError,
+  isOfflineWriteBlockedError,
+  markNetworkFailure,
+  OFFLINE_CACHE_NOTICE,
+} from "./network-state";
+export {
+  isOfflineCacheMissError,
+  isOfflineWriteBlockedError,
+} from "./network-state";
 
 const TOKEN_STORAGE_KEY = "stellartrail_access_token";
 const ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY =
@@ -40,6 +60,7 @@ const DEFAULT_ASSETS_BASE_URL = "https://assets.example.invalid";
 
 let loginPromise: Promise<string> | null = null;
 let refreshPromise: Promise<string> | null = null;
+let offlineCacheNoticePending = false;
 interface ApiRequestOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   data?: unknown;
@@ -199,6 +220,14 @@ export function isNotFoundApiError(error: unknown): boolean {
   return isApiResponseError(error) && error.statusCode === 404;
 }
 
+export function consumeOfflineCacheNotice(): string {
+  if (!offlineCacheNoticePending) {
+    return "";
+  }
+  offlineCacheNoticePending = false;
+  return OFFLINE_CACHE_NOTICE;
+}
+
 export function getApiBaseUrl(): string {
   const stored = wx.getStorageSync(API_BASE_URL_STORAGE_KEY) as
     | string
@@ -262,7 +291,7 @@ export async function getCurrentUser(): Promise<WechatLoginResponse["user"]> {
 
 export async function ensureAccessToken(): Promise<string> {
   const cached = wx.getStorageSync(TOKEN_STORAGE_KEY) as string | undefined;
-  if (cached && !shouldRefreshAccessToken()) {
+  if (cached && (isOffline() || !shouldRefreshAccessToken())) {
     return cached;
   }
   if (wx.getStorageSync(REFRESH_TOKEN_STORAGE_KEY)) {
@@ -395,6 +424,9 @@ async function runWechatLogin(profile?: WechatLoginProfile): Promise<string> {
 export async function uploadWechatAvatar(
   filePath: string,
 ): Promise<WechatLoginResponse["user"]> {
+  if (isOffline()) {
+    throw new OfflineWriteBlockedError();
+  }
   const token = await ensureAccessToken();
   try {
     const response = await uploadWechatAvatarOnce(filePath, token);
@@ -421,6 +453,7 @@ export async function refreshAccessToken(): Promise<string> {
 }
 
 export function clearLoginState(): void {
+  clearUserOfflineCaches();
   wx.removeStorageSync(TOKEN_STORAGE_KEY);
   wx.removeStorageSync(ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY);
   wx.removeStorageSync(REFRESH_TOKEN_STORAGE_KEY);
@@ -581,6 +614,9 @@ export async function getKnotDetail(
 }
 
 export function getErrorMessage(error: unknown): string {
+  if (isOfflineCacheMissError(error) || isOfflineWriteBlockedError(error)) {
+    return error.message;
+  }
   if (isApiResponseError(error)) {
     const fieldMessage = error.fields?.find((field) => field.message)?.message;
     return fieldMessage || error.message;
@@ -599,7 +635,12 @@ async function requestJson<T>(
   options: ApiRequestOptions = {},
   didRetryUnauthorized = false,
 ): Promise<T> {
+  const method = options.method ?? "GET";
+  if (method !== "GET" && isOffline()) {
+    throw new OfflineWriteBlockedError();
+  }
   const token = options.auth ? await ensureAccessToken() : undefined;
+  const cacheDescriptor = offlineCacheDescriptor(path, options);
   const header: Record<string, string> = {};
   if (options.data !== undefined) {
     header["content-type"] = "application/json";
@@ -614,11 +655,14 @@ async function requestJson<T>(
   return new Promise<T>((resolve, reject) => {
     wx.request({
       url: `${getApiBaseUrl()}${path}`,
-      method: (options.method ?? "GET") as any,
+      method: method as any,
       data: options.data as any,
       header,
       success: (response) => {
         if (response.statusCode >= 200 && response.statusCode < 300) {
+          if (cacheDescriptor) {
+            writeOfflineCache(cacheDescriptor, response.data as T);
+          }
           resolve(response.data as T);
           return;
         }
@@ -651,11 +695,72 @@ async function requestJson<T>(
         }
         reject(new ApiResponseError(response.statusCode, response.data));
       },
-      fail: (error) => {
-        reject(new Error(error.errMsg || "网络请求失败，请稍后再试"));
+      fail: () => {
+        markNetworkFailure();
+        if (cacheDescriptor) {
+          const cached = readOfflineCache<T>(cacheDescriptor);
+          if (cached) {
+            offlineCacheNoticePending = true;
+            resolve(cached.data);
+            return;
+          }
+        }
+        reject(new OfflineCacheMissError());
       },
     });
   });
+}
+
+function offlineCacheDescriptor(
+  path: string,
+  options: ApiRequestOptions,
+): OfflineCacheDescriptor | null {
+  if ((options.method ?? "GET") !== "GET") {
+    return null;
+  }
+  const locale = options.locale;
+  if (isPublicCacheablePath(path)) {
+    return {
+      key: makeOfflineCacheKey(path, { locale }),
+      scope: "public",
+      ...(locale ? { locale } : {}),
+    };
+  }
+  if (options.auth && isUserCacheablePath(path)) {
+    const userId = getStoredUser()?.id;
+    if (!userId) {
+      return null;
+    }
+    return {
+      key: makeOfflineCacheKey(path, { locale, userId }),
+      scope: "user",
+      userId,
+      ...(locale ? { locale } : {}),
+    };
+  }
+  return null;
+}
+
+function isPublicCacheablePath(path: string): boolean {
+  return (
+    path === "/api/skills" ||
+    path.startsWith("/api/skills/") ||
+    path === "/api/gear-templates" ||
+    path.startsWith("/api/gear-templates/") ||
+    path === "/api/gear-atlas" ||
+    path.startsWith("/api/gear-atlas?") ||
+    path.startsWith("/api/gear-atlas/")
+  );
+}
+
+function isUserCacheablePath(path: string): boolean {
+  return (
+    path === "/api/me/gears" ||
+    path.startsWith("/api/me/gears?") ||
+    path.startsWith("/api/me/gears/") ||
+    path === "/api/me/gear-atlas-submissions" ||
+    path.startsWith("/api/me/gear-atlas-submissions?")
+  );
 }
 
 function saveLoginResponse(response: WechatLoginResponse): void {

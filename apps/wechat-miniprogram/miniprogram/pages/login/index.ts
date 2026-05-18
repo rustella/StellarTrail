@@ -13,6 +13,10 @@ import {
 } from "../../utils/api";
 import { decodeRedirect, navigateToRedirect } from "../../utils/navigation";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
+import {
+  isOffline,
+  OFFLINE_WRITE_BLOCKED_MESSAGE,
+} from "../../utils/network-state";
 
 type LoginMode = "wechat" | "password" | "email" | "reset";
 const WECHAT_PROFILE_PROMPT_SEEN_KEY =
@@ -98,6 +102,10 @@ Page({
     if (this.data.loading) {
       return;
     }
+    if (isOffline()) {
+      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
+      return;
+    }
     this.setData({ loading: true, error: "", notice: "" });
     try {
       await loginWithWechat();
@@ -112,6 +120,10 @@ Page({
 
   async loginWithAccount() {
     if (this.data.loading) {
+      return;
+    }
+    if (isOffline()) {
+      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
       return;
     }
     const account = this.data.account.trim();
@@ -155,6 +167,10 @@ Page({
     if (this.data.codeLoading) {
       return;
     }
+    if (isOffline()) {
+      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
+      return;
+    }
     if (!isEmailLike(email)) {
       this.setData({ error: "请填写可用邮箱", notice: "" });
       return;
@@ -172,6 +188,10 @@ Page({
 
   async loginWithEmailCode() {
     if (this.data.loading) {
+      return;
+    }
+    if (isOffline()) {
+      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
       return;
     }
     const email = this.data.email.trim();
@@ -203,6 +223,10 @@ Page({
     if (this.data.codeLoading) {
       return;
     }
+    if (isOffline()) {
+      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
+      return;
+    }
     if (!isEmailLike(email)) {
       this.setData({ error: "请填写可用邮箱", notice: "" });
       return;
@@ -220,6 +244,10 @@ Page({
 
   async submitPasswordReset() {
     if (this.data.loading) {
+      return;
+    }
+    if (isOffline()) {
+      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
       return;
     }
     const email = this.data.email.trim();
@@ -261,6 +289,10 @@ Page({
 
   async refreshCaptcha(account?: string, message = "已刷新图形验证码") {
     const targetAccount = (account ?? this.data.account).trim();
+    if (isOffline()) {
+      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
+      return;
+    }
     if (!targetAccount) {
       this.setData({ error: "请先填写账号或邮箱", notice: "" });
       return;
