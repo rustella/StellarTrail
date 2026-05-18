@@ -185,9 +185,12 @@ fn https_get(host: &str, path: &str) -> Result<Vec<u8>, WechatCodeSessionError> 
         .map_err(WechatCodeSessionError::Network)?;
 
     let mut response = Vec::new();
-    stream
-        .read_to_end(&mut response)
-        .map_err(WechatCodeSessionError::Network)?;
+    match stream.read_to_end(&mut response) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof && !response.is_empty() => {
+        }
+        Err(error) => return Err(WechatCodeSessionError::Network(error)),
+    }
     parse_http_response(&response)
 }
 
