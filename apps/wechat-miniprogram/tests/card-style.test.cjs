@@ -311,7 +311,10 @@ test("skills knot list offers search and category-only filtering", () => {
   assert.match(wxml, /loadingMore/);
   assert.match(wxml, /bindtap="cacheAllKnots"/);
   assert.match(wxml, /缓存全部/);
+  assert.match(wxml, /preparingKnotCache/);
+  assert.match(wxml, /正在统计缓存信息/);
   assert.match(wxml, /class="cache-status-card"/);
+  assert.match(wxml, /离线模式也能查询绳结详情和动图/);
 
   const filterCard = selectorBlock(wxss, ".knot-filter-card");
   assert.match(filterCard, /border-radius:\s*var\(--card-radius\)/);
@@ -328,7 +331,11 @@ test("skills knot list offers search and category-only filtering", () => {
   assert.match(ts, /const KNOTS_PAGE_SIZE = 10/);
   assert.match(ts, /onReachBottom\(\)/);
   assert.match(ts, /loadMoreKnots/);
+  assert.match(ts, /preparingKnotCache/);
+  assert.match(ts, /prepareAllKnotsOfflineCache/);
   assert.match(ts, /cacheAllKnotsForOffline/);
+  assert.match(ts, /预计约/);
+  assert.match(ts, /formatBytes/);
   assert.doesNotMatch(ts, /loadAllKnots/);
   assert.match(
     ts,

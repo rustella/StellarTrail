@@ -228,6 +228,14 @@
   line-height: 1.5;
 }
 
+.cache-help-text {
+  margin-top: 14rpx;
+  color: var(--muted-color);
+  font-size: 23rpx;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .knot-filter-card {
   margin-top: 20rpx;
   padding: 18rpx;

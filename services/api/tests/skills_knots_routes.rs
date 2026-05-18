@@ -6,7 +6,9 @@ use axum::{
 use http_body_util::BodyExt;
 use sea_orm::{ConnectionTrait, Statement};
 use serde_json::Value;
+use std::time::Duration;
 use stellartrail_api::{
+    cache::{Cache, InMemoryCacheStore},
     config::{
         ApiConfig, CorsConfig, ObjectStorageConfig, PublicApiConfig, RedisCacheConfig, UploadConfig,
     },
@@ -211,6 +213,10 @@ async fn insert_uploaded_knot_media(
 }
 
 async fn seeded_app_with_uploaded_media() -> TestApp {
+    seeded_app_with_uploaded_media_cache(Cache::disabled()).await
+}
+
+async fn seeded_app_with_uploaded_media_cache(cache: Cache) -> TestApp {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
@@ -278,7 +284,7 @@ async fn seeded_app_with_uploaded_media() -> TestApp {
     )
     .await;
     TestApp {
-        router: build_router(AppState::new(config, db)),
+        router: build_router(AppState::new_with_cache(config, db, cache)),
         _temp_dir: temp_dir,
     }
 }
@@ -609,6 +615,111 @@ async fn knot_detail_returns_media_resource_urls_from_db_and_no_language_specifi
 }
 
 #[tokio::test]
+async fn knot_offline_manifest_returns_complete_payload_with_deduped_media_estimate() {
+    let app = seeded_app_with_uploaded_media().await;
+    let (status, headers, body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/api/skills/knots/offline-manifest")
+            .header("X-StellarTrail-Locale", "zh-CN")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers.get(header::CONTENT_LANGUAGE).unwrap(), "zh-CN");
+    assert!(headers.get(header::CACHE_CONTROL).is_some());
+    assert!(headers.get(header::ETAG).is_some());
+    assert_eq!(body["locale"], "zh-CN");
+    assert_eq!(body["item_count"], 1);
+    assert_eq!(body["media_count"], 2);
+    assert_eq!(body["estimated_bytes"], 746348);
+    assert_eq!(body["items"][0]["id"], "adjustable-grip-hitch-knot");
+    assert_eq!(body["items"][0]["title"], "可调节绳结");
+    assert_eq!(body["items"][0]["steps"][0], "将绳头绕过主绳。");
+    assert_eq!(
+        body["items"][0]["media"][0]["url"],
+        "https://minio-a.example.com/stellartrail-knots-media/skills/knots/adjustable-grip-hitch-knot/thumbnail/hash-a.webp"
+    );
+    assert_eq!(
+        body["items"][0]["media"][1]["url"],
+        "https://cdn-b.example.com/knots/skills/knots/adjustable-grip-hitch-knot/draw_mp4/hash-b.mp4"
+    );
+    let serialized = body.to_string();
+    for forbidden in [
+        "zh_slug",
+        "english_slug",
+        "source_slug_zh",
+        "source_slug_en",
+        "/assets/",
+        "content/assets",
+        ".hermes/local",
+        "bucket",
+        "object_key",
+        "storage_profile",
+        "storage_endpoint",
+        "source_path",
+    ] {
+        assert!(
+            !serialized.contains(forbidden),
+            "offline manifest leaked {forbidden}: {serialized}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn knot_offline_manifest_uses_public_response_cache_and_etag() {
+    let cache_store = InMemoryCacheStore::default();
+    let app = seeded_app_with_uploaded_media_cache(Cache::with_store_for_tests(
+        cache_store.clone(),
+        "test-stellartrail",
+        Duration::from_secs(300),
+    ))
+    .await;
+
+    let (status, headers, _body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/api/skills/knots/offline-manifest")
+            .header("X-StellarTrail-Locale", "zh-CN")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let etag = headers
+        .get(header::ETAG)
+        .expect("etag header")
+        .to_str()
+        .expect("etag value")
+        .to_owned();
+    let after_first = cache_store.stats();
+    assert!(after_first.set_count >= 1);
+
+    let response = app
+        .router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/skills/knots/offline-manifest")
+                .header("X-StellarTrail-Locale", "zh-CN")
+                .header(header::IF_NONE_MATCH, etag)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(
+        response.headers().get(header::CONTENT_LANGUAGE).unwrap(),
+        "zh-CN"
+    );
+    let after_second = cache_store.stats();
+    assert!(after_second.hit_count > after_first.hit_count);
+}
+
+#[tokio::test]
 async fn knots_list_uses_media_resource_urls_from_different_public_domains() {
     let app = seeded_app_with_uploaded_media().await;
     let (status, _headers, body) = json_response(
@@ -638,6 +749,7 @@ async fn locale_query_parameter_is_rejected_globally() {
     for uri in [
         "/api/skills/knots/list?locale=en",
         "/api/skills/knots/list?l%6fcale=en",
+        "/api/skills/knots/offline-manifest?locale=en",
     ] {
         let app = seeded_app().await;
         let (status, _headers, body) = json_response(
@@ -657,6 +769,31 @@ async fn cursor_and_next_cursor_are_rejected() {
     for (uri, parameter) in [
         ("/api/skills/knots/list?cursor=abc", "cursor"),
         ("/api/skills/knots/list?next_cursor=abc", "next_cursor"),
+    ] {
+        let app = seeded_app().await;
+        let (status, _headers, body) = json_response(
+            &app.router,
+            Request::builder().uri(uri).body(Body::empty()).unwrap(),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
+        assert_eq!(body["code"], "unsupported_query_parameter");
+        assert_eq!(body["parameter"], parameter);
+    }
+}
+
+#[tokio::test]
+async fn offline_manifest_rejects_filter_and_pagination_query_parameters() {
+    for (uri, parameter) in [
+        ("/api/skills/knots/offline-manifest?offset=0", "offset"),
+        ("/api/skills/knots/offline-manifest?limit=10", "limit"),
+        (
+            "/api/skills/knots/offline-manifest?category=camping-knots",
+            "category",
+        ),
+        ("/api/skills/knots/offline-manifest?q=grip", "q"),
+        ("/api/skills/knots/offline-manifest?cursor=abc", "cursor"),
     ] {
         let app = seeded_app().await;
         let (status, _headers, body) = json_response(

@@ -156,6 +156,7 @@ POST /api/auth/refresh
 POST /api/auth/captcha
 GET /api/skills
 GET /api/skills/knots/list
+GET /api/skills/knots/offline-manifest
 GET /api/skills/knots/detail/:id
 PUT /api/admin/skills/knots/:knot_id/media/:asset_id
 GET /api/gear-templates

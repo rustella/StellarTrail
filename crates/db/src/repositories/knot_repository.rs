@@ -1,9 +1,12 @@
 //! Knot repository for DB-backed outdoor skill metadata imported from Knots3D.
 
+use std::collections::{HashMap, HashSet};
+
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, TransactionTrait};
 use stellartrail_domain::skill::{
-    KnotDetail, KnotFilterOption, KnotFiltersResponse, KnotListResponse, KnotMediaAsset, KnotSeed,
-    KnotSummary, KnotTaxonomyItem, Locale, PageInfo, SkillCategorySummary,
+    KnotDetail, KnotFilterOption, KnotFiltersResponse, KnotListResponse, KnotMediaAsset,
+    KnotOfflineManifestResponse, KnotSeed, KnotSummary, KnotTaxonomyItem, Locale, PageInfo,
+    SkillCategorySummary,
 };
 
 use super::{MediaResourceRepository, statement};
@@ -376,6 +379,88 @@ impl KnotRepository {
         self.detail(id, locale).await
     }
 
+    /// Returns the complete public knot detail set for offline client pre-cache flows.
+    pub async fn offline_manifest(
+        &self,
+        locale: Locale,
+    ) -> Result<KnotOfflineManifestResponse, DbErr> {
+        let backend = self.db.get_database_backend();
+        let knot_rows = self
+            .db
+            .query_all(statement(
+                backend,
+                "SELECT id, difficulty FROM knots ORDER BY id ASC",
+                vec![],
+            ))
+            .await?;
+        let knots = knot_rows
+            .into_iter()
+            .map(|row| {
+                Ok((
+                    row.try_get::<String>("", "id")?,
+                    row.try_get::<Option<String>>("", "difficulty")?,
+                ))
+            })
+            .collect::<Result<Vec<_>, DbErr>>()?;
+
+        let localizations = fetch_all_knot_localizations(&self.db, locale).await?;
+        let categories = fetch_all_taxonomy(
+            &self.db,
+            locale,
+            "knot_category_memberships",
+            "category_id",
+            "knot_category_localizations",
+        )
+        .await?;
+        let types = fetch_all_taxonomy(
+            &self.db,
+            locale,
+            "knot_type_memberships",
+            "type_id",
+            "knot_type_localizations",
+        )
+        .await?;
+        let media = fetch_all_media(&self.db).await?;
+
+        let mut items = Vec::with_capacity(knots.len());
+        let mut seen_media_urls = HashSet::new();
+        let mut media_count = 0u32;
+        let mut estimated_bytes = 0i64;
+        for (id, difficulty) in knots {
+            let Some(localization) = localizations.get(&id) else {
+                continue;
+            };
+            let item_media = media.get(&id).cloned().unwrap_or_default();
+            for asset in &item_media {
+                if seen_media_urls.insert(asset.url.clone()) {
+                    media_count += 1;
+                    estimated_bytes += asset.size_bytes.max(0);
+                }
+            }
+            items.push(KnotDetail {
+                id: id.clone(),
+                slug: localization.slug.clone(),
+                title: localization.title.clone(),
+                summary: localization.summary.clone(),
+                description: localization.description.clone(),
+                steps: localization.steps.clone(),
+                difficulty,
+                categories: categories.get(&id).cloned().unwrap_or_default(),
+                types: types.get(&id).cloned().unwrap_or_default(),
+                media: item_media,
+                locale,
+            });
+        }
+
+        Ok(KnotOfflineManifestResponse {
+            locale,
+            item_count: items.len() as u32,
+            media_count,
+            estimated_bytes,
+            items,
+        })
+    }
+
     async fn detail(&self, id: &str, locale: Locale) -> Result<Option<KnotDetail>, DbErr> {
         let row = self
             .db
@@ -408,6 +493,7 @@ impl KnotRepository {
     }
 }
 
+#[derive(Clone)]
 struct KnotLocalizationRow {
     slug: String,
     title: String,
@@ -444,6 +530,61 @@ async fn fetch_knot_localization(
         }
     }
     Ok(None)
+}
+
+async fn fetch_all_knot_localizations(
+    db: &DatabaseConnection,
+    locale: Locale,
+) -> Result<HashMap<String, KnotLocalizationRow>, DbErr> {
+    let fallbacks = locale.fallbacks();
+    let rows = db
+        .query_all(statement(
+            db.get_database_backend(),
+            "SELECT knot_id, locale, slug, title, summary, description, steps_json \
+             FROM knot_localizations WHERE locale IN (?, ?) ORDER BY knot_id ASC",
+            vec![
+                fallbacks[0].as_str().to_owned().into(),
+                fallbacks[1].as_str().to_owned().into(),
+            ],
+        ))
+        .await?;
+    let mut candidates: HashMap<String, Vec<(Locale, KnotLocalizationRow)>> = HashMap::new();
+    for row in rows {
+        let raw_locale: String = row.try_get("", "locale")?;
+        let Some(row_locale) = Locale::parse(&raw_locale) else {
+            continue;
+        };
+        let steps_json: String = row.try_get("", "steps_json")?;
+        let steps = serde_json::from_str::<Vec<String>>(&steps_json)
+            .map_err(|err| DbErr::Custom(err.to_string()))?;
+        candidates
+            .entry(row.try_get("", "knot_id")?)
+            .or_default()
+            .push((
+                row_locale,
+                KnotLocalizationRow {
+                    slug: row.try_get("", "slug")?,
+                    title: row.try_get("", "title")?,
+                    summary: row.try_get("", "summary")?,
+                    description: row.try_get("", "description")?,
+                    steps,
+                },
+            ));
+    }
+
+    let mut selected = HashMap::with_capacity(candidates.len());
+    for (knot_id, rows) in candidates {
+        for fallback in fallbacks {
+            if let Some((_, row)) = rows
+                .iter()
+                .find(|(candidate_locale, _)| *candidate_locale == fallback)
+            {
+                selected.insert(knot_id, row.clone());
+                break;
+            }
+        }
+    }
+    Ok(selected)
 }
 
 async fn fetch_category_filter_option(
@@ -570,10 +711,124 @@ async fn fetch_taxonomy(
     Ok(items)
 }
 
+async fn fetch_all_taxonomy(
+    db: &DatabaseConnection,
+    locale: Locale,
+    membership_table: &str,
+    item_id_col: &str,
+    localization_table: &str,
+) -> Result<HashMap<String, Vec<KnotTaxonomyItem>>, DbErr> {
+    let fallbacks = locale.fallbacks();
+    let backend = db.get_database_backend();
+    let sql = format!(
+        "SELECT m.knot_id, m.{item_id_col} AS item_id, l.locale, l.slug, l.title \
+         FROM {membership_table} m \
+         JOIN {localization_table} l ON l.{item_id_col} = m.{item_id_col} \
+         WHERE l.locale IN (?, ?) \
+         ORDER BY m.knot_id ASC, m.{item_id_col} ASC"
+    );
+    let rows = db
+        .query_all(statement(
+            backend,
+            sql,
+            vec![
+                fallbacks[0].as_str().to_owned().into(),
+                fallbacks[1].as_str().to_owned().into(),
+            ],
+        ))
+        .await?;
+
+    let mut candidates: HashMap<(String, String), Vec<(Locale, String, String)>> = HashMap::new();
+    for row in rows {
+        let raw_locale: String = row.try_get("", "locale")?;
+        let Some(row_locale) = Locale::parse(&raw_locale) else {
+            continue;
+        };
+        candidates
+            .entry((row.try_get("", "knot_id")?, row.try_get("", "item_id")?))
+            .or_default()
+            .push((
+                row_locale,
+                row.try_get("", "slug")?,
+                row.try_get("", "title")?,
+            ));
+    }
+
+    let mut keys = candidates.keys().cloned().collect::<Vec<_>>();
+    keys.sort();
+    let mut grouped: HashMap<String, Vec<KnotTaxonomyItem>> = HashMap::new();
+    for (knot_id, item_id) in keys {
+        let Some(rows) = candidates.get(&(knot_id.clone(), item_id.clone())) else {
+            continue;
+        };
+        for fallback in fallbacks {
+            if let Some((_, slug, title)) = rows
+                .iter()
+                .find(|(candidate_locale, _, _)| *candidate_locale == fallback)
+            {
+                grouped
+                    .entry(knot_id.clone())
+                    .or_default()
+                    .push(KnotTaxonomyItem {
+                        id: item_id.clone(),
+                        slug: slug.clone(),
+                        title: title.clone(),
+                    });
+                break;
+            }
+        }
+    }
+    Ok(grouped)
+}
+
 async fn fetch_media(db: &DatabaseConnection, knot_id: &str) -> Result<Vec<KnotMediaAsset>, DbErr> {
     MediaResourceRepository::new(db.clone())
         .list_knot_media_assets(knot_id)
         .await
+}
+
+async fn fetch_all_media(
+    db: &DatabaseConnection,
+) -> Result<HashMap<String, Vec<KnotMediaAsset>>, DbErr> {
+    let rows = db
+        .query_all(statement(
+            db.get_database_backend(),
+            r#"SELECT kmr.knot_id, kmr.asset_id, kmr.media_type, mr.public_url, mr.mime_type, mr.width, mr.height,
+                      mr.size_bytes, kmr.attribution, kmr.license_note
+               FROM knot_media_resources kmr
+               JOIN media_resources mr ON mr.id = kmr.media_resource_id
+               WHERE mr.status = 'active'
+               ORDER BY kmr.knot_id ASC,
+                   CASE kmr.asset_id
+                       WHEN 'thumbnail' THEN 0
+                       WHEN 'preview' THEN 1
+                       WHEN 'draw_gif' THEN 2
+                       WHEN 'turntable_gif' THEN 3
+                       WHEN 'draw_mp4' THEN 4
+                       WHEN 'turntable_mp4' THEN 5
+                       ELSE 1000 + kmr.sort_order
+                   END ASC, kmr.sort_order ASC, kmr.asset_id ASC"#,
+            vec![],
+        ))
+        .await?;
+    let mut grouped: HashMap<String, Vec<KnotMediaAsset>> = HashMap::new();
+    for row in rows {
+        grouped
+            .entry(row.try_get("", "knot_id")?)
+            .or_default()
+            .push(KnotMediaAsset {
+                id: row.try_get("", "asset_id")?,
+                media_type: row.try_get("", "media_type")?,
+                url: row.try_get("", "public_url")?,
+                mime_type: row.try_get("", "mime_type")?,
+                width: row.try_get("", "width")?,
+                height: row.try_get("", "height")?,
+                size_bytes: row.try_get("", "size_bytes")?,
+                attribution: row.try_get("", "attribution")?,
+                license_note: row.try_get("", "license_note")?,
+            });
+    }
+    Ok(grouped)
 }
 
 fn insert_ignore_sql(table: &str, column: &str) -> String {

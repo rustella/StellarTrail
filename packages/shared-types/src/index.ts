@@ -98,7 +98,16 @@ export interface KnotListResponse {
   page: PageInfo;
 }
 
-export interface KnotDetail extends KnotSummary {
+export interface KnotOfflineManifestResponse {
+  locale: SkillLocale;
+  item_count: number;
+  media_count: number;
+  estimated_bytes: number;
+  items: KnotDetail[];
+}
+
+export interface KnotDetail extends Omit<KnotSummary, "href"> {
+  href?: string;
   description?: string | null;
   steps: string[];
   locale: SkillLocale;

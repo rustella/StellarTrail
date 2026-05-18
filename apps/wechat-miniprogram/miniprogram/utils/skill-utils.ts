@@ -60,7 +60,16 @@ export interface KnotListResponse {
   };
 }
 
-export interface KnotDetail extends KnotSummary {
+export interface KnotOfflineManifestResponse {
+  locale: SkillLocale;
+  item_count: number;
+  media_count: number;
+  estimated_bytes: number;
+  items: KnotDetail[];
+}
+
+export interface KnotDetail extends Omit<KnotSummary, "href"> {
+  href?: string;
   description?: string | null;
   steps: string[];
   locale: SkillLocale;
@@ -108,7 +117,7 @@ export function getSkillDifficultyTone(value?: string | null): string {
 }
 
 export function mapSkillCard(
-  item: SkillCategorySummary | KnotSummary,
+  item: SkillCategorySummary | KnotSummary | KnotDetail,
 ): SkillCard {
   const isKnot = "media" in item;
   return {

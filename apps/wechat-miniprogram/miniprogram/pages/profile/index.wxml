@@ -34,6 +34,16 @@
           >{{loggedIn ? '可以管理自己的装备清单。' :
           '未登录也可以先看装备图鉴和绳结教学。'}}</view
         >
+        <view wx:if="{{loggedIn}}" class="account-email-row">
+          <view class="account-email-text">{{accountProfile.emailText}}</view>
+          <button
+            wx:if="{{!accountProfile.hasEmail}}"
+            class="account-inline-button"
+            bindtap="openEmailBindingModal"
+          >
+            绑定邮箱
+          </button>
+        </view>
         <view wx:if="{{accountError}}" class="account-error"
           >{{accountError}}</view
         >
@@ -99,6 +109,69 @@
         >
           取消
         </button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{emailBindingModalVisible}}" class="profile-modal-mask">
+    <view class="profile-modal-card">
+      <view class="profile-modal-title">绑定邮箱</view>
+      <view class="profile-modal-desc"
+        >绑定后可用邮箱登录，也可以找回密码。</view
+      >
+      <view class="profile-email-form">
+        <input
+          class="profile-name-input"
+          type="text"
+          placeholder="邮箱"
+          value="{{emailBindingEmail}}"
+          data-field="emailBindingEmail"
+          disabled="{{emailCodeLoading || emailBindingLoading}}"
+          confirm-type="next"
+          bindinput="onEmailBindingInput"
+        />
+        <view class="profile-email-code-row">
+          <input
+            class="profile-name-input profile-email-code-input"
+            type="text"
+            placeholder="邮箱验证码"
+            value="{{emailBindingCode}}"
+            data-field="emailBindingCode"
+            disabled="{{emailBindingLoading}}"
+            confirm-type="done"
+            bindinput="onEmailBindingInput"
+          />
+          <button
+            class="account-inline-button"
+            loading="{{emailCodeLoading}}"
+            disabled="{{emailBindingLoading}}"
+            bindtap="sendEmailBindingCode"
+          >
+            获取验证码
+          </button>
+        </view>
+        <view wx:if="{{emailBindingNotice}}" class="profile-modal-notice"
+          >{{emailBindingNotice}}</view
+        >
+        <view wx:if="{{accountError}}" class="profile-modal-error"
+          >{{accountError}}</view
+        >
+        <view class="profile-modal-actions">
+          <button
+            class="account-inline-button profile-modal-action-button"
+            loading="{{emailBindingLoading}}"
+            bindtap="submitEmailBinding"
+          >
+            确定
+          </button>
+          <button
+            class="account-inline-button muted profile-modal-action-button"
+            disabled="{{emailCodeLoading || emailBindingLoading}}"
+            bindtap="closeEmailBindingModal"
+          >
+            取消
+          </button>
+        </view>
       </view>
     </view>
   </view>

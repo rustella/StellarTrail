@@ -74,6 +74,18 @@ ${ts}`;
   assert.doesNotMatch(wxml, /account-avatar-badge/);
   assert.match(wxml, /type="nickname"/);
   assert.match(wxml, /修改名称/);
+  assert.match(wxml, /绑定邮箱/);
+  assert.match(wxml, /accountProfile\.emailText/);
+  assert.match(wxml, /accountProfile\.hasEmail/);
+  assert.match(wxml, /bindtap="openEmailBindingModal"/);
+  assert.match(wxml, /bindtap="sendEmailBindingCode"/);
+  assert.match(wxml, /bindtap="submitEmailBinding"/);
+  assert.match(
+    wxml,
+    /bindtap="submitEmailBinding"[\s\S]*确定[\s\S]*bindtap="closeEmailBindingModal"[\s\S]*取消/,
+  );
+  assert.match(wxml, /data-field="emailBindingEmail"/);
+  assert.match(wxml, /data-field="emailBindingCode"/);
   assert.match(wxml, /点这里后，在下方选择“用微信昵称”/);
   assert.doesNotMatch(wxml, /导入微信名称/);
   assert.doesNotMatch(wxml, /使用自定义名称/);
@@ -87,6 +99,8 @@ ${ts}`;
   assert.doesNotMatch(wxml, /bindtap="useCustomNickname"/);
   assert.match(pageSource, /buildAccountProfile/);
   assert.match(pageSource, /getCurrentUser/);
+  assert.match(pageSource, /sendBindEmailCode/);
+  assert.match(pageSource, /bindEmailToCurrentAccount/);
   assert.doesNotMatch(pageSource, /getUserProfile/);
   assert.match(pageSource, /loginWithWechat\(\{ nickname \}\)/);
   assert.match(pageSource, /WechatNicknameSubmitEvent/);

@@ -80,6 +80,16 @@ pub struct KnotListResponse {
     pub page: PageInfo,
 }
 
+/// Complete public knot payload used by clients to pre-cache offline knot browsing content.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct KnotOfflineManifestResponse {
+    pub locale: Locale,
+    pub item_count: u32,
+    pub media_count: u32,
+    pub estimated_bytes: i64,
+    pub items: Vec<KnotDetail>,
+}
+
 /// Locale-resolved filter option for the public knot catalog.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct KnotFilterOption {

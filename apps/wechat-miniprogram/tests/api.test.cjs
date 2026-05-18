@@ -116,6 +116,27 @@ test("loginWithWechat sends provided profile without default nickname", async ()
   });
 });
 
+test("loginWithWechat reports request timeout instead of hanging", async () => {
+  installWxMock((options) => {
+    assert.equal(options.url, "https://api.example.test/api/auth/wechat-login");
+    assert.equal(options.timeout, 15000);
+    options.fail({ errMsg: "request:fail timeout" });
+  });
+  const {
+    getErrorMessage,
+    loginWithWechat,
+  } = require("../.tmp-test/utils/api.js");
+
+  await assert.rejects(
+    () => loginWithWechat(),
+    (error) => {
+      assert.equal(getErrorMessage(error), "网络请求超时，请稍后再试");
+      return true;
+    },
+  );
+  require("../.tmp-test/utils/network-state.js").initNetworkState();
+});
+
 test("uploadWechatAvatar uploads with bearer token and stores returned user", async () => {
   const storage = installWxMock(
     () => {
@@ -182,6 +203,79 @@ test("getCurrentUser refreshes stored profile from backend", async () => {
     nickname: "后端昵称",
     avatar_url: "https://assets.example.test/avatar.png",
   });
+});
+
+test("email binding sends authenticated code and stores bound email", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      method: options.method,
+      data: options.data,
+      authorization: options.header && options.header.authorization,
+    });
+    if (options.url.endsWith("/api/me/email-binding-code")) {
+      options.success({
+        statusCode: 200,
+        data: {
+          email: "bound@example.com",
+          expires_at: "2026-06-01T02:10:00Z",
+        },
+      });
+      return;
+    }
+    if (options.url.endsWith("/api/me/email-binding")) {
+      options.success({
+        statusCode: 200,
+        data: {
+          user: {
+            id: "u1",
+            nickname: "微信用户",
+            email: "bound@example.com",
+            avatar_url: null,
+          },
+        },
+      });
+      return;
+    }
+    options.success({ statusCode: 404, data: { message: "not found" } });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  const {
+    bindEmailToCurrentAccount,
+    sendBindEmailCode,
+  } = require("../.tmp-test/utils/api.js");
+
+  await sendBindEmailCode("bound@example.com");
+  const user = await bindEmailToCurrentAccount({
+    email: "bound@example.com",
+    email_verification_code: "123456",
+  });
+
+  assert.equal(user.email, "bound@example.com");
+  assert.deepEqual(storage.get("stellartrail_user"), {
+    id: "u1",
+    nickname: "微信用户",
+    email: "bound@example.com",
+    avatar_url: null,
+  });
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.example.test/api/me/email-binding-code",
+      method: "POST",
+      data: { email: "bound@example.com" },
+      authorization: "Bearer access-old",
+    },
+    {
+      url: "https://api.example.test/api/me/email-binding",
+      method: "POST",
+      data: {
+        email: "bound@example.com",
+        email_verification_code: "123456",
+      },
+      authorization: "Bearer access-old",
+    },
+  ]);
 });
 
 test("authenticated requests refresh once on 401 and retry with the new access token", async () => {
@@ -512,10 +606,7 @@ test("cacheable GET responses are reused after network failure", async () => {
   const offline = await listKnots({ offset: 0, limit: 2 });
 
   assert.deepEqual(offline, online);
-  assert.equal(
-    consumeOfflineCacheNotice(),
-    "当前离线，正在显示已缓存内容",
-  );
+  assert.equal(consumeOfflineCacheNotice(), "当前离线，正在显示已缓存内容");
 });
 
 test("cacheable GET rejects with an offline miss when no cache exists", async () => {
@@ -671,11 +762,14 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
     (options) => {
       const path = options.url.replace("https://api.example.test", "");
       requests.push(path);
-      if (path === "/api/skills/knots/list?offset=0&limit=1") {
+      if (path === "/api/skills/knots/offline-manifest") {
         options.success({
           statusCode: 200,
           data: {
             locale: "zh-CN",
+            item_count: 2,
+            media_count: 3,
+            estimated_bytes: 896,
             items: [
               {
                 id: "bowline",
@@ -692,21 +786,18 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
                     mime_type: "image/png",
                     size_bytes: 128,
                   },
+                  {
+                    id: "gif-bowline",
+                    media_type: "draw_gif",
+                    url: "/knots/bowline.gif",
+                    mime_type: "image/gif",
+                    size_bytes: 256,
+                  },
                 ],
-                href: "/skills/knots/bowline",
+                description: "绳圈详情",
+                steps: [],
+                locale: "zh-CN",
               },
-            ],
-            page: { limit: 1, offset: 0, next_offset: 1 },
-          },
-        });
-        return;
-      }
-      if (path === "/api/skills/knots/list?offset=1&limit=1") {
-        options.success({
-          statusCode: 200,
-          data: {
-            locale: "zh-CN",
-            items: [
               {
                 id: "clove",
                 slug: "clove",
@@ -714,72 +805,20 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
                 summary: "快速固定",
                 categories: [],
                 types: [],
-                media: [],
-                href: "/skills/knots/clove",
+                media: [
+                  {
+                    id: "gif-clove",
+                    media_type: "draw_gif",
+                    url: "https://cdn.example.test/knots/clove.gif",
+                    mime_type: "image/gif",
+                    size_bytes: 512,
+                  },
+                ],
+                description: "固定详情",
+                steps: [],
+                locale: "zh-CN",
               },
             ],
-            page: { limit: 1, offset: 1, next_offset: null },
-          },
-        });
-        return;
-      }
-      if (path === "/api/skills/knots/detail/bowline") {
-        options.success({
-          statusCode: 200,
-          data: {
-            id: "bowline",
-            slug: "bowline",
-            title: "布林结",
-            summary: "固定绳圈",
-            categories: [],
-            types: [],
-            media: [
-              {
-                id: "thumb-bowline",
-                media_type: "thumbnail",
-                url: "/knots/bowline-thumb.png",
-                mime_type: "image/png",
-                size_bytes: 128,
-              },
-              {
-                id: "gif-bowline",
-                media_type: "draw_gif",
-                url: "/knots/bowline.gif",
-                mime_type: "image/gif",
-                size_bytes: 256,
-              },
-            ],
-            href: "/skills/knots/bowline",
-            description: "绳圈详情",
-            steps: [],
-            locale: "zh-CN",
-          },
-        });
-        return;
-      }
-      if (path === "/api/skills/knots/detail/clove") {
-        options.success({
-          statusCode: 200,
-          data: {
-            id: "clove",
-            slug: "clove",
-            title: "丁香结",
-            summary: "快速固定",
-            categories: [],
-            types: [],
-            media: [
-              {
-                id: "gif-clove",
-                media_type: "draw_gif",
-                url: "https://cdn.example.test/knots/clove.gif",
-                mime_type: "image/gif",
-                size_bytes: 512,
-              },
-            ],
-            href: "/skills/knots/clove",
-            description: "固定详情",
-            steps: [],
-            locale: "zh-CN",
           },
         });
         return;
@@ -814,16 +853,12 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
     onProgress: (item) => progress.push(item.phase),
   });
 
-  assert.deepEqual(requests, [
-    "/api/skills/knots/list?offset=0&limit=1",
-    "/api/skills/knots/list?offset=1&limit=1",
-    "/api/skills/knots/detail/bowline",
-    "/api/skills/knots/detail/clove",
-  ]);
+  assert.deepEqual(requests, ["/api/skills/knots/offline-manifest"]);
   assert.equal(result.items.length, 2);
   assert.equal(result.detailCount, 2);
   assert.equal(result.mediaReadyCount, 3);
   assert.equal(result.mediaTotal, 3);
+  assert.equal(result.estimatedBytes, 896);
   assert.equal(result.failedDetailCount, 0);
   assert.equal(result.failedMediaCount, 0);
   assert.deepEqual(downloads, [
@@ -831,12 +866,90 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
     "https://assets.example.test/knots/bowline.gif",
     "https://cdn.example.test/knots/clove.gif",
   ]);
-  assert.deepEqual(progress.slice(0, 2), ["list", "list"]);
+  assert.deepEqual(progress.slice(0, 2), ["list", "media"]);
   assert.equal(hasOfflineCacheStorage(storage), true);
+  assert.ok(
+    offlineCacheKeys(storage).includes(
+      "/api/skills/knots/list?offset=0&limit=1|zh-CN|",
+    ),
+  );
+  assert.ok(
+    offlineCacheKeys(storage).includes(
+      "/api/skills/knots/detail/bowline|zh-CN|",
+    ),
+  );
+});
+
+test("prepareAllKnotsOfflineCache only reads the manifest before confirmation", async () => {
+  const requests = [];
+  const downloads = [];
+  const storage = installWxMock(
+    (options) => {
+      const path = options.url.replace("https://api.example.test", "");
+      requests.push(path);
+      assert.equal(path, "/api/skills/knots/offline-manifest");
+      options.success({
+        statusCode: 200,
+        data: {
+          locale: "zh-CN",
+          item_count: 1,
+          media_count: 1,
+          estimated_bytes: 128,
+          items: [
+            {
+              id: "bowline",
+              slug: "bowline",
+              title: "布林结",
+              summary: "固定绳圈",
+              categories: [],
+              types: [],
+              media: [
+                {
+                  id: "thumb-bowline",
+                  media_type: "thumbnail",
+                  url: "/knots/bowline-thumb.png",
+                  mime_type: "image/png",
+                  size_bytes: 128,
+                },
+              ],
+              description: "绳圈详情",
+              steps: [],
+              locale: "zh-CN",
+            },
+          ],
+        },
+      });
+    },
+    undefined,
+    {
+      downloadFile(options) {
+        downloads.push(options.url);
+      },
+    },
+  );
+  const {
+    prepareAllKnotsOfflineCache,
+  } = require("../.tmp-test/utils/knot-offline-cache.js");
+  require("../.tmp-test/utils/network-state.js").initNetworkState();
+
+  const plan = await prepareAllKnotsOfflineCache({ pageSize: 1 });
+
+  assert.deepEqual(requests, ["/api/skills/knots/offline-manifest"]);
+  assert.equal(plan.items.length, 1);
+  assert.equal(plan.estimatedBytes, 128);
+  assert.deepEqual(downloads, []);
+  assert.equal(hasOfflineCacheStorage(storage), false);
 });
 
 function hasOfflineCacheStorage(storage) {
   return [...storage.keys()].some((key) =>
     String(key).startsWith("stellartrail_offline_cache_v1:"),
   );
+}
+
+function offlineCacheKeys(storage) {
+  return [...storage.entries()]
+    .filter(([key]) => String(key).startsWith("stellartrail_offline_cache_v1:"))
+    .map(([, value]) => value && value.key)
+    .filter(Boolean);
 }

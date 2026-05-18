@@ -103,6 +103,24 @@
   line-height: 1.5;
 }
 
+.account-email-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-top: 10rpx;
+  gap: 12rpx;
+}
+
+.account-email-text {
+  min-width: 0;
+  color: var(--heading-muted-color);
+  font-size: 23rpx;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .account-error {
   margin-top: 8rpx;
   color: var(--status-danger-text);
@@ -158,7 +176,18 @@
   font-weight: 900;
 }
 
+.profile-modal-desc {
+  margin-top: 10rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
 .profile-name-form {
+  margin-top: 24rpx;
+}
+
+.profile-email-form {
   margin-top: 24rpx;
 }
 
@@ -175,6 +204,25 @@
   box-sizing: border-box;
 }
 
+.profile-email-code-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.profile-email-code-input {
+  min-width: 0;
+  flex: 1;
+}
+
+.profile-modal-notice {
+  margin-top: 14rpx;
+  color: var(--status-success-text);
+  font-size: 23rpx;
+  line-height: 1.4;
+}
+
 .profile-modal-error {
   margin-top: 14rpx;
   color: var(--status-danger-text);
@@ -185,8 +233,15 @@
 .profile-modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 14rpx;
+  gap: 18rpx;
   margin-top: 24rpx;
+}
+
+.profile-modal-action-button {
+  min-width: 112rpx;
+  padding: 0 28rpx;
+  font-size: 25rpx;
+  line-height: 64rpx;
 }
 
 .profile-modal-footer {

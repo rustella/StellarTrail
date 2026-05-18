@@ -136,6 +136,49 @@ fn technical_seed() -> KnotSeed {
     }
 }
 
+async fn insert_uploaded_media(
+    db: &sea_orm::DatabaseConnection,
+    media_id: &str,
+    knot_id: &str,
+    asset_id: &str,
+    media_type: &str,
+    public_url: &str,
+    size_bytes: i64,
+) {
+    db.execute(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        r#"INSERT INTO media_resources (
+            id, provider, storage_profile, bucket, object_key, public_base_url, public_url,
+            mime_type, extension, size_bytes, sha256_hex, etag, width, height, duration_ms,
+            status, source_name, source_path, uploaded_by_user_id, created_at, updated_at
+        ) VALUES (?, 'minio', 'knots-public', 'stellartrail-knots-media', ?, 'https://media.example.test', ?, 'image/webp', 'webp', ?, ?, NULL, 320, 180, NULL, 'active', 'unit-test', 'relative/source.webp', NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"#,
+        vec![
+            media_id.to_owned().into(),
+            format!("skills/knots/{knot_id}/{asset_id}/{media_id}.webp").into(),
+            public_url.to_owned().into(),
+            size_bytes.into(),
+            format!("sha-{media_id}").into(),
+        ],
+    ))
+    .await
+    .expect("insert media resource");
+    db.execute(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        r#"INSERT INTO knot_media_resources (
+            knot_id, asset_id, media_type, media_resource_id, sort_order, attribution, license_note,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 0, 'Knots3D', 'authorization required', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"#,
+        vec![
+            knot_id.to_owned().into(),
+            asset_id.to_owned().into(),
+            media_type.to_owned().into(),
+            media_id.to_owned().into(),
+        ],
+    ))
+    .await
+    .expect("insert knot media resource");
+}
+
 #[tokio::test]
 async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offset() {
     let config = DatabaseConfig::new(temp_db_url("repo")).expect("db config");
@@ -203,6 +246,88 @@ async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offs
     );
     assert_eq!(detail.media[0].size_bytes, 12345);
     assert_eq!(detail.media[0].id, "thumbnail");
+}
+
+#[tokio::test]
+async fn repository_builds_offline_manifest_with_fallback_locale_and_deduped_media() {
+    let config = DatabaseConfig::new(temp_db_url("offline-manifest")).expect("db config");
+    let db = connect_database(&config).await.expect("connect");
+    Migrator::up(&db, None).await.expect("migrate");
+    let repo = KnotRepository::new(db.clone());
+    repo.replace_all_knots("unit-test", &[seed(), technical_seed()])
+        .await
+        .expect("seed");
+
+    db.execute(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        "DELETE FROM knot_localizations WHERE knot_id = ? AND locale = ?",
+        vec![
+            "figure-eight-knot".to_owned().into(),
+            Locale::ZhCn.as_str().to_owned().into(),
+        ],
+    ))
+    .await
+    .expect("delete zh localization");
+
+    insert_uploaded_media(
+        &db,
+        "media-thumb",
+        "adjustable-grip-hitch-knot",
+        "thumbnail",
+        "thumbnail",
+        "https://media.example.test/knots/shared.webp",
+        111,
+    )
+    .await;
+    insert_uploaded_media(
+        &db,
+        "media-preview",
+        "adjustable-grip-hitch-knot",
+        "preview",
+        "preview",
+        "https://media.example.test/knots/shared.webp",
+        111,
+    )
+    .await;
+    insert_uploaded_media(
+        &db,
+        "media-draw-gif",
+        "adjustable-grip-hitch-knot",
+        "draw_gif",
+        "draw_gif",
+        "https://media.example.test/knots/draw.gif",
+        222,
+    )
+    .await;
+
+    let manifest = repo
+        .offline_manifest(Locale::ZhCn)
+        .await
+        .expect("offline manifest");
+
+    assert_eq!(manifest.locale, Locale::ZhCn);
+    assert_eq!(manifest.item_count, 2);
+    assert_eq!(manifest.media_count, 2);
+    assert_eq!(manifest.estimated_bytes, 333);
+    let adjustable = manifest
+        .items
+        .iter()
+        .find(|item| item.id == "adjustable-grip-hitch-knot")
+        .expect("adjustable knot");
+    assert_eq!(adjustable.title, "可调节绳结");
+    assert_eq!(adjustable.categories[0].title, "露营");
+    assert_eq!(adjustable.types[0].title, "套结");
+    assert_eq!(adjustable.media[0].id, "thumbnail");
+    assert_eq!(adjustable.media[1].id, "preview");
+    assert_eq!(adjustable.media[2].id, "draw_gif");
+
+    let fallback = manifest
+        .items
+        .iter()
+        .find(|item| item.id == "figure-eight-knot")
+        .expect("fallback knot");
+    assert_eq!(fallback.title, "Figure Eight Knot");
+    assert_eq!(fallback.locale, Locale::ZhCn);
 }
 
 #[tokio::test]

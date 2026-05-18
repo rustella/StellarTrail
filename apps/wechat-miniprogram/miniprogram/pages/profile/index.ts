@@ -1,4 +1,5 @@
 import {
+  bindEmailToCurrentAccount,
   clearLoginState,
   getCurrentUser,
   getErrorMessage,
@@ -7,6 +8,7 @@ import {
   isLoginRequiredError,
   isNotFoundApiError,
   loginWithWechat,
+  sendBindEmailCode,
   uploadWechatAvatar,
 } from "../../utils/api";
 import { loginPageUrl } from "../../utils/auth-prompt";
@@ -31,6 +33,12 @@ Page({
     nicknameModalVisible: false,
     nicknameLoading: false,
     nicknameReviewBlocked: false,
+    emailBindingModalVisible: false,
+    emailBindingEmail: "",
+    emailBindingCode: "",
+    emailBindingNotice: "",
+    emailCodeLoading: false,
+    emailBindingLoading: false,
     ...getThemeViewData(),
   },
 
@@ -138,6 +146,123 @@ Page({
     });
   },
 
+  openEmailBindingModal() {
+    if (
+      !this.data.loggedIn ||
+      this.data.emailBindingLoading ||
+      this.data.accountProfile.hasEmail
+    ) {
+      return;
+    }
+    this.setData({
+      emailBindingModalVisible: true,
+      emailBindingEmail: "",
+      emailBindingCode: "",
+      emailBindingNotice: "",
+      accountError: "",
+    });
+  },
+
+  closeEmailBindingModal() {
+    if (this.data.emailCodeLoading || this.data.emailBindingLoading) {
+      return;
+    }
+    this.setData({
+      emailBindingModalVisible: false,
+      emailBindingEmail: "",
+      emailBindingCode: "",
+      emailBindingNotice: "",
+      accountError: "",
+    });
+  },
+
+  onEmailBindingInput(event: WechatMiniprogram.Input) {
+    const field = event.currentTarget.dataset.field as
+      | "emailBindingEmail"
+      | "emailBindingCode"
+      | undefined;
+    if (!field) {
+      return;
+    }
+    this.setData({ [field]: event.detail.value, accountError: "" });
+  },
+
+  async sendEmailBindingCode() {
+    if (this.data.emailCodeLoading) {
+      return;
+    }
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
+    const email = this.data.emailBindingEmail.trim();
+    if (!isEmailLike(email)) {
+      this.setData({ accountError: "请填写可用邮箱", emailBindingNotice: "" });
+      return;
+    }
+    this.setData({
+      emailCodeLoading: true,
+      accountError: "",
+      emailBindingNotice: "",
+    });
+    try {
+      await sendBindEmailCode(email);
+      this.setData({ emailBindingNotice: "验证码已发送，请查看邮箱" });
+    } catch (error) {
+      this.handleAccountAuthError(error);
+    } finally {
+      this.setData({ emailCodeLoading: false });
+    }
+  },
+
+  async submitEmailBinding() {
+    if (this.data.emailBindingLoading) {
+      return;
+    }
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
+    const email = this.data.emailBindingEmail.trim();
+    const emailCode = this.data.emailBindingCode.trim();
+    if (!isEmailLike(email)) {
+      this.setData({ accountError: "请填写可用邮箱", emailBindingNotice: "" });
+      return;
+    }
+    if (!emailCode) {
+      this.setData({
+        accountError: "请填写邮箱验证码",
+        emailBindingNotice: "",
+      });
+      return;
+    }
+    this.setData({
+      emailBindingLoading: true,
+      accountError: "",
+      emailBindingNotice: "",
+    });
+    try {
+      await bindEmailToCurrentAccount({
+        email,
+        email_verification_code: emailCode,
+      });
+      this.setData({
+        loggedIn: hasAccessToken(),
+        accountProfile: buildAccountProfile(true),
+        emailBindingModalVisible: false,
+        emailBindingEmail: "",
+        emailBindingCode: "",
+        emailBindingNotice: "",
+        accountError: "",
+      });
+      wx.showToast({ title: "邮箱已绑定", icon: "success" });
+    } catch (error) {
+      this.handleAccountAuthError(error);
+    } finally {
+      this.setData({ emailBindingLoading: false });
+    }
+  },
+
   async saveNicknameValue(nickname: string) {
     if (isOffline()) {
       showOfflineWriteBlockedToast();
@@ -157,15 +282,7 @@ Page({
       wx.showToast({ title: "名称已更新", icon: "success" });
     } catch (error) {
       if (isLoginRequiredError(error)) {
-        this.setData({
-          loggedIn: false,
-          accountProfile: buildAccountProfile(false),
-          nicknameModalVisible: false,
-          nicknameDraft: "",
-          nicknameReviewBlocked: false,
-          accountError: "",
-        });
-        wx.showToast({ title: "请重新登录", icon: "none" });
+        this.resetLoggedOutAccountState();
         return;
       }
       this.setData({ accountError: getErrorMessage(error) });
@@ -200,12 +317,7 @@ Page({
       wx.showToast({ title: "头像已更新", icon: "success" });
     } catch (error) {
       if (isLoginRequiredError(error)) {
-        this.setData({
-          loggedIn: false,
-          accountProfile: buildAccountProfile(false),
-          accountError: "",
-        });
-        wx.showToast({ title: "请重新登录", icon: "none" });
+        this.resetLoggedOutAccountState();
         return;
       }
       if (isNotFoundApiError(error)) {
@@ -244,6 +356,30 @@ Page({
   toggleTheme() {
     togglePageTheme(this);
   },
+
+  resetLoggedOutAccountState() {
+    this.setData({
+      loggedIn: false,
+      accountProfile: buildAccountProfile(false),
+      nicknameModalVisible: false,
+      nicknameDraft: "",
+      nicknameReviewBlocked: false,
+      emailBindingModalVisible: false,
+      emailBindingEmail: "",
+      emailBindingCode: "",
+      emailBindingNotice: "",
+      accountError: "",
+    });
+    wx.showToast({ title: "请重新登录", icon: "none" });
+  },
+
+  handleAccountAuthError(error: unknown) {
+    if (isLoginRequiredError(error)) {
+      this.resetLoggedOutAccountState();
+      return;
+    }
+    this.setData({ accountError: getErrorMessage(error) });
+  },
 });
 
 interface WechatNicknameSubmitEvent {
@@ -266,6 +402,9 @@ function buildAccountProfile(loggedIn: boolean): {
   avatarUrl: string;
   avatarInitial: string;
   hasNickname: boolean;
+  email: string;
+  emailText: string;
+  hasEmail: boolean;
 } {
   const user = getStoredUser();
   if (!loggedIn) {
@@ -274,6 +413,9 @@ function buildAccountProfile(loggedIn: boolean): {
       avatarUrl: "",
       avatarInitial: "",
       hasNickname: false,
+      email: "",
+      emailText: "",
+      hasEmail: false,
     };
   }
   if (!user) {
@@ -282,15 +424,22 @@ function buildAccountProfile(loggedIn: boolean): {
       avatarUrl: "",
       avatarInitial: "微",
       hasNickname: false,
+      email: "",
+      emailText: "还没有绑定邮箱",
+      hasEmail: false,
     };
   }
   const nickname = normalizeProfileNickname(user.nickname);
   const displayName = nickname || user.username || user.email || "微信用户";
+  const email = user.email?.trim() ?? "";
   return {
     displayName,
     avatarUrl: user.avatar_url || "",
     avatarInitial: displayName.trim().slice(0, 1) || "微",
     hasNickname: Boolean(nickname),
+    email,
+    emailText: email ? `已绑定 ${email}` : "还没有绑定邮箱",
+    hasEmail: Boolean(email),
   };
 }
 
@@ -298,4 +447,8 @@ function normalizeProfileNickname(value?: string | null): string {
   const nickname = value?.trim() ?? "";
   const defaultNames = ["寻径星野用户", "微信用户", "WeChat User"];
   return nickname && !defaultNames.includes(nickname) ? nickname : "";
+}
+
+function isEmailLike(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

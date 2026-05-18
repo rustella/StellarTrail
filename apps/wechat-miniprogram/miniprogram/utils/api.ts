@@ -22,6 +22,7 @@ import type {
 import type {
   KnotDetail,
   KnotListResponse,
+  KnotOfflineManifestResponse,
   ListKnotsRequest,
   ListSkillsResponse,
   SkillLocale,
@@ -57,6 +58,8 @@ const USER_STORAGE_KEY = "stellartrail_user";
 const API_BASE_URL_STORAGE_KEY = "stellartrail_api_base_url";
 const DEFAULT_API_BASE_URL = "https://api.example.invalid";
 const DEFAULT_ASSETS_BASE_URL = "https://assets.example.invalid";
+const API_REQUEST_TIMEOUT_MS = 15_000;
+const WECHAT_LOGIN_TIMEOUT_MS = 5_000;
 
 let loginPromise: Promise<string> | null = null;
 let refreshPromise: Promise<string> | null = null;
@@ -66,6 +69,7 @@ interface ApiRequestOptions {
   data?: unknown;
   auth?: boolean;
   locale?: SkillLocale;
+  cache?: boolean;
 }
 
 export interface WechatLoginProfile {
@@ -110,6 +114,19 @@ export interface PasswordResetRequest {
   email_verification_code: string;
   password: string;
   confirm_password: string;
+}
+
+export interface BindEmailCodeRequest {
+  email: string;
+}
+
+export interface BindEmailRequest {
+  email: string;
+  email_verification_code: string;
+}
+
+interface BindEmailResponse {
+  user: WechatLoginResponse["user"];
 }
 
 export interface RegisterRequest {
@@ -285,6 +302,31 @@ export async function getCurrentUser(): Promise<WechatLoginResponse["user"]> {
   const response = await requestJson<ProfileUserResponse>("/api/me/profile", {
     auth: true,
   });
+  saveUser(response.user);
+  return response.user;
+}
+
+export function sendBindEmailCode(
+  email: string,
+): Promise<EmailVerificationCodeResponse> {
+  return requestJson("/api/me/email-binding-code", {
+    method: "POST",
+    auth: true,
+    data: { email } satisfies BindEmailCodeRequest,
+  });
+}
+
+export async function bindEmailToCurrentAccount(
+  request: BindEmailRequest,
+): Promise<WechatLoginResponse["user"]> {
+  const response = await requestJson<BindEmailResponse>(
+    "/api/me/email-binding",
+    {
+      method: "POST",
+      auth: true,
+      data: request,
+    },
+  );
   saveUser(response.user);
   return response.user;
 }
@@ -599,7 +641,7 @@ export async function listKnots(
   request: ListKnotsRequest = {},
   locale: SkillLocale = "zh-CN",
 ): Promise<KnotListResponse> {
-  return requestJson(`/api/skills/knots/list${queryString(request)}`, {
+  return requestJson(knotListPath(request), {
     locale,
   });
 }
@@ -608,9 +650,24 @@ export async function getKnotDetail(
   id: string,
   locale: SkillLocale = "zh-CN",
 ): Promise<KnotDetail> {
-  return requestJson(`/api/skills/knots/detail/${encodeURIComponent(id)}`, {
+  return requestJson(knotDetailPath(id), { locale });
+}
+
+export async function getKnotOfflineManifest(
+  locale: SkillLocale = "zh-CN",
+): Promise<KnotOfflineManifestResponse> {
+  return requestJson("/api/skills/knots/offline-manifest", {
     locale,
+    cache: false,
   });
+}
+
+export function knotListPath(request: ListKnotsRequest = {}): string {
+  return `/api/skills/knots/list${queryString(request)}`;
+}
+
+export function knotDetailPath(id: string): string {
+  return `/api/skills/knots/detail/${encodeURIComponent(id)}`;
 }
 
 export function getErrorMessage(error: unknown): string {
@@ -658,6 +715,7 @@ async function requestJson<T>(
       method: method as any,
       data: options.data as any,
       header,
+      timeout: API_REQUEST_TIMEOUT_MS,
       success: (response) => {
         if (response.statusCode >= 200 && response.statusCode < 300) {
           if (cacheDescriptor) {
@@ -695,7 +753,7 @@ async function requestJson<T>(
         }
         reject(new ApiResponseError(response.statusCode, response.data));
       },
-      fail: () => {
+      fail: (error) => {
         markNetworkFailure();
         if (cacheDescriptor) {
           const cached = readOfflineCache<T>(cacheDescriptor);
@@ -704,6 +762,10 @@ async function requestJson<T>(
             resolve(cached.data);
             return;
           }
+        }
+        if (method !== "GET") {
+          reject(new Error(requestFailureMessage(error.errMsg)));
+          return;
         }
         reject(new OfflineCacheMissError());
       },
@@ -715,6 +777,9 @@ function offlineCacheDescriptor(
   path: string,
   options: ApiRequestOptions,
 ): OfflineCacheDescriptor | null {
+  if (options.cache === false) {
+    return null;
+  }
   if ((options.method ?? "GET") !== "GET") {
     return null;
   }
@@ -887,15 +952,35 @@ function shouldRefreshAccessToken(): boolean {
 
 function getWechatLoginCode(): Promise<string> {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (code: string) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      resolve(code);
+    };
+    const timer = setTimeout(() => {
+      finish("local-dev-user");
+    }, WECHAT_LOGIN_TIMEOUT_MS);
+
     wx.login({
       success: (result) => {
-        resolve(result.code || "local-dev-user");
+        finish(result.code || "local-dev-user");
       },
       fail: () => {
-        resolve("local-dev-user");
+        finish("local-dev-user");
       },
     });
   });
+}
+
+function requestFailureMessage(errMsg?: string): string {
+  if (errMsg && /timeout/i.test(errMsg)) {
+    return "网络请求超时，请稍后再试";
+  }
+  return "网络请求失败，请检查网络后重试";
 }
 
 function queryString(params: object): string {
