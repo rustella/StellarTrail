@@ -400,6 +400,56 @@ GET /api/admin/api-usage?from=2026-05-01&to=2026-05-18&method=GET&route=/api/me/
 
 该接口需要 Bearer Token，且当前用户必须拥有数据库 `admin_roles` 中的 `admin` 或 `super_admin` 角色。它只返回按日期、用户、HTTP 方法、路由模板和状态码聚合后的计数，不返回单次请求日志。
 
+## Admin feedback
+
+```http
+GET /api/admin/feedback?status=open&limit=50&cursor=0
+Authorization: Bearer <admin-token>
+```
+
+该接口需要 Bearer Token，且当前用户必须拥有数据库 `admin_roles` 中的 `admin` 或 `super_admin` 角色。返回用户提交的反馈内容、联系方式、页面、客户端环境、提交用户概要和已关联图片元数据。反馈图片仍是私有资源；管理员下载图片时使用返回的 `download_url` 并携带管理员 Bearer Token。
+
+```json
+{
+  "items": [
+    {
+      "id": "feedback-uuid",
+      "user": {
+        "id": "user-uuid",
+        "username": "trail_user",
+        "email": "trail@example.com",
+        "nickname": "寻径用户",
+        "avatar_url": null
+      },
+      "category": "bug",
+      "content": "装备详情页图片没有显示",
+      "contact": "feedback@example.test",
+      "page": "/pages/gears/detail/index?id=gear-1",
+      "client_platform": "wechat_miniprogram",
+      "client_version": "0.1.0",
+      "device_model": "iPhone 15",
+      "status": "open",
+      "images": [
+        {
+          "id": "upload-uuid",
+          "purpose": "feedback",
+          "original_filename": "screen.png",
+          "image_type": "png",
+          "content_type": "image/png",
+          "size_bytes": 1024,
+          "sha256": "hex",
+          "download_url": "/api/admin/feedback-images/upload-uuid",
+          "created_at": "2026-05-19T00:00:00Z"
+        }
+      ],
+      "created_at": "2026-05-19T00:00:00Z",
+      "updated_at": "2026-05-19T00:00:00Z"
+    }
+  ],
+  "next_cursor": null
+}
+```
+
 ## Admin role management
 
 管理员角色存储在 `admin_roles` 表，角色值为 `admin` 或 `super_admin`。迁移只会把数据库中已存在且未删除的 `username = 'stellarisw'` 用户写入或升级为 `super_admin`；如果该用户不存在，迁移不会创建用户或预留用户名。`admin` 与 `super_admin` 都能访问管理员能力，只有 `super_admin` 可以授予或移除普通 `admin`。

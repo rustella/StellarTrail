@@ -18,7 +18,10 @@ pub use api_usage_repository::{
     ApiUsageIncrement, ApiUsageQuery, ApiUsageRecord, ApiUsageRepository,
 };
 pub use auth_repository::{AuthRepository, UserRecord, hash_token};
-pub use feedback_repository::{FeedbackRecord, FeedbackRepository};
+pub use feedback_repository::{
+    AdminFeedbackRecord, FeedbackAuthorRecord, FeedbackRecord, FeedbackRepository,
+    ListAdminFeedbackOptions,
+};
 pub use gear_atlas_repository::{
     GearAtlasRepository, ListGearAtlasAdminOptions, ListGearAtlasOptions,
 };

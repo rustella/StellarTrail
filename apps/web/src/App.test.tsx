@@ -258,6 +258,44 @@ function buildClient(): WebGearApi {
       failed_count: 0,
       errors: [],
     }),
+    listAdminFeedback: vi.fn().mockResolvedValue({
+      next_cursor: null,
+      items: [
+        {
+          id: "feedback-1",
+          user: {
+            id: "u-feedback",
+            username: "trail_user",
+            email: "trail@example.test",
+            nickname: "寻径用户",
+            avatar_url: null,
+          },
+          category: "bug",
+          content: "装备详情页图片没有显示",
+          contact: "trail@example.test",
+          page: "/pages/gears/detail/index?id=gear-1",
+          client_platform: "wechat_miniprogram",
+          client_version: "0.1.0",
+          device_model: "iPhone 15",
+          status: "open",
+          images: [
+            {
+              id: "upload-1",
+              purpose: "feedback",
+              original_filename: "screen.png",
+              image_type: "png",
+              content_type: "image/png",
+              size_bytes: 67,
+              sha256: "hash",
+              download_url: "/api/admin/feedback-images/upload-1",
+              created_at: "2026-01-23T00:00:00Z",
+            },
+          ],
+          created_at: "2026-01-23T00:00:00Z",
+          updated_at: "2026-01-23T00:00:00Z",
+        },
+      ],
+    }),
     listAdminGearAtlasSubmissions: vi.fn().mockResolvedValue({
       next_cursor: null,
       items: [
@@ -532,6 +570,39 @@ describe("App", () => {
     });
   });
 
+  it("opens the admin feedback page from the collapsed administrator group", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    );
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "反馈信息" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "反馈信息" }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/admin/feedback");
+    expect(
+      await screen.findByText("装备详情页图片没有显示"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("screen.png")).toBeInTheDocument();
+    expect(client.listAdminFeedback).toHaveBeenCalledWith({
+      status: "open",
+      limit: 50,
+    });
+  });
+
   it("opens the admin review queue directly from the /admin URL", async () => {
     window.history.replaceState(null, "", "/admin");
     const client = buildClient();
@@ -547,12 +618,43 @@ describe("App", () => {
     });
     expect(
       within(adminNavigation).getByRole("button", { name: "管理员后台" }),
-    ).toHaveAttribute("aria-expanded", "false");
+    ).toHaveAttribute("aria-expanded", "true");
     expect(
-      within(adminNavigation).queryByRole("button", { name: "装备图鉴审核" }),
-    ).not.toBeInTheDocument();
+      within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(adminNavigation).getByRole("button", { name: "反馈信息" }),
+    ).toBeInTheDocument();
     expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
       status: "pending",
+      limit: 50,
+    });
+  });
+
+  it("opens the feedback page directly from the /admin/feedback URL with expanded admin nav", async () => {
+    window.history.replaceState(null, "", "/admin/feedback");
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "反馈信息" }),
+    ).toBeInTheDocument();
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    expect(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(adminNavigation).getByRole("button", { name: "反馈信息" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
+    ).toBeInTheDocument();
+    expect(client.listAdminFeedback).toHaveBeenCalledWith({
+      status: "open",
       limit: 50,
     });
   });

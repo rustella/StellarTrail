@@ -20,6 +20,13 @@ pub struct UploadImageResponse {
 impl From<&UploadImageRecord> for UploadImageResponse {
     /// Converts persisted upload metadata to a current-user API response.
     fn from(record: &UploadImageRecord) -> Self {
+        Self::from_record_with_download_url(record, format!("/api/me/uploads/{}", record.id))
+    }
+}
+
+impl UploadImageResponse {
+    /// Converts persisted upload metadata with an explicit authenticated download URL.
+    pub fn from_record_with_download_url(record: &UploadImageRecord, download_url: String) -> Self {
         Self {
             id: record.id.clone(),
             purpose: record.purpose.clone(),
@@ -28,7 +35,7 @@ impl From<&UploadImageRecord> for UploadImageResponse {
             content_type: record.content_type.clone(),
             size_bytes: record.size_bytes,
             sha256: record.sha256.clone(),
-            download_url: format!("/api/me/uploads/{}", record.id),
+            download_url,
             created_at: record.created_at.clone(),
         }
     }

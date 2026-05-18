@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  AdminFeedbackItem,
   CreateGearRequest,
   GearCategory,
   GearCategoryFilter,
@@ -46,7 +47,8 @@ type ViewMode = "table" | "cards";
 type ThemeMode = "light" | "dark";
 type FormMode = "create" | "edit";
 type AuthMode = "wechat" | "password" | "email" | "reset" | "register";
-type ActivePage = "gear" | "atlasReview" | "knots";
+type ActivePage = "gear" | "atlasReview" | "adminFeedback" | "knots";
+type FeedbackStatusFilter = "" | "open";
 
 interface PasswordLoginState {
   account: string;
@@ -190,7 +192,9 @@ export default function App({ client }: AppProps) {
     activePageFromPath(window.location.pathname),
   );
   const [outdoorSkillsOpen, setOutdoorSkillsOpen] = useState(true);
-  const [adminNavOpen, setAdminNavOpen] = useState(false);
+  const [adminNavOpen, setAdminNavOpen] = useState(() =>
+    isAdminPage(activePageFromPath(window.location.pathname)),
+  );
   const [passwordLogin, setPasswordLogin] =
     useState<PasswordLoginState>(emptyPasswordLogin);
   const [registerForm, setRegisterForm] =
@@ -225,6 +229,11 @@ export default function App({ client }: AppProps) {
   );
   const [atlasLoading, setAtlasLoading] = useState(false);
   const [atlasError, setAtlasError] = useState<string | null>(null);
+  const [feedbackStatus, setFeedbackStatus] =
+    useState<FeedbackStatusFilter>("open");
+  const [adminFeedback, setAdminFeedback] = useState<AdminFeedbackItem[]>([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dashboardRequestRef = useRef(0);
 
@@ -248,7 +257,11 @@ export default function App({ client }: AppProps) {
 
   useEffect(() => {
     const handlePopState = () => {
-      setActivePage(activePageFromPath(window.location.pathname));
+      const nextPage = activePageFromPath(window.location.pathname);
+      setActivePage(nextPage);
+      if (isAdminPage(nextPage)) {
+        setAdminNavOpen(true);
+      }
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -342,6 +355,30 @@ export default function App({ client }: AppProps) {
   useEffect(() => {
     void loadAtlasSubmissions();
   }, [loadAtlasSubmissions]);
+
+  const loadAdminFeedback = useCallback(async () => {
+    if (!session || activePage !== "adminFeedback") {
+      return;
+    }
+    setFeedbackLoading(true);
+    setFeedbackError(null);
+    try {
+      const response = await api.listAdminFeedback({
+        status: feedbackStatus || undefined,
+        limit: 50,
+      });
+      setAdminFeedback(response.items);
+    } catch (err) {
+      setAdminFeedback([]);
+      setFeedbackError(errorMessage(err));
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }, [activePage, api, feedbackStatus, session]);
+
+  useEffect(() => {
+    void loadAdminFeedback();
+  }, [loadAdminFeedback]);
 
   function resetDashboardState() {
     dashboardRequestRef.current += 1;
@@ -1265,7 +1302,9 @@ export default function App({ client }: AppProps) {
           <div
             className="nav-group"
             data-active-parent={
-              activePage === "atlasReview" ? "true" : undefined
+              activePage === "atlasReview" || activePage === "adminFeedback"
+                ? "true"
+                : undefined
             }
           >
             <button
@@ -1292,6 +1331,20 @@ export default function App({ client }: AppProps) {
                   onClick={() => navigateToPage("atlasReview")}
                 >
                   装备图鉴审核
+                </button>
+                <button
+                  type="button"
+                  className={
+                    activePage === "adminFeedback"
+                      ? "nav-child active"
+                      : "nav-child"
+                  }
+                  aria-current={
+                    activePage === "adminFeedback" ? "page" : undefined
+                  }
+                  onClick={() => navigateToPage("adminFeedback")}
+                >
+                  反馈信息
                 </button>
               </div>
             ) : null}
@@ -1503,6 +1556,17 @@ export default function App({ client }: AppProps) {
             onOpen={openAtlasSubmission}
             onApprove={approveAtlasSubmission}
             onReject={rejectAtlasSubmission}
+          />
+        </main>
+      ) : activePage === "adminFeedback" ? (
+        <main className="dashboard" id="admin-feedback">
+          <AdminFeedbackPage
+            items={adminFeedback}
+            status={feedbackStatus}
+            loading={feedbackLoading}
+            error={feedbackError}
+            onStatusChange={setFeedbackStatus}
+            onRefresh={() => void loadAdminFeedback()}
           />
         </main>
       ) : (
@@ -1724,6 +1788,126 @@ function AtlasReviewPage({
           )}
         </section>
       </div>
+    </section>
+  );
+}
+
+function AdminFeedbackPage({
+  items,
+  status,
+  loading,
+  error,
+  onStatusChange,
+  onRefresh,
+}: {
+  items: AdminFeedbackItem[];
+  status: FeedbackStatusFilter;
+  loading: boolean;
+  error: string | null;
+  onStatusChange(status: FeedbackStatusFilter): void;
+  onRefresh(): void;
+}) {
+  return (
+    <section className="admin-feedback-page">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">Admin Feedback</p>
+          <h1>反馈信息</h1>
+          <p className="muted">
+            查看用户提交的问题、建议、联系方式和客户端环境信息。
+          </p>
+        </div>
+        <div className="toolbar">
+          <select
+            aria-label="反馈状态"
+            value={status}
+            onChange={(event) =>
+              onStatusChange(event.target.value as FeedbackStatusFilter)
+            }
+          >
+            <option value="open">待处理</option>
+            <option value="">全部状态</option>
+          </select>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onRefresh}
+            disabled={loading}
+          >
+            刷新
+          </button>
+        </div>
+      </header>
+
+      {error ? (
+        <div className="notice" role="status">
+          {error.includes("403") ? "当前账号没有反馈查看权限。" : error}
+        </div>
+      ) : null}
+
+      <section className="content-card admin-feedback-list" aria-busy={loading}>
+        {loading ? <p className="muted">正在加载反馈...</p> : null}
+        {!loading && items.length === 0 ? (
+          <div className="empty-state compact">
+            <h2>暂无反馈</h2>
+            <p>当前筛选条件下还没有用户反馈。</p>
+          </div>
+        ) : null}
+        {items.map((item) => (
+          <article className="admin-feedback-card" key={item.id}>
+            <div className="admin-feedback-head">
+              <div>
+                <span className="category-text">
+                  {feedbackCategoryLabel(item.category)}
+                </span>
+                <h2>{item.content}</h2>
+                <p className="muted">
+                  {feedbackUserName(item.user)} · {formatDate(item.created_at)}
+                </p>
+              </div>
+              <span className="status-pill status-feedback-open">
+                {feedbackStatusLabel(item.status)}
+              </span>
+            </div>
+            <dl className="admin-feedback-meta">
+              <div>
+                <dt>联系方式</dt>
+                <dd>{item.contact || "—"}</dd>
+              </div>
+              <div>
+                <dt>页面</dt>
+                <dd>{item.page || "—"}</dd>
+              </div>
+              <div>
+                <dt>客户端</dt>
+                <dd>
+                  {[item.client_platform, item.client_version]
+                    .filter(Boolean)
+                    .join(" · ") || "—"}
+                </dd>
+              </div>
+              <div>
+                <dt>设备</dt>
+                <dd>{item.device_model || "—"}</dd>
+              </div>
+              <div>
+                <dt>图片</dt>
+                <dd>
+                  {item.images.length
+                    ? item.images
+                        .map((image) => image.original_filename)
+                        .join("、")
+                    : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt>用户 ID</dt>
+                <dd>{item.user.id}</dd>
+              </div>
+            </dl>
+          </article>
+        ))}
+      </section>
     </section>
   );
 }
@@ -2363,7 +2547,43 @@ function formatAtlasPrice(
   return `${code} ${(cents / 100).toFixed(2)}`;
 }
 
+function feedbackCategoryLabel(category: string): string {
+  const labels: Record<string, string> = {
+    bug: "问题反馈",
+    suggestion: "功能建议",
+    content: "内容反馈",
+    account: "账号问题",
+    other: "其他反馈",
+  };
+  return labels[category] ?? category;
+}
+
+function feedbackStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    open: "待处理",
+    triaged: "已分流",
+    resolved: "已处理",
+    closed: "已关闭",
+  };
+  return labels[status] ?? status;
+}
+
+function feedbackUserName(user: AdminFeedbackItem["user"]): string {
+  return (
+    user.nickname ??
+    user.username ??
+    user.email ??
+    `用户 ${user.id.slice(0, 8)}`
+  );
+}
+
 function activePageFromPath(pathname: string): ActivePage {
+  if (
+    pathname === "/admin/feedback" ||
+    pathname.startsWith("/admin/feedback/")
+  ) {
+    return "adminFeedback";
+  }
   if (pathname === "/admin" || pathname.startsWith("/admin/")) {
     return "atlasReview";
   }
@@ -2374,6 +2594,9 @@ function activePageFromPath(pathname: string): ActivePage {
 }
 
 function pathForActivePage(page: ActivePage): string {
+  if (page === "adminFeedback") {
+    return "/admin/feedback";
+  }
   if (page === "atlasReview") {
     return "/admin";
   }
@@ -2381,6 +2604,10 @@ function pathForActivePage(page: ActivePage): string {
     return "/skills/knots";
   }
   return "/";
+}
+
+function isAdminPage(page: ActivePage): boolean {
+  return page === "atlasReview" || page === "adminFeedback";
 }
 
 function loadThemePreference(): ThemeMode {

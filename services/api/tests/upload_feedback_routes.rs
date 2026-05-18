@@ -17,7 +17,10 @@ use stellartrail_api::{
     routes::build_router,
     state::AppState,
 };
-use stellartrail_db::{DatabaseConfig, connect_database};
+use stellartrail_db::{
+    DatabaseConfig, connect_database,
+    repositories::{AdminRoleRepository, AuthRepository},
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -29,6 +32,7 @@ const PNG_1X1: &[u8] = &[
 
 struct TestApp {
     router: Router,
+    db: sea_orm::DatabaseConnection,
     object_store: InMemoryObjectStore,
     _temp_dir: TempDir,
 }
@@ -72,12 +76,13 @@ async fn test_app(max_images_per_window: u64) -> TestApp {
     };
     let state = AppState::new_with_cache_and_object_store(
         config,
-        db,
+        db.clone(),
         Cache::with_store_for_tests(cache_store, "test-stellartrail", Duration::from_secs(300)),
         Arc::new(object_store.clone()),
     );
     TestApp {
         router: build_router(state),
+        db,
         object_store,
         _temp_dir: temp_dir,
     }
@@ -132,6 +137,21 @@ async fn send_empty(
     (status, bytes.to_vec())
 }
 
+async fn send_empty_json(
+    app: &Router,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+) -> (StatusCode, Value) {
+    let (status, bytes) = send_empty(app, method, path, token).await;
+    let value = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap()
+    };
+    (status, value)
+}
+
 async fn register_password_user(app: &Router, suffix: &str) -> String {
     let username = format!("upload_{suffix}");
     let email = format!("upload_{suffix}@example.test");
@@ -163,6 +183,22 @@ async fn register_password_user(app: &Router, suffix: &str) -> String {
     .await;
     assert_eq!(register_status, StatusCode::OK, "{register_value}");
     register_value["access_token"].as_str().unwrap().to_owned()
+}
+
+async fn grant_admin_role(app: &TestApp, suffix: &str) -> String {
+    let token = register_password_user(&app.router, suffix).await;
+    let username = format!("upload_{suffix}");
+    let user = AuthRepository::new(app.db.clone())
+        .find_user_by_username(&username)
+        .await
+        .unwrap()
+        .expect("registered test admin should exist");
+    let result = AdminRoleRepository::new(app.db.clone())
+        .grant_admin(&user.id, &user.id)
+        .await
+        .unwrap();
+    assert!(result.record.role.can_administer());
+    token
 }
 
 async fn upload_image(
@@ -579,6 +615,82 @@ async fn authenticated_user_can_submit_feedback_with_uploaded_images() {
     assert_eq!(value["status"], "open");
     assert_eq!(value["images"].as_array().unwrap().len(), 1);
     assert_eq!(value["images"][0]["id"], image_id);
+}
+
+#[tokio::test]
+async fn admin_can_list_feedback_and_download_attached_images() {
+    let app = test_app(30).await;
+    let user_token = register_password_user(&app.router, "admin_feedback_user").await;
+    let (upload_status, upload) = upload_image(
+        &app.router,
+        Some(&user_token),
+        "screen.png",
+        "image/png",
+        PNG_1X1,
+    )
+    .await;
+    assert_eq!(upload_status, StatusCode::CREATED, "{upload}");
+    let image_id = upload["id"].as_str().unwrap();
+
+    let (submit_status, submitted) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/feedback",
+        Some(&user_token),
+        json!({
+            "category": "bug",
+            "content": "装备详情页图片没有显示",
+            "contact": "feedback@example.test",
+            "page": "/pages/gears/detail/index?id=gear-1",
+            "client_platform": "wechat_miniprogram",
+            "client_version": "0.1.0",
+            "device_model": "iPhone 15",
+            "image_ids": [image_id],
+        }),
+    )
+    .await;
+    assert_eq!(submit_status, StatusCode::CREATED, "{submitted}");
+
+    let (missing_status, missing) =
+        send_empty_json(&app.router, "GET", "/api/admin/feedback", None).await;
+    assert_eq!(missing_status, StatusCode::UNAUTHORIZED, "{missing}");
+
+    let (non_admin_status, non_admin) =
+        send_empty_json(&app.router, "GET", "/api/admin/feedback", Some(&user_token)).await;
+    assert_eq!(non_admin_status, StatusCode::FORBIDDEN, "{non_admin}");
+
+    let admin_token = grant_admin_role(&app, "feedback_admin").await;
+    let (list_status, list) = send_empty_json(
+        &app.router,
+        "GET",
+        "/api/admin/feedback?status=open",
+        Some(&admin_token),
+    )
+    .await;
+    assert_eq!(list_status, StatusCode::OK, "{list}");
+    assert_eq!(list["items"].as_array().unwrap().len(), 1);
+    assert_eq!(list["items"][0]["category"], "bug");
+    assert_eq!(list["items"][0]["content"], "装备详情页图片没有显示");
+    assert_eq!(list["items"][0]["contact"], "feedback@example.test");
+    assert_eq!(
+        list["items"][0]["user"]["username"],
+        "upload_admin_feedback_user"
+    );
+    assert_eq!(list["items"][0]["images"][0]["id"], image_id);
+    assert_eq!(
+        list["items"][0]["images"][0]["download_url"],
+        format!("/api/admin/feedback-images/{image_id}")
+    );
+
+    let (image_status, image_bytes) = send_empty(
+        &app.router,
+        "GET",
+        &format!("/api/admin/feedback-images/{image_id}"),
+        Some(&admin_token),
+    )
+    .await;
+    assert_eq!(image_status, StatusCode::OK);
+    assert_eq!(image_bytes, PNG_1X1);
 }
 
 #[tokio::test]
