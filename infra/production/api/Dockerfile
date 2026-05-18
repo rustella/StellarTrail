@@ -1,16 +1,19 @@
 FROM rust:1-bookworm AS builder
 WORKDIR /app
-RUN mkdir -p /usr/local/cargo && \
-    printf '%s\n' \
-      '[source.crates-io]' \
-      'replace-with = "rsproxy-sparse"' \
-      '' \
-      '[source.rsproxy-sparse]' \
-      'registry = "sparse+https://rsproxy.cn/index/"' \
-      '' \
-      '[net]' \
-      'git-fetch-with-cli = true' \
-      > /usr/local/cargo/config.toml
+ARG STELLARTAIL_DEPLOY_TIMEZONE=
+RUN if [ "$STELLARTAIL_DEPLOY_TIMEZONE" = "Asia/Shanghai" ]; then \
+      mkdir -p /usr/local/cargo && \
+      printf '%s\n' \
+        '[source.crates-io]' \
+        'replace-with = "rsproxy-sparse"' \
+        '' \
+        '[source.rsproxy-sparse]' \
+        'registry = "sparse+https://rsproxy.cn/index/"' \
+        '' \
+        '[net]' \
+        'git-fetch-with-cli = true' \
+        > /usr/local/cargo/config.toml; \
+    fi
 RUN rustup show active-toolchain | awk '{print $1}' > /tmp/rust-toolchain-docker
 COPY . .
 RUN mkdir -p /app/content
