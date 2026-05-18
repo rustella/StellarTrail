@@ -13,9 +13,12 @@ import type {
   EmailVerificationCodeRequest,
   EmailVerificationCodeResponse,
   GearCategoriesResponse,
+  GearCategory,
   GearTemplate,
   GearItem,
+  GearSpecKeyRankingsResponse,
   GearStatsResponse,
+  GearTagSuggestionsResponse,
   HealthResponse,
   KnotDetail,
   KnotFiltersResponse,
@@ -315,6 +318,22 @@ export class StellarTrailApiClient {
     tab?: "available" | "history",
   ): Promise<GearStatsResponse> {
     return this.get(`/api/me/gears/stats${queryString({ tab })}`, true);
+  }
+
+  async getGearSpecKeyRankings(
+    category: GearCategory,
+  ): Promise<GearSpecKeyRankingsResponse> {
+    return this.get(
+      `/api/me/gears/spec-key-rankings${queryString({ category })}`,
+      true,
+    );
+  }
+
+  async getGearTagSuggestions(limit = 20): Promise<GearTagSuggestionsResponse> {
+    return this.get(
+      `/api/me/gears/tag-suggestions${queryString({ limit })}`,
+      true,
+    );
   }
 
   async listGears(request: ListGearsRequest = {}): Promise<ListGearsResponse> {

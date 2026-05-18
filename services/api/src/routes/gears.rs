@@ -14,8 +14,10 @@ use stellartrail_domain::gear::GearItem;
 use crate::{
     dto::gear::{
         CreateGearRequest, GearCategoriesResponse, GearCategoryFilterResponse, GearExportQuery,
-        GearStatsQuery, ImportGearError, ImportGearsRequest, ImportGearsResponse, ListGearQuery,
-        ListGearResponse, UpdateGearRequest,
+        GearItemResponse, GearSpecKeyRankingsQuery, GearSpecKeyRankingsResponse, GearStatsQuery,
+        GearSummaryResponse, GearTagSuggestionResponse, GearTagSuggestionsQuery,
+        GearTagSuggestionsResponse, ImportGearError, ImportGearsRequest, ImportGearsResponse,
+        ListGearQuery, ListGearResponse, UpdateGearRequest,
     },
     error::ApiError,
     extractors::AuthenticatedUser,
@@ -28,6 +30,8 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/me/gears/categories", get(categories))
         .route("/api/me/gears/stats", get(stats))
+        .route("/api/me/gears/spec-key-rankings", get(spec_key_rankings))
+        .route("/api/me/gears/tag-suggestions", get(tag_suggestions))
         .route("/api/me/gears/export", get(export_csv))
         .route("/api/me/gears/import", post(import_json))
         .route("/api/me/gears", get(list).post(create))
@@ -107,6 +111,36 @@ async fn stats(
     Ok(Json(stats))
 }
 
+/// Returns Redis-only spec-field rankings for the authenticated user and requested category.
+async fn spec_key_rankings(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Query(query): Query<GearSpecKeyRankingsQuery>,
+) -> Result<Json<GearSpecKeyRankingsResponse>, ApiError> {
+    let keys = state
+        .cache()
+        .gear_spec_key_rankings(&user.id, query.category)
+        .await;
+    Ok(Json(GearSpecKeyRankingsResponse { keys }))
+}
+
+/// Returns Redis-only tag suggestions and current user-level color preferences for the authenticated user.
+async fn tag_suggestions(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Query(query): Query<GearTagSuggestionsQuery>,
+) -> Result<Json<GearTagSuggestionsResponse>, ApiError> {
+    let limit = query.limit.unwrap_or(20).min(50);
+    let items = state
+        .cache()
+        .gear_tag_suggestions(&user.id, limit)
+        .await
+        .into_iter()
+        .map(|(tag, color)| GearTagSuggestionResponse { tag, color })
+        .collect();
+    Ok(Json(GearTagSuggestionsResponse { items }))
+}
+
 /// Handles the paginated gear list endpoint by parsing query parameters, authenticating the user, building a cache key, and reading the database on misses.
 async fn list(
     State(state): State<AppState>,
@@ -148,8 +182,13 @@ async fn list(
             },
         )
         .await?;
+    let all_tags = collect_tags(&items);
+    let tag_colors = state.cache().gear_tag_colors(&user.id, &all_tags).await;
     let response = ListGearResponse {
-        items: items.iter().map(Into::into).collect(),
+        items: items
+            .iter()
+            .map(|item| GearSummaryResponse::from_item(item, &tag_colors))
+            .collect(),
         next_cursor,
     };
     if let Some(key) = cache_key.as_deref() {
@@ -163,11 +202,17 @@ async fn create(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Json(payload): Json<CreateGearRequest>,
-) -> Result<(StatusCode, Json<GearItem>), ApiError> {
-    let item = gear_service::create_gear(&state, &user.id, payload.into_draft()).await?;
+) -> Result<(StatusCode, Json<GearItemResponse>), ApiError> {
+    let tag_colors = payload.tag_colors.clone().unwrap_or_default();
+    let item =
+        gear_service::create_gear(&state, &user.id, payload.into_draft(), tag_colors).await?;
+    let item_tag_colors = state.cache().gear_tag_colors(&user.id, &item.tags).await;
     // After a successful write, increment the per-user version so later reads cannot hit stale gear data.
     state.cache().invalidate_user_gear(&user.id).await;
-    Ok((StatusCode::CREATED, Json(item)))
+    Ok((
+        StatusCode::CREATED,
+        Json(GearItemResponse::from_item(item, &item_tag_colors)),
+    ))
 }
 
 /// Runs the `get one` server-side flow while preserving input validation, error propagation, and state invariants.
@@ -175,14 +220,14 @@ async fn get_one(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
-) -> Result<Json<GearItem>, ApiError> {
+) -> Result<Json<GearItemResponse>, ApiError> {
     let cache_payload = json!({ "id": id }).to_string();
     let cache_key = state
         .cache()
         .gear_response_key(&user.id, "item", &cache_payload)
         .await;
     if let Some(key) = cache_key.as_deref() {
-        if let Some(cached) = state.cache().get_json::<GearItem>(key).await {
+        if let Some(cached) = state.cache().get_json::<GearItemResponse>(key).await {
             return Ok(Json(cached));
         }
     }
@@ -191,10 +236,12 @@ async fn get_one(
         .get(&user.id, &id)
         .await?
         .ok_or(ApiError::NotFound)?;
+    let tag_colors = state.cache().gear_tag_colors(&user.id, &item.tags).await;
+    let response = GearItemResponse::from_item(item, &tag_colors);
     if let Some(key) = cache_key.as_deref() {
-        state.cache().set_json(key, &item).await;
+        state.cache().set_json(key, &response).await;
     }
-    Ok(Json(item))
+    Ok(Json(response))
 }
 
 /// Updates the current resource and maintains related derived state after a successful write.
@@ -203,10 +250,11 @@ async fn update(
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
     Json(payload): Json<UpdateGearRequest>,
-) -> Result<Json<GearItem>, ApiError> {
+) -> Result<Json<GearItemResponse>, ApiError> {
     let item = gear_service::update_gear(&state, &user.id, &id, payload).await?;
+    let tag_colors = state.cache().gear_tag_colors(&user.id, &item.tags).await;
     state.cache().invalidate_user_gear(&user.id).await;
-    Ok(Json(item))
+    Ok(Json(GearItemResponse::from_item(item, &tag_colors)))
 }
 
 /// Archives the current resource so default lists no longer show it.
@@ -231,13 +279,14 @@ async fn restore(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
-) -> Result<Json<GearItem>, ApiError> {
+) -> Result<Json<GearItemResponse>, ApiError> {
     let item = GearRepository::new(state.db().clone())
         .restore(&user.id, &id)
         .await?
         .ok_or(ApiError::NotFound)?;
+    let tag_colors = state.cache().gear_tag_colors(&user.id, &item.tags).await;
     state.cache().invalidate_user_gear(&user.id).await;
-    Ok(Json(item))
+    Ok(Json(GearItemResponse::from_item(item, &tag_colors)))
 }
 
 /// Exports gear as CSV using the current filter conditions.
@@ -346,8 +395,17 @@ async fn import_json(
     }
     if !payload.dry_run {
         let repo = GearRepository::new(state.db().clone());
+        let empty_tag_colors = std::collections::HashMap::new();
         for draft in drafts {
-            repo.create(&user.id, &draft).await?;
+            let item = repo.create(&user.id, &draft).await?;
+            state
+                .cache()
+                .record_gear_spec_keys(&user.id, item.category, &item.specs)
+                .await;
+            state
+                .cache()
+                .record_gear_tags(&user.id, &item.tags, &empty_tag_colors)
+                .await;
             created_count += 1;
         }
         if created_count > 0 {
@@ -360,4 +418,17 @@ async fn import_json(
         failed_count: errors.len(),
         errors,
     }))
+}
+
+/// Collects unique tag names from a page of gear items for one Redis color lookup pass.
+fn collect_tags(items: &[GearItem]) -> Vec<String> {
+    let mut tags = Vec::new();
+    for item in items {
+        for tag in &item.tags {
+            if !tags.iter().any(|existing| existing == tag) {
+                tags.push(tag.clone());
+            }
+        }
+    }
+    tags
 }
