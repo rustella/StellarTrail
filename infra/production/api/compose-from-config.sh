@@ -139,7 +139,17 @@ emit("REDIS_PASSWORD", redis_password)
 emit("MINIO_ROOT_USER", require("minio", "access_key_id"))
 emit("MINIO_ROOT_PASSWORD", require("minio", "secret_access_key"))
 emit("OBJECT_STORAGE_BUCKET", get("object_storage", "bucket", "stellartrail-uploads"))
-emit("AVATAR_STORAGE_BUCKET", get("avatar_storage", "bucket", "stellartrail-avatars"))
+avatar_bucket = get("avatar_storage", "bucket", "stellartrail-avatars")
+emit("AVATAR_STORAGE_BUCKET", avatar_bucket)
+emit(
+    "AVATAR_STORAGE_PUBLIC_BASE_URL",
+    get(
+        "avatar_storage",
+        "public_base_url",
+        f"https://assets.example.invalid/{avatar_bucket}",
+    ),
+)
+emit("AVATAR_STORAGE_MAX_IMAGE_BYTES", get("avatar_storage", "max_image_bytes", "2000000"))
 emit("KNOTS_MEDIA_BUCKET", get("knots_media_storage", "bucket", "stellartrail-knots-media"))
 PY
 )"
@@ -163,6 +173,8 @@ if [[ "${1:-}" == "--print-derived-env" ]]; then
     MINIO_ROOT_PASSWORD \
     OBJECT_STORAGE_BUCKET \
     AVATAR_STORAGE_BUCKET \
+    AVATAR_STORAGE_PUBLIC_BASE_URL \
+    AVATAR_STORAGE_MAX_IMAGE_BYTES \
     KNOTS_MEDIA_BUCKET; do
     value="${!key:-}"
     case "$key" in

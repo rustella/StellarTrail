@@ -16,6 +16,9 @@ services:
         condition: service_completed_successfully
     environment:
       RUST_LOG: ${RUST_LOG:-stellartrail_api=info,tower_http=info}
+      AVATAR_STORAGE_BUCKET: ${AVATAR_STORAGE_BUCKET:-stellartrail-avatars}
+      AVATAR_STORAGE_PUBLIC_BASE_URL: ${AVATAR_STORAGE_PUBLIC_BASE_URL:-https://assets.example.invalid/stellartrail-avatars}
+      AVATAR_STORAGE_MAX_IMAGE_BYTES: ${AVATAR_STORAGE_MAX_IMAGE_BYTES:-2000000}
     volumes:
       - ${STELLARTAIL_DEPLOY_ROOT:-/www/service/stellartail}/config.yaml:/app/config.yaml:ro
     networks:
