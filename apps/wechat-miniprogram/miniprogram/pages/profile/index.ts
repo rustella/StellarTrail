@@ -24,7 +24,8 @@ Page({
     accountError: "",
     avatarLoading: false,
     nicknameDraft: "",
-    nicknameEditing: false,
+    nicknameEditMode: "" as "" | "wechat" | "custom",
+    nicknameModalVisible: false,
     nicknameLoading: false,
     ...getThemeViewData(),
   },
@@ -72,12 +73,35 @@ Page({
     }
   },
 
-  startNicknameEdit() {
+  openNicknameModal() {
     if (!this.data.loggedIn || this.data.nicknameLoading) {
       return;
     }
     this.setData({
-      nicknameEditing: true,
+      nicknameEditMode: "",
+      nicknameModalVisible: true,
+      nicknameDraft: "",
+      accountError: "",
+    });
+  },
+
+  useWechatNickname() {
+    if (this.data.nicknameLoading) {
+      return;
+    }
+    this.setData({
+      nicknameEditMode: "wechat",
+      nicknameDraft: "",
+      accountError: "",
+    });
+  },
+
+  useCustomNickname() {
+    if (this.data.nicknameLoading) {
+      return;
+    }
+    this.setData({
+      nicknameEditMode: "custom",
       nicknameDraft: this.data.accountProfile.hasNickname
         ? this.data.accountProfile.displayName
         : "",
@@ -89,12 +113,24 @@ Page({
     this.setData({ nicknameDraft: event.detail.value });
   },
 
-  cancelNicknameEdit() {
+  backToNicknameMethods() {
     if (this.data.nicknameLoading) {
       return;
     }
     this.setData({
-      nicknameEditing: false,
+      nicknameEditMode: "",
+      nicknameDraft: "",
+      accountError: "",
+    });
+  },
+
+  closeNicknameModal() {
+    if (this.data.nicknameLoading) {
+      return;
+    }
+    this.setData({
+      nicknameEditMode: "",
+      nicknameModalVisible: false,
       nicknameDraft: "",
       accountError: "",
     });
@@ -104,9 +140,18 @@ Page({
     if (!this.data.loggedIn || this.data.nicknameLoading) {
       return;
     }
+    if (!this.data.nicknameEditMode) {
+      this.setData({ accountError: "请选择修改方式" });
+      return;
+    }
     const nickname = this.data.nicknameDraft.trim();
     if (!nickname) {
-      this.setData({ accountError: "请输入微信昵称" });
+      this.setData({
+        accountError:
+          this.data.nicknameEditMode === "wechat"
+            ? "请选择或输入微信名称"
+            : "请输入自定义名称",
+      });
       return;
     }
     this.setData({ nicknameLoading: true, accountError: "" });
@@ -115,17 +160,19 @@ Page({
       this.setData({
         loggedIn: hasAccessToken(),
         accountProfile: buildAccountProfile(true),
-        nicknameEditing: false,
+        nicknameEditMode: "",
+        nicknameModalVisible: false,
         nicknameDraft: "",
         accountError: "",
       });
-      wx.showToast({ title: "昵称已更新", icon: "success" });
+      wx.showToast({ title: "名称已更新", icon: "success" });
     } catch (error) {
       if (isLoginRequiredError(error)) {
         this.setData({
           loggedIn: false,
           accountProfile: buildAccountProfile(false),
-          nicknameEditing: false,
+          nicknameEditMode: "",
+          nicknameModalVisible: false,
           nicknameDraft: "",
           accountError: "",
         });

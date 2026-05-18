@@ -25,41 +25,10 @@
       <view class="account-copy">
         <view class="account-title">账号状态</view>
         <view wx:if="{{loggedIn}}" class="account-name-row">
-          <input
-            wx:if="{{nicknameEditing}}"
-            class="account-nickname-input"
-            type="nickname"
-            placeholder="微信昵称"
-            value="{{nicknameDraft}}"
-            disabled="{{nicknameLoading}}"
-            bindinput="onNicknameInput"
-          />
-          <view wx:else class="account-desc"
-            >{{accountProfile.displayName}}</view
-          >
-          <button
-            wx:if="{{!nicknameEditing}}"
-            class="account-inline-button"
-            bindtap="startNicknameEdit"
-          >
-            {{accountProfile.hasNickname ? '修改' : '导入昵称'}}
+          <view class="account-desc">{{accountProfile.displayName}}</view>
+          <button class="account-inline-button" bindtap="openNicknameModal">
+            修改名称
           </button>
-          <block wx:else>
-            <button
-              class="account-inline-button"
-              loading="{{nicknameLoading}}"
-              bindtap="saveNickname"
-            >
-              保存
-            </button>
-            <button
-              class="account-inline-button muted"
-              disabled="{{nicknameLoading}}"
-              bindtap="cancelNicknameEdit"
-            >
-              取消
-            </button>
-          </block>
         </view>
         <view class="account-hint"
           >{{loggedIn ? '可以管理自己的装备清单。' :
@@ -92,5 +61,67 @@
       <text class="theme-toggle-icon">{{themeToggleIcon}}</text
       >{{themeToggleText}}
     </button>
+  </view>
+
+  <view wx:if="{{nicknameModalVisible}}" class="profile-modal-mask">
+    <view class="profile-modal-card">
+      <view class="profile-modal-title">修改名称</view>
+      <view wx:if="{{!nicknameEditMode}}" class="profile-name-methods">
+        <button class="profile-name-method" bindtap="useWechatNickname">
+          导入微信名称
+        </button>
+        <button class="profile-name-method" bindtap="useCustomNickname">
+          使用自定义名称
+        </button>
+      </view>
+      <view wx:else class="profile-name-form">
+        <input
+          wx:if="{{nicknameEditMode === 'wechat'}}"
+          class="profile-name-input"
+          type="nickname"
+          placeholder="微信名称"
+          value="{{nicknameDraft}}"
+          disabled="{{nicknameLoading}}"
+          bindinput="onNicknameInput"
+        />
+        <input
+          wx:else
+          class="profile-name-input"
+          type="text"
+          placeholder="自定义名称"
+          value="{{nicknameDraft}}"
+          disabled="{{nicknameLoading}}"
+          bindinput="onNicknameInput"
+        />
+        <view wx:if="{{accountError}}" class="profile-modal-error"
+          >{{accountError}}</view
+        >
+        <view class="profile-modal-actions">
+          <button
+            class="account-inline-button muted"
+            disabled="{{nicknameLoading}}"
+            bindtap="backToNicknameMethods"
+          >
+            返回
+          </button>
+          <button
+            class="account-inline-button"
+            loading="{{nicknameLoading}}"
+            bindtap="saveNickname"
+          >
+            保存
+          </button>
+        </view>
+      </view>
+      <view class="profile-modal-footer">
+        <button
+          class="account-inline-button muted"
+          disabled="{{nicknameLoading}}"
+          bindtap="closeNicknameModal"
+        >
+          取消
+        </button>
+      </view>
+    </view>
   </view>
 </view>
