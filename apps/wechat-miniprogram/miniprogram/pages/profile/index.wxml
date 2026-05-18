@@ -71,7 +71,7 @@
           class="profile-name-input"
           name="nickname"
           type="nickname"
-          placeholder="点击输入名称，或点击选择微信导入名称"
+          placeholder="点这里后，在下方选择“用微信昵称”"
           value="{{nicknameDraft}}"
           disabled="{{nicknameLoading}}"
           confirm-type="done"

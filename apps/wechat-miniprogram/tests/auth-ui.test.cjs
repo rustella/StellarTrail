@@ -74,7 +74,7 @@ ${ts}`;
   assert.doesNotMatch(wxml, /account-avatar-badge/);
   assert.match(wxml, /type="nickname"/);
   assert.match(wxml, /修改名称/);
-  assert.match(wxml, /点击输入名称，或点击选择微信导入名称/);
+  assert.match(wxml, /点这里后，在下方选择“用微信昵称”/);
   assert.doesNotMatch(wxml, /导入微信名称/);
   assert.doesNotMatch(wxml, /使用自定义名称/);
   assert.doesNotMatch(wxml, /导入昵称/);
