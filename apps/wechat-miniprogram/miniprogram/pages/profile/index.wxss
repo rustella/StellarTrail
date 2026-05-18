@@ -46,22 +46,6 @@
   height: 96rpx;
 }
 
-.account-avatar-badge {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 30rpx;
-  height: 30rpx;
-  border: 3rpx solid var(--surface-color);
-  border-radius: 999rpx;
-  color: var(--brand-text-color);
-  background: var(--accent-color);
-  font-size: 24rpx;
-  font-weight: 900;
-  line-height: 28rpx;
-  text-align: center;
-}
-
 .account-copy {
   min-width: 0;
 }
@@ -73,13 +57,57 @@
 }
 
 .account-desc {
-  margin-top: 8rpx;
+  min-width: 0;
   color: var(--heading-muted-color);
   font-size: 26rpx;
   font-weight: 800;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.account-name-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-top: 8rpx;
+  gap: 12rpx;
+}
+
+.account-nickname-input {
+  width: 210rpx;
+  min-width: 0;
+  height: 54rpx;
+  padding: 0 16rpx;
+  border: 1rpx solid var(--control-border);
+  border-radius: 16rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 25rpx;
+  font-weight: 800;
+  box-sizing: border-box;
+}
+
+.account-inline-button {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 16rpx;
+  border: 1rpx solid var(--control-border);
+  border-radius: 999rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 21rpx;
+  font-weight: 900;
+  line-height: 48rpx;
+}
+
+.account-inline-button::after {
+  border: 0;
+}
+
+.account-inline-button.muted {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
 }
 
 .account-hint {

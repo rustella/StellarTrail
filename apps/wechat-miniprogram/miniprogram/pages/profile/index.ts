@@ -6,6 +6,7 @@ import {
   hasAccessToken,
   isLoginRequiredError,
   isNotFoundApiError,
+  loginWithWechat,
   uploadWechatAvatar,
 } from "../../utils/api";
 import { loginPageUrl } from "../../utils/auth-prompt";
@@ -22,6 +23,9 @@ Page({
     accountProfile: buildAccountProfile(hasAccessToken()),
     accountError: "",
     avatarLoading: false,
+    nicknameDraft: "",
+    nicknameEditing: false,
+    nicknameLoading: false,
     ...getThemeViewData(),
   },
 
@@ -65,6 +69,72 @@ Page({
         return;
       }
       this.setData({ accountError: getErrorMessage(error) });
+    }
+  },
+
+  startNicknameEdit() {
+    if (!this.data.loggedIn || this.data.nicknameLoading) {
+      return;
+    }
+    this.setData({
+      nicknameEditing: true,
+      nicknameDraft: this.data.accountProfile.hasNickname
+        ? this.data.accountProfile.displayName
+        : "",
+      accountError: "",
+    });
+  },
+
+  onNicknameInput(event: WechatMiniprogram.Input) {
+    this.setData({ nicknameDraft: event.detail.value });
+  },
+
+  cancelNicknameEdit() {
+    if (this.data.nicknameLoading) {
+      return;
+    }
+    this.setData({
+      nicknameEditing: false,
+      nicknameDraft: "",
+      accountError: "",
+    });
+  },
+
+  async saveNickname() {
+    if (!this.data.loggedIn || this.data.nicknameLoading) {
+      return;
+    }
+    const nickname = this.data.nicknameDraft.trim();
+    if (!nickname) {
+      this.setData({ accountError: "请输入微信昵称" });
+      return;
+    }
+    this.setData({ nicknameLoading: true, accountError: "" });
+    try {
+      await loginWithWechat({ nickname });
+      this.setData({
+        loggedIn: hasAccessToken(),
+        accountProfile: buildAccountProfile(true),
+        nicknameEditing: false,
+        nicknameDraft: "",
+        accountError: "",
+      });
+      wx.showToast({ title: "昵称已更新", icon: "success" });
+    } catch (error) {
+      if (isLoginRequiredError(error)) {
+        this.setData({
+          loggedIn: false,
+          accountProfile: buildAccountProfile(false),
+          nicknameEditing: false,
+          nicknameDraft: "",
+          accountError: "",
+        });
+        wx.showToast({ title: "请重新登录", icon: "none" });
+        return;
+      }
+      this.setData({ accountError: getErrorMessage(error) });
+    } finally {
+      this.setData({ nicknameLoading: false });
     }
   },
 
@@ -140,6 +210,7 @@ function buildAccountProfile(loggedIn: boolean): {
   displayName: string;
   avatarUrl: string;
   avatarInitial: string;
+  hasNickname: boolean;
 } {
   const user = getStoredUser();
   if (!loggedIn) {
@@ -147,6 +218,7 @@ function buildAccountProfile(loggedIn: boolean): {
       displayName: "",
       avatarUrl: "",
       avatarInitial: "",
+      hasNickname: false,
     };
   }
   if (!user) {
@@ -154,13 +226,20 @@ function buildAccountProfile(loggedIn: boolean): {
       displayName: "微信用户",
       avatarUrl: "",
       avatarInitial: "微",
+      hasNickname: false,
     };
   }
-  const displayName =
-    user.nickname || user.username || user.email || "微信用户";
+  const nickname = normalizeProfileNickname(user.nickname);
+  const displayName = nickname || user.username || user.email || "微信用户";
   return {
     displayName,
     avatarUrl: user.avatar_url || "",
     avatarInitial: displayName.trim().slice(0, 1) || "微",
+    hasNickname: Boolean(nickname),
   };
+}
+
+function normalizeProfileNickname(value?: string | null): string {
+  const nickname = value?.trim() ?? "";
+  return nickname && nickname !== "寻径星野用户" ? nickname : "";
 }
