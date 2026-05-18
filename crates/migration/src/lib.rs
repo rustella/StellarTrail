@@ -19,6 +19,7 @@ mod m20260517_000006_create_media_resources;
 mod m20260517_000007_create_gear_templates;
 mod m20260518_000001_add_email_code_failed_attempts;
 mod m20260518_000002_clear_knots3d_section_heading_steps;
+mod m20260518_000003_create_api_usage_daily;
 
 /// Concrete SeaORM migrator used by the API server and test suites.
 ///
@@ -48,6 +49,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260517_000007_create_gear_templates::Migration),
             Box::new(m20260518_000001_add_email_code_failed_attempts::Migration),
             Box::new(m20260518_000002_clear_knots3d_section_heading_steps::Migration),
+            Box::new(m20260518_000003_create_api_usage_daily::Migration),
         ]
     }
 }

@@ -3,16 +3,14 @@
 use axum::{
     Json, Router,
     extract::{Multipart, Path, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     routing::put,
 };
 use stellartrail_domain::validation::FieldViolation;
 
 use crate::{
-    dto::knot_media::KnotMediaUploadResponse,
-    error::ApiError,
-    services::{auth_service, knot_media_upload_service},
-    state::AppState,
+    dto::knot_media::KnotMediaUploadResponse, error::ApiError, extractors::AuthenticatedUser,
+    services::knot_media_upload_service, state::AppState,
 };
 
 /// Builds administrator-only knot media routes.
@@ -25,11 +23,10 @@ pub fn routes() -> Router<AppState> {
 
 async fn upload_knot_media(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Path((knot_id, asset_id)): Path<(String, String)>,
     multipart: Multipart,
 ) -> Result<(StatusCode, Json<KnotMediaUploadResponse>), ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     knot_media_upload_service::ensure_admin(&user, &state)?;
     let input = parse_upload_multipart(multipart).await?;
     let response =

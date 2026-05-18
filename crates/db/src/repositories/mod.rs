@@ -1,5 +1,6 @@
 //! Repository aggregation module that re-exports authentication, gear, feedback, upload image, and knot persistence objects.
 
+pub mod api_usage_repository;
 pub mod auth_repository;
 pub mod feedback_repository;
 pub mod gear_repository;
@@ -8,6 +9,9 @@ pub mod knot_repository;
 pub mod media_resource_repository;
 pub mod upload_image_repository;
 
+pub use api_usage_repository::{
+    ApiUsageIncrement, ApiUsageQuery, ApiUsageRecord, ApiUsageRepository,
+};
 pub use auth_repository::{AuthRepository, UserRecord, hash_token};
 pub use feedback_repository::{FeedbackRecord, FeedbackRepository};
 pub use gear_repository::{GearRepository, ListGearOptions};

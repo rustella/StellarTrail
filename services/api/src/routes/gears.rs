@@ -3,7 +3,7 @@
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode, header},
+    http::{StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -18,7 +18,8 @@ use crate::{
         ListGearResponse, UpdateGearRequest,
     },
     error::ApiError,
-    services::{auth_service, gear_service},
+    extractors::AuthenticatedUser,
+    services::gear_service,
     state::AppState,
 };
 
@@ -40,10 +41,9 @@ pub fn routes() -> Router<AppState> {
 /// Runs the `categories` server-side flow while preserving input validation, error propagation, and state invariants.
 async fn categories(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Query(query): Query<GearStatsQuery>,
 ) -> Result<Json<GearCategoriesResponse>, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let cache_payload = json!({ "tab": query.tab }).to_string();
     // High-traffic read endpoints try the read-through cache first and skip it naturally when unavailable.
     let cache_key = state
@@ -80,10 +80,9 @@ async fn categories(
 /// Runs the `stats` server-side flow while preserving input validation, error propagation, and state invariants.
 async fn stats(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Query(query): Query<GearStatsQuery>,
 ) -> Result<Json<stellartrail_domain::gear::GearStats>, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let cache_payload = json!({ "tab": query.tab }).to_string();
     let cache_key = state
         .cache()
@@ -111,10 +110,9 @@ async fn stats(
 /// Handles the paginated gear list endpoint by parsing query parameters, authenticating the user, building a cache key, and reading the database on misses.
 async fn list(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Query(query): Query<ListGearQuery>,
 ) -> Result<Json<ListGearResponse>, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let limit = query.limit.unwrap_or(20);
     let cache_payload = json!({
         "tab": query.tab,
@@ -163,10 +161,9 @@ async fn list(
 /// Creates the current resource and triggers follow-up state maintenance when needed.
 async fn create(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Json(payload): Json<CreateGearRequest>,
 ) -> Result<(StatusCode, Json<GearItem>), ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let item = gear_service::create_gear(&state, &user.id, payload.into_draft()).await?;
     // After a successful write, increment the per-user version so later reads cannot hit stale gear data.
     state.cache().invalidate_user_gear(&user.id).await;
@@ -176,10 +173,9 @@ async fn create(
 /// Runs the `get one` server-side flow while preserving input validation, error propagation, and state invariants.
 async fn get_one(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
 ) -> Result<Json<GearItem>, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let cache_payload = json!({ "id": id }).to_string();
     let cache_key = state
         .cache()
@@ -204,11 +200,10 @@ async fn get_one(
 /// Updates the current resource and maintains related derived state after a successful write.
 async fn update(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
     Json(payload): Json<UpdateGearRequest>,
 ) -> Result<Json<GearItem>, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let item = gear_service::update_gear(&state, &user.id, &id, payload).await?;
     state.cache().invalidate_user_gear(&user.id).await;
     Ok(Json(item))
@@ -217,10 +212,9 @@ async fn update(
 /// Archives the current resource so default lists no longer show it.
 async fn archive(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let archived = GearRepository::new(state.db().clone())
         .archive(&user.id, &id)
         .await?;
@@ -235,10 +229,9 @@ async fn archive(
 /// Restores an archived resource so default lists show it again.
 async fn restore(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
 ) -> Result<Json<GearItem>, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let item = GearRepository::new(state.db().clone())
         .restore(&user.id, &id)
         .await?
@@ -250,7 +243,7 @@ async fn restore(
 /// Exports gear as CSV using the current filter conditions.
 async fn export_csv(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Query(query): Query<GearExportQuery>,
 ) -> Result<Response, ApiError> {
     if query.format != "csv" {
@@ -258,7 +251,6 @@ async fn export_csv(
             "only csv export is supported".to_owned(),
         ));
     }
-    let user = auth_service::authenticate(&headers, &state).await?;
     let items = gear_service::list_for_export(&state, &user.id, query.tab).await?;
     let mut writer = csv::Writer::from_writer(Vec::new());
     writer
@@ -334,10 +326,9 @@ async fn export_csv(
 /// Imports gear JSON in bulk; dry-run only validates without writing, while real imports invalidate the cache.
 async fn import_json(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Json(payload): Json<ImportGearsRequest>,
 ) -> Result<Json<ImportGearsResponse>, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let mut created_count = 0;
     let mut errors = Vec::new();
     let mut drafts = Vec::new();

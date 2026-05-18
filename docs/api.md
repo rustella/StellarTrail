@@ -355,6 +355,54 @@ npm run knots:upload-media -- --dry-run
 npm run knots:upload-media -- --verify-only
 ```
 
+## Admin API usage statistics
+
+```http
+GET /api/admin/api-usage?from=2026-05-01&to=2026-05-18&method=GET&route=/api/me/gears&limit=50&offset=0
+```
+
+该接口需要 Bearer Token，且用户必须命中 `ADMIN_USER_IDS` / `ADMIN_EMAILS` / `ADMIN_USERNAMES` allowlist。它只返回按日期、用户、HTTP 方法、路由模板和状态码聚合后的计数，不返回单次请求日志。
+
+统计写入由服务端 middleware 异步上报：请求返回路径不会等待数据库写入；统计队列满、后台 worker 失败或写库失败时只丢弃统计，不影响业务请求。
+
+隐私边界：
+
+- 记录 `user_id`（认证成功时）、`method`、matched route 模板、`status_code`、日期桶和调用次数。
+- 动态路径只保存模板，例如 `/api/me/gears/:id`，不保存真实装备 ID。
+- 不记录 query string、请求体、响应体、Authorization header、access token、refresh token、token hash、Cookie、IP、User-Agent。
+
+查询参数：
+
+| 字段      | 必填 | 说明                                                                |
+| --------- | ---- | ------------------------------------------------------------------- |
+| `from`    | 否   | 起始日期，`YYYY-MM-DD`；默认最近 30 天。                            |
+| `to`      | 否   | 结束日期，`YYYY-MM-DD`；默认当天。                                  |
+| `user_id` | 否   | 仅查看某个用户的聚合统计。                                          |
+| `method`  | 否   | `GET` / `POST` / `PUT` / `PATCH` / `DELETE`。                       |
+| `route`   | 否   | matched route 模板，例如 `/api/me/gears/:id`；不能带 query string。 |
+| `limit`   | 否   | 默认 50，最大 100。                                                 |
+| `offset`  | 否   | 分页偏移。                                                          |
+
+响应示例：
+
+```json
+{
+  "items": [
+    {
+      "bucket_date": "2026-05-18",
+      "user_id": "user-id",
+      "method": "GET",
+      "route_pattern": "/api/me/gears",
+      "status_code": 200,
+      "call_count": 12,
+      "first_called_at": "2026-05-18T08:00:00Z",
+      "last_called_at": "2026-05-18T10:00:00Z"
+    }
+  ],
+  "page": { "limit": 50, "offset": 0, "next_offset": null }
+}
+```
+
 ## Cache / performance
 
 服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/me/gears`、`PATCH /api/me/gears/:id`、`DELETE /api/me/gears/:id`、`POST /api/me/gears/:id/restore` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境。

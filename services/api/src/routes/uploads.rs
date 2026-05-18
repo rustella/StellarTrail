@@ -4,16 +4,14 @@ use axum::{
     Json, Router,
     body::Body,
     extract::{Multipart, Path, State},
-    http::{HeaderMap, StatusCode, header},
+    http::{StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
 
 use crate::{
-    dto::upload::UploadImageResponse,
-    error::ApiError,
-    services::{auth_service, upload_service},
-    state::AppState,
+    dto::upload::UploadImageResponse, error::ApiError, extractors::AuthenticatedUser,
+    services::upload_service, state::AppState,
 };
 
 /// Upload route group.
@@ -26,10 +24,9 @@ pub fn routes() -> Router<AppState> {
 /// Accepts a multipart feedback image upload for the authenticated user.
 async fn upload_feedback_image(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<UploadImageResponse>), ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let mut file_name = None;
     let mut content_type = None;
     let mut bytes = None;
@@ -70,10 +67,9 @@ async fn upload_feedback_image(
 /// Streams a private uploaded image through API authentication/ownership checks.
 async fn download_upload(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
-    let user = auth_service::authenticate(&headers, &state).await?;
     let upload = upload_service::get_upload_for_user(&state, &user.id, &id)
         .await?
         .ok_or(ApiError::NotFound)?;
