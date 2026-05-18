@@ -20,9 +20,10 @@ test("login page offers WeChat account email-code and password-reset entry point
   const ts = read("pages/login/index.ts");
   const pageSource = `${wxml}
 ${ts}`;
-  assert.match(wxml, /微信一键登录/);
-  assert.match(wxml, /账号密码登录/);
-  assert.match(wxml, /邮箱验证码登录/);
+  assert.match(wxml, /微信登录/);
+  assert.match(wxml, /账号登录/);
+  assert.match(wxml, /邮箱登陆/);
+  assert.doesNotMatch(wxml, /使用微信身份快速进入/);
   assert.match(wxml, /找回密码/);
   assert.match(wxml, /重设密码并登录/);
   assert.match(wxml, /placeholder="账号或邮箱"/);
