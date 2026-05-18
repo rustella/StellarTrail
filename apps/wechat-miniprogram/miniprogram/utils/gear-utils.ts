@@ -38,6 +38,23 @@ export type GearSort =
   | "weight_desc"
   | "price_desc";
 
+export type GearCurrency = "CNY" | "USD" | "EUR" | "JPY" | "HKD";
+export type GearSpecs = Record<string, string>;
+
+export interface GearSpecField {
+  key: string;
+  label: string;
+  placeholder: string;
+  inputType?: "text" | "number";
+  units?: string[];
+}
+
+export interface GearSpecFieldView extends GearSpecField {
+  valueText: string;
+  unitIndex: number;
+  unitLabel: string;
+}
+
 export interface GearItem {
   id: string;
   user_id: string;
@@ -51,14 +68,18 @@ export interface GearItem {
   size?: string | null;
   description?: string | null;
   weight_g?: number | null;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
   warmth_index?: string | null;
   waterproof_index?: string | null;
   purchase_date?: string | null;
   purchase_price_cents?: number | null;
+  purchase_price_currency?: GearCurrency | string | null;
   expiry_or_warranty_date?: string | null;
   purchase_location?: string | null;
   status: GearStatus;
   storage_location?: string | null;
+  specs?: GearSpecs | null;
   tags: string[];
   share_enabled: boolean;
   share_status: GearShareStatus;
@@ -78,8 +99,12 @@ export interface GearSummary {
   status: GearStatus;
   status_label?: string;
   weight_g?: number | null;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
   purchase_price_cents?: number | null;
+  purchase_price_currency?: GearCurrency | string | null;
   purchase_date?: string | null;
+  specs?: GearSpecs | null;
   created_at: string;
   updated_at: string;
 }
@@ -95,14 +120,18 @@ export interface CreateGearRequest {
   size?: string | null;
   description?: string | null;
   weight_g?: number | null;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
   warmth_index?: string | null;
   waterproof_index?: string | null;
   purchase_date?: string | null;
   purchase_price_cents?: number | null;
+  purchase_price_currency?: GearCurrency | string | null;
   expiry_or_warranty_date?: string | null;
   purchase_location?: string | null;
   status?: GearStatus | null;
   storage_location?: string | null;
+  specs?: GearSpecs | null;
   tags?: string[];
   share_enabled?: boolean;
   notes?: string | null;
@@ -185,20 +214,17 @@ export interface GearFormData {
   name: string;
   brand: string;
   model: string;
-  color: string;
-  material: string;
-  capacity: string;
-  size: string;
   description: string;
   weightText: string;
-  warmthIndex: string;
-  waterproofIndex: string;
   purchaseDate: string;
+  officialPriceText: string;
+  officialPriceCurrency: GearCurrency;
   purchasePriceText: string;
-  expiryOrWarrantyDate: string;
+  purchasePriceCurrency: GearCurrency;
   purchaseLocation: string;
   status: GearStatus;
   storageLocation: string;
+  specs: GearSpecs;
   tagsText: string;
   shareEnabled: boolean;
   notes: string;
@@ -243,10 +269,153 @@ export const GEAR_SORT_OPTIONS: Array<OptionItem<GearSort>> = [
   { value: "price_desc", label: "价格优先" },
 ];
 
+export const GEAR_CURRENCY_OPTIONS: Array<OptionItem<GearCurrency>> = [
+  { value: "CNY", label: "¥ CNY" },
+  { value: "USD", label: "USD" },
+  { value: "EUR", label: "EUR" },
+  { value: "JPY", label: "JPY" },
+  { value: "HKD", label: "HKD" },
+];
+
 export const GEAR_TAB_OPTIONS: Array<OptionItem<GearTab>> = [
   { value: "available", label: "可用装备" },
   { value: "history", label: "历史装备" },
 ];
+
+const COMMON_WATERPROOF_UNITS = ["", "IPX4", "IPX5", "IPX6", "IPX7", "IPX8"];
+
+export const GEAR_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
+  backpack_system: [
+    spec("capacity", "容量", "例如 45", "number", ["L"]),
+    spec("recommended_load", "推荐负重", "例如 12", "number", ["kg"]),
+    spec("back_length_or_size", "背长/尺码", "例如 M / 48", "text", ["", "cm"]),
+    spec(
+      "waterproof_rating",
+      "防水等级",
+      "例如 防泼水",
+      "text",
+      COMMON_WATERPROOF_UNITS,
+    ),
+  ],
+  sleep_system: [
+    spec("type", "类型", "例如 睡袋 / 帐篷"),
+    spec("people_count", "适用人数", "例如 2", "number", ["人"]),
+    spec("temperature_or_r_value", "温标/R 值", "例如 -5 或 4.2", "text", [
+      "",
+      "℃",
+      "R",
+    ]),
+    spec("filling", "填充物", "例如 800FP 羽绒"),
+    spec("packed_size", "收纳尺寸", "例如 18 x 30", "text", ["", "cm"]),
+    spec("waterproof_rating", "防水等级", "例如 外帐 3000", "text", [
+      "",
+      "mm",
+      ...COMMON_WATERPROOF_UNITS.slice(1),
+    ]),
+  ],
+  kitchen_system: [
+    spec("fuel_type", "燃料类型", "例如 气罐"),
+    spec("capacity", "容量", "例如 1.2", "number", ["L", "ml"]),
+    spec("power", "功率", "例如 2600", "number", ["W"]),
+    spec("people_count", "适用人数", "例如 2", "number", ["人"]),
+    spec("packed_size", "收纳尺寸", "例如 12 x 8", "text", ["", "cm"]),
+  ],
+  walking_system: [
+    spec("size_or_length", "尺码/长度", "例如 42 或 120", "text", [
+      "",
+      "cm",
+      "EU",
+    ]),
+    spec("terrain", "适用地形", "例如 山地 / 泥地"),
+    spec(
+      "waterproof_rating",
+      "防水等级",
+      "例如 GTX",
+      "text",
+      COMMON_WATERPROOF_UNITS,
+    ),
+    spec("material", "材质", "例如 铝合金"),
+    spec("support", "缓震/支撑", "例如 中等支撑"),
+  ],
+  clothing_system: [
+    spec("size", "尺码", "例如 M"),
+    spec("layer", "适用层级", "例如 中间层"),
+    spec("warmth_rating", "保暖等级", "例如 200", "text", ["", "g/m²"]),
+    spec("waterproof_rating", "防水指数", "例如 20000", "number", ["mm"]),
+    spec("breathability_rating", "透湿指数", "例如 15000", "number", [
+      "g/m²/24h",
+    ]),
+    spec("season", "适用季节", "例如 三季"),
+  ],
+  lighting_system: [
+    spec("max_brightness", "最大亮度", "例如 450", "number", ["lm"]),
+    spec("runtime", "续航时间", "例如 8", "number", ["h"]),
+    spec("battery_type", "电池类型", "例如 18650"),
+    spec("charging_port", "充电接口", "例如 USB-C"),
+    spec(
+      "waterproof_rating",
+      "防水等级",
+      "例如 IPX4",
+      "text",
+      COMMON_WATERPROOF_UNITS,
+    ),
+    spec("beam_distance", "照射距离", "例如 120", "number", ["m"]),
+  ],
+  first_aid_system: [
+    spec("kit_size", "套装规格", "例如 轻量 12 件"),
+    spec("expiry_date", "有效期", "例如 2027-05"),
+    spec("people_count", "适用人数", "例如 2", "number", ["人"]),
+    spec("days", "适用天数", "例如 3", "number", ["天"]),
+    spec("waterproof_packaging", "防水包装", "例如 自封袋"),
+  ],
+  electronics_system: [
+    spec("battery_capacity", "电池容量", "例如 20000", "number", ["mAh"]),
+    spec("rated_energy", "额定能量", "例如 74", "number", ["Wh"]),
+    spec("output_power", "输出功率", "例如 65", "number", ["W"]),
+    spec("ports", "接口类型", "例如 USB-C x2"),
+    spec(
+      "waterproof_rating",
+      "防水等级",
+      "例如 IPX4",
+      "text",
+      COMMON_WATERPROOF_UNITS,
+    ),
+    spec("working_temperature", "工作温度", "例如 -10 - 45", "text", ["℃"]),
+  ],
+  technical_gear: [
+    spec("certification", "认证标准", "例如 CE / UIAA"),
+    spec("strength", "承重/强度", "例如 22", "number", ["kN", "kg"]),
+    spec("specification", "规格", "例如 HMS"),
+    spec("length", "长度", "例如 60", "number", ["cm", "m"]),
+    spec("material", "材质", "例如 尼龙"),
+    spec("retirement_date", "报废期限", "例如 2030-05"),
+  ],
+  other_gear: [
+    spec("use_case", "用途", "例如 营地收纳"),
+    spec("specification", "规格", "例如 大号"),
+    spec("capacity", "容量", "例如 10", "number", ["L", "ml"]),
+    spec(
+      "waterproof_rating",
+      "防水等级",
+      "例如 防泼水",
+      "text",
+      COMMON_WATERPROOF_UNITS,
+    ),
+    spec("accessories", "附件", "例如 收纳袋"),
+  ],
+  consumable: [
+    spec("type", "类型", "例如 气罐 / 食品"),
+    spec("net_content", "净含量", "例如 230", "number", ["g", "ml"]),
+    spec("quantity", "数量", "例如 2", "number", ["件", "个", "包"]),
+    spec("expiry_date", "有效期", "例如 2027-05"),
+    spec("storage_condition", "储存条件", "例如 阴凉干燥"),
+    spec("restock_threshold", "补货阈值", "例如 1", "number", [
+      "件",
+      "个",
+      "包",
+    ]),
+  ],
+};
 
 export function createDefaultGearFormData(): GearFormData {
   return {
@@ -254,20 +423,17 @@ export function createDefaultGearFormData(): GearFormData {
     name: "",
     brand: "",
     model: "",
-    color: "",
-    material: "",
-    capacity: "",
-    size: "",
     description: "",
     weightText: "",
-    warmthIndex: "",
-    waterproofIndex: "",
     purchaseDate: "",
+    officialPriceText: "",
+    officialPriceCurrency: "CNY",
     purchasePriceText: "",
-    expiryOrWarrantyDate: "",
+    purchasePriceCurrency: "CNY",
     purchaseLocation: "",
     status: "available",
     storageLocation: "",
+    specs: {},
     tagsText: "",
     shareEnabled: false,
     notes: "",
@@ -275,32 +441,32 @@ export function createDefaultGearFormData(): GearFormData {
 }
 
 export function gearToFormData(item: GearItem): GearFormData {
+  const specs = mergeLegacySpecs(item);
   return {
     category: item.category,
     name: item.name,
     brand: item.brand ?? "",
     model: item.model ?? "",
-    color: item.color ?? "",
-    material: item.material ?? "",
-    capacity: item.capacity ?? "",
-    size: item.size ?? "",
     description: item.description ?? "",
     weightText:
       item.weight_g === undefined || item.weight_g === null
         ? ""
         : trimTrailingZeros(String(item.weight_g / 1000)),
-    warmthIndex: item.warmth_index ?? "",
-    waterproofIndex: item.waterproof_index ?? "",
     purchaseDate: item.purchase_date ?? "",
-    purchasePriceText:
-      item.purchase_price_cents === undefined ||
-      item.purchase_price_cents === null
-        ? ""
-        : trimTrailingZeros(String(item.purchase_price_cents / 100)),
-    expiryOrWarrantyDate: item.expiry_or_warranty_date ?? "",
+    officialPriceText: priceFromMinorUnits(
+      item.official_price_cents,
+      item.official_price_currency,
+    ),
+    officialPriceCurrency: normalizeCurrency(item.official_price_currency),
+    purchasePriceText: priceFromMinorUnits(
+      item.purchase_price_cents,
+      item.purchase_price_currency,
+    ),
+    purchasePriceCurrency: normalizeCurrency(item.purchase_price_currency),
     purchaseLocation: item.purchase_location ?? "",
     status: item.status,
     storageLocation: item.storage_location ?? "",
+    specs,
     tagsText: item.tags.join("，"),
     shareEnabled: item.share_enabled,
     notes: item.notes ?? "",
@@ -320,20 +486,29 @@ export function buildGearPayload(
     name,
     brand: nullableText(form.brand),
     model: nullableText(form.model),
-    color: nullableText(form.color),
-    material: nullableText(form.material),
-    capacity: nullableText(form.capacity),
-    size: nullableText(form.size),
     description: nullableText(form.description),
     weight_g: weightKgToGrams(form.weightText),
-    warmth_index: nullableText(form.warmthIndex),
-    waterproof_index: nullableText(form.waterproofIndex),
     purchase_date: nullableText(form.purchaseDate),
-    purchase_price_cents: yuanToCents(form.purchasePriceText),
-    expiry_or_warranty_date: nullableText(form.expiryOrWarrantyDate),
+    official_price_cents: priceToMinorUnits(
+      form.officialPriceText,
+      form.officialPriceCurrency,
+    ),
+    official_price_currency: currencyForPrice(
+      form.officialPriceText,
+      form.officialPriceCurrency,
+    ),
+    purchase_price_cents: priceToMinorUnits(
+      form.purchasePriceText,
+      form.purchasePriceCurrency,
+    ),
+    purchase_price_currency: currencyForPrice(
+      form.purchasePriceText,
+      form.purchasePriceCurrency,
+    ),
     purchase_location: nullableText(form.purchaseLocation),
     status: form.status ?? "available",
     storage_location: nullableText(form.storageLocation),
+    specs: normalizeSpecsForCategory(form.category, form.specs ?? {}),
     tags: parseTagsInput(form.tagsText ?? ""),
     share_enabled: Boolean(form.shareEnabled),
     notes: nullableText(form.notes),
@@ -366,12 +541,21 @@ export function formatGearWeight(value?: number | null): string {
   return `${value} g`;
 }
 
-export function formatGearPrice(value?: number | null): string {
+export function formatGearPrice(
+  value?: number | null,
+  currency?: string | null,
+): string {
   if (value === undefined || value === null) {
     return "未记录";
   }
-  const yuan = value / 100;
-  return value % 100 === 0 ? `¥${Math.trunc(yuan)}` : `¥${yuan.toFixed(2)}`;
+  const normalized = normalizeCurrency(currency);
+  const amount =
+    normalized === "JPY"
+      ? String(value)
+      : value % 100 === 0
+        ? String(Math.trunc(value / 100))
+        : (value / 100).toFixed(2);
+  return normalized === "CNY" ? `¥${amount}` : `${normalized} ${amount}`;
 }
 
 export function formatDateText(value?: string | null): string {
@@ -434,11 +618,69 @@ export function valueOrUnset(value?: string | number | null): string {
   return String(value);
 }
 
+export function getGearSpecFieldViews(
+  category: GearCategory,
+  specs: GearSpecs = {},
+): GearSpecFieldView[] {
+  return (GEAR_SPEC_FIELDS[category] ?? []).map((field) => {
+    const parsed = splitSpecValue(specs[field.key] ?? "", field.units);
+    return {
+      ...field,
+      inputType: field.inputType ?? "text",
+      valueText: parsed.valueText,
+      unitIndex: parsed.unitIndex,
+      unitLabel: field.units?.[parsed.unitIndex] ?? "",
+    };
+  });
+}
+
+export function combineSpecValue(value?: string, unit?: string): string {
+  const text = value?.trim() ?? "";
+  const unitText = unit?.trim() ?? "";
+  if (!text) {
+    return unitText;
+  }
+  if (!unitText) {
+    return text;
+  }
+  return `${text} ${unitText}`;
+}
+
+export function normalizeSpecsForCategory(
+  category: GearCategory,
+  specs: GearSpecs,
+): GearSpecs {
+  const fields = new Set(
+    (GEAR_SPEC_FIELDS[category] ?? []).map((field) => field.key),
+  );
+  const normalized: GearSpecs = {};
+  Object.entries(specs).forEach(([key, value]) => {
+    if (!fields.has(key)) {
+      return;
+    }
+    const text = value.trim();
+    if (text) {
+      normalized[key] = text;
+    }
+  });
+  return normalized;
+}
+
 function findLabel<T extends string>(
   options: Array<OptionItem<T>>,
   value: T,
 ): string {
   return options.find((item) => item.value === value)?.label ?? value;
+}
+
+function spec(
+  key: string,
+  label: string,
+  placeholder: string,
+  inputType: "text" | "number" = "text",
+  units?: string[],
+): GearSpecField {
+  return { key, label, placeholder, inputType, units };
 }
 
 function nullableText(value?: string): string | null {
@@ -469,7 +711,10 @@ function weightKgToGrams(value?: string): number | null {
   return Math.round(numberValue * 1000);
 }
 
-function yuanToCents(value?: string): number | null {
+function priceToMinorUnits(
+  value?: string,
+  currency?: string | null,
+): number | null {
   const text = value?.trim() ?? "";
   if (!text) {
     return null;
@@ -481,7 +726,87 @@ function yuanToCents(value?: string): number | null {
   if (numberValue < 0) {
     throw new Error("价格不能为负数");
   }
-  return Math.round(numberValue * 100);
+  return normalizeCurrency(currency) === "JPY"
+    ? Math.round(numberValue)
+    : Math.round(numberValue * 100);
+}
+
+function priceFromMinorUnits(
+  value?: number | null,
+  currency?: string | null,
+): string {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  if (normalizeCurrency(currency) === "JPY") {
+    return String(value);
+  }
+  return trimTrailingZeros(String(value / 100));
+}
+
+function currencyForPrice(
+  value?: string,
+  currency?: string | null,
+): GearCurrency | null {
+  return value?.trim() ? normalizeCurrency(currency) : null;
+}
+
+function normalizeCurrency(value?: string | null): GearCurrency {
+  const normalized = value?.trim().toUpperCase();
+  const option = GEAR_CURRENCY_OPTIONS.find(
+    (item) => item.value === normalized,
+  );
+  return option?.value ?? "CNY";
+}
+
+function splitSpecValue(
+  value: string,
+  units?: string[],
+): { valueText: string; unitIndex: number } {
+  const text = value.trim();
+  if (!units || units.length === 0) {
+    return { valueText: text, unitIndex: 0 };
+  }
+  const nonEmptyUnits = units
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  const matched = nonEmptyUnits.find(
+    (unit) => text === unit || text.endsWith(` ${unit}`),
+  );
+  if (!matched) {
+    return { valueText: text, unitIndex: 0 };
+  }
+  return {
+    valueText: text === matched ? "" : text.slice(0, -matched.length).trim(),
+    unitIndex: units.indexOf(matched),
+  };
+}
+
+function mergeLegacySpecs(item: GearItem): GearSpecs {
+  const specs: GearSpecs = { ...(item.specs ?? {}) };
+  insertSpecIfPresent(specs, "color", item.color);
+  insertSpecIfPresent(specs, "material", item.material);
+  insertSpecIfPresent(specs, "capacity", item.capacity);
+  insertSpecIfPresent(specs, "size", item.size);
+  insertSpecIfPresent(specs, "warmth_index", item.warmth_index);
+  insertSpecIfPresent(specs, "waterproof_index", item.waterproof_index);
+  insertSpecIfPresent(
+    specs,
+    "expiry_or_warranty_date",
+    item.expiry_or_warranty_date,
+  );
+  return specs;
+}
+
+function insertSpecIfPresent(
+  specs: GearSpecs,
+  key: string,
+  value?: string | null,
+): void {
+  const text = value?.trim() ?? "";
+  if (text && !specs[key]) {
+    specs[key] = text;
+  }
 }
 
 function trimTrailingZeros(value: string): string {

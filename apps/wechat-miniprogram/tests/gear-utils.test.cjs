@@ -5,6 +5,7 @@ const {
   buildGearPayload,
   formatGearPrice,
   formatGearWeight,
+  getGearSpecFieldViews,
   parseTagsInput,
 } = require("../.tmp-test/utils/gear-utils.js");
 
@@ -20,6 +21,8 @@ test("formatGearPrice formats cents as Chinese Yuan", () => {
   assert.equal(formatGearPrice(undefined), "未记录");
   assert.equal(formatGearPrice(63900), "¥639");
   assert.equal(formatGearPrice(63950), "¥639.50");
+  assert.equal(formatGearPrice(1299, "USD"), "USD 12.99");
+  assert.equal(formatGearPrice(1200, "JPY"), "JPY 1200");
 });
 
 test("parseTagsInput accepts comma, Chinese comma and semicolon separators", () => {
@@ -38,20 +41,21 @@ test("buildGearPayload trims text and converts UI inputs to API units", () => {
       name: "  NITECORE 头灯  ",
       brand: " NITECORE奈特科尔 ",
       model: "",
-      color: "黑色",
-      material: "",
-      capacity: "20000mAh",
-      size: "",
       description: " 冬季徒步备用电源 ",
       weightText: "0.315",
-      warmthIndex: "",
-      waterproofIndex: "IPX8",
       purchaseDate: "2026-01-22",
+      officialPriceText: "699",
+      officialPriceCurrency: "CNY",
       purchasePriceText: "639.5",
-      expiryOrWarrantyDate: "",
+      purchasePriceCurrency: "CNY",
       purchaseLocation: "京东",
       status: "available",
       storageLocation: "装备柜 A1",
+      specs: {
+        battery_capacity: "20000 mAh",
+        waterproof_rating: "IPX8",
+        opening_style: "拉链",
+      },
       tagsText: "冬季, 电子；备用",
       shareEnabled: true,
       notes: " 充满电后入库 ",
@@ -61,25 +65,34 @@ test("buildGearPayload trims text and converts UI inputs to API units", () => {
       name: "NITECORE 头灯",
       brand: "NITECORE奈特科尔",
       model: null,
-      color: "黑色",
-      material: null,
-      capacity: "20000mAh",
-      size: null,
       description: "冬季徒步备用电源",
       weight_g: 315,
-      warmth_index: null,
-      waterproof_index: "IPX8",
       purchase_date: "2026-01-22",
+      official_price_cents: 69900,
+      official_price_currency: "CNY",
       purchase_price_cents: 63950,
-      expiry_or_warranty_date: null,
+      purchase_price_currency: "CNY",
       purchase_location: "京东",
       status: "available",
       storage_location: "装备柜 A1",
+      specs: {
+        battery_capacity: "20000 mAh",
+        waterproof_rating: "IPX8",
+      },
       tags: ["冬季", "电子", "备用"],
       share_enabled: true,
       notes: "充满电后入库",
     },
   );
+});
+
+test("getGearSpecFieldViews splits value and unit for category specs", () => {
+  const fields = getGearSpecFieldViews("electronics_system", {
+    battery_capacity: "20000 mAh",
+  });
+  const battery = fields.find((field) => field.key === "battery_capacity");
+  assert.equal(battery.valueText, "20000");
+  assert.equal(battery.unitLabel, "mAh");
 });
 
 test("buildGearPayload rejects missing names and invalid numbers", () => {

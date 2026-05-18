@@ -304,12 +304,12 @@ async fn knots_migration_down_preserves_shared_skill_categories() {
     .await
     .expect("insert shared category localization");
 
-    // Roll back later API usage statistics, Knots3D data repair, email-code
-    // attempt tracking, gear templates, media resources, refresh-token metadata,
-    // and knots content. This keeps the
+    // Roll back later gear specs, API usage statistics, Knots3D data repair,
+    // email-code attempt tracking, gear templates, media resources,
+    // refresh-token metadata, and knots content. This keeps the
     // assertion pinned to the knots migration's down behavior even as later,
     // unrelated migrations are appended to the global migrator sequence.
-    Migrator::down(&db, Some(7))
+    Migrator::down(&db, Some(8))
         .await
         .expect("roll back knots migration");
 

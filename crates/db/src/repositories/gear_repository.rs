@@ -6,8 +6,8 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Value};
 
 use super::statement;
 use stellartrail_domain::gear::{
-    GearCategory, GearCategoryCount, GearDraft, GearItem, GearShareStatus, GearSort, GearStats,
-    GearStatus, GearStatusCount, GearTab, now_rfc3339,
+    GearCategory, GearCategoryCount, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs,
+    GearStats, GearStatus, GearStatusCount, GearTab, now_rfc3339,
 };
 use uuid::Uuid;
 
@@ -56,16 +56,17 @@ impl GearRepository {
         let now = now_rfc3339();
         let tags_json =
             serde_json::to_string(&draft.tags).map_err(|err| DbErr::Custom(err.to_string()))?;
+        let specs_json = json_string(&draft.specs)?;
         self.db
             .execute(statement(
                 self.db.get_database_backend(),
                 r#"INSERT INTO user_gear_items (
-                    id, user_id, category, name, brand, model, color, material, capacity, size, description,
-                    weight_g, warmth_index, waterproof_index, purchase_date, purchase_price_cents,
-                    expiry_or_warranty_date, purchase_location, status, storage_location, tags_json,
-                    share_enabled, share_status, notes, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
-                gear_values(&id, user_id, draft, &tags_json, &now, &now),
+                    id, user_id, category, name, brand, model, description, weight_g,
+                    official_price_cents, official_price_currency, purchase_date, purchase_price_cents,
+                    purchase_price_currency, purchase_location, status, storage_location, specs_json,
+                    tags_json, share_enabled, share_status, notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+                gear_values(&id, user_id, draft, &specs_json, &tags_json, &now, &now),
             ))
             .await?;
         self.get(user_id, &id)
@@ -96,25 +97,23 @@ impl GearRepository {
         let now = now_rfc3339();
         let tags_json =
             serde_json::to_string(&draft.tags).map_err(|err| DbErr::Custom(err.to_string()))?;
+        let specs_json = json_string(&draft.specs)?;
         let mut values = vec![
             draft.category.as_str().to_owned().into(),
             draft.name.clone().into(),
             draft.brand.clone().into(),
             draft.model.clone().into(),
-            draft.color.clone().into(),
-            draft.material.clone().into(),
-            draft.capacity.clone().into(),
-            draft.size.clone().into(),
             draft.description.clone().into(),
             draft.weight_g.into(),
-            draft.warmth_index.clone().into(),
-            draft.waterproof_index.clone().into(),
+            draft.official_price_cents.into(),
+            draft.official_price_currency.clone().into(),
             draft.purchase_date.clone().into(),
             draft.purchase_price_cents.into(),
-            draft.expiry_or_warranty_date.clone().into(),
+            draft.purchase_price_currency.clone().into(),
             draft.purchase_location.clone().into(),
             draft.status.as_str().to_owned().into(),
             draft.storage_location.clone().into(),
+            specs_json.into(),
             tags_json.into(),
             draft.share_enabled.into(),
             draft.share_status.as_str().to_owned().into(),
@@ -128,10 +127,11 @@ impl GearRepository {
             .execute(statement(
                 self.db.get_database_backend(),
                 r#"UPDATE user_gear_items SET
-                    category = ?, name = ?, brand = ?, model = ?, color = ?, material = ?, capacity = ?, size = ?, description = ?,
-                    weight_g = ?, warmth_index = ?, waterproof_index = ?, purchase_date = ?, purchase_price_cents = ?,
-                    expiry_or_warranty_date = ?, purchase_location = ?, status = ?, storage_location = ?, tags_json = ?,
-                    share_enabled = ?, share_status = ?, notes = ?, updated_at = ?
+                    category = ?, name = ?, brand = ?, model = ?, description = ?, weight_g = ?,
+                    official_price_cents = ?, official_price_currency = ?, purchase_date = ?,
+                    purchase_price_cents = ?, purchase_price_currency = ?, purchase_location = ?,
+                    status = ?, storage_location = ?, specs_json = ?, tags_json = ?, share_enabled = ?,
+                    share_status = ?, notes = ?, updated_at = ?
                    WHERE user_id = ? AND id = ?"#,
                 values,
             ))
@@ -271,7 +271,12 @@ impl GearRepository {
             .db
             .query_one(statement(
                 self.db.get_database_backend(),
-                format!("SELECT COUNT(*) AS count, CAST(COALESCE(SUM(purchase_price_cents), 0) AS BIGINT) AS total_value_cents, CAST(COALESCE(SUM(weight_g), 0) AS BIGINT) AS total_weight_g FROM user_gear_items WHERE user_id = ? AND {archived_clause}"),
+                format!(
+                    "SELECT COUNT(*) AS count, \
+                     CAST(COALESCE(SUM(CASE WHEN purchase_price_currency = 'CNY' THEN purchase_price_cents ELSE 0 END), 0) AS BIGINT) AS total_value_cents, \
+                     CAST(COALESCE(SUM(weight_g), 0) AS BIGINT) AS total_weight_g \
+                     FROM user_gear_items WHERE user_id = ? AND {archived_clause}"
+                ),
                 vec![user_id.to_owned().into()],
             ))
             .await?
@@ -337,6 +342,7 @@ fn gear_values(
     id: &str,
     user_id: &str,
     draft: &GearDraft,
+    specs_json: &str,
     tags_json: &str,
     created_at: &str,
     updated_at: &str,
@@ -348,20 +354,17 @@ fn gear_values(
         draft.name.clone().into(),
         draft.brand.clone().into(),
         draft.model.clone().into(),
-        draft.color.clone().into(),
-        draft.material.clone().into(),
-        draft.capacity.clone().into(),
-        draft.size.clone().into(),
         draft.description.clone().into(),
         draft.weight_g.into(),
-        draft.warmth_index.clone().into(),
-        draft.waterproof_index.clone().into(),
+        draft.official_price_cents.into(),
+        draft.official_price_currency.clone().into(),
         draft.purchase_date.clone().into(),
         draft.purchase_price_cents.into(),
-        draft.expiry_or_warranty_date.clone().into(),
+        draft.purchase_price_currency.clone().into(),
         draft.purchase_location.clone().into(),
         draft.status.as_str().to_owned().into(),
         draft.storage_location.clone().into(),
+        specs_json.to_owned().into(),
         tags_json.to_owned().into(),
         draft.share_enabled.into(),
         draft.share_status.as_str().to_owned().into(),
@@ -379,9 +382,10 @@ fn gear_select_sql(where_clause: &str) -> String {
 /// Runs the `gear select columns` server-side flow while preserving input validation, error propagation, and state invariants.
 fn gear_select_columns() -> &'static str {
     r#"SELECT id, user_id, category, name, brand, model, color, material, capacity, size, description,
-        weight_g, warmth_index, waterproof_index, purchase_date, purchase_price_cents,
+        weight_g, official_price_cents, official_price_currency, warmth_index, waterproof_index,
+        purchase_date, purchase_price_cents, purchase_price_currency,
         expiry_or_warranty_date, purchase_location, status, storage_location, tags_json,
-        share_enabled, share_status, notes, archived_at, created_at, updated_at
+        specs_json, share_enabled, share_status, notes, archived_at, created_at, updated_at
        FROM user_gear_items"#
 }
 
@@ -432,14 +436,20 @@ fn normalize_query(q: Option<&str>) -> Option<String> {
     }
 }
 
+fn json_string(specs: &GearSpecs) -> Result<String, DbErr> {
+    serde_json::to_string(specs).map_err(|err| DbErr::Custom(err.to_string()))
+}
+
 /// Runs the `map gear` server-side flow while preserving input validation, error propagation, and state invariants.
 fn map_gear(row: &sea_orm::QueryResult) -> Result<GearItem, DbErr> {
     let category_raw: String = row.try_get("", "category")?;
     let status_raw: String = row.try_get("", "status")?;
     let share_status_raw: String = row.try_get("", "share_status")?;
     let tags_json: String = row.try_get("", "tags_json")?;
+    let specs_json: String = row.try_get("", "specs_json")?;
     // tags_json is a database text field; deserialization failures are converted to DbErr for consistent upstream handling.
     let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+    let specs: GearSpecs = serde_json::from_str(&specs_json).unwrap_or_default();
     Ok(GearItem {
         id: row.try_get("", "id")?,
         user_id: row.try_get("", "user_id")?,
@@ -454,15 +464,19 @@ fn map_gear(row: &sea_orm::QueryResult) -> Result<GearItem, DbErr> {
         size: row.try_get("", "size")?,
         description: row.try_get("", "description")?,
         weight_g: row.try_get("", "weight_g")?,
+        official_price_cents: row.try_get("", "official_price_cents")?,
+        official_price_currency: row.try_get("", "official_price_currency")?,
         warmth_index: row.try_get("", "warmth_index")?,
         waterproof_index: row.try_get("", "waterproof_index")?,
         purchase_date: row.try_get("", "purchase_date")?,
         purchase_price_cents: row.try_get("", "purchase_price_cents")?,
+        purchase_price_currency: row.try_get("", "purchase_price_currency")?,
         expiry_or_warranty_date: row.try_get("", "expiry_or_warranty_date")?,
         purchase_location: row.try_get("", "purchase_location")?,
         status: GearStatus::from_key(&status_raw)
             .ok_or_else(|| DbErr::Custom(format!("invalid gear status: {status_raw}")))?,
         storage_location: row.try_get("", "storage_location")?,
+        specs,
         tags,
         share_enabled: row.try_get("", "share_enabled")?,
         share_status: GearShareStatus::from_key(&share_status_raw)
@@ -488,20 +502,17 @@ mod tests {
             name: name.to_owned(),
             brand: Some("NITECORE".to_owned()),
             model: Some("SUMMIT 20000".to_owned()),
-            color: None,
-            material: None,
-            capacity: Some("20000mAh".to_owned()),
-            size: None,
             description: None,
             weight_g: Some(315),
-            warmth_index: None,
-            waterproof_index: None,
+            official_price_cents: Some(69900),
+            official_price_currency: Some("CNY".to_owned()),
             purchase_date: Some("2026-01-22".to_owned()),
             purchase_price_cents: Some(63900),
-            expiry_or_warranty_date: None,
+            purchase_price_currency: Some("CNY".to_owned()),
             purchase_location: None,
             status: GearStatus::Available,
             storage_location: Some("装备柜".to_owned()),
+            specs: GearSpecs::from([("battery_capacity".to_owned(), "20000 mAh".to_owned())]),
             tags: vec!["电子".to_owned()],
             share_enabled: false,
             share_status: GearShareStatus::NotShared,

@@ -9,12 +9,16 @@ import {
 } from "../../../utils/api";
 import {
   buildGearPayload,
+  combineSpecValue,
   createDefaultGearFormData,
   gearToFormData,
   GEAR_CATEGORY_OPTIONS,
+  GEAR_CURRENCY_OPTIONS,
   GEAR_STATUS_OPTIONS,
+  getGearSpecFieldViews,
   optionIndex,
   type GearCategory,
+  type GearCurrency,
   type GearFormData,
   type GearStatus,
 } from "../../../utils/gear-utils";
@@ -39,6 +43,11 @@ Page({
     statusOptions: GEAR_STATUS_OPTIONS,
     statusLabels: GEAR_STATUS_OPTIONS.map((item) => item.label),
     statusIndex: 0,
+    currencyOptions: GEAR_CURRENCY_OPTIONS,
+    currencyLabels: GEAR_CURRENCY_OPTIONS.map((item) => item.label),
+    officialPriceCurrencyIndex: 0,
+    purchasePriceCurrencyIndex: 0,
+    specFields: getGearSpecFieldViews("backpack_system", {}),
     loading: false,
     submitting: false,
     requiresLogin: false,
@@ -112,6 +121,15 @@ Page({
       form,
       categoryIndex: optionIndex(GEAR_CATEGORY_OPTIONS, form.category),
       statusIndex: optionIndex(GEAR_STATUS_OPTIONS, form.status),
+      officialPriceCurrencyIndex: optionIndex(
+        GEAR_CURRENCY_OPTIONS,
+        form.officialPriceCurrency,
+      ),
+      purchasePriceCurrencyIndex: optionIndex(
+        GEAR_CURRENCY_OPTIONS,
+        form.purchasePriceCurrency,
+      ),
+      specFields: getGearSpecFieldViews(form.category, form.specs),
     });
   },
 
@@ -127,6 +145,7 @@ Page({
     this.setData({
       categoryIndex: index,
       "form.category": category,
+      specFields: getGearSpecFieldViews(category, this.data.form.specs),
     });
   },
 
@@ -141,6 +160,56 @@ Page({
 
   onShareSwitch(event: any) {
     this.setData({ "form.shareEnabled": Boolean(event.detail.value) });
+  },
+
+  onOfficialPriceCurrencyChange(event: any) {
+    const index = Number(event.detail.value || 0);
+    const currency = GEAR_CURRENCY_OPTIONS[index].value as GearCurrency;
+    this.setData({
+      officialPriceCurrencyIndex: index,
+      "form.officialPriceCurrency": currency,
+    });
+  },
+
+  onPurchasePriceCurrencyChange(event: any) {
+    const index = Number(event.detail.value || 0);
+    const currency = GEAR_CURRENCY_OPTIONS[index].value as GearCurrency;
+    this.setData({
+      purchasePriceCurrencyIndex: index,
+      "form.purchasePriceCurrency": currency,
+    });
+  },
+
+  onSpecInput(event: WechatMiniprogram.BaseEvent) {
+    const key = event.currentTarget.dataset.key as string;
+    const index = Number(event.currentTarget.dataset.index || 0);
+    const value = (event as any).detail.value;
+    const field = this.data.specFields[index];
+    const unit = field?.units?.[field.unitIndex] ?? "";
+    const specs = {
+      ...this.data.form.specs,
+      [key]: combineSpecValue(value, unit),
+    };
+    this.setData({
+      "form.specs": specs,
+      specFields: getGearSpecFieldViews(this.data.form.category, specs),
+    });
+  },
+
+  onSpecUnitChange(event: any) {
+    const key = event.currentTarget.dataset.key as string;
+    const fieldIndex = Number(event.currentTarget.dataset.index || 0);
+    const unitIndex = Number(event.detail.value || 0);
+    const field = this.data.specFields[fieldIndex];
+    const unit = field?.units?.[unitIndex] ?? "";
+    const specs = {
+      ...this.data.form.specs,
+      [key]: combineSpecValue(field?.valueText ?? "", unit),
+    };
+    this.setData({
+      "form.specs": specs,
+      specFields: getGearSpecFieldViews(this.data.form.category, specs),
+    });
   },
 
   async submitForm() {

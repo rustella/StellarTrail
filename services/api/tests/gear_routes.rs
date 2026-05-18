@@ -201,14 +201,20 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
         "name": " NITECORE奈特科尔SUMMIT 20000超薄充电宝 ",
         "brand": "NITECORE奈特科尔",
         "model": "SUMMIT 20000",
-        "capacity": "20000mAh",
         "description": "冬季徒步备用电源",
         "weight_g": 315,
+        "official_price_cents": 69900,
+        "official_price_currency": "cny",
         "purchase_date": "2026-01-22",
         "purchase_price_cents": 63900,
+        "purchase_price_currency": "CNY",
         "purchase_location": "京东",
         "status": "available",
         "storage_location": "装备柜 A1",
+        "specs": {
+            "battery_capacity": "20000 mAh",
+            "waterproof_rating": "IPX4"
+        },
         "tags": ["冬季", "电子", "电子"],
         "share_enabled": true,
         "notes": "充满电后入库"
@@ -226,6 +232,9 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     assert_eq!(created["name"], "NITECORE奈特科尔SUMMIT 20000超薄充电宝");
     assert_eq!(created["tags"], json!(["冬季", "电子"]));
     assert_eq!(created["share_status"], "pending");
+    assert_eq!(created["official_price_currency"], "CNY");
+    assert_eq!(created["purchase_price_currency"], "CNY");
+    assert_eq!(created["specs"]["battery_capacity"], "20000 mAh");
 
     let (stats_status, stats) =
         send_empty(&app.router, "GET", "/api/me/gears/stats", Some(&token)).await;
@@ -251,6 +260,50 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     assert_eq!(list["items"].as_array().unwrap().len(), 1);
     assert_eq!(list["items"][0]["category_label"], "电子系统");
     assert_eq!(list["items"][0]["status_label"], "可用");
+    assert_eq!(list["items"][0]["official_price_cents"], 69900);
+    assert_eq!(list["items"][0]["purchase_price_currency"], "CNY");
+
+    let (invalid_status, invalid) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({
+            "category": "electronics_system",
+            "name": "错误参数",
+            "purchase_price_cents": -1,
+            "purchase_price_currency": "GBP",
+            "specs": {"opening_style": "拉链"}
+        }),
+    )
+    .await;
+    assert_eq!(
+        invalid_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{invalid}"
+    );
+    assert_eq!(invalid["code"], "validation_failed");
+    assert!(
+        invalid["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "purchase_price_cents")
+    );
+    assert!(
+        invalid["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "purchase_price_currency")
+    );
+    assert!(
+        invalid["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "specs.opening_style")
+    );
 
     let (update_status, updated) = send_json(
         &app.router,
@@ -263,6 +316,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     assert_eq!(update_status, StatusCode::OK, "{updated}");
     assert_eq!(updated["status"], "maintenance");
     assert_eq!(updated["storage_location"], "维修箱");
+    assert_eq!(updated["specs"]["battery_capacity"], "20000 mAh");
 
     let (delete_status, delete_body) = send_empty(
         &app.router,

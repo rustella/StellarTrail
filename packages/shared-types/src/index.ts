@@ -192,6 +192,9 @@ export type GearSort =
   | "weight_desc"
   | "price_desc";
 
+export type GearCurrency = "CNY" | "USD" | "EUR" | "JPY" | "HKD";
+export type GearSpecs = Record<string, string>;
+
 export interface GearItem {
   id: string;
   user_id: string;
@@ -205,14 +208,18 @@ export interface GearItem {
   size?: string | null;
   description?: string | null;
   weight_g?: number | null;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
   warmth_index?: string | null;
   waterproof_index?: string | null;
   purchase_date?: string | null;
   purchase_price_cents?: number | null;
+  purchase_price_currency?: GearCurrency | string | null;
   expiry_or_warranty_date?: string | null;
   purchase_location?: string | null;
   status: GearStatus;
   storage_location?: string | null;
+  specs?: GearSpecs | null;
   tags: string[];
   share_enabled: boolean;
   share_status: GearShareStatus;
@@ -232,8 +239,12 @@ export interface GearSummary {
   status: GearStatus;
   status_label: string;
   weight_g?: number | null;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
   purchase_price_cents?: number | null;
+  purchase_price_currency?: GearCurrency | string | null;
   purchase_date?: string | null;
+  specs?: GearSpecs | null;
   created_at: string;
   updated_at: string;
 }
@@ -249,14 +260,18 @@ export interface CreateGearRequest {
   size?: string | null;
   description?: string | null;
   weight_g?: number | null;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
   warmth_index?: string | null;
   waterproof_index?: string | null;
   purchase_date?: string | null;
   purchase_price_cents?: number | null;
+  purchase_price_currency?: GearCurrency | string | null;
   expiry_or_warranty_date?: string | null;
   purchase_location?: string | null;
   status?: GearStatus | null;
   storage_location?: string | null;
+  specs?: GearSpecs | null;
   tags?: string[];
   share_enabled?: boolean;
   notes?: string | null;
