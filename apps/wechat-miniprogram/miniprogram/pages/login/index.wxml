@@ -49,57 +49,7 @@
       <view class="panel-desc"
         >使用微信身份快速进入，之后可以保存和管理自己的装备。</view
       >
-      <view
-        wx:if="{{wechatProfilePromptVisible}}"
-        class="wechat-profile-prompt"
-      >
-        <view class="profile-title">导入微信资料</view>
-        <button
-          class="avatar-button"
-          open-type="chooseAvatar"
-          bindchooseavatar="onChooseWechatAvatar"
-        >
-          <image
-            wx:if="{{wechatAvatarPath}}"
-            class="avatar-preview"
-            src="{{wechatAvatarPath}}"
-            mode="aspectFill"
-          />
-          <view wx:else class="avatar-placeholder">头像</view>
-        </button>
-        <input
-          class="field-input nickname-input"
-          type="nickname"
-          placeholder="微信昵称"
-          value="{{wechatNickname}}"
-          bindinput="onWechatNicknameInput"
-        />
-        <button
-          wx:if="{{wechatProfilePromptCanRetry}}"
-          class="primary"
-          loading="{{loading}}"
-          bindtap="retryWechatAvatarUpload"
-        >
-          重试保存头像
-        </button>
-        <button
-          wx:else
-          class="primary"
-          loading="{{loading}}"
-          bindtap="importWechatProfileAndLogin"
-        >
-          导入并登录
-        </button>
-        <button
-          class="link-button"
-          loading="{{loading}}"
-          bindtap="skipWechatProfileImport"
-        >
-          跳过
-        </button>
-      </view>
       <button
-        wx:if="{{!wechatProfilePromptVisible}}"
         class="primary"
         loading="{{loading}}"
         bindtap="loginWechat"
