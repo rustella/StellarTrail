@@ -36,7 +36,7 @@
   <view class="section-card">
     <view class="section-header">
       <view>
-        <view class="section-eyebrow">GEAR READY</view>
+        <view class="section-eyebrow">装备准备</view>
         <view class="section-title">装备概览</view>
       </view>
       <view class="section-link" bindtap="goGears">查看装备</view>
@@ -88,7 +88,7 @@
   <view class="section-card">
     <view class="section-header">
       <view>
-        <view class="section-eyebrow">SKILL PICKS</view>
+        <view class="section-eyebrow">技能复习</view>
         <view class="section-title">户外技能精选</view>
       </view>
       <view class="section-link" bindtap="goSkills">全部技能</view>
@@ -125,7 +125,7 @@
   </view>
 
   <view class="section-card checklist-card">
-    <view class="section-eyebrow">BEFORE YOU GO</view>
+    <view class="section-eyebrow">出发前</view>
     <view class="section-title">出发前检查</view>
     <block wx:for="{{checklistItems}}" wx:key="title">
       <view class="check-item">

@@ -42,7 +42,7 @@ Page({
   onLoad(options: Record<string, string | undefined>) {
     const id = options.id;
     if (!id) {
-      this.setData({ error: "缺少绳结 ID" });
+      this.setData({ error: "没有找到这条内容，请返回后重试" });
       return;
     }
     this.setData({ id });

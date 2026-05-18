@@ -13,7 +13,7 @@
     <view class="intro-card">
       <view class="intro-title">投稿到装备图鉴</view>
       <view class="intro-subtitle"
-        >只填写公开参数，审核通过后会出现在装备图鉴。</view
+        >只填写适合公开展示的信息，审核通过后会出现在装备图鉴。</view
       >
     </view>
 
@@ -67,14 +67,14 @@
         <textarea
           value="{{form.description}}"
           data-field="description"
-          placeholder="适用场景、亮点或公开参数说明"
+          placeholder="适用场景、亮点或可公开的信息"
           bindinput="onInput"
         />
       </view>
     </view>
 
     <view class="form-card">
-      <view class="section-title">公开参数</view>
+      <view class="section-title">可公开信息</view>
       <view class="two-column">
         <view class="field compact">
           <view class="field-label">重量</view>

@@ -22,7 +22,7 @@ test("login page offers WeChat account email-code and password-reset entry point
 ${ts}`;
   assert.match(wxml, /微信登录/);
   assert.match(wxml, /账号登录/);
-  assert.match(wxml, /邮箱登陆/);
+  assert.match(wxml, /邮箱登录/);
   assert.doesNotMatch(wxml, /使用微信身份快速进入/);
   assert.match(wxml, /找回密码/);
   assert.match(wxml, /重设密码并登录/);
@@ -251,7 +251,7 @@ test("gear atlas submission moved from gear form to detail and atlas pages", () 
   assert.match(detailTs, /submitGearToAtlas/);
   assert.match(
     detailTs,
-    /只会复制分类、名称、品牌、型号、描述、重量、官方价和分类参数/,
+    /只会复制分类、名称、品牌、型号、描述、重量、官方价和详细信息/,
   );
   assert.match(atlasListWxml, /装备图鉴/);
   assert.match(atlasSubmitWxml, /提交审核/);
