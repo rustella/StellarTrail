@@ -341,7 +341,7 @@ X-StellarTrail-Locale: en
 
 ### Admin knot media upload
 
-管理员上传接口需要 Bearer Token，且当前用户必须命中 `ADMIN_USER_IDS`、`ADMIN_EMAILS` 或 `ADMIN_USERNAMES` allowlist。该接口是批量导入 Knots3D 媒体的唯一写入入口：脚本不得绕过 API 直接写 MinIO 或 DB。
+管理员上传接口需要 Bearer Token，且当前用户必须拥有数据库 `admin_roles` 中的 `admin` 或 `super_admin` 角色。该接口是批量导入 Knots3D 媒体的唯一写入入口：脚本不得绕过 API 直接写 MinIO 或 DB。
 
 ```http
 PUT /api/admin/skills/knots/:knot_id/media/:asset_id
@@ -398,7 +398,37 @@ npm run knots:upload-media -- --verify-only
 GET /api/admin/api-usage?from=2026-05-01&to=2026-05-18&method=GET&route=/api/me/gears&limit=50&offset=0
 ```
 
-该接口需要 Bearer Token，且用户必须命中 `ADMIN_USER_IDS` / `ADMIN_EMAILS` / `ADMIN_USERNAMES` allowlist。它只返回按日期、用户、HTTP 方法、路由模板和状态码聚合后的计数，不返回单次请求日志。
+该接口需要 Bearer Token，且当前用户必须拥有数据库 `admin_roles` 中的 `admin` 或 `super_admin` 角色。它只返回按日期、用户、HTTP 方法、路由模板和状态码聚合后的计数，不返回单次请求日志。
+
+## Admin role management
+
+管理员角色存储在 `admin_roles` 表，角色值为 `admin` 或 `super_admin`。迁移只会把数据库中已存在且未删除的 `username = 'stellarisw'` 用户写入或升级为 `super_admin`；如果该用户不存在，迁移不会创建用户或预留用户名。`admin` 与 `super_admin` 都能访问管理员能力，只有 `super_admin` 可以授予或移除普通 `admin`。
+
+```http
+POST /api/admin/admins
+Authorization: Bearer <super-admin-token>
+Content-Type: application/json
+
+{"username": "trail_admin"}
+```
+
+请求体必须且只能包含一个目标标识：`username` 或 `user_id`。目标用户必须已存在且未删除。新增普通管理员返回 `201`，目标已是 `admin` 或 `super_admin` 时返回 `200` 和当前角色；重复授予不会把 `super_admin` 降级为 `admin`。
+
+```json
+{
+  "user_id": "user-uuid",
+  "role": "admin"
+}
+```
+
+移除普通管理员：
+
+```http
+DELETE /api/admin/admins?username=trail_admin
+Authorization: Bearer <super-admin-token>
+```
+
+删除成功返回 `204`。目标不存在、未拥有管理员角色时返回 `404`；目标是 `super_admin` 时返回 `422 validation_failed`，该接口不负责移除超级管理员。
 
 统计写入由服务端 middleware 异步上报：请求返回路径不会等待数据库写入；统计队列满、后台 worker 失败或写库失败时只丢弃统计，不影响业务请求。
 

@@ -1,4 +1,6 @@
 import type {
+  AdminRoleResponse,
+  AdminUserSelector,
   ApiUsageListRequest,
   ApiUsageListResponse,
   BindEmailCodeRequest,
@@ -7,12 +9,15 @@ import type {
   CaptchaChallengeRequest,
   CaptchaChallengeResponse,
   ContentListResponse,
+  CreateGearAtlasSubmissionRequest,
   CreateGearRequest,
   EmailLoginCodeRequest,
   EmailLoginRequest,
   EmailVerificationCodeRequest,
   EmailVerificationCodeResponse,
   GearCategoriesResponse,
+  GearAtlasPublicItem,
+  GearAtlasSubmission,
   GearCategory,
   GearTemplate,
   GearItem,
@@ -28,6 +33,10 @@ import type {
   ListKnotsRequest,
   ImportGearsRequest,
   ImportGearsResponse,
+  ListGearAtlasRequest,
+  ListGearAtlasResponse,
+  ListGearAtlasSubmissionsRequest,
+  ListGearAtlasSubmissionsResponse,
   ListGearsRequest,
   ListGearsResponse,
   MetaResponse,
@@ -37,6 +46,7 @@ import type {
   ProfileUserResponse,
   RefreshTokenRequest,
   RegisterRequest,
+  RejectGearAtlasSubmissionRequest,
   SkillCategoriesResponse,
   SkillLocale,
   UpdateGearRequest,
@@ -146,6 +156,18 @@ export class StellarTrailApiClient {
     return this.get(`/api/admin/api-usage${queryString(request)}`, true);
   }
 
+  async grantAdmin(request: AdminUserSelector): Promise<AdminRoleResponse> {
+    return this.post("/api/admin/admins", request, true);
+  }
+
+  async revokeAdmin(request: AdminUserSelector): Promise<void> {
+    await this.request(
+      `/api/admin/admins${queryString(request)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
   async uploadKnotMedia(
     input: AdminKnotMediaUploadInput,
   ): Promise<KnotMediaUploadResponse> {
@@ -177,6 +199,76 @@ export class StellarTrailApiClient {
 
   async getGearTemplate(id: string): Promise<GearTemplate> {
     return this.get(`/api/gear-templates/${encodeURIComponent(id)}`);
+  }
+
+  async listGearAtlas(
+    request: ListGearAtlasRequest = {},
+  ): Promise<ListGearAtlasResponse> {
+    return this.get(`/api/gear-atlas${queryString(request)}`);
+  }
+
+  async getGearAtlasItem(id: string): Promise<GearAtlasPublicItem> {
+    return this.get(`/api/gear-atlas/${encodeURIComponent(id)}`);
+  }
+
+  async createGearAtlasSubmission(
+    request: CreateGearAtlasSubmissionRequest,
+  ): Promise<GearAtlasSubmission> {
+    return this.post("/api/me/gear-atlas-submissions", request, true);
+  }
+
+  async createGearAtlasSubmissionFromGear(
+    gearId: string,
+  ): Promise<GearAtlasSubmission> {
+    return this.post(
+      `/api/me/gears/${encodeURIComponent(gearId)}/atlas-submission`,
+      undefined,
+      true,
+    );
+  }
+
+  async listMyGearAtlasSubmissions(
+    request: Pick<ListGearAtlasSubmissionsRequest, "limit" | "cursor"> = {},
+  ): Promise<ListGearAtlasSubmissionsResponse> {
+    return this.get(
+      `/api/me/gear-atlas-submissions${queryString(request)}`,
+      true,
+    );
+  }
+
+  async listAdminGearAtlasSubmissions(
+    request: ListGearAtlasSubmissionsRequest = {},
+  ): Promise<ListGearAtlasSubmissionsResponse> {
+    return this.get(
+      `/api/admin/gear-atlas-submissions${queryString(request)}`,
+      true,
+    );
+  }
+
+  async getAdminGearAtlasSubmission(id: string): Promise<GearAtlasSubmission> {
+    return this.get(
+      `/api/admin/gear-atlas-submissions/${encodeURIComponent(id)}`,
+      true,
+    );
+  }
+
+  async approveGearAtlasSubmission(id: string): Promise<GearAtlasSubmission> {
+    return this.post(
+      `/api/admin/gear-atlas-submissions/${encodeURIComponent(id)}/approve`,
+      undefined,
+      true,
+    );
+  }
+
+  async rejectGearAtlasSubmission(
+    id: string,
+    request: RejectGearAtlasSubmissionRequest = {},
+  ): Promise<GearAtlasSubmission> {
+    return this.post(
+      `/api/admin/gear-atlas-submissions/${encodeURIComponent(id)}/reject`,
+      request,
+      true,
+    );
   }
 
   async loginWithWechatCode(

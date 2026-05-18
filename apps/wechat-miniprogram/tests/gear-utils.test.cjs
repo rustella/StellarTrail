@@ -105,7 +105,7 @@ test("buildGearPayload trims text and converts UI inputs to API units", () => {
         电子: "teal",
         备用: "amber",
       },
-      share_enabled: true,
+      share_enabled: false,
       notes: "充满电后入库",
     },
   );

@@ -603,38 +603,6 @@
   line-height: 62rpx;
 }
 
-.template-mini-section {
-  margin-top: 24rpx;
-}
-
-.template-mini-title {
-  color: var(--text-color);
-  font-size: 28rpx;
-  font-weight: 900;
-}
-
-.template-mini-card {
-  margin-top: 16rpx;
-  padding: 22rpx;
-  border: 1rpx solid var(--border-color);
-  border-radius: 24rpx;
-  background: var(--control-bg);
-}
-
-.template-mini-name {
-  color: var(--text-color);
-  font-size: 27rpx;
-  font-weight: 900;
-}
-
-.template-mini-meta,
-.template-mini-items {
-  margin-top: 8rpx;
-  color: var(--muted-color);
-  font-size: 23rpx;
-  line-height: 1.5;
-}
-
 .profile-import-card .login-prompt-message {
   padding-right: 0;
 }

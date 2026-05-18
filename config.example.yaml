@@ -56,11 +56,6 @@ knots_media_storage:
   max_image_bytes: 32000000
   max_video_bytes: 80000000
 
-admin:
-  user_ids: []
-  emails: []
-  usernames: []
-
 rate_limit:
   enabled: true
   window_seconds: 60

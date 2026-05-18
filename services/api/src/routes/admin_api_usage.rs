@@ -1,8 +1,8 @@
 //! Administrator API usage statistics routes.
 //!
-//! The endpoint returns aggregate counters only. It is protected by the existing
-//! administrator allowlist and accepts a small set of bounded filters so callers
-//! cannot turn statistics into a raw request-log search tool.
+//! The endpoint returns aggregate counters only. It is protected by
+//! database-backed administrator roles and accepts a small set of bounded filters
+//! so callers cannot turn statistics into a raw request-log search tool.
 
 use axum::{Json, Router, extract::Query, extract::State, routing::get};
 use stellartrail_db::repositories::{ApiUsageQuery, ApiUsageRecord, ApiUsageRepository};
@@ -14,7 +14,7 @@ use crate::{
     },
     error::ApiError,
     extractors::AuthenticatedUser,
-    services::knot_media_upload_service,
+    services::admin_service,
     state::AppState,
 };
 
@@ -32,7 +32,7 @@ async fn list_api_usage(
     AuthenticatedUser(user): AuthenticatedUser,
     Query(params): Query<ApiUsageQueryParams>,
 ) -> Result<Json<ApiUsageListResponse>, ApiError> {
-    knot_media_upload_service::ensure_admin(&user, &state)?;
+    admin_service::ensure_admin(&state, &user).await?;
     let query = normalize_query(params)?;
     let limit = u64::try_from(query.limit).map_err(ApiError::internal)?;
     let offset = u64::try_from(query.offset).map_err(ApiError::internal)?;

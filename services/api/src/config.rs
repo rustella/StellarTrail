@@ -25,7 +25,6 @@ struct FileConfig {
     object_storage: FileObjectStorageConfig,
     avatar_storage: FileAvatarStorageConfig,
     knots_media_storage: FileKnotsMediaStorageConfig,
-    admin: FileAdminConfig,
     rate_limit: FileRateLimitConfig,
     public_api: FilePublicApiConfig,
     cors: FileCorsConfig,
@@ -102,14 +101,6 @@ struct FileKnotsMediaStorageConfig {
     public_base_url: Option<String>,
     max_image_bytes: Option<u64>,
     max_video_bytes: Option<u64>,
-}
-
-#[derive(Clone, Debug, Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct FileAdminConfig {
-    user_ids: Option<Vec<String>>,
-    emails: Option<Vec<String>>,
-    usernames: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -361,14 +352,6 @@ impl Default for KnotsMediaStorageConfig {
     }
 }
 
-/// Allowlist used by administrator-only routes.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct AdminConfig {
-    pub user_ids: Vec<String>,
-    pub emails: Vec<String>,
-    pub usernames: Vec<String>,
-}
-
 /// SMTP transport security mode for transactional email delivery.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -442,7 +425,6 @@ pub struct ApiConfig {
     pub object_storage: ObjectStorageConfig,
     pub avatar_storage: AvatarStorageConfig,
     pub knots_media_storage: KnotsMediaStorageConfig,
-    pub admin: AdminConfig,
     pub public_api: PublicApiConfig,
     pub rate_limit: RateLimitConfig,
     pub cors: CorsConfig,
@@ -462,7 +444,6 @@ impl ApiConfig {
             object_storage: file_object_storage,
             avatar_storage: file_avatar_storage,
             knots_media_storage: file_knots_media_storage,
-            admin: file_admin,
             rate_limit: file_rate_limit,
             public_api: file_public_api,
             cors: file_cors,
@@ -618,18 +599,6 @@ impl ApiConfig {
         };
         validate_knots_media_storage_config(&knots_media_storage)?;
 
-        let admin = AdminConfig {
-            user_ids: config_list_env("ADMIN_USER_IDS", file_admin.user_ids),
-            emails: config_list_env("ADMIN_EMAILS", file_admin.emails)
-                .into_iter()
-                .map(|value| value.to_ascii_lowercase())
-                .collect(),
-            usernames: config_list_env("ADMIN_USERNAMES", file_admin.usernames)
-                .into_iter()
-                .map(|value| value.to_ascii_lowercase())
-                .collect(),
-        };
-
         let rate_limit = RateLimitConfig {
             enabled: config_bool_env("RATE_LIMIT_ENABLED", file_rate_limit.enabled, true)?,
             window_seconds: config_u64_env(
@@ -772,7 +741,6 @@ impl ApiConfig {
             object_storage,
             avatar_storage,
             knots_media_storage,
-            admin,
             public_api,
             rate_limit,
             cors,
@@ -1188,13 +1156,6 @@ knots_media_storage:
   public_base_url: https://cdn.example.invalid/knots
   max_image_bytes: 222222
   max_video_bytes: 333333
-admin:
-  user_ids:
-    - user-a
-  emails:
-    - Admin@Example.Invalid
-  usernames:
-    - TrailAdmin
 rate_limit:
   enabled: true
   window_seconds: 20
@@ -1258,12 +1219,6 @@ mail:
         assert_eq!(config.avatar_storage.max_image_bytes, 444444);
         assert_eq!(config.knots_media_storage.storage_profile, "yaml-knots");
         assert_eq!(config.knots_media_storage.max_video_bytes, 333333);
-        assert_eq!(config.admin.user_ids, vec!["user-a".to_owned()]);
-        assert_eq!(
-            config.admin.emails,
-            vec!["admin@example.invalid".to_owned()]
-        );
-        assert_eq!(config.admin.usernames, vec!["trailadmin".to_owned()]);
         assert_eq!(config.rate_limit.window_seconds, 20);
         assert_eq!(config.rate_limit.max_requests_per_ip, 6);
         assert_eq!(config.rate_limit.max_requests_per_user, 12);
@@ -1640,9 +1595,6 @@ public_api:
         "KNOTS_MEDIA_PUBLIC_BASE_URL",
         "KNOTS_MEDIA_MAX_IMAGE_BYTES",
         "KNOTS_MEDIA_MAX_VIDEO_BYTES",
-        "ADMIN_USER_IDS",
-        "ADMIN_EMAILS",
-        "ADMIN_USERNAMES",
         "MAIL_ENABLED",
         "MAIL_SMTP_HOST",
         "MAIL_SMTP_PORT",

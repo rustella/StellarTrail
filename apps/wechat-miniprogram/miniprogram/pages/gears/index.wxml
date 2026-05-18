@@ -3,14 +3,30 @@
     <view>
       <view class="eyebrow">寻径星野装备库</view>
       <view class="hero-title"
-        >{{isLoggedIn ? '我的户外装备' : '出行装备参考'}}</view
+        >{{isLoggedIn ? '我的户外装备' : '户外装备库'}}</view
       >
       <view class="hero-subtitle"
-        >{{isLoggedIn ? '按分类、状态和关键词快速管理装备，为下一次出行做准备。'
-        : '先参考常用户外清单；登录后记录自己的装备。'}}</view
+        >{{isLoggedIn ? '按分类、状态和关键词快速管理装备。' :
+        '可以先浏览装备图鉴和户外技能；登录后记录自己的装备。'}}</view
       >
     </view>
     <button class="primary-action" bindtap="goCreate">+ 添加</button>
+  </view>
+
+  <view class="atlas-entry-card" bindtap="goGearAtlas">
+    <view class="atlas-entry-main">
+      <view class="atlas-entry-icon" aria-hidden="true">
+        <view class="book-icon">
+          <view class="book-page left"></view>
+          <view class="book-page right"></view>
+        </view>
+      </view>
+      <view class="atlas-entry-copy">
+        <view class="atlas-entry-title">装备图鉴</view>
+        <view class="atlas-entry-desc">浏览已审核收录的市面装备</view>
+      </view>
+    </view>
+    <view class="atlas-entry-cta">去浏览 ›</view>
   </view>
 
   <block wx:if="{{!isLoggedIn}}">
@@ -19,68 +35,10 @@
       <view>
         <view class="guest-title">未登录也可先浏览</view>
         <view class="guest-desc"
-          >可以先看出行装备参考和绳结教学；要保存自己的装备时再登录。</view
+          >可以先看装备图鉴和绳结教学；要保存自己的装备时再登录。</view
         >
       </view>
       <button bindtap="goLogin">登录</button>
-    </view>
-
-    <view class="template-section">
-      <view class="template-section-title">出行装备参考</view>
-      <view class="template-section-desc"
-        >这些清单可作为出发前检查参考，不登录也能看。</view
-      >
-      <view wx:if="{{templateLoading}}" class="loading-card"
-        >正在整理装备清单...</view
-      >
-      <view wx:elif="{{templateError}}" class="error-card">
-        <view>{{templateError}}</view>
-        <button bindtap="loadTemplates">重试</button>
-      </view>
-      <view wx:elif="{{!templates.length}}" class="empty-card">
-        <view class="empty-title">装备清单准备中</view>
-        <view class="empty-subtitle">稍后会展示更多出行参考。</view>
-      </view>
-      <block wx:else>
-        <block wx:for="{{templates}}" wx:key="id">
-          <view class="template-card">
-            <view class="template-card-head">
-              <view>
-                <view class="template-title">{{item.title}}</view>
-                <view class="template-meta"
-                  >{{item.categoryCountText}} · {{item.itemCountText}}</view
-                >
-              </view>
-              <button catchtap="useTemplate" data-id="{{item.id}}">
-                保存到我的装备
-              </button>
-            </view>
-            <view class="template-preview">
-              <block
-                wx:for="{{item.previewItems}}"
-                wx:key="*this"
-                wx:for-item="preview"
-              >
-                <text>{{preview}}</text>
-              </block>
-            </view>
-            <view class="template-category-list">
-              <block
-                wx:for="{{item.categories}}"
-                wx:key="id"
-                wx:for-item="category"
-              >
-                <view class="template-category">
-                  <view class="template-category-name">{{category.name}}</view>
-                  <view class="template-category-items"
-                    >{{category.itemText}}</view
-                  >
-                </view>
-              </block>
-            </view>
-          </view>
-        </block>
-      </block>
     </view>
   </block>
 
@@ -163,7 +121,7 @@
       <view wx:elif="{{!gears.length}}" class="empty-card">
         <view class="empty-title">{{emptyText}}</view>
         <view class="empty-subtitle"
-          >用移动端卡片记录重量、价格、存放位置和共享设置。</view
+          >用移动端卡片记录重量、价格、存放位置和标签备注。</view
         >
         <button
           wx:if="{{tab === 'available'}}"

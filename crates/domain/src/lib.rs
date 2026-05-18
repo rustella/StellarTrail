@@ -1,7 +1,9 @@
-//! Domain model crate entrypoint exporting gear, gear templates, skill, user, and shared validation modules.
+//! Domain model crate entrypoint exporting administrator roles, gear, gear templates, skill, user, and shared validation modules.
 
+pub mod admin;
 pub mod feedback;
 pub mod gear;
+pub mod gear_atlas;
 pub mod gear_template;
 pub mod pagination;
 pub mod skill;

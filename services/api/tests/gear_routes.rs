@@ -13,12 +13,13 @@ use stellartrail_api::{
     routes::build_router,
     state::AppState,
 };
-use stellartrail_db::{DatabaseConfig, connect_database};
+use stellartrail_db::{DatabaseConfig, connect_database, repositories::AdminRoleRepository};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
 struct TestApp {
     router: Router,
+    db: sea_orm::DatabaseConnection,
     _temp_dir: TempDir,
 }
 
@@ -46,14 +47,14 @@ async fn test_app_with_cache(cache: Cache) -> TestApp {
         object_storage: Default::default(),
         avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
-        admin: Default::default(),
         public_api: Default::default(),
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
     };
     TestApp {
-        router: build_router(AppState::new_with_cache(config, db, cache)),
+        router: build_router(AppState::new_with_cache(config, db.clone(), cache)),
+        db,
         _temp_dir: temp_dir,
     }
 }
@@ -128,6 +129,44 @@ async fn login_response(app: &Router, code: &str) -> Value {
     .await;
     assert_eq!(status, StatusCode::OK, "{value}");
     value
+}
+
+async fn register_password_user_response(app: &Router, username: &str, email: &str) -> Value {
+    let (code_status, code_body) = send_json(
+        app,
+        "POST",
+        "/api/auth/email-verification-code",
+        None,
+        json!({ "email": email }),
+    )
+    .await;
+    assert_eq!(code_status, StatusCode::OK, "{code_body}");
+    let code = code_body["debug_code"].as_str().unwrap();
+
+    let (status, value) = send_json(
+        app,
+        "POST",
+        "/api/auth/register",
+        None,
+        json!({
+            "username": username,
+            "email": email,
+            "password": "Password1",
+            "confirm_password": "Password1",
+            "email_verification_code": code
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{value}");
+    value
+}
+
+async fn grant_admin_role(app: &TestApp, target_user_id: &str, granted_by_user_id: &str) {
+    let result = AdminRoleRepository::new(app.db.clone())
+        .grant_admin(target_user_id, granted_by_user_id)
+        .await
+        .unwrap();
+    assert!(result.record.role.can_administer());
 }
 
 #[tokio::test]
@@ -555,6 +594,219 @@ async fn backpack_specs_split_back_length_and_size() {
             .iter()
             .any(|field| field["field"] == "specs.back_length_or_size")
     );
+}
+
+#[tokio::test]
+async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_review() {
+    let admin_email = "atlas-admin@example.test";
+    let app = test_app().await;
+    let token = login(&app.router, "atlas-submit-user").await;
+
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({
+            "category": "electronics_system",
+            "name": "公共充电宝",
+            "brand": "NITECORE",
+            "model": "SUMMIT 20000",
+            "description": "冬季徒步备用电源",
+            "weight_g": 315,
+            "official_price_cents": 69900,
+            "official_price_currency": "CNY",
+            "purchase_date": "2026-01-22",
+            "purchase_price_cents": 63900,
+            "purchase_price_currency": "CNY",
+            "purchase_location": "京东",
+            "status": "maintenance",
+            "storage_location": "装备柜 A1",
+            "specs": {
+                "battery_capacity": "20000 mAh",
+                "rated_energy": "74 Wh"
+            },
+            "tags": ["冬季", "电子"],
+            "tag_colors": {"冬季": "blue", "电子": "teal"},
+            "notes": "不要公开的个人备注"
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+    let gear_id = created["id"].as_str().unwrap();
+
+    let (submission_status, submission) = send_empty(
+        &app.router,
+        "POST",
+        &format!("/api/me/gears/{gear_id}/atlas-submission"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(submission_status, StatusCode::CREATED, "{submission}");
+    assert_eq!(submission["status"], "pending");
+    assert_eq!(submission["source_type"], "user_gear");
+    assert_eq!(submission["source_user_gear_id"], gear_id);
+    assert_eq!(submission["official_price_cents"], 69900);
+    assert_eq!(submission["specs"]["battery_capacity"], "20000 mAh");
+    assert!(submission.get("purchase_price_cents").is_none());
+    assert!(submission.get("purchase_location").is_none());
+    assert!(submission.get("storage_location").is_none());
+    assert!(submission.get("notes").is_none());
+    assert!(submission.get("tags").is_none());
+
+    let (public_pending_status, public_pending) =
+        send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
+    assert_eq!(public_pending_status, StatusCode::OK, "{public_pending}");
+    assert_eq!(public_pending["items"].as_array().unwrap().len(), 0);
+
+    let (duplicate_status, duplicate) = send_empty(
+        &app.router,
+        "POST",
+        &format!("/api/me/gears/{gear_id}/atlas-submission"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(duplicate_status, StatusCode::OK, "{duplicate}");
+    assert_eq!(duplicate["id"], submission["id"]);
+
+    let (non_admin_status, non_admin) = send_empty(
+        &app.router,
+        "GET",
+        "/api/admin/gear-atlas-submissions",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(non_admin_status, StatusCode::FORBIDDEN, "{non_admin}");
+
+    let admin_login =
+        register_password_user_response(&app.router, "atlas_admin", admin_email).await;
+    let admin_token = admin_login["access_token"].as_str().unwrap().to_owned();
+    let admin_user_id = admin_login["user"]["id"].as_str().unwrap();
+    grant_admin_role(&app, admin_user_id, admin_user_id).await;
+    let (admin_list_status, admin_list) = send_empty(
+        &app.router,
+        "GET",
+        "/api/admin/gear-atlas-submissions?status=pending",
+        Some(admin_token.as_str()),
+    )
+    .await;
+    assert_eq!(admin_list_status, StatusCode::OK, "{admin_list}");
+    assert_eq!(admin_list["items"].as_array().unwrap().len(), 1);
+    let submission_id = submission["id"].as_str().unwrap();
+
+    let (approve_status, approved) = send_empty(
+        &app.router,
+        "POST",
+        &format!("/api/admin/gear-atlas-submissions/{submission_id}/approve"),
+        Some(admin_token.as_str()),
+    )
+    .await;
+    assert_eq!(approve_status, StatusCode::OK, "{approved}");
+    assert_eq!(approved["status"], "approved");
+    assert!(!approved["approved_at"].is_null());
+
+    let (public_status, public) = send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
+    assert_eq!(public_status, StatusCode::OK, "{public}");
+    assert_eq!(public["items"].as_array().unwrap().len(), 1);
+    assert_eq!(public["items"][0]["id"], submission_id);
+
+    let (detail_status, detail) = send_empty(
+        &app.router,
+        "GET",
+        &format!("/api/gear-atlas/{submission_id}"),
+        None,
+    )
+    .await;
+    assert_eq!(detail_status, StatusCode::OK, "{detail}");
+    assert_eq!(detail["name"], "公共充电宝");
+    assert!(detail.get("purchase_price_cents").is_none());
+    assert!(detail.get("purchase_location").is_none());
+    assert!(detail.get("storage_location").is_none());
+    assert!(detail.get("notes").is_none());
+    assert!(detail.get("tags").is_none());
+}
+
+#[tokio::test]
+async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_private() {
+    let admin_email = "atlas-reviewer@example.test";
+    let app = test_app().await;
+    let token = login(&app.router, "atlas-manual-user").await;
+
+    let (unauth_status, unauth) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gear-atlas-submissions",
+        None,
+        json!({"category": "lighting_system", "name": "未登录头灯"}),
+    )
+    .await;
+    assert_eq!(unauth_status, StatusCode::UNAUTHORIZED, "{unauth}");
+
+    let (invalid_status, invalid) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gear-atlas-submissions",
+        Some(&token),
+        json!({
+            "category": "lighting_system",
+            "name": "错误头灯",
+            "official_price_cents": -1,
+            "official_price_currency": "GBP",
+            "specs": {"battery_capacity": "2000 mAh"}
+        }),
+    )
+    .await;
+    assert_eq!(
+        invalid_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{invalid}"
+    );
+    assert!(
+        invalid["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "specs.battery_capacity")
+    );
+
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gear-atlas-submissions",
+        Some(&token),
+        json!({
+            "category": "lighting_system",
+            "name": "手动头灯",
+            "brand": "NITECORE",
+            "official_price_cents": 19900,
+            "specs": {"max_brightness": "400 lm"}
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["status"], "pending");
+
+    let admin_login =
+        register_password_user_response(&app.router, "atlas_reviewer", admin_email).await;
+    let admin_token = admin_login["access_token"].as_str().unwrap().to_owned();
+    let admin_user_id = admin_login["user"]["id"].as_str().unwrap();
+    grant_admin_role(&app, admin_user_id, admin_user_id).await;
+    let submission_id = created["id"].as_str().unwrap();
+    let (reject_status, rejected) = send_json(
+        &app.router,
+        "POST",
+        &format!("/api/admin/gear-atlas-submissions/{submission_id}/reject"),
+        Some(admin_token.as_str()),
+        json!({"reason": "信息不足"}),
+    )
+    .await;
+    assert_eq!(reject_status, StatusCode::OK, "{rejected}");
+    assert_eq!(rejected["status"], "rejected");
+    assert_eq!(rejected["rejection_reason"], "信息不足");
+
+    let (public_status, public) = send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
+    assert_eq!(public_status, StatusCode::OK, "{public}");
+    assert_eq!(public["items"].as_array().unwrap().len(), 0);
 }
 
 #[tokio::test]

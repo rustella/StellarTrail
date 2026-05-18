@@ -230,7 +230,6 @@ async fn seeded_app_with_uploaded_media() -> TestApp {
         object_storage: ObjectStorageConfig::default(),
         avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
-        admin: Default::default(),
         public_api: PublicApiConfig {
             rate_limit_enabled: true,
             rate_limit_window_seconds: 60,
@@ -311,7 +310,6 @@ async fn seeded_app() -> TestApp {
         object_storage: ObjectStorageConfig::default(),
         avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
-        admin: Default::default(),
         public_api: PublicApiConfig {
             rate_limit_enabled: true,
             rate_limit_window_seconds: 60,
@@ -359,7 +357,6 @@ async fn seeded_filter_app() -> TestApp {
         object_storage: ObjectStorageConfig::default(),
         avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
-        admin: Default::default(),
         public_api: PublicApiConfig {
             rate_limit_enabled: true,
             rate_limit_window_seconds: 60,

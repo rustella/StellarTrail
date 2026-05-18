@@ -1,6 +1,9 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/gear-atlas/index",
+    "pages/gear-atlas/detail/index",
+    "pages/gear-atlas/submit/index",
     "pages/gears/index",
     "pages/gears/form/index",
     "pages/gears/detail/index",

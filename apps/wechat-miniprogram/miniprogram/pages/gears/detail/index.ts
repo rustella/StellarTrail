@@ -5,19 +5,23 @@ import {
   getGear,
   hasAccessToken,
   isLoginRequiredError,
+  listMyGearAtlasSubmissions,
   restoreGear,
+  submitGearToAtlas,
 } from "../../../utils/api";
 import {
   createGearTagViews,
   formatDateText,
   formatGearPrice,
   formatGearWeight,
+  getGearAtlasStatusLabel,
   getGearCategoryLabel,
   getGearSpecFieldViews,
-  getGearShareStatusLabel,
   getGearStatusLabel,
   getStatusTone,
   valueOrUnset,
+  type GearAtlasStatus,
+  type GearAtlasSubmission,
   type GearItem,
   type GearTagView,
   type GearTab,
@@ -48,7 +52,11 @@ Page({
     categoryText: "",
     statusText: "",
     statusTone: "",
-    shareText: "",
+    atlasSubmissionStatus: "" as "" | GearAtlasStatus,
+    atlasSubmissionText: "未投稿",
+    atlasSubmissionHint:
+      "投稿只复制公开参数，不包含购入价、购买渠道、存放位置和备注。",
+    submittingAtlas: false,
     weightText: "未记录",
     priceText: "未记录",
     tagViews: [] as GearTagView[],
@@ -101,7 +109,8 @@ Page({
     this.setData({ loading: true, requiresLogin: false, error: "" });
     try {
       const item = await getGear(this.data.id);
-      this.setData(buildDetailData(item));
+      const submission = await findAtlasSubmission(item.id);
+      this.setData(buildDetailData(item, submission));
     } catch (error) {
       if (isLoginRequiredError(error)) {
         this.setData({ requiresLogin: true, item: null, error: "" });
@@ -192,6 +201,53 @@ Page({
     }
   },
 
+  submitToAtlas() {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以把自己的装备投稿到装备图鉴。",
+        redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+      })
+    ) {
+      return;
+    }
+    if (
+      this.data.submittingAtlas ||
+      this.data.atlasSubmissionStatus === "pending" ||
+      this.data.atlasSubmissionStatus === "approved"
+    ) {
+      return;
+    }
+    wx.showModal({
+      title: "投稿到装备图鉴？",
+      content:
+        "只会复制分类、名称、品牌、型号、描述、重量、官方价和分类参数，不包含购入价、购买渠道、存放位置、备注、标签等个人信息。",
+      confirmText: "提交审核",
+      confirmColor: "#0f766e",
+      success: async (result) => {
+        if (!result.confirm) {
+          return;
+        }
+        this.setData({ submittingAtlas: true });
+        try {
+          const submission = await submitGearToAtlas(this.data.id);
+          this.setData(buildAtlasSubmissionData(submission));
+          wx.showToast({ title: "已提交审核", icon: "success" });
+        } catch (error) {
+          if (isLoginRequiredError(error)) {
+            showLoginPrompt(this, {
+              message: "登录状态已过期，请重新登录后投稿装备。",
+              redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+            });
+            return;
+          }
+          wx.showToast({ title: getErrorMessage(error), icon: "none" });
+        } finally {
+          this.setData({ submittingAtlas: false });
+        }
+      },
+    });
+  },
+
   loginPromptClose() {
     hideLoginPrompt(this);
   },
@@ -201,7 +257,23 @@ Page({
   },
 });
 
-function buildDetailData(item: GearItem) {
+async function findAtlasSubmission(
+  gearId: string,
+): Promise<GearAtlasSubmission | null> {
+  try {
+    const response = await listMyGearAtlasSubmissions({ limit: 100 });
+    return (
+      response.items.find((item) => item.source_user_gear_id === gearId) ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+
+function buildDetailData(
+  item: GearItem,
+  submission: GearAtlasSubmission | null,
+) {
   const archived = Boolean(item.archived_at);
   return {
     item,
@@ -209,9 +281,7 @@ function buildDetailData(item: GearItem) {
     categoryText: getGearCategoryLabel(item.category),
     statusText: getGearStatusLabel(item.status),
     statusTone: getStatusTone(item.status),
-    shareText: item.share_enabled
-      ? `已开启 · ${getGearShareStatusLabel(item.share_status)}`
-      : "未开启共享",
+    ...buildAtlasSubmissionData(submission),
     weightText: formatGearWeight(item.weight_g),
     priceText: formatGearPrice(
       item.purchase_price_cents,
@@ -220,6 +290,28 @@ function buildDetailData(item: GearItem) {
     tagViews: createGearTagViews(item.tags ?? [], item.tag_colors ?? {}),
     tab: (archived ? "history" : "available") as GearTab,
     groups: buildGroups(item),
+  };
+}
+
+function buildAtlasSubmissionData(submission: GearAtlasSubmission | null) {
+  if (!submission) {
+    return {
+      atlasSubmissionStatus: "" as "" | GearAtlasStatus,
+      atlasSubmissionText: "未投稿",
+      atlasSubmissionHint:
+        "投稿只复制公开参数，不包含购入价、购买渠道、存放位置和备注。",
+    };
+  }
+  const hint =
+    submission.status === "rejected" && submission.rejection_reason
+      ? submission.rejection_reason
+      : submission.status === "approved"
+        ? "审核通过后已出现在装备图鉴。"
+        : "已提交审核，审核通过后会出现在装备图鉴。";
+  return {
+    atlasSubmissionStatus: submission.status,
+    atlasSubmissionText: getGearAtlasStatusLabel(submission.status),
+    atlasSubmissionHint: hint,
   };
 }
 
@@ -271,14 +363,8 @@ function buildGroups(item: GearItem): DetailGroup[] {
       ],
     },
     {
-      title: "共享与备注",
+      title: "备注",
       items: [
-        {
-          label: "共享状态",
-          value: item.share_enabled
-            ? `已开启 · ${getGearShareStatusLabel(item.share_status)}`
-            : "未开启共享",
-        },
         { label: "备注", value: valueOrUnset(item.notes) },
         { label: "创建时间", value: formatDateText(item.created_at) },
         { label: "更新时间", value: formatDateText(item.updated_at) },

@@ -1,5 +1,6 @@
-//! Service aggregation module that re-exports authentication, gear, and WeChat integration services.
+//! Service aggregation module that re-exports administrator, authentication, gear, and WeChat integration services.
 
+pub mod admin_service;
 pub mod auth_service;
 pub mod feedback_service;
 pub mod gear_service;

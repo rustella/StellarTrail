@@ -32,7 +32,7 @@
         </view>
         <view class="account-hint"
           >{{loggedIn ? '可以管理自己的装备清单。' :
-          '未登录也可以先看出行装备参考和绳结教学。'}}</view
+          '未登录也可以先看装备图鉴和绳结教学。'}}</view
         >
         <view wx:if="{{accountError}}" class="account-error"
           >{{accountError}}</view

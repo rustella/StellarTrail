@@ -38,8 +38,8 @@
           <view class="summary-label">价格</view>
         </view>
         <view class="summary-item">
-          <view class="summary-value">{{shareText}}</view>
-          <view class="summary-label">共享</view>
+          <view class="summary-value">{{atlasSubmissionText}}</view>
+          <view class="summary-label">图鉴</view>
         </view>
       </view>
     </view>
@@ -54,6 +54,23 @@
         移入历史
       </button>
       <button wx:else class="restore" bindtap="restoreItem">恢复可用</button>
+    </view>
+
+    <view class="atlas-submit-card">
+      <view>
+        <view class="section-title">装备图鉴投稿</view>
+        <view class="atlas-submit-hint">{{atlasSubmissionHint}}</view>
+      </view>
+      <button
+        class="atlas-submit-button {{atlasSubmissionStatus === 'rejected' ? 'retry' : ''}}"
+        disabled="{{atlasSubmissionStatus === 'pending' || atlasSubmissionStatus === 'approved' || submittingAtlas}}"
+        loading="{{submittingAtlas}}"
+        bindtap="submitToAtlas"
+      >
+        {{atlasSubmissionStatus === 'pending' ? '审核中' : atlasSubmissionStatus
+        === 'approved' ? '已收录' : atlasSubmissionStatus === 'rejected' ?
+        '重新投稿' : '投稿到图鉴'}}
+      </button>
     </view>
 
     <view wx:if="{{tagViews.length}}" class="tag-card">

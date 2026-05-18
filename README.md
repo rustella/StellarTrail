@@ -115,7 +115,7 @@ curl http://127.0.0.1:8080/healthz
 curl http://127.0.0.1:8080/api/meta
 ```
 
-绳结媒体通过 MinIO/S3-compatible 对象存储上传，公开读接口只返回数据库中的媒体 URL，不再从 `/assets/*` 拼接绳结媒体路径。服务端只维护一组 `minio` 连接配置，反馈图与绳结媒体分别通过 `object_storage.bucket` 和 `knots_media_storage.bucket` 配置业务 bucket。管理员可在配置 `ADMIN_USER_IDS`/`ADMIN_EMAILS`/`ADMIN_USERNAMES` allowlist 后，通过 `npm run knots:upload-media -- --dry-run` 检查 Knots3D 上传计划，再使用同一脚本调用管理员上传接口写入媒体；同一 allowlist 也可访问 `GET /api/admin/api-usage` 查看按用户、路由模板、方法和状态码聚合的 API 调用统计。统计使用异步上报，只保存 matched route 模板和聚合计数，不记录 query、请求体、Authorization、token、Cookie、IP 或 User-Agent。
+绳结媒体通过 MinIO/S3-compatible 对象存储上传，公开读接口只返回数据库中的媒体 URL，不再从 `/assets/*` 拼接绳结媒体路径。服务端只维护一组 `minio` 连接配置，反馈图与绳结媒体分别通过 `object_storage.bucket` 和 `knots_media_storage.bucket` 配置业务 bucket。管理员权限存储在数据库 `admin_roles` 表：已有且未删除的 `stellarisw` 用户会在迁移时被 seed 为 `super_admin`，`super_admin` 可通过 `/api/admin/admins` 授予或移除普通 `admin`。`admin` 与 `super_admin` 都可调用 Knots 媒体上传、Gear Atlas 审核和 `GET /api/admin/api-usage`。统计使用异步上报，只保存 matched route 模板和聚合计数，不记录 query、请求体、Authorization、token、Cookie、IP 或 User-Agent。
 
 ### 4. 配置客户端访问地址
 

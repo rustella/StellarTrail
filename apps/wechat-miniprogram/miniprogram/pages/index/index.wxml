@@ -2,13 +2,12 @@
   <view class="hero-card">
     <view class="hero-eyebrow">寻径星野 · 出发前检查</view>
     <view class="hero-title">今天准备好出发了吗？</view>
-    <view class="hero-subtitle">先核对出行清单，再补一项户外技能。</view>
+    <view class="hero-subtitle">先核对装备状态，再补一项户外技能。</view>
     <view class="hero-status-row">
       <view class="hero-status-pill">
         <text class="hero-status-dot"></text>
         <text>{{isLoggedIn ? '我的装备已保存' : '未登录也可先浏览'}}</text>
       </view>
-      <view class="hero-status-pill">绳结教学可直接看</view>
     </view>
     <view class="hero-actions">
       <button class="hero-button primary" bindtap="goGears">检查装备</button>
@@ -41,7 +40,7 @@
 
     <view wx:if="{{!isLoggedIn}}" class="guest-inline">
       <view>
-        <view class="guest-title">可以先查看出行清单</view>
+        <view class="guest-title">可以先浏览装备图鉴</view>
         <view class="guest-desc">登录后再管理自己的装备、重量和估值。</view>
       </view>
       <button bindtap="showLoginForGearSummary">去登录</button>
@@ -80,27 +79,6 @@
         还没有装备记录，先添加第一件户外装备吧。
       </view>
     </block>
-
-    <view class="template-mini-section">
-      <view class="template-mini-title">出行装备参考</view>
-      <view wx:if="{{templateLoading}}" class="empty-inline"
-        >正在整理清单...</view
-      >
-      <view wx:elif="{{templateError}}" class="empty-inline"
-        >{{templateError}}</view
-      >
-      <block wx:else>
-        <block wx:for="{{gearTemplates}}" wx:key="id">
-          <view class="template-mini-card">
-            <view>
-              <view class="template-mini-name">{{item.title}}</view>
-              <view class="template-mini-meta">{{item.categoryText}}</view>
-              <view class="template-mini-items">{{item.itemPreview}}</view>
-            </view>
-          </view>
-        </block>
-      </block>
-    </view>
   </view>
 
   <view class="section-card">

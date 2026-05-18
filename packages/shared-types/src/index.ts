@@ -140,6 +140,18 @@ export interface ApiUsageListResponse {
   page: PageInfo;
 }
 
+export type AdminRole = "admin" | "super_admin";
+
+export interface AdminUserSelector {
+  username?: string | null;
+  user_id?: string | null;
+}
+
+export interface AdminRoleResponse {
+  user_id: string;
+  role: AdminRole;
+}
+
 export interface GearTemplateCategory {
   id: string;
   name: string;
@@ -336,6 +348,83 @@ export interface ListGearsRequest {
 export interface ListGearsResponse {
   items: GearSummary[];
   next_cursor?: string | null;
+}
+
+export type GearAtlasStatus = "pending" | "approved" | "rejected";
+
+export type GearAtlasSourceType = "manual" | "user_gear";
+
+export type GearAtlasSort =
+  | "approved_at_desc"
+  | "name_asc"
+  | "weight_desc"
+  | "official_price_desc";
+
+export interface GearAtlasPublicItem {
+  id: string;
+  category: GearCategory;
+  category_label: string;
+  name: string;
+  brand?: string | null;
+  model?: string | null;
+  description?: string | null;
+  weight_g?: number | null;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
+  specs?: GearSpecs | null;
+  approved_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GearAtlasSubmission extends GearAtlasPublicItem {
+  source_type: GearAtlasSourceType;
+  source_user_gear_id?: string | null;
+  status: GearAtlasStatus;
+  rejection_reason?: string | null;
+  reviewed_at?: string | null;
+}
+
+export interface CreateGearAtlasSubmissionRequest {
+  category: GearCategory;
+  name: string;
+  brand?: string | null;
+  model?: string | null;
+  description?: string | null;
+  weight_g?: number | null;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
+  specs?: GearSpecs | null;
+}
+
+export interface ListGearAtlasRequest {
+  category?: GearCategory;
+  q?: string;
+  sort?: GearAtlasSort;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListGearAtlasResponse {
+  items: GearAtlasPublicItem[];
+  next_cursor?: string | null;
+}
+
+export interface ListGearAtlasSubmissionsRequest {
+  status?: GearAtlasStatus;
+  category?: GearCategory;
+  q?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListGearAtlasSubmissionsResponse {
+  items: GearAtlasSubmission[];
+  next_cursor?: string | null;
+}
+
+export interface RejectGearAtlasSubmissionRequest {
+  reason?: string | null;
 }
 
 export interface WechatLoginRequest {

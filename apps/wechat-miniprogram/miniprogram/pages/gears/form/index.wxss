@@ -47,8 +47,7 @@
 }
 
 .field,
-.picker-row,
-.share-review-card {
+.picker-row {
   margin-top: 18rpx;
   padding: 22rpx;
   border-radius: var(--card-inner-radius);
@@ -181,8 +180,7 @@ textarea {
   line-height: 1;
 }
 
-.picker-row,
-.share-review-card {
+.picker-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -302,42 +300,6 @@ textarea {
   margin-top: 16rpx;
   color: var(--muted-color);
   font-size: 24rpx;
-}
-
-.share-review-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 12rpx;
-}
-
-.share-review-status,
-.share-review-button {
-  margin: 0;
-  border-radius: 999rpx;
-  font-size: 24rpx;
-  font-weight: 800;
-  line-height: 64rpx;
-}
-
-.share-review-status {
-  padding: 0 22rpx;
-  color: #0f766e;
-  background: #ccfbf1;
-}
-
-.share-review-button {
-  padding: 0 28rpx;
-}
-
-.share-review-button.primary {
-  color: #ffffff;
-  background: var(--brand-color);
-}
-
-.share-review-button.secondary {
-  color: var(--heading-muted-color);
-  background: #e2e8f0;
 }
 
 .tag-mask {
@@ -565,7 +527,6 @@ textarea {
 
 .form-page.theme-dark .field,
 .form-page.theme-dark .picker-row,
-.form-page.theme-dark .share-review-card,
 .form-page.theme-dark .tag-editor,
 .form-page.theme-dark .custom-tag-field {
   background: var(--control-bg);

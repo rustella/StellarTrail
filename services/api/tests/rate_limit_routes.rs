@@ -42,7 +42,6 @@ async fn test_app(rate_limit: RateLimitConfig) -> TestApp {
         object_storage: Default::default(),
         avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
-        admin: Default::default(),
         public_api: Default::default(),
         rate_limit,
         cors: CorsConfig::default(),

@@ -258,6 +258,95 @@ function buildClient(): WebGearApi {
       failed_count: 0,
       errors: [],
     }),
+    listAdminGearAtlasSubmissions: vi.fn().mockResolvedValue({
+      next_cursor: null,
+      items: [
+        {
+          id: "atlas-1",
+          category: "electronics_system",
+          category_label: "电子系统",
+          name: "SUMMIT 20000 超薄充电宝",
+          brand: "NITECORE",
+          model: "SUMMIT 20000",
+          description: "冬季徒步备用电源",
+          weight_g: 315,
+          official_price_cents: 69900,
+          official_price_currency: "CNY",
+          specs: { battery_capacity: "20000 mAh" },
+          approved_at: null,
+          source_type: "user_gear",
+          source_user_gear_id: "gear-1",
+          status: "pending",
+          rejection_reason: null,
+          reviewed_at: null,
+          created_at: "2026-01-23T00:00:00Z",
+          updated_at: "2026-01-23T00:00:00Z",
+        },
+      ],
+    }),
+    getAdminGearAtlasSubmission: vi.fn().mockResolvedValue({
+      id: "atlas-1",
+      category: "electronics_system",
+      category_label: "电子系统",
+      name: "SUMMIT 20000 超薄充电宝",
+      brand: "NITECORE",
+      model: "SUMMIT 20000",
+      description: "冬季徒步备用电源",
+      weight_g: 315,
+      official_price_cents: 69900,
+      official_price_currency: "CNY",
+      specs: { battery_capacity: "20000 mAh" },
+      approved_at: null,
+      source_type: "user_gear",
+      source_user_gear_id: "gear-1",
+      status: "pending",
+      rejection_reason: null,
+      reviewed_at: null,
+      created_at: "2026-01-23T00:00:00Z",
+      updated_at: "2026-01-23T00:00:00Z",
+    }),
+    approveGearAtlasSubmission: vi.fn().mockResolvedValue({
+      id: "atlas-1",
+      category: "electronics_system",
+      category_label: "电子系统",
+      name: "SUMMIT 20000 超薄充电宝",
+      brand: "NITECORE",
+      model: "SUMMIT 20000",
+      description: "冬季徒步备用电源",
+      weight_g: 315,
+      official_price_cents: 69900,
+      official_price_currency: "CNY",
+      specs: { battery_capacity: "20000 mAh" },
+      approved_at: "2026-01-24T00:00:00Z",
+      source_type: "user_gear",
+      source_user_gear_id: "gear-1",
+      status: "approved",
+      rejection_reason: null,
+      reviewed_at: "2026-01-24T00:00:00Z",
+      created_at: "2026-01-23T00:00:00Z",
+      updated_at: "2026-01-24T00:00:00Z",
+    }),
+    rejectGearAtlasSubmission: vi.fn().mockResolvedValue({
+      id: "atlas-1",
+      category: "electronics_system",
+      category_label: "电子系统",
+      name: "SUMMIT 20000 超薄充电宝",
+      brand: "NITECORE",
+      model: "SUMMIT 20000",
+      description: "冬季徒步备用电源",
+      weight_g: 315,
+      official_price_cents: 69900,
+      official_price_currency: "CNY",
+      specs: { battery_capacity: "20000 mAh" },
+      approved_at: null,
+      source_type: "user_gear",
+      source_user_gear_id: "gear-1",
+      status: "rejected",
+      rejection_reason: "信息不足",
+      reviewed_at: "2026-01-24T00:00:00Z",
+      created_at: "2026-01-23T00:00:00Z",
+      updated_at: "2026-01-24T00:00:00Z",
+    }),
   };
 }
 
@@ -272,6 +361,7 @@ function deferred<T>() {
 describe("App", () => {
   afterEach(() => {
     localStorage.clear();
+    window.history.replaceState(null, "", "/");
     document.documentElement.removeAttribute("data-theme");
   });
 
@@ -328,7 +418,7 @@ describe("App", () => {
 
     expect(
       Array.from(navigation.children).map((item) => item.textContent?.trim()),
-    ).toEqual(["装备库", "户外技能绳结", "路线清单 · 待接入"]);
+    ).toEqual(["装备库", "装备图鉴审核", "户外技能绳结", "路线清单 · 待接入"]);
     expect(screen.getByRole("button", { name: /户外技能/ })).toHaveAttribute(
       "aria-expanded",
       "true",
@@ -396,6 +486,52 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "装备管理" }),
     ).toBeInTheDocument();
+  });
+
+  it("opens the gear atlas review queue for administrators", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "装备图鉴审核" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "装备图鉴审核" }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/admin");
+    expect((await screen.findAllByText("待审核")).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText((_, element) =>
+        Boolean(element?.textContent?.includes("个人装备生成")),
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
+      status: "pending",
+      limit: 50,
+    });
+  });
+
+  it("opens the admin review queue directly from the /admin URL", async () => {
+    window.history.replaceState(null, "", "/admin");
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "装备图鉴审核" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "装备图鉴审核" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
+      status: "pending",
+      limit: 50,
+    });
   });
 
   it("toggles the outdoor skills group without opening knots", async () => {

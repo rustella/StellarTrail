@@ -242,7 +242,7 @@
     </view>
 
     <view class="form-card">
-      <view class="section-title">标签与共享</view>
+      <view class="section-title">标签与备注</view>
       <view class="tag-editor">
         <view class="tag-editor-head">
           <view>
@@ -267,31 +267,6 @@
           </block>
         </view>
         <view wx:else class="empty-tags">还没有标签</view>
-      </view>
-      <view class="share-review-card">
-        <view>
-          <view class="field-label">共享给搭子参考</view>
-          <view class="field-hint">审核通过后会出现在装备图鉴。</view>
-        </view>
-        <view class="share-review-actions">
-          <view wx:if="{{form.shareEnabled}}" class="share-review-status"
-            >已申请</view
-          >
-          <button
-            wx:if="{{!form.shareEnabled}}"
-            class="share-review-button primary"
-            bindtap="confirmEnableShare"
-          >
-            申请共享
-          </button>
-          <button
-            wx:else
-            class="share-review-button secondary"
-            bindtap="disableShare"
-          >
-            取消共享
-          </button>
-        </view>
       </view>
       <view class="field">
         <view class="field-label">备注</view>

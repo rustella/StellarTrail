@@ -8,6 +8,7 @@
 
 .detail-hero,
 .action-row,
+.atlas-submit-card,
 .tag-card,
 .info-card,
 .state-card {
@@ -129,10 +130,47 @@
 }
 
 .tag-card,
+.atlas-submit-card,
 .info-card,
 .state-card {
   margin-top: 24rpx;
   padding: 28rpx;
+}
+
+.atlas-submit-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+}
+
+.atlas-submit-hint {
+  margin-top: 10rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.atlas-submit-button {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 28rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 72rpx;
+}
+
+.atlas-submit-button[disabled] {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+}
+
+.atlas-submit-button.retry {
+  color: var(--status-warning-text);
+  background: var(--status-warning-bg);
 }
 
 .section-title {
@@ -245,6 +283,7 @@
 
 .detail-page.theme-dark .detail-hero,
 .detail-page.theme-dark .action-row,
+.detail-page.theme-dark .atlas-submit-card,
 .detail-page.theme-dark .tag-card,
 .detail-page.theme-dark .info-card,
 .detail-page.theme-dark .state-card {

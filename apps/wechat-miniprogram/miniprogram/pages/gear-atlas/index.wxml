@@ -1,0 +1,85 @@
+<view class="atlas-page {{themeClass}}">
+  <view class="hero-card">
+    <view>
+      <view class="eyebrow">PUBLIC GEAR ATLAS</view>
+      <view class="hero-title">装备图鉴</view>
+      <view class="hero-subtitle"
+        >浏览已审核收录的市面装备，也可以投稿补充新装备。</view
+      >
+    </view>
+    <button class="primary-action" bindtap="goSubmit">投稿</button>
+  </view>
+
+  <view class="search-card">
+    <input
+      class="search-input"
+      value="{{q}}"
+      placeholder="搜索装备名、品牌、型号"
+      confirm-type="search"
+      bindinput="onSearchInput"
+      bindconfirm="submitSearch"
+    />
+    <button class="search-button" bindtap="submitSearch">搜索</button>
+    <button wx:if="{{q}}" class="clear-button" bindtap="clearSearch">
+      清除
+    </button>
+  </view>
+
+  <scroll-view class="category-scroll" scroll-x enable-flex>
+    <block wx:for="{{categories}}" wx:key="id">
+      <view
+        class="category-chip {{selectedCategory === item.id ? 'active' : ''}}"
+        data-id="{{item.id}}"
+        bindtap="selectCategory"
+      >
+        {{item.label}}
+      </view>
+    </block>
+  </scroll-view>
+
+  <view
+    wx:if="{{error}}"
+    class="{{errorIsUnavailable ? 'state-card' : 'error-card'}}"
+  >
+    <view>{{error}}</view>
+    <button bindtap="refreshPage">重试</button>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{loading}}" class="state-card">正在加载装备图鉴...</view>
+    <view wx:elif="{{!items.length}}" class="empty-card">
+      <view class="empty-title">还没有收录装备</view>
+      <view class="empty-subtitle"
+        >可以先提交一件装备，审核通过后会展示在这里。</view
+      >
+      <button class="primary-action wide" bindtap="goSubmit">投稿装备</button>
+    </view>
+    <view wx:else class="atlas-list">
+      <block wx:for="{{items}}" wx:key="id">
+        <view class="atlas-card" data-id="{{item.id}}" bindtap="goDetail">
+          <view class="card-topline">
+            <view class="category-badge">{{item.categoryText}}</view>
+            <view class="atlas-status">已收录</view>
+          </view>
+          <view class="atlas-name">{{item.name}}</view>
+          <view class="atlas-meta">{{item.brandModelText}}</view>
+          <view class="atlas-desc">{{item.descriptionText}}</view>
+          <view class="metrics-row">
+            <view class="metric">
+              <view class="metric-value">{{item.weightText}}</view>
+              <view class="metric-label">重量</view>
+            </view>
+            <view class="metric">
+              <view class="metric-value">{{item.officialPriceText}}</view>
+              <view class="metric-label">官方价</view>
+            </view>
+          </view>
+        </view>
+      </block>
+    </view>
+    <view wx:if="{{loadingMore}}" class="load-more">继续加载...</view>
+    <view wx:elif="{{items.length && !nextCursor}}" class="load-more muted"
+      >没有更多装备了</view
+    >
+  </block>
+</view>
