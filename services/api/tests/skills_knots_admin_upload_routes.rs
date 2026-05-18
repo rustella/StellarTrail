@@ -9,15 +9,18 @@ use serde_json::{Value, json};
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
     config::{
-        AdminConfig, ApiConfig, CorsConfig, KnotsMediaStorageConfig, ObjectStorageConfig,
-        PublicApiConfig, RedisCacheConfig, UploadConfig,
+        ApiConfig, CorsConfig, KnotsMediaStorageConfig, ObjectStorageConfig, PublicApiConfig,
+        RedisCacheConfig, UploadConfig,
     },
     migrate_database,
     object_store::InMemoryObjectStore,
     routes::build_router,
     state::AppState,
 };
-use stellartrail_db::{DatabaseConfig, connect_database, repositories::KnotRepository};
+use stellartrail_db::{
+    DatabaseConfig, connect_database,
+    repositories::{AdminRoleRepository, KnotRepository},
+};
 use stellartrail_domain::skill::{
     KnotCategorySeed, KnotLocalizationSeed, KnotSeed, KnotTypeSeed, Locale,
 };
@@ -29,6 +32,7 @@ const NOT_GIF_BYTES: &[u8] = b"<html>not an image</html>";
 
 struct TestApp {
     router: Router,
+    db: sea_orm::DatabaseConnection,
     object_store: InMemoryObjectStore,
     _temp_dir: TempDir,
 }
@@ -101,11 +105,6 @@ async fn test_app() -> TestApp {
             max_image_bytes: 8_000_000,
             max_video_bytes: 50_000_000,
         },
-        admin: AdminConfig {
-            user_ids: Vec::new(),
-            emails: Vec::new(),
-            usernames: vec!["admin_upload".to_owned()],
-        },
         public_api: PublicApiConfig::default(),
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
@@ -113,12 +112,13 @@ async fn test_app() -> TestApp {
     };
     let state = AppState::new_with_cache_and_object_store(
         config,
-        db,
+        db.clone(),
         Cache::with_store_for_tests(cache_store, "test-stellartrail", Duration::from_secs(300)),
         Arc::new(object_store.clone()),
     );
     TestApp {
         router: build_router(state),
+        db,
         object_store,
         _temp_dir: temp_dir,
     }
@@ -165,6 +165,11 @@ async fn json_get(app: &Router, path: &str) -> (StatusCode, Value) {
 }
 
 async fn register_password_user(app: &Router, username: &str) -> String {
+    let value = register_password_user_response(app, username).await;
+    value["access_token"].as_str().unwrap().to_owned()
+}
+
+async fn register_password_user_response(app: &Router, username: &str) -> Value {
     let email = format!("{username}@example.test");
     let password = "OutdoorPass123!";
     let (code_status, code_value) = send_json(
@@ -193,7 +198,15 @@ async fn register_password_user(app: &Router, username: &str) -> String {
     )
     .await;
     assert_eq!(register_status, StatusCode::OK, "{register_value}");
-    register_value["access_token"].as_str().unwrap().to_owned()
+    register_value
+}
+
+async fn grant_admin_role(app: &TestApp, target_user_id: &str, granted_by_user_id: &str) {
+    let result = AdminRoleRepository::new(app.db.clone())
+        .grant_admin(target_user_id, granted_by_user_id)
+        .await
+        .unwrap();
+    assert!(result.record.role.can_administer());
 }
 
 async fn upload_knot_media(
@@ -258,7 +271,7 @@ async fn upload_knot_media(
 }
 
 #[tokio::test]
-async fn admin_upload_requires_authenticated_allowlisted_user() {
+async fn admin_upload_requires_authenticated_database_admin_user() {
     let app = test_app().await;
     let (missing_status, missing_body) = upload_knot_media(
         &app.router,
@@ -289,11 +302,14 @@ async fn admin_upload_requires_authenticated_allowlisted_user() {
 #[tokio::test]
 async fn admin_can_upload_knot_media_to_object_store_db_and_public_read_api() {
     let app = test_app().await;
-    let admin_token = register_password_user(&app.router, "admin_upload").await;
+    let admin_login = register_password_user_response(&app.router, "admin_upload").await;
+    let admin_token = admin_login["access_token"].as_str().unwrap().to_owned();
+    let admin_user_id = admin_login["user"]["id"].as_str().unwrap();
+    grant_admin_role(&app, admin_user_id, admin_user_id).await;
 
     let (status, body) = upload_knot_media(
         &app.router,
-        Some(&admin_token),
+        Some(admin_token.as_str()),
         "thumbnail",
         "thumbnail",
         "thumbnail.webp",
@@ -335,11 +351,14 @@ async fn admin_can_upload_knot_media_to_object_store_db_and_public_read_api() {
 #[tokio::test]
 async fn admin_upload_rejects_mismatched_type_and_invalid_magic() {
     let app = test_app().await;
-    let admin_token = register_password_user(&app.router, "admin_upload").await;
+    let admin_login = register_password_user_response(&app.router, "admin_upload").await;
+    let admin_token = admin_login["access_token"].as_str().unwrap().to_owned();
+    let admin_user_id = admin_login["user"]["id"].as_str().unwrap();
+    grant_admin_role(&app, admin_user_id, admin_user_id).await;
 
     let (mismatch_status, mismatch_body) = upload_knot_media(
         &app.router,
-        Some(&admin_token),
+        Some(admin_token.as_str()),
         "thumbnail",
         "draw_mp4",
         "thumbnail.webp",
@@ -351,7 +370,7 @@ async fn admin_upload_rejects_mismatched_type_and_invalid_magic() {
 
     let (magic_status, magic_body) = upload_knot_media(
         &app.router,
-        Some(&admin_token),
+        Some(admin_token.as_str()),
         "draw_gif",
         "draw_gif",
         "draw.gif",

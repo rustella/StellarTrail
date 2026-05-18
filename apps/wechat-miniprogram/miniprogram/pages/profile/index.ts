@@ -215,7 +215,7 @@ Page({
   logout() {
     wx.showModal({
       title: "退出登录？",
-      content: "退出后仍可浏览出行装备参考和绳结教学。",
+      content: "退出后仍可浏览装备图鉴和绳结教学。",
       confirmText: "退出",
       confirmColor: "#dc2626",
       success: (result) => {

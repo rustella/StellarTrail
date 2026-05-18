@@ -3,7 +3,6 @@ import {
   getGearStats,
   hasAccessToken,
   isLoginRequiredError,
-  listGearTemplates,
   listGears,
   listKnots,
   loginWithWechat,
@@ -14,7 +13,6 @@ import {
   formatGearWeight,
   type GearStatsResponse,
   type GearSummary,
-  type GearTemplate,
 } from "../../utils/gear-utils";
 import { mapSkillCard, type SkillCard } from "../../utils/skill-utils";
 import {
@@ -30,7 +28,7 @@ interface QuickAction {
   icon: string;
   title: string;
   description: string;
-  target: "gears" | "addGear" | "skills" | "profile";
+  target: "gears" | "addGear" | "atlas" | "skills" | "profile";
 }
 
 interface HomeStatCard {
@@ -50,13 +48,6 @@ interface ChecklistItem {
   icon: string;
   title: string;
   description: string;
-}
-
-interface TemplateCard {
-  id: string;
-  title: string;
-  categoryText: string;
-  itemPreview: string;
 }
 
 const EMPTY_STATS: GearStatsResponse = {
@@ -97,7 +88,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     id: "gears",
     icon: "🎒",
     title: "装备库",
-    description: "出行清单与我的装备",
+    description: "管理我的装备",
     target: "gears",
   },
   {
@@ -106,6 +97,13 @@ const QUICK_ACTIONS: QuickAction[] = [
     title: "添加装备",
     description: "快速添加新装备",
     target: "addGear",
+  },
+  {
+    id: "atlas",
+    icon: "📚",
+    title: "装备图鉴",
+    description: "浏览已收录市面装备",
+    target: "atlas",
   },
   {
     id: "skills",
@@ -151,14 +149,11 @@ Page({
     gearError: "",
     skillLoading: false,
     skillError: "",
-    templateLoading: false,
-    templateError: "",
     gearStatCards: INITIAL_LOGGED_IN
       ? buildGearStatCards(EMPTY_STATS)
       : LOCKED_GEAR_STATS,
     recentGears: [] as HomeGearCard[],
     featuredSkills: [] as SkillCard[],
-    gearTemplates: [] as TemplateCard[],
     loginPrompt: getDefaultLoginPrompt(),
     wechatProfilePromptVisible: false,
     wechatProfilePromptCanRetry: false,
@@ -178,7 +173,6 @@ Page({
   onPullDownRefresh() {
     Promise.all([
       this.loadFeaturedSkills(),
-      this.loadGearTemplates(),
       hasAccessToken() ? this.loadGearSummary() : Promise.resolve(),
     ]).finally(() => wx.stopPullDownRefresh());
   },
@@ -196,7 +190,6 @@ Page({
         recentGears: [] as HomeGearCard[],
       });
     }
-    this.loadGearTemplates();
     this.loadFeaturedSkills();
   },
 
@@ -232,23 +225,6 @@ Page({
     }
   },
 
-  async loadGearTemplates() {
-    this.setData({ templateLoading: true, templateError: "" });
-    try {
-      const response = await listGearTemplates();
-      this.setData({
-        gearTemplates: response.items.slice(0, 2).map(mapTemplateCard),
-        templateLoading: false,
-      });
-    } catch (error) {
-      this.setData({
-        templateError: getErrorMessage(error),
-        templateLoading: false,
-        gearTemplates: [] as TemplateCard[],
-      });
-    }
-  },
-
   async loadFeaturedSkills() {
     this.setData({ skillLoading: true, skillError: "" });
     try {
@@ -274,6 +250,10 @@ Page({
     }
     if (target === "addGear") {
       this.goAddGear();
+      return;
+    }
+    if (target === "atlas") {
+      this.goAtlas();
       return;
     }
     if (target === "skills") {
@@ -306,6 +286,10 @@ Page({
       return;
     }
     wx.navigateTo({ url: "/pages/gears/form/index" });
+  },
+
+  goAtlas() {
+    wx.navigateTo({ url: "/pages/gear-atlas/index" });
   },
 
   goSkills() {
@@ -472,18 +456,5 @@ function mapHomeGearCard(item: GearSummary): HomeGearCard {
     name: item.name,
     brandModelText: brandModelText || "未记录品牌型号",
     weightText: formatGearWeight(item.weight_g),
-  };
-}
-
-function mapTemplateCard(item: GearTemplate): TemplateCard {
-  const itemPreview = item.categories
-    .flatMap((category) => category.items)
-    .slice(0, 4)
-    .join(" · ");
-  return {
-    id: item.id,
-    title: item.title,
-    categoryText: `${item.categories.length} 组出行建议`,
-    itemPreview: itemPreview || "清单内容整理中",
   };
 }

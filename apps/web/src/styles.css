@@ -825,12 +825,114 @@ dd {
   font-size: 24px;
 }
 
+.atlas-review-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.4fr);
+  gap: 16px;
+}
+
+.atlas-review-list,
+.atlas-review-detail {
+  min-height: 420px;
+}
+
+.atlas-review-row {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  color: var(--text-color);
+  background: var(--control-bg);
+  text-align: left;
+}
+
+.atlas-review-row.active {
+  border-color: var(--brand-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-color), transparent 82%);
+}
+
+.atlas-review-row strong {
+  line-height: 1.35;
+}
+
+.atlas-review-row small {
+  color: var(--muted-color);
+}
+
+.atlas-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.atlas-detail-head h2 {
+  margin: 6px 0;
+}
+
+.atlas-public-fields,
+.atlas-specs dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.atlas-public-fields div,
+.atlas-specs dl div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--soft-border-color);
+}
+
+.atlas-public-fields dd,
+.atlas-specs dd {
+  word-break: break-word;
+}
+
+.atlas-specs {
+  margin-top: 22px;
+}
+
+.atlas-specs h3 {
+  margin: 0 0 12px;
+}
+
+.empty-state.compact {
+  margin: 0;
+  padding: 32px;
+}
+
+.status-atlas-pending {
+  color: var(--status-warning-text);
+  background: var(--status-warning-bg);
+}
+
+.status-atlas-approved {
+  color: var(--status-success-text);
+  background: var(--status-success-bg);
+}
+
+.status-atlas-rejected {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
 @media (max-width: 1100px) {
   body {
     min-width: 0;
   }
 
   .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .atlas-review-layout {
     grid-template-columns: 1fr;
   }
 

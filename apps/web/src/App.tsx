@@ -3,6 +3,8 @@ import type {
   CreateGearRequest,
   GearCategory,
   GearCategoryFilter,
+  GearAtlasStatus,
+  GearAtlasSubmission,
   GearItem,
   GearSort,
   GearStatsResponse,
@@ -44,7 +46,7 @@ type ViewMode = "table" | "cards";
 type ThemeMode = "light" | "dark";
 type FormMode = "create" | "edit";
 type AuthMode = "wechat" | "password" | "email" | "reset" | "register";
-type ActivePage = "gear" | "knots";
+type ActivePage = "gear" | "atlasReview" | "knots";
 
 interface PasswordLoginState {
   account: string;
@@ -103,7 +105,6 @@ interface GearFormState {
   status: GearStatus;
   storageLocation: string;
   tags: string;
-  shareEnabled: boolean;
   notes: string;
 }
 
@@ -140,7 +141,6 @@ const emptyForm: GearFormState = {
   status: "available",
   storageLocation: "",
   tags: "",
-  shareEnabled: false,
   notes: "",
 };
 
@@ -186,7 +186,9 @@ export default function App({ client }: AppProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [theme, setTheme] = useState<ThemeMode>(() => loadThemePreference());
   const [authMode, setAuthMode] = useState<AuthMode>("wechat");
-  const [activePage, setActivePage] = useState<ActivePage>("gear");
+  const [activePage, setActivePage] = useState<ActivePage>(() =>
+    activePageFromPath(window.location.pathname),
+  );
   const [outdoorSkillsOpen, setOutdoorSkillsOpen] = useState(true);
   const [passwordLogin, setPasswordLogin] =
     useState<PasswordLoginState>(emptyPasswordLogin);
@@ -211,6 +213,17 @@ export default function App({ client }: AppProps) {
   const [form, setForm] = useState<GearFormState>(emptyForm);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [detail, setDetail] = useState<GearItem | null>(null);
+  const [atlasStatus, setAtlasStatus] = useState<"" | GearAtlasStatus>(
+    "pending",
+  );
+  const [atlasSubmissions, setAtlasSubmissions] = useState<
+    GearAtlasSubmission[]
+  >([]);
+  const [atlasDetail, setAtlasDetail] = useState<GearAtlasSubmission | null>(
+    null,
+  );
+  const [atlasLoading, setAtlasLoading] = useState(false);
+  const [atlasError, setAtlasError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dashboardRequestRef = useRef(0);
 
@@ -231,6 +244,14 @@ export default function App({ client }: AppProps) {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActivePage(activePageFromPath(window.location.pathname));
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const listRequest = useMemo(
     () => ({
@@ -290,6 +311,36 @@ export default function App({ client }: AppProps) {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  const loadAtlasSubmissions = useCallback(async () => {
+    if (!session || activePage !== "atlasReview") {
+      return;
+    }
+    setAtlasLoading(true);
+    setAtlasError(null);
+    try {
+      const response = await api.listAdminGearAtlasSubmissions({
+        status: atlasStatus || undefined,
+        limit: 50,
+      });
+      setAtlasSubmissions(response.items);
+      setAtlasDetail((current) =>
+        current
+          ? (response.items.find((item) => item.id === current.id) ?? current)
+          : (response.items[0] ?? null),
+      );
+    } catch (err) {
+      setAtlasSubmissions([]);
+      setAtlasDetail(null);
+      setAtlasError(errorMessage(err));
+    } finally {
+      setAtlasLoading(false);
+    }
+  }, [activePage, api, atlasStatus, session]);
+
+  useEffect(() => {
+    void loadAtlasSubmissions();
+  }, [loadAtlasSubmissions]);
 
   function resetDashboardState() {
     dashboardRequestRef.current += 1;
@@ -560,6 +611,14 @@ export default function App({ client }: AppProps) {
     setTheme((current) => (current === "dark" ? "light" : "dark"));
   }
 
+  function navigateToPage(page: ActivePage) {
+    setActivePage(page);
+    const nextPath = pathForActivePage(page);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, "", nextPath);
+    }
+  }
+
   function openCreateForm() {
     setFormMode("create");
     setFormGearId(null);
@@ -695,6 +754,52 @@ export default function App({ client }: AppProps) {
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+    }
+  }
+
+  async function openAtlasSubmission(id: string) {
+    setSubmitting(true);
+    setAtlasError(null);
+    try {
+      setAtlasDetail(await api.getAdminGearAtlasSubmission(id));
+    } catch (err) {
+      setAtlasError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function approveAtlasSubmission(id: string) {
+    setSubmitting(true);
+    setAtlasError(null);
+    try {
+      const updated = await api.approveGearAtlasSubmission(id);
+      setAtlasDetail(updated);
+      await loadAtlasSubmissions();
+    } catch (err) {
+      setAtlasError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function rejectAtlasSubmission(id: string) {
+    const reason = window.prompt("请输入拒绝原因（可选）");
+    if (reason === null) {
+      return;
+    }
+    setSubmitting(true);
+    setAtlasError(null);
+    try {
+      const updated = await api.rejectGearAtlasSubmission(id, {
+        reason: reason.trim() || null,
+      });
+      setAtlasDetail(updated);
+      await loadAtlasSubmissions();
+    } catch (err) {
+      setAtlasError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -1121,9 +1226,17 @@ export default function App({ client }: AppProps) {
             type="button"
             className={activePage === "gear" ? "active" : ""}
             aria-current={activePage === "gear" ? "page" : undefined}
-            onClick={() => setActivePage("gear")}
+            onClick={() => navigateToPage("gear")}
           >
             装备库
+          </button>
+          <button
+            type="button"
+            className={activePage === "atlasReview" ? "active" : ""}
+            aria-current={activePage === "atlasReview" ? "page" : undefined}
+            onClick={() => navigateToPage("atlasReview")}
+          >
+            装备图鉴审核
           </button>
           <div
             className="nav-group"
@@ -1146,7 +1259,7 @@ export default function App({ client }: AppProps) {
                     activePage === "knots" ? "nav-child active" : "nav-child"
                   }
                   aria-current={activePage === "knots" ? "page" : undefined}
-                  onClick={() => setActivePage("knots")}
+                  onClick={() => navigateToPage("knots")}
                 >
                   绳结
                 </button>
@@ -1344,6 +1457,25 @@ export default function App({ client }: AppProps) {
             ) : null}
           </section>
         </main>
+      ) : activePage === "atlasReview" ? (
+        <main className="dashboard" id="atlas-review">
+          <AtlasReviewPage
+            submissions={atlasSubmissions}
+            selected={atlasDetail}
+            status={atlasStatus}
+            loading={atlasLoading}
+            submitting={submitting}
+            error={atlasError}
+            onStatusChange={(nextStatus) => {
+              setAtlasStatus(nextStatus);
+              setAtlasDetail(null);
+            }}
+            onRefresh={() => void loadAtlasSubmissions()}
+            onOpen={openAtlasSubmission}
+            onApprove={approveAtlasSubmission}
+            onReject={rejectAtlasSubmission}
+          />
+        </main>
       ) : (
         <main className="dashboard" id="skills">
           <KnotsPage api={api} />
@@ -1368,6 +1500,202 @@ export default function App({ client }: AppProps) {
         />
       ) : null}
     </div>
+  );
+}
+
+function AtlasReviewPage({
+  submissions,
+  selected,
+  status,
+  loading,
+  submitting,
+  error,
+  onStatusChange,
+  onRefresh,
+  onOpen,
+  onApprove,
+  onReject,
+}: {
+  submissions: GearAtlasSubmission[];
+  selected: GearAtlasSubmission | null;
+  status: "" | GearAtlasStatus;
+  loading: boolean;
+  submitting: boolean;
+  error: string | null;
+  onStatusChange(status: "" | GearAtlasStatus): void;
+  onRefresh(): void;
+  onOpen(id: string): Promise<void> | void;
+  onApprove(id: string): Promise<void> | void;
+  onReject(id: string): Promise<void> | void;
+}) {
+  return (
+    <section className="atlas-review-page">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">Admin Review</p>
+          <h1>装备图鉴审核</h1>
+          <p className="muted">
+            只审核公共装备参数；个人购入价、购买渠道、存放位置、备注和标签不会进入图鉴。
+          </p>
+        </div>
+        <div className="toolbar">
+          <select
+            aria-label="图鉴投稿状态"
+            value={status}
+            onChange={(event) =>
+              onStatusChange(event.target.value as "" | GearAtlasStatus)
+            }
+          >
+            <option value="pending">待审核</option>
+            <option value="approved">已通过</option>
+            <option value="rejected">已拒绝</option>
+            <option value="">全部状态</option>
+          </select>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onRefresh}
+            disabled={loading}
+          >
+            刷新
+          </button>
+        </div>
+      </header>
+
+      {error ? (
+        <div className="notice" role="status">
+          {error.includes("403") ? "当前账号没有图鉴审核权限。" : error}
+        </div>
+      ) : null}
+
+      <div className="atlas-review-layout">
+        <section className="content-card atlas-review-list" aria-busy={loading}>
+          {loading ? <p className="muted">正在加载投稿...</p> : null}
+          {!loading && submissions.length === 0 ? (
+            <div className="empty-state compact">
+              <h2>暂无投稿</h2>
+              <p>当前筛选条件下没有图鉴投稿。</p>
+            </div>
+          ) : null}
+          {submissions.map((item) => (
+            <button
+              type="button"
+              key={item.id}
+              className={
+                selected?.id === item.id
+                  ? "atlas-review-row active"
+                  : "atlas-review-row"
+              }
+              onClick={() => void onOpen(item.id)}
+            >
+              <span className={`status-pill status-atlas-${item.status}`}>
+                {atlasStatusLabel(item.status)}
+              </span>
+              <strong>{joinGearName(item)}</strong>
+              <small>
+                {item.category_label || categoryLabel(item.category)} ·{" "}
+                {atlasSourceLabel(item.source_type)}
+              </small>
+            </button>
+          ))}
+        </section>
+
+        <section className="content-card atlas-review-detail">
+          {selected ? (
+            <>
+              <div className="atlas-detail-head">
+                <div>
+                  <p className="eyebrow">
+                    {selected.category_label ||
+                      categoryLabel(selected.category)}
+                  </p>
+                  <h2>{joinGearName(selected)}</h2>
+                  <p className="muted">
+                    {atlasSourceLabel(selected.source_type)} ·{" "}
+                    {formatDate(selected.created_at)}
+                  </p>
+                </div>
+                <span className={`status-pill status-atlas-${selected.status}`}>
+                  {atlasStatusLabel(selected.status)}
+                </span>
+              </div>
+
+              <dl className="atlas-public-fields">
+                <div>
+                  <dt>描述</dt>
+                  <dd>{selected.description || "—"}</dd>
+                </div>
+                <div>
+                  <dt>重量</dt>
+                  <dd>{formatWeight(selected.weight_g)}</dd>
+                </div>
+                <div>
+                  <dt>官方价格</dt>
+                  <dd>
+                    {formatAtlasPrice(
+                      selected.official_price_cents,
+                      selected.official_price_currency,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>来源装备</dt>
+                  <dd>{selected.source_user_gear_id || "手动投稿"}</dd>
+                </div>
+              </dl>
+
+              <div className="atlas-specs">
+                <h3>分类参数</h3>
+                {Object.entries(selected.specs ?? {}).length ? (
+                  <dl>
+                    {Object.entries(selected.specs ?? {}).map(
+                      ([key, value]) => (
+                        <div key={key}>
+                          <dt>{key}</dt>
+                          <dd>{value}</dd>
+                        </div>
+                      ),
+                    )}
+                  </dl>
+                ) : (
+                  <p className="muted">未填写分类参数。</p>
+                )}
+              </div>
+
+              {selected.rejection_reason ? (
+                <div className="notice">
+                  拒绝原因：{selected.rejection_reason}
+                </div>
+              ) : null}
+
+              <div className="actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={submitting || selected.status === "approved"}
+                  onClick={() => void onApprove(selected.id)}
+                >
+                  通过
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={submitting || selected.status === "rejected"}
+                  onClick={() => void onReject(selected.id)}
+                >
+                  拒绝
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="empty-state compact">
+              <h2>选择一条投稿</h2>
+              <p>点击左侧列表查看公开字段并完成审核。</p>
+            </div>
+          )}
+        </section>
+      </div>
+    </section>
   );
 }
 
@@ -1765,14 +2093,6 @@ function GearFormModal({
               onChange={(event) => update("tags", event.target.value)}
             />
           </label>
-          <label className="checkbox full-width">
-            <input
-              type="checkbox"
-              checked={form.shareEnabled}
-              onChange={(event) => update("shareEnabled", event.target.checked)}
-            />{" "}
-            共享基础信息到公共装备库（不共享购买、存放和备注信息）
-          </label>
           <label className="full-width">
             备注
             <textarea
@@ -1881,7 +2201,7 @@ function formToPayload(form: GearFormState): CreateGearRequest {
       .split(/[,，]/)
       .map((tag) => tag.trim())
       .filter(Boolean),
-    share_enabled: form.shareEnabled,
+    share_enabled: false,
     notes: optional(form.notes),
   };
 }
@@ -1911,7 +2231,6 @@ function formFromGear(item: GearItem): GearFormState {
     status: item.status,
     storageLocation: item.storage_location ?? "",
     tags: item.tags.join("，"),
-    shareEnabled: item.share_enabled,
     notes: item.notes ?? "",
   };
 }
@@ -1982,6 +2301,57 @@ function displayUserName(session: WebSession): string {
     session.user.email ??
     "本地用户"
   );
+}
+
+function atlasStatusLabel(status: GearAtlasStatus): string {
+  if (status === "approved") {
+    return "已通过";
+  }
+  if (status === "rejected") {
+    return "已拒绝";
+  }
+  return "待审核";
+}
+
+function atlasSourceLabel(sourceType: GearAtlasSubmission["source_type"]) {
+  return sourceType === "user_gear" ? "个人装备生成" : "手动投稿";
+}
+
+function formatAtlasPrice(
+  cents?: number | null,
+  currency?: string | null,
+): string {
+  if (cents === undefined || cents === null) {
+    return "—";
+  }
+  const code = currency || "CNY";
+  if (code === "CNY") {
+    return formatCurrency(cents);
+  }
+  if (code === "JPY") {
+    return `${code} ${cents}`;
+  }
+  return `${code} ${(cents / 100).toFixed(2)}`;
+}
+
+function activePageFromPath(pathname: string): ActivePage {
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+    return "atlasReview";
+  }
+  if (pathname === "/knots" || pathname.startsWith("/skills/knots")) {
+    return "knots";
+  }
+  return "gear";
+}
+
+function pathForActivePage(page: ActivePage): string {
+  if (page === "atlasReview") {
+    return "/admin";
+  }
+  if (page === "knots") {
+    return "/skills/knots";
+  }
+  return "/";
 }
 
 function loadThemePreference(): ThemeMode {

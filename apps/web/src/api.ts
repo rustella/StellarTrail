@@ -10,10 +10,13 @@ import type {
   EmailVerificationCodeRequest,
   EmailVerificationCodeResponse,
   GearCategoriesResponse,
+  GearAtlasSubmission,
   GearItem,
   GearStatsResponse,
   ImportGearsRequest,
   ImportGearsResponse,
+  ListGearAtlasSubmissionsRequest,
+  ListGearAtlasSubmissionsResponse,
   KnotDetail,
   KnotFiltersResponse,
   KnotListResponse,
@@ -25,6 +28,7 @@ import type {
   PasswordResetCodeRequest,
   PasswordResetRequest,
   RegisterRequest,
+  RejectGearAtlasSubmissionRequest,
   SkillCategoriesResponse,
   SkillLocale,
   UpdateGearRequest,
@@ -80,6 +84,15 @@ export interface WebGearApi {
   restoreGear(id: string): Promise<GearItem>;
   exportGearsCsv(tab?: "available" | "history"): Promise<string>;
   importGears(request: ImportGearsRequest): Promise<ImportGearsResponse>;
+  listAdminGearAtlasSubmissions(
+    request?: ListGearAtlasSubmissionsRequest,
+  ): Promise<ListGearAtlasSubmissionsResponse>;
+  getAdminGearAtlasSubmission(id: string): Promise<GearAtlasSubmission>;
+  approveGearAtlasSubmission(id: string): Promise<GearAtlasSubmission>;
+  rejectGearAtlasSubmission(
+    id: string,
+    request?: RejectGearAtlasSubmissionRequest,
+  ): Promise<GearAtlasSubmission>;
 }
 
 export function createWebGearApi(): WebGearApi {

@@ -29,25 +29,6 @@ pub struct KnotMediaUploadInput {
     pub source_path: Option<String>,
 }
 
-/// Authenticates administrator intent against the configured allowlist.
-pub fn ensure_admin(user: &UserRecord, state: &AppState) -> Result<(), ApiError> {
-    let admin = &state.config().admin;
-    let username = user.username.as_deref().map(str::to_ascii_lowercase);
-    let email = user.email.as_deref().map(str::to_ascii_lowercase);
-    let allowed = admin.user_ids.iter().any(|id| id == &user.id)
-        || username
-            .as_deref()
-            .is_some_and(|value| admin.usernames.iter().any(|item| item == value))
-        || email
-            .as_deref()
-            .is_some_and(|value| admin.emails.iter().any(|item| item == value));
-    if allowed {
-        Ok(())
-    } else {
-        Err(ApiError::Forbidden)
-    }
-}
-
 /// Handles validation, object write, DB metadata upsert, and public response construction.
 pub async fn upload_knot_media(
     state: &AppState,

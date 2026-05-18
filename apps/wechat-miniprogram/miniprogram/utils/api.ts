@@ -1,6 +1,9 @@
 import type {
   CreateGearRequest,
+  CreateGearAtlasSubmissionRequest,
   GearCategoriesResponse,
+  GearAtlasPublicItem,
+  GearAtlasSubmission,
   GearCategory,
   GearItem,
   GearSpecKeyRankingsResponse,
@@ -8,6 +11,9 @@ import type {
   GearTagSuggestionsResponse,
   GearTemplate,
   ListGearTemplatesResponse,
+  ListGearAtlasRequest,
+  ListGearAtlasResponse,
+  ListGearAtlasSubmissionsResponse,
   ListGearsRequest,
   ListGearsResponse,
   UpdateGearRequest,
@@ -428,6 +434,48 @@ export async function listGearTemplates(): Promise<ListGearTemplatesResponse> {
 
 export async function getGearTemplate(id: string): Promise<GearTemplate> {
   return requestJson(`/api/gear-templates/${encodeURIComponent(id)}`);
+}
+
+export async function listGearAtlas(
+  request: ListGearAtlasRequest = {},
+): Promise<ListGearAtlasResponse> {
+  return requestJson(`/api/gear-atlas${queryString(request)}`);
+}
+
+export async function getGearAtlasItem(
+  id: string,
+): Promise<GearAtlasPublicItem> {
+  return requestJson(`/api/gear-atlas/${encodeURIComponent(id)}`);
+}
+
+export async function createGearAtlasSubmission(
+  request: CreateGearAtlasSubmissionRequest,
+): Promise<GearAtlasSubmission> {
+  return requestJson("/api/me/gear-atlas-submissions", {
+    method: "POST",
+    data: request,
+    auth: true,
+  });
+}
+
+export async function submitGearToAtlas(
+  id: string,
+): Promise<GearAtlasSubmission> {
+  return requestJson(
+    `/api/me/gears/${encodeURIComponent(id)}/atlas-submission`,
+    {
+      method: "POST",
+      auth: true,
+    },
+  );
+}
+
+export async function listMyGearAtlasSubmissions(
+  request: { limit?: number; cursor?: string } = {},
+): Promise<ListGearAtlasSubmissionsResponse> {
+  return requestJson(`/api/me/gear-atlas-submissions${queryString(request)}`, {
+    auth: true,
+  });
 }
 
 export async function listGearCategories(

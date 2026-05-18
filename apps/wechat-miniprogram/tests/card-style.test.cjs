@@ -165,7 +165,6 @@ test("primary page cards share homepage surface tokens", () => {
         ".search-card",
         ".gear-card",
         ".guest-card",
-        ".template-card",
       ],
     ],
     [
@@ -224,10 +223,7 @@ test("inner cards and panels use homepage inner surface tokens", () => {
     ["pages/gears/index.wxss", [".stat-card", ".metric"]],
     ["pages/login/index.wxss", [".auth-panel"]],
     ["pages/gears/detail/index.wxss", [".summary-item"]],
-    [
-      "pages/gears/form/index.wxss",
-      [".field", ".picker-row", ".share-review-card"],
-    ],
+    ["pages/gears/form/index.wxss", [".field", ".picker-row"]],
     ["pages/skills/index.wxss", [".category-icon", ".skill-thumb"]],
   ];
   for (const [file, selectors] of cases) {

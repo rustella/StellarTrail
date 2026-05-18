@@ -7,14 +7,14 @@ use axum::{
 };
 use serde_json::{Value, json};
 use stellartrail_api::{
-    config::{AdminConfig, ApiConfig, CorsConfig, RedisCacheConfig},
+    config::{ApiConfig, CorsConfig, RedisCacheConfig},
     migrate_database,
     routes::build_router,
     state::AppState,
 };
 use stellartrail_db::{
     DatabaseConfig, connect_database,
-    repositories::{ApiUsageQuery, ApiUsageRecord, ApiUsageRepository},
+    repositories::{AdminRoleRepository, ApiUsageQuery, ApiUsageRecord, ApiUsageRepository},
 };
 use tempfile::TempDir;
 use time::OffsetDateTime;
@@ -27,7 +27,7 @@ struct TestApp {
     _temp_dir: TempDir,
 }
 
-async fn test_app(admin_emails: Vec<String>) -> TestApp {
+async fn test_app() -> TestApp {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
@@ -47,10 +47,6 @@ async fn test_app(admin_emails: Vec<String>) -> TestApp {
         object_storage: Default::default(),
         avatar_storage: Default::default(),
         knots_media_storage: Default::default(),
-        admin: AdminConfig {
-            emails: admin_emails,
-            ..Default::default()
-        },
         public_api: Default::default(),
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
@@ -146,6 +142,14 @@ async fn register_password_user(app: &Router, suffix: &str, email: &str) -> Valu
     register_value
 }
 
+async fn grant_admin_role(app: &TestApp, target_user_id: &str, granted_by_user_id: &str) {
+    let result = AdminRoleRepository::new(app.db.clone())
+        .grant_admin(target_user_id, granted_by_user_id)
+        .await
+        .unwrap();
+    assert!(result.record.role.can_administer());
+}
+
 async fn wait_for_usage(
     db: &sea_orm::DatabaseConnection,
     route_pattern: &str,
@@ -178,10 +182,11 @@ async fn wait_for_usage(
 #[tokio::test]
 async fn middleware_records_authenticated_user_id_and_route_template_without_query() {
     let admin_email = "api-usage-admin@example.test";
-    let app = test_app(vec![admin_email.to_owned()]).await;
+    let app = test_app().await;
     let login = register_password_user(&app.router, "admin", admin_email).await;
     let token = login["access_token"].as_str().unwrap().to_owned();
     let user_id = login["user"]["id"].as_str().unwrap().to_owned();
+    grant_admin_role(&app, &user_id, &user_id).await;
 
     let (status, body) = send_empty(
         &app.router,
@@ -221,7 +226,7 @@ async fn middleware_records_authenticated_user_id_and_route_template_without_que
 
 #[tokio::test]
 async fn middleware_records_failed_auth_as_anonymous_template_only() {
-    let app = test_app(Vec::new()).await;
+    let app = test_app().await;
 
     let (status, body) = send_empty(
         &app.router,
@@ -249,8 +254,8 @@ async fn middleware_records_failed_auth_as_anonymous_template_only() {
 }
 
 #[tokio::test]
-async fn admin_usage_endpoint_requires_admin_allowlist() {
-    let app = test_app(vec!["api-usage-admin@example.test".to_owned()]).await;
+async fn admin_usage_endpoint_requires_database_admin_role() {
+    let app = test_app().await;
     let login =
         register_password_user(&app.router, "non_admin", "api-usage-non-admin@example.test").await;
     let token = login["access_token"].as_str().unwrap();

@@ -9,8 +9,11 @@ use axum::{
 use stellartrail_domain::validation::FieldViolation;
 
 use crate::{
-    dto::knot_media::KnotMediaUploadResponse, error::ApiError, extractors::AuthenticatedUser,
-    services::knot_media_upload_service, state::AppState,
+    dto::knot_media::KnotMediaUploadResponse,
+    error::ApiError,
+    extractors::AuthenticatedUser,
+    services::{admin_service, knot_media_upload_service},
+    state::AppState,
 };
 
 /// Builds administrator-only knot media routes.
@@ -27,7 +30,7 @@ async fn upload_knot_media(
     Path((knot_id, asset_id)): Path<(String, String)>,
     multipart: Multipart,
 ) -> Result<(StatusCode, Json<KnotMediaUploadResponse>), ApiError> {
-    knot_media_upload_service::ensure_admin(&user, &state)?;
+    admin_service::ensure_admin(&state, &user).await?;
     let input = parse_upload_multipart(multipart).await?;
     let response =
         knot_media_upload_service::upload_knot_media(&state, &user, &knot_id, &asset_id, input)

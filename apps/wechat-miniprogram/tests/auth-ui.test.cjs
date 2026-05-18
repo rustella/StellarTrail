@@ -235,29 +235,27 @@ test("gear form offers colored tag chips and suggestions", () => {
   assert.match(wxss, /\.tag-color-blue/);
 });
 
-test("gear form uses explicit share review actions", () => {
-  const wxml = read("pages/gears/form/index.wxml");
-  const wxss = read("pages/gears/form/index.wxss");
-  const ts = read("pages/gears/form/index.ts");
+test("gear atlas submission moved from gear form to detail and atlas pages", () => {
+  const formWxml = read("pages/gears/form/index.wxml");
+  const detailWxml = read("pages/gears/detail/index.wxml");
+  const detailTs = read("pages/gears/detail/index.ts");
+  const atlasListWxml = read("pages/gear-atlas/index.wxml");
+  const atlasSubmitWxml = read("pages/gear-atlas/submit/index.wxml");
+  const appJson = read("app.json");
 
-  assert.match(wxml, /共享给搭子参考/);
-  assert.match(wxml, /审核通过后会出现在装备图鉴/);
-  assert.match(wxml, /申请共享/);
-  assert.match(wxml, /取消共享/);
-  assert.match(wxml, /已申请/);
-  assert.match(wxml, /bindtap="confirmEnableShare"/);
-  assert.match(wxml, /bindtap="disableShare"/);
-  assert.doesNotMatch(wxml, /<switch/);
-  assert.doesNotMatch(wxml, /onShareSwitch/);
-  assert.match(ts, /confirmEnableShare/);
-  assert.match(ts, /wx\.showModal/);
-  assert.match(ts, /提交共享审核/);
-  assert.match(ts, /审核通过后会出现在装备图鉴/);
-  assert.match(ts, /confirmText: "提交审核"/);
-  assert.match(ts, /"form\.shareEnabled": true/);
-  assert.match(ts, /disableShare/);
-  assert.match(wxss, /\.share-review-card/);
-  assert.match(wxss, /\.share-review-button\.primary/);
+  assert.doesNotMatch(formWxml, /共享给搭子参考/);
+  assert.doesNotMatch(formWxml, /申请共享/);
+  assert.doesNotMatch(formWxml, /confirmEnableShare/);
+  assert.match(detailWxml, /装备图鉴投稿/);
+  assert.match(detailWxml, /投稿到图鉴/);
+  assert.match(detailTs, /submitGearToAtlas/);
+  assert.match(
+    detailTs,
+    /只会复制分类、名称、品牌、型号、描述、重量、官方价和分类参数/,
+  );
+  assert.match(atlasListWxml, /装备图鉴/);
+  assert.match(atlasSubmitWxml, /提交审核/);
+  assert.match(appJson, /pages\/gear-atlas\/index/);
 });
 
 test("gear form exposes selectable weight and spec units", () => {

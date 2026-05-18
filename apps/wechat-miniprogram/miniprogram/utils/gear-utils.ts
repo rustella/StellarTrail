@@ -40,6 +40,13 @@ export type GearSort =
 
 export type GearCurrency = "CNY" | "USD" | "EUR" | "JPY" | "HKD";
 export type GearWeightUnit = "kg" | "g" | "lb" | "oz";
+export type GearAtlasStatus = "pending" | "approved" | "rejected";
+export type GearAtlasSourceType = "manual" | "user_gear";
+export type GearAtlasSort =
+  | "approved_at_desc"
+  | "name_asc"
+  | "weight_desc"
+  | "official_price_desc";
 export type GearTagColor =
   | "teal"
   | "blue"
@@ -134,6 +141,61 @@ export interface GearSummary {
   tag_colors?: GearTagColorMap | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface GearAtlasPublicItem {
+  id: string;
+  category: GearCategory;
+  category_label?: string;
+  name: string;
+  brand?: string | null;
+  model?: string | null;
+  description?: string | null;
+  weight_g?: number | null;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
+  specs?: GearSpecs | null;
+  approved_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GearAtlasSubmission extends GearAtlasPublicItem {
+  source_type: GearAtlasSourceType;
+  source_user_gear_id?: string | null;
+  status: GearAtlasStatus;
+  rejection_reason?: string | null;
+  reviewed_at?: string | null;
+}
+
+export interface CreateGearAtlasSubmissionRequest {
+  category: GearCategory;
+  name: string;
+  brand?: string | null;
+  model?: string | null;
+  description?: string | null;
+  weight_g?: number | null;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
+  specs?: GearSpecs | null;
+}
+
+export interface ListGearAtlasRequest {
+  category?: GearCategory;
+  q?: string;
+  sort?: GearAtlasSort;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListGearAtlasResponse {
+  items: GearAtlasPublicItem[];
+  next_cursor?: string | null;
+}
+
+export interface ListGearAtlasSubmissionsResponse {
+  items: GearAtlasSubmission[];
+  next_cursor?: string | null;
 }
 
 export interface CreateGearRequest {
@@ -635,8 +697,34 @@ export function buildGearPayload(
     specs: normalizeSpecsForCategory(form.category, form.specs ?? {}),
     tags: normalizeGearTagViews(form.tags ?? []).map((tag) => tag.name),
     tag_colors: tagColorPayload(form.tags ?? []),
-    share_enabled: Boolean(form.shareEnabled),
+    share_enabled: false,
     notes: nullableText(form.notes),
+  };
+}
+
+export function buildGearAtlasPayload(
+  form: Partial<GearFormData> & Pick<GearFormData, "category" | "name">,
+): CreateGearAtlasSubmissionRequest {
+  const name = requiredText(form.name, "装备名称不能为空");
+  if (!form.category) {
+    throw new Error("请选择装备分类");
+  }
+  return {
+    category: form.category,
+    name,
+    brand: nullableText(form.brand),
+    model: nullableText(form.model),
+    description: nullableText(form.description),
+    weight_g: weightToGrams(form.weightText, form.weightUnit),
+    official_price_cents: priceToMinorUnits(
+      form.officialPriceText,
+      form.officialPriceCurrency,
+    ),
+    official_price_currency: currencyForPrice(
+      form.officialPriceText,
+      form.officialPriceCurrency,
+    ),
+    specs: normalizeSpecsForCategory(form.category, form.specs ?? {}),
   };
 }
 
@@ -828,6 +916,15 @@ export function getGearShareStatusLabel(value: GearShareStatus): string {
     approved: "已共享",
     rejected: "已拒绝",
     withdrawn: "已撤回",
+  };
+  return labels[value] ?? value;
+}
+
+export function getGearAtlasStatusLabel(value: GearAtlasStatus): string {
+  const labels: Record<GearAtlasStatus, string> = {
+    pending: "审核中",
+    approved: "已收录",
+    rejected: "已拒绝",
   };
   return labels[value] ?? value;
 }
