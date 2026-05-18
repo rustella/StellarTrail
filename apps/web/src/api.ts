@@ -17,6 +17,8 @@ import type {
   ImportGearsResponse,
   ListGearAtlasSubmissionsRequest,
   ListGearAtlasSubmissionsResponse,
+  ListAdminFeedbackRequest,
+  ListAdminFeedbackResponse,
   KnotDetail,
   KnotFiltersResponse,
   KnotListResponse,
@@ -84,6 +86,9 @@ export interface WebGearApi {
   restoreGear(id: string): Promise<GearItem>;
   exportGearsCsv(tab?: "available" | "history"): Promise<string>;
   importGears(request: ImportGearsRequest): Promise<ImportGearsResponse>;
+  listAdminFeedback(
+    request?: ListAdminFeedbackRequest,
+  ): Promise<ListAdminFeedbackResponse>;
   listAdminGearAtlasSubmissions(
     request?: ListGearAtlasSubmissionsRequest,
   ): Promise<ListGearAtlasSubmissionsResponse>;

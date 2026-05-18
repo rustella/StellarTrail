@@ -152,6 +152,53 @@ export interface AdminRoleResponse {
   role: AdminRole;
 }
 
+export interface UploadImageInfo {
+  id: string;
+  purpose: string;
+  original_filename: string;
+  image_type: string;
+  content_type: string;
+  size_bytes: number;
+  sha256: string;
+  download_url: string;
+  created_at: string;
+}
+
+export interface AdminFeedbackUser {
+  id: string;
+  username?: string | null;
+  email?: string | null;
+  nickname?: string | null;
+  avatar_url?: string | null;
+}
+
+export interface AdminFeedbackItem {
+  id: string;
+  user: AdminFeedbackUser;
+  category: string;
+  content: string;
+  contact?: string | null;
+  page?: string | null;
+  client_platform?: string | null;
+  client_version?: string | null;
+  device_model?: string | null;
+  status: string;
+  images: UploadImageInfo[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListAdminFeedbackRequest {
+  status?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListAdminFeedbackResponse {
+  items: AdminFeedbackItem[];
+  next_cursor?: string | null;
+}
+
 export interface GearTemplateCategory {
   id: string;
   name: string;

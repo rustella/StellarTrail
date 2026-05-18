@@ -3,6 +3,8 @@ import type {
   AdminUserSelector,
   ApiUsageListRequest,
   ApiUsageListResponse,
+  ListAdminFeedbackRequest,
+  ListAdminFeedbackResponse,
   BindEmailCodeRequest,
   BindEmailRequest,
   BindEmailResponse,
@@ -166,6 +168,12 @@ export class StellarTrailApiClient {
       { method: "DELETE" },
       true,
     );
+  }
+
+  async listAdminFeedback(
+    request: ListAdminFeedbackRequest = {},
+  ): Promise<ListAdminFeedbackResponse> {
+    return this.get(`/api/admin/feedback${queryString(request)}`, true);
   }
 
   async uploadKnotMedia(

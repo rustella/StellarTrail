@@ -6,7 +6,10 @@ use stellartrail_db::repositories::{FeedbackRepository, UploadImageRecord, Uploa
 use stellartrail_domain::validation::FieldViolation;
 
 use crate::{
-    dto::feedback::{CreateFeedbackRequest, FeedbackResponse},
+    dto::feedback::{
+        AdminFeedbackResponse, CreateFeedbackRequest, FeedbackResponse, ListAdminFeedbackQuery,
+        ListAdminFeedbackResponse,
+    },
     error::ApiError,
     state::AppState,
 };
@@ -25,6 +28,20 @@ pub async fn create_feedback(
         .create(user_id, &draft, &images)
         .await?;
     Ok(FeedbackResponse::from(&record))
+}
+
+/// Lists submitted feedback for administrator dashboards.
+pub async fn list_admin_feedback(
+    state: &AppState,
+    query: ListAdminFeedbackQuery,
+) -> Result<ListAdminFeedbackResponse, ApiError> {
+    let (records, next_cursor) = FeedbackRepository::new(state.db().clone())
+        .list_admin(&query.into_options())
+        .await?;
+    Ok(ListAdminFeedbackResponse {
+        items: records.iter().map(AdminFeedbackResponse::from).collect(),
+        next_cursor,
+    })
 }
 
 async fn load_ordered_user_images(

@@ -43,6 +43,7 @@ Phase one focuses on:
 - 🗃️ Available / historical gear via soft archive and restore.
 - 🏷️ Tags, status/location fields, sharing toggle, and notes.
 - 📤 JSON import and CSV export.
+- 📡 WeChat Mini Program offline read-only support for previously loaded skills, gear atlas, personal gear data, and viewed knot media.
 - 🗄️ SeaORM data access: SQLite by default for local development, PostgreSQL recommended for production.
 - ⚡ Optional Redis read-through cache for high-traffic gear read APIs.
 
@@ -114,7 +115,7 @@ curl http://127.0.0.1:8080/healthz
 curl http://127.0.0.1:8080/api/meta
 ```
 
-Knot media is uploaded through MinIO/S3-compatible object storage. Public read APIs return only DB-backed media URLs and no longer derive knot media paths from `/assets/*`. The API now keeps one shared `minio` connection configuration, while feedback images and knot media use separate business buckets through `object_storage.bucket` and `knots_media_storage.bucket`. Administrator permission is stored in the database `admin_roles` table: an existing, non-deleted `stellarisw` user is seeded as `super_admin` by migration, and `super_admin` users can grant or revoke regular `admin` users through `/api/admin/admins`. Both `admin` and `super_admin` can call Knot media upload, Gear Atlas review, and `GET /api/admin/api-usage`. Usage reporting is asynchronous and stores only matched route templates plus aggregate counts; it does not store query strings, request bodies, Authorization headers, tokens, cookies, IP addresses, or User-Agent values.
+Knot media is uploaded through MinIO/S3-compatible object storage. Public read APIs return only DB-backed media URLs and no longer derive knot media paths from `/assets/*`. The API now keeps one shared `minio` connection configuration, while feedback images and knot media use separate business buckets through `object_storage.bucket` and `knots_media_storage.bucket`. Administrator permission is stored in the database `admin_roles` table: an existing, non-deleted `stellarisw` user is seeded as `super_admin` by migration, and `super_admin` users can grant or revoke regular `admin` users through `/api/admin/admins`. Both `admin` and `super_admin` can call Knot media upload, Gear Atlas review, feedback review, and `GET /api/admin/api-usage`. Usage reporting is asynchronous and stores only matched route templates plus aggregate counts; it does not store query strings, request bodies, Authorization headers, tokens, cookies, IP addresses, or User-Agent values.
 
 ### 4. Configure client endpoints
 
