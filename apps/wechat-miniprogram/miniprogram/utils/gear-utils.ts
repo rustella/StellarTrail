@@ -39,7 +39,18 @@ export type GearSort =
   | "price_desc";
 
 export type GearCurrency = "CNY" | "USD" | "EUR" | "JPY" | "HKD";
+export type GearWeightUnit = "kg" | "g" | "lb" | "oz";
+export type GearTagColor =
+  | "teal"
+  | "blue"
+  | "violet"
+  | "rose"
+  | "orange"
+  | "amber"
+  | "green"
+  | "slate";
 export type GearSpecs = Record<string, string>;
+export type GearTagColorMap = Record<string, GearTagColor | string>;
 
 export interface GearSpecField {
   key: string;
@@ -47,12 +58,32 @@ export interface GearSpecField {
   placeholder: string;
   inputType?: "text" | "number";
   units?: string[];
+  unitLabels?: string[];
+  choiceOnly?: boolean;
 }
 
 export interface GearSpecFieldView extends GearSpecField {
   valueText: string;
   unitIndex: number;
   unitLabel: string;
+  unitLabels: string[];
+}
+
+export interface GearTagView {
+  name: string;
+  color: GearTagColor;
+  colorClass: string;
+}
+
+export interface GearTagSuggestion {
+  tag: string;
+  color?: GearTagColor | string | null;
+}
+
+export interface GearTagSuggestionView {
+  name: string;
+  color: GearTagColor;
+  colorClass: string;
 }
 
 export interface GearItem {
@@ -74,6 +105,7 @@ export interface GearItem {
   storage_location?: string | null;
   specs?: GearSpecs | null;
   tags: string[];
+  tag_colors?: GearTagColorMap | null;
   share_enabled: boolean;
   share_status: GearShareStatus;
   notes?: string | null;
@@ -98,6 +130,8 @@ export interface GearSummary {
   purchase_price_currency?: GearCurrency | string | null;
   purchase_date?: string | null;
   specs?: GearSpecs | null;
+  tags?: string[];
+  tag_colors?: GearTagColorMap | null;
   created_at: string;
   updated_at: string;
 }
@@ -119,6 +153,7 @@ export interface CreateGearRequest {
   storage_location?: string | null;
   specs?: GearSpecs | null;
   tags?: string[];
+  tag_colors?: GearTagColorMap | null;
   share_enabled?: boolean;
   notes?: string | null;
 }
@@ -142,6 +177,14 @@ export interface GearCategoryFilter {
 
 export interface GearCategoriesResponse {
   items: GearCategoryFilter[];
+}
+
+export interface GearSpecKeyRankingsResponse {
+  keys: string[];
+}
+
+export interface GearTagSuggestionsResponse {
+  items: GearTagSuggestion[];
 }
 
 export interface ListGearsRequest {
@@ -202,6 +245,7 @@ export interface GearFormData {
   model: string;
   description: string;
   weightText: string;
+  weightUnit: GearWeightUnit;
   purchaseDate: string;
   officialPriceText: string;
   officialPriceCurrency: GearCurrency;
@@ -211,7 +255,7 @@ export interface GearFormData {
   status: GearStatus;
   storageLocation: string;
   specs: GearSpecs;
-  tagsText: string;
+  tags: GearTagView[];
   shareEnabled: boolean;
   notes: string;
 }
@@ -263,18 +307,95 @@ export const GEAR_CURRENCY_OPTIONS: Array<OptionItem<GearCurrency>> = [
   { value: "HKD", label: "HKD" },
 ];
 
+export const GEAR_WEIGHT_UNIT_OPTIONS: Array<OptionItem<GearWeightUnit>> = [
+  { value: "kg", label: "kg" },
+  { value: "g", label: "g" },
+  { value: "lb", label: "lb" },
+  { value: "oz", label: "oz" },
+];
+
+export const GEAR_TAG_COLOR_OPTIONS: Array<OptionItem<GearTagColor>> = [
+  { value: "teal", label: "青绿" },
+  { value: "blue", label: "蓝" },
+  { value: "violet", label: "紫" },
+  { value: "rose", label: "粉" },
+  { value: "orange", label: "橙" },
+  { value: "amber", label: "黄" },
+  { value: "green", label: "绿" },
+  { value: "slate", label: "灰" },
+];
+
+export const PURCHASE_LOCATION_OPTIONS = [
+  "京东",
+  "淘宝",
+  "天猫",
+  "拼多多",
+  "亚马逊",
+  "闲鱼",
+  "迪卡侬",
+  "三夫户外",
+  "REI",
+  "Backcountry",
+  "Moosejaw",
+  "Campsaver",
+  "品牌官网",
+  "品牌门店",
+  "线下户外店",
+  "朋友赠送",
+  "其他",
+];
+
 export const GEAR_TAB_OPTIONS: Array<OptionItem<GearTab>> = [
   { value: "available", label: "可用装备" },
   { value: "history", label: "历史装备" },
 ];
 
-const COMMON_WATERPROOF_UNITS = ["", "IPX4", "IPX5", "IPX6", "IPX7", "IPX8"];
+const CAPACITY_UNITS = ["L", "ml", "fl oz"];
+const CONSUMABLE_CONTENT_UNITS = ["g", "ml", "kg", "L", "oz"];
+const LENGTH_UNITS = ["cm", "m", "mm", "in"];
+const BACK_LENGTH_UNITS = ["cm", "in"];
+const BACKPACK_SIZE_UNITS = ["", "XS", "S", "M", "L", "XL", "XXL", "均码"];
+const BACKPACK_SIZE_UNIT_LABELS = [
+  "选择尺码",
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+  "均码",
+];
+const SHOE_SIZE_OR_LENGTH_UNITS = ["cm", "EU", "US", "UK", "in"];
+const LOAD_UNITS = ["kg", "g", "lb"];
+const TEMPERATURE_UNITS = ["℃", "℉"];
+const TIME_UNITS = ["h", "min"];
+const DISTANCE_UNITS = ["m", "km"];
+const COMMON_WATERPROOF_UNITS = [
+  "",
+  "IPX4",
+  "IPX5",
+  "IPX6",
+  "IPX7",
+  "IPX8",
+  "mm",
+];
 
 export const GEAR_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
   backpack_system: [
-    spec("capacity", "容量", "例如 45", "number", ["L"]),
-    spec("recommended_load", "推荐负重", "例如 12", "number", ["kg"]),
-    spec("back_length_or_size", "背长/尺码", "例如 M / 48", "text", ["", "cm"]),
+    spec("capacity", "容量", "例如 45", "number", CAPACITY_UNITS),
+    spec("recommended_load", "推荐负重", "例如 12", "number", LOAD_UNITS),
+    spec("back_length", "背长", "例如 48", "number", BACK_LENGTH_UNITS),
+    spec(
+      "backpack_size",
+      "尺码",
+      "选择 XS / S / M / L",
+      "text",
+      BACKPACK_SIZE_UNITS,
+      {
+        choiceOnly: true,
+        unitLabels: BACKPACK_SIZE_UNIT_LABELS,
+      },
+    ),
     spec(
       "waterproof_rating",
       "防水等级",
@@ -287,31 +408,35 @@ export const GEAR_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
     spec("type", "类型", "例如 睡袋 / 帐篷"),
     spec("people_count", "适用人数", "例如 2", "number", ["人"]),
     spec("temperature_or_r_value", "温标/R 值", "例如 -5 或 4.2", "text", [
-      "",
       "℃",
+      "℉",
       "R",
     ]),
     spec("filling", "填充物", "例如 800FP 羽绒"),
-    spec("packed_size", "收纳尺寸", "例如 18 x 30", "text", ["", "cm"]),
-    spec("waterproof_rating", "防水等级", "例如 外帐 3000", "text", [
-      "",
-      "mm",
-      ...COMMON_WATERPROOF_UNITS.slice(1),
-    ]),
+    spec("packed_size", "收纳尺寸", "例如 18 x 30", "text", LENGTH_UNITS),
+    spec(
+      "waterproof_rating",
+      "防水等级",
+      "例如 外帐 3000",
+      "text",
+      COMMON_WATERPROOF_UNITS,
+    ),
   ],
   kitchen_system: [
     spec("fuel_type", "燃料类型", "例如 气罐"),
-    spec("capacity", "容量", "例如 1.2", "number", ["L", "ml"]),
+    spec("capacity", "容量", "例如 1.2", "number", CAPACITY_UNITS),
     spec("power", "功率", "例如 2600", "number", ["W"]),
     spec("people_count", "适用人数", "例如 2", "number", ["人"]),
-    spec("packed_size", "收纳尺寸", "例如 12 x 8", "text", ["", "cm"]),
+    spec("packed_size", "收纳尺寸", "例如 12 x 8", "text", LENGTH_UNITS),
   ],
   walking_system: [
-    spec("size_or_length", "尺码/长度", "例如 42 或 120", "text", [
-      "",
-      "cm",
-      "EU",
-    ]),
+    spec(
+      "size_or_length",
+      "尺码/长度",
+      "例如 42 或 120",
+      "text",
+      SHOE_SIZE_OR_LENGTH_UNITS,
+    ),
     spec("terrain", "适用地形", "例如 山地 / 泥地"),
     spec(
       "waterproof_rating",
@@ -326,7 +451,7 @@ export const GEAR_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
   clothing_system: [
     spec("size", "尺码", "例如 M"),
     spec("layer", "适用层级", "例如 中间层"),
-    spec("warmth_rating", "保暖等级", "例如 200", "text", ["", "g/m²"]),
+    spec("warmth_rating", "保暖等级", "例如 200", "text", ["g/m²"]),
     spec("waterproof_rating", "防水指数", "例如 20000", "number", ["mm"]),
     spec("breathability_rating", "透湿指数", "例如 15000", "number", [
       "g/m²/24h",
@@ -335,7 +460,7 @@ export const GEAR_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
   ],
   lighting_system: [
     spec("max_brightness", "最大亮度", "例如 450", "number", ["lm"]),
-    spec("runtime", "续航时间", "例如 8", "number", ["h"]),
+    spec("runtime", "续航时间", "例如 8", "number", TIME_UNITS),
     spec("battery_type", "电池类型", "例如 18650"),
     spec("charging_port", "充电接口", "例如 USB-C"),
     spec(
@@ -345,7 +470,7 @@ export const GEAR_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
       "text",
       COMMON_WATERPROOF_UNITS,
     ),
-    spec("beam_distance", "照射距离", "例如 120", "number", ["m"]),
+    spec("beam_distance", "照射距离", "例如 120", "number", DISTANCE_UNITS),
   ],
   first_aid_system: [
     spec("kit_size", "套装规格", "例如 轻量 12 件"),
@@ -355,7 +480,7 @@ export const GEAR_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
     spec("waterproof_packaging", "防水包装", "例如 自封袋"),
   ],
   electronics_system: [
-    spec("battery_capacity", "电池容量", "例如 20000", "number", ["mAh"]),
+    spec("battery_capacity", "电池容量", "例如 20000", "number", ["mAh", "Wh"]),
     spec("rated_energy", "额定能量", "例如 74", "number", ["Wh"]),
     spec("output_power", "输出功率", "例如 65", "number", ["W"]),
     spec("ports", "接口类型", "例如 USB-C x2"),
@@ -366,20 +491,26 @@ export const GEAR_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
       "text",
       COMMON_WATERPROOF_UNITS,
     ),
-    spec("working_temperature", "工作温度", "例如 -10 - 45", "text", ["℃"]),
+    spec(
+      "working_temperature",
+      "工作温度",
+      "例如 -10 - 45",
+      "text",
+      TEMPERATURE_UNITS,
+    ),
   ],
   technical_gear: [
     spec("certification", "认证标准", "例如 CE / UIAA"),
     spec("strength", "承重/强度", "例如 22", "number", ["kN", "kg"]),
     spec("specification", "规格", "例如 HMS"),
-    spec("length", "长度", "例如 60", "number", ["cm", "m"]),
+    spec("length", "长度", "例如 60", "number", LENGTH_UNITS),
     spec("material", "材质", "例如 尼龙"),
     spec("retirement_date", "报废期限", "例如 2030-05"),
   ],
   other_gear: [
     spec("use_case", "用途", "例如 营地收纳"),
     spec("specification", "规格", "例如 大号"),
-    spec("capacity", "容量", "例如 10", "number", ["L", "ml"]),
+    spec("capacity", "容量", "例如 10", "number", CAPACITY_UNITS),
     spec(
       "waterproof_rating",
       "防水等级",
@@ -391,7 +522,13 @@ export const GEAR_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
   ],
   consumable: [
     spec("type", "类型", "例如 气罐 / 食品"),
-    spec("net_content", "净含量", "例如 230", "number", ["g", "ml"]),
+    spec(
+      "net_content",
+      "净含量",
+      "例如 230",
+      "number",
+      CONSUMABLE_CONTENT_UNITS,
+    ),
     spec("quantity", "数量", "例如 2", "number", ["件", "个", "包"]),
     spec("expiry_date", "有效期", "例如 2027-05"),
     spec("storage_condition", "储存条件", "例如 阴凉干燥"),
@@ -411,6 +548,7 @@ export function createDefaultGearFormData(): GearFormData {
     model: "",
     description: "",
     weightText: "",
+    weightUnit: "kg",
     purchaseDate: "",
     officialPriceText: "",
     officialPriceCurrency: "CNY",
@@ -420,7 +558,7 @@ export function createDefaultGearFormData(): GearFormData {
     status: "available",
     storageLocation: "",
     specs: {},
-    tagsText: "",
+    tags: [],
     shareEnabled: false,
     notes: "",
   };
@@ -437,6 +575,7 @@ export function gearToFormData(item: GearItem): GearFormData {
       item.weight_g === undefined || item.weight_g === null
         ? ""
         : trimTrailingZeros(String(item.weight_g / 1000)),
+    weightUnit: "kg",
     purchaseDate: item.purchase_date ?? "",
     officialPriceText: priceFromMinorUnits(
       item.official_price_cents,
@@ -452,7 +591,7 @@ export function gearToFormData(item: GearItem): GearFormData {
     status: item.status,
     storageLocation: item.storage_location ?? "",
     specs: { ...(item.specs ?? {}) },
-    tagsText: item.tags.join("，"),
+    tags: createGearTagViews(item.tags ?? [], item.tag_colors ?? {}),
     shareEnabled: item.share_enabled,
     notes: item.notes ?? "",
   };
@@ -472,7 +611,7 @@ export function buildGearPayload(
     brand: nullableText(form.brand),
     model: nullableText(form.model),
     description: nullableText(form.description),
-    weight_g: weightKgToGrams(form.weightText),
+    weight_g: weightToGrams(form.weightText, form.weightUnit),
     purchase_date: nullableText(form.purchaseDate),
     official_price_cents: priceToMinorUnits(
       form.officialPriceText,
@@ -494,10 +633,126 @@ export function buildGearPayload(
     status: form.status ?? "available",
     storage_location: nullableText(form.storageLocation),
     specs: normalizeSpecsForCategory(form.category, form.specs ?? {}),
-    tags: parseTagsInput(form.tagsText ?? ""),
+    tags: normalizeGearTagViews(form.tags ?? []).map((tag) => tag.name),
+    tag_colors: tagColorPayload(form.tags ?? []),
     share_enabled: Boolean(form.shareEnabled),
     notes: nullableText(form.notes),
   };
+}
+
+export function createGearTagViews(
+  tags: string[],
+  colors: GearTagColorMap = {},
+): GearTagView[] {
+  const seen = new Set<string>();
+  const views: GearTagView[] = [];
+  tags.forEach((raw) => {
+    const name = raw.trim();
+    if (!name || seen.has(name)) {
+      return;
+    }
+    seen.add(name);
+    const color =
+      normalizeGearTagColor(colors[name]) ?? fallbackGearTagColor(name);
+    views.push({
+      name,
+      color,
+      colorClass: gearTagColorClass(color),
+    });
+  });
+  return views.slice(0, 20);
+}
+
+export function createGearTagSuggestionViews(
+  items: GearTagSuggestion[],
+): GearTagSuggestionView[] {
+  return items
+    .map((item) => {
+      const name = item.tag.trim();
+      if (!name) {
+        return null;
+      }
+      const color =
+        normalizeGearTagColor(item.color) ?? fallbackGearTagColor(name);
+      return {
+        name,
+        color,
+        colorClass: gearTagColorClass(color),
+      };
+    })
+    .filter((item): item is GearTagSuggestionView => Boolean(item));
+}
+
+export function addGearTagViews(
+  current: GearTagView[],
+  input: string,
+  color?: GearTagColor | null,
+): GearTagView[] {
+  const existing = normalizeGearTagViews(current);
+  const seen = new Set(existing.map((tag) => tag.name));
+  parseTagsInput(input).forEach((name) => {
+    if (seen.has(name) || existing.length >= 20) {
+      return;
+    }
+    const normalizedColor = color ?? randomGearTagColor();
+    existing.push({
+      name,
+      color: normalizedColor,
+      colorClass: gearTagColorClass(normalizedColor),
+    });
+    seen.add(name);
+  });
+  return existing;
+}
+
+export function normalizeGearTagViews(tags: GearTagView[]): GearTagView[] {
+  const seen = new Set<string>();
+  const normalized: GearTagView[] = [];
+  tags.forEach((tag) => {
+    const name = tag.name.trim();
+    if (!name || seen.has(name)) {
+      return;
+    }
+    const color =
+      normalizeGearTagColor(tag.color) ?? fallbackGearTagColor(name);
+    normalized.push({
+      name,
+      color,
+      colorClass: gearTagColorClass(color),
+    });
+    seen.add(name);
+  });
+  return normalized.slice(0, 20);
+}
+
+export function normalizeGearTagColor(
+  value?: GearTagColor | string | null,
+): GearTagColor | null {
+  if (!value) {
+    return null;
+  }
+  const normalized = value.trim() as GearTagColor;
+  return GEAR_TAG_COLOR_OPTIONS.some((item) => item.value === normalized)
+    ? normalized
+    : null;
+}
+
+export function randomGearTagColor(): GearTagColor {
+  const index = Math.floor(Math.random() * GEAR_TAG_COLOR_OPTIONS.length);
+  return GEAR_TAG_COLOR_OPTIONS[index]?.value ?? "teal";
+}
+
+export function fallbackGearTagColor(tag: string): GearTagColor {
+  const options = GEAR_TAG_COLOR_OPTIONS.map((item) => item.value);
+  let hash = 0;
+  for (const char of tag) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return options[hash % options.length] ?? "teal";
+}
+
+export function gearTagColorClass(color: GearTagColor): string {
+  return `tag-color-${color}`;
 }
 
 export function parseTagsInput(input: string): string[] {
@@ -514,6 +769,14 @@ export function parseTagsInput(input: string): string[] {
       }
     });
   return tags;
+}
+
+function tagColorPayload(tags: GearTagView[]): GearTagColorMap | null {
+  const colors: GearTagColorMap = {};
+  normalizeGearTagViews(tags).forEach((tag) => {
+    colors[tag.name] = tag.color;
+  });
+  return Object.keys(colors).length ? colors : null;
 }
 
 export function formatGearWeight(value?: number | null): string {
@@ -606,17 +869,21 @@ export function valueOrUnset(value?: string | number | null): string {
 export function getGearSpecFieldViews(
   category: GearCategory,
   specs: GearSpecs = {},
+  rankedKeys: string[] = [],
 ): GearSpecFieldView[] {
-  return (GEAR_SPEC_FIELDS[category] ?? []).map((field) => {
-    const parsed = splitSpecValue(specs[field.key] ?? "", field.units);
-    return {
-      ...field,
-      inputType: field.inputType ?? "text",
-      valueText: parsed.valueText,
-      unitIndex: parsed.unitIndex,
-      unitLabel: field.units?.[parsed.unitIndex] ?? "",
-    };
-  });
+  return rankSpecFields(GEAR_SPEC_FIELDS[category] ?? [], rankedKeys).map(
+    (field) => {
+      const parsed = splitSpecValue(specs[field.key] ?? "", field.units);
+      return {
+        ...field,
+        inputType: field.inputType ?? "text",
+        valueText: parsed.valueText,
+        unitIndex: parsed.unitIndex,
+        unitLabel: field.units?.[parsed.unitIndex] ?? "",
+        unitLabels: field.unitLabels ?? field.units ?? [],
+      };
+    },
+  );
 }
 
 export function combineSpecValue(value?: string, unit?: string): string {
@@ -664,8 +931,38 @@ function spec(
   placeholder: string,
   inputType: "text" | "number" = "text",
   units?: string[],
+  extra: Partial<GearSpecField> = {},
 ): GearSpecField {
-  return { key, label, placeholder, inputType, units };
+  return { key, label, placeholder, inputType, units, ...extra };
+}
+
+function rankSpecFields(
+  fields: GearSpecField[],
+  rankedKeys: string[],
+): GearSpecField[] {
+  if (rankedKeys.length === 0) {
+    return fields;
+  }
+  const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
+  const used = new Set<string>();
+  const rankedFields: GearSpecField[] = [];
+  rankedKeys.forEach((key) => {
+    if (used.has(key)) {
+      return;
+    }
+    const field = fieldsByKey.get(key);
+    if (!field) {
+      return;
+    }
+    used.add(key);
+    rankedFields.push(field);
+  });
+  fields.forEach((field) => {
+    if (!used.has(field.key)) {
+      rankedFields.push(field);
+    }
+  });
+  return rankedFields;
 }
 
 function nullableText(value?: string): string | null {
@@ -681,7 +978,7 @@ function requiredText(value: string | undefined, message: string): string {
   return text;
 }
 
-function weightKgToGrams(value?: string): number | null {
+function weightToGrams(value?: string, unit?: GearWeightUnit): number | null {
   const text = value?.trim() ?? "";
   if (!text) {
     return null;
@@ -693,7 +990,17 @@ function weightKgToGrams(value?: string): number | null {
   if (numberValue < 0) {
     throw new Error("重量不能为负数");
   }
-  return Math.round(numberValue * 1000);
+  switch (unit ?? "kg") {
+    case "g":
+      return Math.round(numberValue);
+    case "lb":
+      return Math.round(numberValue * 453.59237);
+    case "oz":
+      return Math.round(numberValue * 28.349523125);
+    case "kg":
+    default:
+      return Math.round(numberValue * 1000);
+  }
 }
 
 function priceToMinorUnits(

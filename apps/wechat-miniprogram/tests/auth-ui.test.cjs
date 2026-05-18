@@ -165,16 +165,124 @@ test("gear form cancel falls back when there is no previous page", () => {
   const wxml = read("pages/gears/form/index.wxml");
   const wxss = read("pages/gears/form/index.wxss");
   const ts = read("pages/gears/form/index.ts");
+  const formActionsBlock =
+    wxss.match(/\.form-actions \{[\s\S]*?\n\}/)?.[0] ?? "";
 
   assert.match(wxml, /bindtap="cancel"/);
-  assert.ok(wxml.lastIndexOf('class="form-actions"') > wxml.lastIndexOf('class="form-card"'));
+  assert.ok(
+    wxml.lastIndexOf('class="form-actions"') >
+      wxml.lastIndexOf('class="form-card"'),
+  );
   assert.doesNotMatch(wxml, /footer-actions/);
   assert.match(wxss, /\.form-actions \{/);
   assert.match(wxss, /env\(safe-area-inset-bottom\)/);
-  assert.doesNotMatch(wxss, /position: fixed/);
+  assert.doesNotMatch(formActionsBlock, /position: fixed/);
   assert.match(ts, /getCurrentPages\(\)\.length > 1/);
   assert.match(ts, /wx\.navigateBack\(\)/);
   assert.match(ts, /wx\.switchTab\(\{ url: "\/pages\/gears\/index" \}\)/);
   assert.match(ts, /wx\.redirectTo\(\{/);
   assert.match(ts, /\/pages\/gears\/detail\/index\?id=/);
+});
+
+test("gear form offers purchase location presets and custom input", () => {
+  const wxml = read("pages/gears/form/index.wxml");
+  const wxss = read("pages/gears/form/index.wxss");
+  const ts = read("pages/gears/form/index.ts");
+
+  assert.match(wxml, /选择或输入购买渠道/);
+  assert.match(wxml, /purchaseLocationSheetVisible/);
+  assert.match(wxml, /purchaseLocationOptions/);
+  assert.match(wxml, /自定义输入/);
+  assert.match(wxml, /自定义购买渠道/);
+  assert.match(wxml, /bindtap="openPurchaseLocationSheet"/);
+  assert.match(wxml, /bindtap="selectPurchaseLocation"/);
+  assert.match(wxml, /bindtap="openCustomPurchaseLocation"/);
+  assert.match(wxml, /bindtap="saveCustomPurchaseLocation"/);
+  assert.doesNotMatch(wxml, /data-field="purchaseLocation"/);
+  assert.match(ts, /PURCHASE_LOCATION_OPTIONS/);
+  assert.match(ts, /selectPurchaseLocation/);
+  assert.match(ts, /saveCustomPurchaseLocation/);
+  assert.match(ts, /cancelCustomPurchaseLocation/);
+  assert.match(ts, /customPurchaseLocationText\.trim\(\)/);
+  assert.match(wxss, /\.purchase-location-sheet/);
+  assert.match(wxss, /\.purchase-location-option\.selected/);
+});
+
+test("gear form offers colored tag chips and suggestions", () => {
+  const wxml = read("pages/gears/form/index.wxml");
+  const wxss = read("pages/gears/form/index.wxss");
+  const ts = read("pages/gears/form/index.ts");
+  const utils = read("utils/gear-utils.ts");
+
+  assert.match(wxml, /添加标签/);
+  assert.match(wxml, /tagSheetVisible/);
+  assert.match(wxml, /tagSuggestions/);
+  assert.match(wxml, /tagColorOptions/);
+  assert.match(wxml, /tag-chip/);
+  assert.match(wxml, /tag-color-option/);
+  assert.match(wxml, /随机/);
+  assert.doesNotMatch(wxml, /data-field="tagsText"/);
+  assert.doesNotMatch(wxml, /用逗号分隔/);
+  assert.match(ts, /getGearTagSuggestions/);
+  assert.match(ts, /selectTagSuggestion/);
+  assert.match(ts, /saveCustomTag/);
+  assert.match(ts, /removeTag/);
+  assert.match(utils, /export type GearTagColor =/);
+  assert.match(utils, /GEAR_TAG_COLOR_OPTIONS/);
+  assert.match(wxss, /\.tag-color-teal/);
+  assert.match(wxss, /\.tag-color-blue/);
+});
+
+test("gear form uses explicit share review actions", () => {
+  const wxml = read("pages/gears/form/index.wxml");
+  const wxss = read("pages/gears/form/index.wxss");
+  const ts = read("pages/gears/form/index.ts");
+
+  assert.match(wxml, /共享给搭子参考/);
+  assert.match(wxml, /申请共享/);
+  assert.match(wxml, /取消共享/);
+  assert.match(wxml, /已申请/);
+  assert.match(wxml, /bindtap="confirmEnableShare"/);
+  assert.match(wxml, /bindtap="disableShare"/);
+  assert.doesNotMatch(wxml, /<switch/);
+  assert.doesNotMatch(wxml, /onShareSwitch/);
+  assert.match(ts, /confirmEnableShare/);
+  assert.match(ts, /wx\.showModal/);
+  assert.match(ts, /提交共享审核/);
+  assert.match(ts, /confirmText: "提交审核"/);
+  assert.match(ts, /"form\.shareEnabled": true/);
+  assert.match(ts, /disableShare/);
+  assert.match(wxss, /\.share-review-card/);
+  assert.match(wxss, /\.share-review-button\.primary/);
+});
+
+test("gear form exposes selectable weight and spec units", () => {
+  const wxml = read("pages/gears/form/index.wxml");
+  const ts = read("pages/gears/form/index.ts");
+  const utils = read("utils/gear-utils.ts");
+
+  assert.match(wxml, /<view class="field-label">重量<\/view>/);
+  assert.match(wxml, /weightUnitLabels/);
+  assert.match(wxml, /bindchange="onWeightUnitChange"/);
+  assert.doesNotMatch(wxml, /重量（kg）/);
+  assert.match(ts, /GEAR_WEIGHT_UNIT_OPTIONS/);
+  assert.match(ts, /onWeightUnitChange/);
+  assert.match(
+    utils,
+    /export type GearWeightUnit = "kg" \| "g" \| "lb" \| "oz"/,
+  );
+  assert.match(utils, /const CAPACITY_UNITS = \["L", "ml", "fl oz"\]/);
+  assert.match(utils, /const LOAD_UNITS = \["kg", "g", "lb"\]/);
+  assert.match(utils, /const LENGTH_UNITS = \["cm", "m", "mm", "in"\]/);
+  assert.match(utils, /const BACK_LENGTH_UNITS = \["cm", "in"\]/);
+  assert.match(
+    utils,
+    /const BACKPACK_SIZE_UNITS = \["", "XS", "S", "M", "L", "XL", "XXL", "均码"\]/,
+  );
+  assert.match(wxml, /choice-value/);
+  assert.match(wxml, /item\.choiceOnly/);
+  assert.match(
+    utils,
+    /const SHOE_SIZE_OR_LENGTH_UNITS = \["cm", "EU", "US", "UK", "in"\]/,
+  );
 });

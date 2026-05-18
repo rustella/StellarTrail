@@ -81,21 +81,33 @@
     <view class="form-card">
       <view class="section-title">重量与分类参数</view>
       <view class="field">
-        <view class="field-label">重量（kg）</view>
-        <input
-          value="{{form.weightText}}"
-          data-field="weightText"
-          type="digit"
-          placeholder="例如 0.315"
-          bindinput="onInput"
-        />
-        <view class="field-hint">填写千克数即可，例如 0.315 kg。</view>
+        <view class="field-label">重量</view>
+        <view class="spec-input-row">
+          <input
+            value="{{form.weightText}}"
+            data-field="weightText"
+            type="digit"
+            placeholder="例如 0.315"
+            bindinput="onInput"
+          />
+          <picker
+            value="{{weightUnitIndex}}"
+            range="{{weightUnitLabels}}"
+            bindchange="onWeightUnitChange"
+          >
+            <view class="unit-picker"
+              >{{weightUnitOptions[weightUnitIndex].label}} ›</view
+            >
+          </picker>
+        </view>
+        <view class="field-hint">选择单位后保存为克，例如 0.315 kg。</view>
       </view>
       <view class="spec-grid">
         <view wx:for="{{specFields}}" wx:key="key" class="field spec-field">
           <view class="field-label">{{item.label}}</view>
           <view class="spec-input-row">
             <input
+              wx:if="{{!item.choiceOnly}}"
               value="{{item.valueText}}"
               data-key="{{item.key}}"
               data-index="{{index}}"
@@ -103,15 +115,23 @@
               placeholder="{{item.placeholder}}"
               bindinput="onSpecInput"
             />
+            <view
+              wx:else
+              class="choice-value {{item.unitLabel ? '' : 'placeholder'}}"
+              >{{item.unitLabel || item.placeholder}}</view
+            >
             <picker
               wx:if="{{item.units && item.units.length > 0}}"
               value="{{item.unitIndex}}"
-              range="{{item.units}}"
+              range="{{item.unitLabels}}"
               data-key="{{item.key}}"
               data-index="{{index}}"
               bindchange="onSpecUnitChange"
             >
-              <view class="unit-picker">{{item.unitLabel || '无单位'}} ›</view>
+              <view class="unit-picker"
+                >{{item.choiceOnly ? (item.unitLabel || '选择') :
+                (item.unitLabel || '无单位')}} ›</view
+              >
             </picker>
           </view>
         </view>
@@ -183,14 +203,18 @@
             </view>
           </view>
         </picker>
-        <view class="field compact">
+        <view
+          class="field compact purchase-location-field"
+          bindtap="openPurchaseLocationSheet"
+        >
           <view class="field-label">购买渠道</view>
-          <input
-            value="{{form.purchaseLocation}}"
-            data-field="purchaseLocation"
-            placeholder="京东 / 门店"
-            bindinput="onInput"
-          />
+          <view class="picker-value-row">
+            <view
+              class="field-value {{form.purchaseLocation ? '' : 'placeholder'}}"
+              >{{form.purchaseLocation || '选择或输入购买渠道'}}</view
+            >
+            <view class="mini-chevron">›</view>
+          </view>
         </view>
       </view>
       <picker
@@ -219,27 +243,55 @@
 
     <view class="form-card">
       <view class="section-title">标签与共享</view>
-      <view class="field">
-        <view class="field-label">标签</view>
-        <input
-          value="{{form.tagsText}}"
-          data-field="tagsText"
-          placeholder="用逗号分隔，如 冬季, 电子"
-          bindinput="onInput"
-        />
-      </view>
-      <view class="switch-row">
-        <view>
-          <view class="field-label">允许共享给搭子参考</view>
-          <view class="field-hint"
-            >可以先标记为愿意分享，之后方便给搭子参考。</view
-          >
+      <view class="tag-editor">
+        <view class="tag-editor-head">
+          <view>
+            <view class="field-label">标签</view>
+            <view class="field-hint">用几个关键词记录场景、季节或用途。</view>
+          </view>
+          <button class="add-tag-button" bindtap="openTagSheet">
+            + 添加标签
+          </button>
         </view>
-        <switch
-          checked="{{form.shareEnabled}}"
-          color="#0f766e"
-          bindchange="onShareSwitch"
-        />
+        <view wx:if="{{form.tags.length}}" class="tag-chip-list">
+          <block wx:for="{{form.tags}}" wx:key="name">
+            <view class="tag-chip {{item.colorClass}}">
+              <text>{{item.name}}</text>
+              <text
+                class="tag-remove"
+                data-index="{{index}}"
+                catchtap="removeTag"
+                >×</text
+              >
+            </view>
+          </block>
+        </view>
+        <view wx:else class="empty-tags">还没有标签</view>
+      </view>
+      <view class="share-review-card">
+        <view>
+          <view class="field-label">共享给搭子参考</view>
+          <view class="field-hint">确认后，保存装备时会提交共享审核。</view>
+        </view>
+        <view class="share-review-actions">
+          <view wx:if="{{form.shareEnabled}}" class="share-review-status"
+            >已申请</view
+          >
+          <button
+            wx:if="{{!form.shareEnabled}}"
+            class="share-review-button primary"
+            bindtap="confirmEnableShare"
+          >
+            申请共享
+          </button>
+          <button
+            wx:else
+            class="share-review-button secondary"
+            bindtap="disableShare"
+          >
+            取消共享
+          </button>
+        </view>
       </view>
       <view class="field">
         <view class="field-label">备注</view>
@@ -252,11 +304,114 @@
       </view>
     </view>
 
+    <view wx:if="{{tagSheetVisible}}" class="tag-mask" bindtap="closeTagSheet">
+      <view class="tag-sheet" catchtap="stopTap">
+        <view class="sheet-title">添加标签</view>
+        <view wx:if="{{tagSuggestions.length}}" class="sheet-subtitle">
+          常用标签
+        </view>
+        <view wx:if="{{tagSuggestions.length}}" class="tag-suggestion-list">
+          <button
+            wx:for="{{tagSuggestions}}"
+            wx:key="name"
+            class="tag-suggestion {{item.colorClass}}"
+            data-name="{{item.name}}"
+            data-color="{{item.color}}"
+            bindtap="selectTagSuggestion"
+          >
+            {{item.name}}
+          </button>
+        </view>
+        <view class="custom-tag-field">
+          <view class="field-label">自定义标签</view>
+          <input
+            value="{{tagInputText}}"
+            placeholder="例如 冬季、通勤、电子"
+            focus="{{true}}"
+            bindinput="onTagInput"
+          />
+        </view>
+        <view class="sheet-subtitle">标签颜色</view>
+        <view class="tag-color-grid">
+          <button
+            class="tag-color-option random {{selectedTagColor ? '' : 'selected'}}"
+            bindtap="clearTagColor"
+          >
+            随机
+          </button>
+          <button
+            wx:for="{{tagColorOptions}}"
+            wx:key="value"
+            class="tag-color-option {{item.colorClass}} {{selectedTagColor === item.value ? 'selected' : ''}}"
+            data-value="{{item.value}}"
+            bindtap="selectTagColor"
+          >
+            {{item.label}}
+          </button>
+        </view>
+        <view class="custom-location-actions">
+          <button class="sheet-cancel" bindtap="closeTagSheet">取消</button>
+          <button class="sheet-action" bindtap="saveCustomTag">保存</button>
+        </view>
+      </view>
+    </view>
+
     <view class="form-actions">
       <button class="secondary" bindtap="cancel">取消</button>
       <button class="primary" loading="{{submitting}}" bindtap="submitForm">
         {{mode === 'edit' ? '保存' : '添加'}}
       </button>
+    </view>
+
+    <view
+      wx:if="{{purchaseLocationSheetVisible}}"
+      class="purchase-location-mask"
+      bindtap="closePurchaseLocationSheet"
+    >
+      <view class="purchase-location-sheet" catchtap="stopTap">
+        <view class="sheet-title">选择购买渠道</view>
+        <view class="purchase-location-options">
+          <button
+            wx:for="{{purchaseLocationOptions}}"
+            wx:key="*this"
+            class="purchase-location-option {{form.purchaseLocation === item ? 'selected' : ''}}"
+            data-value="{{item}}"
+            bindtap="selectPurchaseLocation"
+          >
+            {{item}}
+          </button>
+        </view>
+        <button class="sheet-action" bindtap="openCustomPurchaseLocation">
+          自定义输入
+        </button>
+        <button class="sheet-cancel" bindtap="closePurchaseLocationSheet">
+          取消
+        </button>
+      </view>
+    </view>
+
+    <view
+      wx:if="{{customPurchaseLocationVisible}}"
+      class="purchase-location-mask"
+      bindtap="cancelCustomPurchaseLocation"
+    >
+      <view class="custom-location-modal" catchtap="stopTap">
+        <view class="sheet-title">自定义购买渠道</view>
+        <input
+          value="{{customPurchaseLocationText}}"
+          placeholder="例如 山野仓库"
+          focus="{{true}}"
+          bindinput="onCustomPurchaseLocationInput"
+        />
+        <view class="custom-location-actions">
+          <button class="sheet-cancel" bindtap="cancelCustomPurchaseLocation">
+            取消
+          </button>
+          <button class="sheet-action" bindtap="saveCustomPurchaseLocation">
+            保存
+          </button>
+        </view>
+      </view>
     </view>
   </block>
 

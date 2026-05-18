@@ -56,11 +56,11 @@
       <button wx:else class="restore" bindtap="restoreItem">恢复可用</button>
     </view>
 
-    <view wx:if="{{tagList.length}}" class="tag-card">
+    <view wx:if="{{tagViews.length}}" class="tag-card">
       <view class="section-title">标签</view>
       <view class="tag-list">
-        <block wx:for="{{tagList}}" wx:key="*this">
-          <view class="tag">{{item}}</view>
+        <block wx:for="{{tagViews}}" wx:key="name">
+          <view class="tag {{item.colorClass}}">{{item.name}}</view>
         </block>
       </view>
     </view>

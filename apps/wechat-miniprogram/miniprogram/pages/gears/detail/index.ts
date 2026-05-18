@@ -8,6 +8,7 @@ import {
   restoreGear,
 } from "../../../utils/api";
 import {
+  createGearTagViews,
   formatDateText,
   formatGearPrice,
   formatGearWeight,
@@ -18,6 +19,7 @@ import {
   getStatusTone,
   valueOrUnset,
   type GearItem,
+  type GearTagView,
   type GearTab,
 } from "../../../utils/gear-utils";
 import {
@@ -49,7 +51,7 @@ Page({
     shareText: "",
     weightText: "未记录",
     priceText: "未记录",
-    tagList: [] as string[],
+    tagViews: [] as GearTagView[],
     groups: [] as DetailGroup[],
     loading: false,
     requiresLogin: false,
@@ -215,7 +217,7 @@ function buildDetailData(item: GearItem) {
       item.purchase_price_cents,
       item.purchase_price_currency,
     ),
-    tagList: item.tags ?? [],
+    tagViews: createGearTagViews(item.tags ?? [], item.tag_colors ?? {}),
     tab: (archived ? "history" : "available") as GearTab,
     groups: buildGroups(item),
   };

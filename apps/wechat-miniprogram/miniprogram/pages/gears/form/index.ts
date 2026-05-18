@@ -3,24 +3,37 @@ import {
   createGear,
   getErrorMessage,
   getGear,
+  getGearSpecKeyRankings,
+  getGearTagSuggestions,
   hasAccessToken,
   isLoginRequiredError,
   updateGear,
 } from "../../../utils/api";
 import {
+  addGearTagViews,
   buildGearPayload,
   combineSpecValue,
+  createGearTagSuggestionViews,
   createDefaultGearFormData,
   gearToFormData,
   GEAR_CATEGORY_OPTIONS,
   GEAR_CURRENCY_OPTIONS,
   GEAR_STATUS_OPTIONS,
+  GEAR_TAG_COLOR_OPTIONS,
+  GEAR_WEIGHT_UNIT_OPTIONS,
+  PURCHASE_LOCATION_OPTIONS,
   getGearSpecFieldViews,
+  normalizeGearTagColor,
+  randomGearTagColor,
   optionIndex,
   type GearCategory,
   type GearCurrency,
   type GearFormData,
   type GearStatus,
+  type GearTagColor,
+  type GearTagSuggestionView,
+  type GearTagView,
+  type GearWeightUnit,
 } from "../../../utils/gear-utils";
 import {
   getDefaultLoginPrompt,
@@ -43,10 +56,26 @@ Page({
     statusOptions: GEAR_STATUS_OPTIONS,
     statusLabels: GEAR_STATUS_OPTIONS.map((item) => item.label),
     statusIndex: 0,
+    weightUnitOptions: GEAR_WEIGHT_UNIT_OPTIONS,
+    weightUnitLabels: GEAR_WEIGHT_UNIT_OPTIONS.map((item) => item.label),
+    weightUnitIndex: 0,
     currencyOptions: GEAR_CURRENCY_OPTIONS,
     currencyLabels: GEAR_CURRENCY_OPTIONS.map((item) => item.label),
     officialPriceCurrencyIndex: 0,
     purchasePriceCurrencyIndex: 0,
+    purchaseLocationOptions: PURCHASE_LOCATION_OPTIONS,
+    purchaseLocationSheetVisible: false,
+    customPurchaseLocationVisible: false,
+    customPurchaseLocationText: "",
+    tagSheetVisible: false,
+    tagSuggestions: [] as GearTagSuggestionView[],
+    tagInputText: "",
+    tagColorOptions: GEAR_TAG_COLOR_OPTIONS.map((item) => ({
+      ...item,
+      colorClass: `tag-color-${item.value}`,
+    })),
+    selectedTagColor: "" as "" | GearTagColor,
+    specRankedKeys: [] as string[],
     specFields: getGearSpecFieldViews("backpack_system", {}),
     loading: false,
     submitting: false,
@@ -82,6 +111,7 @@ Page({
       this.loadGearForEdit(id);
     } else {
       wx.setNavigationBarTitle({ title: "添加装备" });
+      this.loadSpecRankings(this.data.form.category);
     }
   },
 
@@ -91,6 +121,8 @@ Page({
       this.setData({ requiresLogin: false });
       if (this.data.id) {
         this.loadGearForEdit(this.data.id);
+      } else {
+        this.loadSpecRankings(this.data.form.category);
       }
     }
   },
@@ -101,6 +133,7 @@ Page({
       const item = await getGear(id);
       const form = gearToFormData(item);
       this.setForm(form);
+      this.loadSpecRankings(form.category);
     } catch (error) {
       if (isLoginRequiredError(error)) {
         this.setData({ requiresLogin: true, error: "" });
@@ -121,6 +154,7 @@ Page({
       form,
       categoryIndex: optionIndex(GEAR_CATEGORY_OPTIONS, form.category),
       statusIndex: optionIndex(GEAR_STATUS_OPTIONS, form.status),
+      weightUnitIndex: optionIndex(GEAR_WEIGHT_UNIT_OPTIONS, form.weightUnit),
       officialPriceCurrencyIndex: optionIndex(
         GEAR_CURRENCY_OPTIONS,
         form.officialPriceCurrency,
@@ -129,8 +163,37 @@ Page({
         GEAR_CURRENCY_OPTIONS,
         form.purchasePriceCurrency,
       ),
+      specRankedKeys: [],
       specFields: getGearSpecFieldViews(form.category, form.specs),
     });
+  },
+
+  async loadSpecRankings(category: GearCategory) {
+    if (!hasAccessToken()) {
+      return;
+    }
+    try {
+      const response = await getGearSpecKeyRankings(category);
+      if (this.data.form.category !== category) {
+        return;
+      }
+      this.setData({
+        specRankedKeys: response.keys,
+        specFields: getGearSpecFieldViews(
+          category,
+          this.data.form.specs,
+          response.keys,
+        ),
+      });
+    } catch {
+      if (this.data.form.category !== category) {
+        return;
+      }
+      this.setData({
+        specRankedKeys: [],
+        specFields: getGearSpecFieldViews(category, this.data.form.specs),
+      });
+    }
   },
 
   onInput(event: WechatMiniprogram.BaseEvent) {
@@ -145,8 +208,10 @@ Page({
     this.setData({
       categoryIndex: index,
       "form.category": category,
+      specRankedKeys: [],
       specFields: getGearSpecFieldViews(category, this.data.form.specs),
     });
+    this.loadSpecRankings(category);
   },
 
   onStatusChange(event: any) {
@@ -158,12 +223,36 @@ Page({
     });
   },
 
-  onShareSwitch(event: any) {
-    this.setData({ "form.shareEnabled": Boolean(event.detail.value) });
+  confirmEnableShare() {
+    wx.showModal({
+      title: "提交共享审核？",
+      content:
+        "确认后，保存装备时会提交共享审核，审核通过后搭子可以参考这件装备。",
+      confirmText: "提交审核",
+      confirmColor: "#0f766e",
+      success: (result) => {
+        if (result.confirm) {
+          this.setData({ "form.shareEnabled": true });
+        }
+      },
+    });
+  },
+
+  disableShare() {
+    this.setData({ "form.shareEnabled": false });
   },
 
   onPurchaseDateChange(event: any) {
     this.setData({ "form.purchaseDate": event.detail.value });
+  },
+
+  onWeightUnitChange(event: any) {
+    const index = Number(event.detail.value || 0);
+    const unit = GEAR_WEIGHT_UNIT_OPTIONS[index].value as GearWeightUnit;
+    this.setData({
+      weightUnitIndex: index,
+      "form.weightUnit": unit,
+    });
   },
 
   onOfficialPriceCurrencyChange(event: any) {
@@ -184,6 +273,147 @@ Page({
     });
   },
 
+  openPurchaseLocationSheet() {
+    this.setData({ purchaseLocationSheetVisible: true });
+  },
+
+  closePurchaseLocationSheet() {
+    this.setData({ purchaseLocationSheetVisible: false });
+  },
+
+  selectPurchaseLocation(event: WechatMiniprogram.BaseEvent) {
+    const value = String(event.currentTarget.dataset.value || "");
+    if (!value) {
+      return;
+    }
+    this.setData({
+      "form.purchaseLocation": value,
+      purchaseLocationSheetVisible: false,
+    });
+  },
+
+  openCustomPurchaseLocation() {
+    this.setData({
+      purchaseLocationSheetVisible: false,
+      customPurchaseLocationVisible: true,
+      customPurchaseLocationText: this.data.form.purchaseLocation,
+    });
+  },
+
+  onCustomPurchaseLocationInput(event: WechatMiniprogram.BaseEvent) {
+    this.setData({ customPurchaseLocationText: (event as any).detail.value });
+  },
+
+  saveCustomPurchaseLocation() {
+    this.setData({
+      "form.purchaseLocation": this.data.customPurchaseLocationText.trim(),
+      customPurchaseLocationVisible: false,
+      customPurchaseLocationText: "",
+    });
+  },
+
+  cancelCustomPurchaseLocation() {
+    this.setData({
+      customPurchaseLocationVisible: false,
+      customPurchaseLocationText: "",
+    });
+  },
+
+  async openTagSheet() {
+    this.setData({
+      tagSheetVisible: true,
+      tagInputText: "",
+      selectedTagColor: "",
+    });
+    if (!hasAccessToken()) {
+      this.setData({ tagSuggestions: [] });
+      return;
+    }
+    try {
+      const response = await getGearTagSuggestions(20);
+      this.setData({
+        tagSuggestions: createGearTagSuggestionViews(response.items),
+      });
+    } catch {
+      this.setData({ tagSuggestions: [] });
+    }
+  },
+
+  closeTagSheet() {
+    this.setData({
+      tagSheetVisible: false,
+      tagInputText: "",
+      selectedTagColor: "",
+    });
+  },
+
+  onTagInput(event: WechatMiniprogram.BaseEvent) {
+    this.setData({ tagInputText: (event as any).detail.value });
+  },
+
+  selectTagColor(event: WechatMiniprogram.BaseEvent) {
+    const value = String(event.currentTarget.dataset.value || "");
+    const color = normalizeGearTagColor(value);
+    if (!color) {
+      return;
+    }
+    this.setData({ selectedTagColor: color });
+  },
+
+  clearTagColor() {
+    this.setData({ selectedTagColor: "" });
+  },
+
+  selectTagSuggestion(event: WechatMiniprogram.BaseEvent) {
+    const name = String(event.currentTarget.dataset.name || "");
+    const suggestedColor = normalizeGearTagColor(
+      String(event.currentTarget.dataset.color || ""),
+    );
+    const color =
+      this.data.selectedTagColor || suggestedColor || randomGearTagColor();
+    this.addTagsToForm(name, color, true);
+  },
+
+  saveCustomTag() {
+    const color = this.data.selectedTagColor || null;
+    this.addTagsToForm(this.data.tagInputText, color, true);
+  },
+
+  removeTag(event: WechatMiniprogram.BaseEvent) {
+    const index = Number(event.currentTarget.dataset.index);
+    if (!Number.isFinite(index)) {
+      return;
+    }
+    const tags = [...this.data.form.tags];
+    tags.splice(index, 1);
+    this.setData({ "form.tags": tags });
+  },
+
+  addTagsToForm(
+    input: string,
+    color: GearTagColor | null,
+    closeAfterAdd: boolean,
+  ) {
+    const nextTags = addGearTagViews(
+      this.data.form.tags,
+      input,
+      color || undefined,
+    );
+    if (nextTags.length === this.data.form.tags.length) {
+      wx.showToast({ title: "标签已存在或为空", icon: "none" });
+      return;
+    }
+    this.setData({
+      "form.tags": nextTags as GearTagView[],
+      tagInputText: "",
+      ...(closeAfterAdd
+        ? { tagSheetVisible: false, selectedTagColor: "" }
+        : {}),
+    });
+  },
+
+  stopTap() {},
+
   onSpecInput(event: WechatMiniprogram.BaseEvent) {
     const key = event.currentTarget.dataset.key as string;
     const index = Number(event.currentTarget.dataset.index || 0);
@@ -196,7 +426,11 @@ Page({
     };
     this.setData({
       "form.specs": specs,
-      specFields: getGearSpecFieldViews(this.data.form.category, specs),
+      specFields: getGearSpecFieldViews(
+        this.data.form.category,
+        specs,
+        this.data.specRankedKeys,
+      ),
     });
   },
 
@@ -212,7 +446,11 @@ Page({
     };
     this.setData({
       "form.specs": specs,
-      specFields: getGearSpecFieldViews(this.data.form.category, specs),
+      specFields: getGearSpecFieldViews(
+        this.data.form.category,
+        specs,
+        this.data.specRankedKeys,
+      ),
     });
   },
 
