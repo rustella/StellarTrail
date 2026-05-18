@@ -21,13 +21,46 @@
           mode="aspectFill"
         />
         <text wx:else>{{accountProfile.avatarInitial}}</text>
-        <view class="account-avatar-badge">+</view>
       </button>
       <view class="account-copy">
         <view class="account-title">账号状态</view>
-        <view wx:if="{{loggedIn}}" class="account-desc"
-          >{{accountProfile.displayName}}</view
-        >
+        <view wx:if="{{loggedIn}}" class="account-name-row">
+          <input
+            wx:if="{{nicknameEditing}}"
+            class="account-nickname-input"
+            type="nickname"
+            placeholder="微信昵称"
+            value="{{nicknameDraft}}"
+            disabled="{{nicknameLoading}}"
+            bindinput="onNicknameInput"
+          />
+          <view wx:else class="account-desc"
+            >{{accountProfile.displayName}}</view
+          >
+          <button
+            wx:if="{{!nicknameEditing}}"
+            class="account-inline-button"
+            bindtap="startNicknameEdit"
+          >
+            {{accountProfile.hasNickname ? '修改' : '导入昵称'}}
+          </button>
+          <block wx:else>
+            <button
+              class="account-inline-button"
+              loading="{{nicknameLoading}}"
+              bindtap="saveNickname"
+            >
+              保存
+            </button>
+            <button
+              class="account-inline-button muted"
+              disabled="{{nicknameLoading}}"
+              bindtap="cancelNicknameEdit"
+            >
+              取消
+            </button>
+          </block>
+        </view>
         <view class="account-hint"
           >{{loggedIn ? '可以管理自己的装备清单。' :
           '未登录也可以先看出行装备参考和绳结教学。'}}</view

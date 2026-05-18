@@ -306,7 +306,7 @@ function buildUserDisplay(): string {
   if (!user) {
     return "未登录";
   }
-  return user.nickname || user.username || user.email || "寻径星野用户";
+  return user.nickname || user.username || user.email || "微信用户";
 }
 
 function markWechatProfilePromptPending(): void {
