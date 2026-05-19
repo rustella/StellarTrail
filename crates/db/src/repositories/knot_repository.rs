@@ -11,6 +11,20 @@ use stellartrail_domain::skill::{
 
 use super::{MediaResourceRepository, statement};
 
+/// Grouping key for taxonomy rows that belong to the same knot and taxonomy item.
+type KnotTaxonomyCandidateKey = (String, String);
+
+/// Localized taxonomy row collected before locale fallback selection.
+struct LocalizedKnotTaxonomyCandidate {
+    locale: Locale,
+    slug: String,
+    title: String,
+}
+
+/// Intermediate taxonomy lookup used to select the best localized item per knot.
+type KnotTaxonomyCandidates =
+    HashMap<KnotTaxonomyCandidateKey, Vec<LocalizedKnotTaxonomyCandidate>>;
+
 /// Persistence object for skill categories and knot metadata.
 #[derive(Clone)]
 pub struct KnotRepository {
@@ -738,7 +752,7 @@ async fn fetch_all_taxonomy(
         ))
         .await?;
 
-    let mut candidates: HashMap<(String, String), Vec<(Locale, String, String)>> = HashMap::new();
+    let mut candidates: KnotTaxonomyCandidates = HashMap::new();
     for row in rows {
         let raw_locale: String = row.try_get("", "locale")?;
         let Some(row_locale) = Locale::parse(&raw_locale) else {
@@ -747,11 +761,11 @@ async fn fetch_all_taxonomy(
         candidates
             .entry((row.try_get("", "knot_id")?, row.try_get("", "item_id")?))
             .or_default()
-            .push((
-                row_locale,
-                row.try_get("", "slug")?,
-                row.try_get("", "title")?,
-            ));
+            .push(LocalizedKnotTaxonomyCandidate {
+                locale: row_locale,
+                slug: row.try_get("", "slug")?,
+                title: row.try_get("", "title")?,
+            });
     }
 
     let mut keys = candidates.keys().cloned().collect::<Vec<_>>();
@@ -762,17 +776,14 @@ async fn fetch_all_taxonomy(
             continue;
         };
         for fallback in fallbacks {
-            if let Some((_, slug, title)) = rows
-                .iter()
-                .find(|(candidate_locale, _, _)| *candidate_locale == fallback)
-            {
+            if let Some(candidate) = rows.iter().find(|candidate| candidate.locale == fallback) {
                 grouped
                     .entry(knot_id.clone())
                     .or_default()
                     .push(KnotTaxonomyItem {
                         id: item_id.clone(),
-                        slug: slug.clone(),
-                        title: title.clone(),
+                        slug: candidate.slug.clone(),
+                        title: candidate.title.clone(),
                     });
                 break;
             }
