@@ -250,7 +250,11 @@ export function getApiBaseUrl(): string {
     | string
     | undefined;
   if (stored) {
-    return stored.replace(/\/$/, "");
+    const normalized = normalizeStoredApiBaseUrl(stored);
+    if (normalized) {
+      return normalized;
+    }
+    wx.removeStorageSync(API_BASE_URL_STORAGE_KEY);
   }
   const app = getApp<{
     globalData?: {
@@ -284,6 +288,19 @@ export function resolveAssetUrl(pathOrUrl: string): string {
 
 export function setApiBaseUrl(baseUrl: string): void {
   wx.setStorageSync(API_BASE_URL_STORAGE_KEY, baseUrl.replace(/\/$/, ""));
+}
+
+function normalizeStoredApiBaseUrl(baseUrl: string): string | null {
+  const normalized = baseUrl.trim().replace(/\/$/, "");
+  const match = normalized.match(/^https?:\/\/([^/:?#]+)(?::\d+)?(?:[/?#]|$)/i);
+  if (!match) {
+    return null;
+  }
+  const hostname = match[1].toLowerCase();
+  if (hostname.endsWith(".local")) {
+    return null;
+  }
+  return normalized;
 }
 
 export function hasAccessToken(): boolean {
@@ -979,6 +996,9 @@ function getWechatLoginCode(): Promise<string> {
 function requestFailureMessage(errMsg?: string): string {
   if (errMsg && /timeout/i.test(errMsg)) {
     return "网络请求超时，请稍后再试";
+  }
+  if (errMsg && /(合法域名|domain list|url not in domain)/i.test(errMsg)) {
+    return "服务连接配置异常，请稍后再试";
   }
   return "网络请求失败，请检查网络后重试";
 }
