@@ -117,7 +117,13 @@ services:
       traefik.http.routers.assets.rule: Host(`assets.example.invalid`)
       traefik.http.routers.assets.entrypoints: websecure
       traefik.http.routers.assets.tls.certresolver: letsencrypt
-      traefik.http.routers.assets.middlewares: security-headers@file
+      traefik.http.routers.assets.middlewares: assets-security-headers
+      traefik.http.middlewares.assets-security-headers.headers.browserXssFilter: "true"
+      traefik.http.middlewares.assets-security-headers.headers.contentTypeNosniff: "true"
+      traefik.http.middlewares.assets-security-headers.headers.referrerPolicy: strict-origin-when-cross-origin
+      traefik.http.middlewares.assets-security-headers.headers.stsSeconds: "31536000"
+      traefik.http.middlewares.assets-security-headers.headers.stsIncludeSubdomains: "true"
+      traefik.http.middlewares.assets-security-headers.headers.stsPreload: "true"
       traefik.http.services.assets.loadbalancer.server.port: "9000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
