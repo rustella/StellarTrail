@@ -134,6 +134,14 @@ struct KnotListResponse: Codable, Equatable {
 
 typealias ListKnotsResponse = KnotListResponse
 
+struct KnotOfflineManifestResponse: Codable, Equatable {
+    let locale: String?
+    let itemCount: Int
+    let mediaCount: Int
+    let estimatedBytes: Int
+    let items: [KnotDetail]
+}
+
 struct KnotDetail: Codable, Equatable, Identifiable {
     let id: String
     let slug: String?
@@ -155,6 +163,7 @@ struct ListKnotsRequest: Equatable {
     var offset: Int = 0
     var limit: Int = 20
     var category: String?
+    var difficulty: String?
     var q: String?
 
     var queryItems: [URLQueryItem] {
@@ -163,7 +172,33 @@ struct ListKnotsRequest: Equatable {
             URLQueryItem(name: "limit", value: String(limit))
         ]
         if let category { items.append(URLQueryItem(name: "category", value: category)) }
+        if let difficulty { items.append(URLQueryItem(name: "difficulty", value: difficulty)) }
         if let q = q?.nilIfBlank { items.append(URLQueryItem(name: "q", value: q)) }
         return items
+    }
+}
+
+struct MediaCacheProgress: Equatable {
+    let completed: Int
+    let total: Int
+
+    var fraction: Double {
+        guard total > 0 else { return 0 }
+        return Double(completed) / Double(total)
+    }
+
+    var label: String {
+        total == 0 ? "没有需要缓存的媒体" : "正在缓存媒体 \(completed)/\(total)"
+    }
+}
+
+struct MediaCacheResult: Equatable {
+    let completed: Int
+    let total: Int
+    let failed: Int
+    let estimatedBytes: Int
+
+    var label: String {
+        "已缓存 \(completed)/\(total) 个媒体资源，约 \(Formatters.bytes(estimatedBytes))"
     }
 }

@@ -29,7 +29,19 @@ enum RootTab: String, CaseIterable, Identifiable {
 
 struct RootTabView: View {
     @ObservedObject var environment: AppEnvironment
+    @Environment(\.colorScheme) private var colorScheme
     @State private var selectedTab: RootTab = .home
+
+    private var palette: TrailPalette {
+        switch environment.settingsStore.themeMode {
+        case .light:
+            return TrailColors.light
+        case .dark:
+            return TrailColors.dark
+        case .system:
+            return colorScheme == .dark ? TrailColors.dark : TrailColors.light
+        }
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -57,7 +69,10 @@ struct RootTabView: View {
             .tabItem { Label(RootTab.profile.title, systemImage: RootTab.profile.systemImage) }
             .tag(RootTab.profile)
         }
-        .tint(TrailColors.light.brand)
+        .tint(palette.brand)
+        .toolbarBackground(palette.footerBackground, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarColorScheme(palette.isDark ? .dark : .light, for: .tabBar)
         .trailTheme(settingsStore: environment.settingsStore)
     }
 }

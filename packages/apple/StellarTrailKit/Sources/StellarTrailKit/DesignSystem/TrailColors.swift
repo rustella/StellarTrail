@@ -6,6 +6,7 @@ struct TrailPalette {
     let surface: Color
     let surfaceStrong: Color
     let controlBackground: Color
+    let controlBorder: Color
     let border: Color
     let softBorder: Color
     let textPrimary: Color
@@ -42,6 +43,7 @@ enum TrailColors {
         surface: .white,
         surfaceStrong: .white,
         controlBackground: Color(hex: 0xF8FAFC),
+        controlBorder: Color(hex: 0xE2E8F0),
         border: Color(hex: 0xE2E8F0),
         softBorder: Color(hex: 0xF1F5F9),
         textPrimary: Color(hex: 0x0F172A),
@@ -77,6 +79,7 @@ enum TrailColors {
         surface: Color(hex: 0x181234).opacity(0.90),
         surfaceStrong: Color(hex: 0x17112F),
         controlBackground: Color(hex: 0x120D2C),
+        controlBorder: Color(hex: 0x4B3A78),
         border: Color(hex: 0x3D2D63),
         softBorder: Color(hex: 0x332555),
         textPrimary: Color(hex: 0xF6F1FF),

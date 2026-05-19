@@ -24,6 +24,9 @@ final class SkillsViewModel: ObservableObject {
         var nextOffset: Int?
         var selectedKnotID: String?
         var selectedKnot: KnotDetail?
+        var cacheProgress: MediaCacheProgress?
+        var cacheResult: MediaCacheResult?
+        var cacheMessage: String?
 
         var selectedCategoryTitle: String {
             guard let selectedCategoryID else { return "全部" }
@@ -33,9 +36,11 @@ final class SkillsViewModel: ObservableObject {
 
     @Published private(set) var state = State()
     private let repository: any SkillRepositorying
+    private let mediaCache: any MediaCacheManaging
 
-    init(repository: any SkillRepositorying) {
+    init(repository: any SkillRepositorying, mediaCache: any MediaCacheManaging) {
         self.repository = repository
+        self.mediaCache = mediaCache
     }
 
     func load() async {
@@ -44,7 +49,8 @@ final class SkillsViewModel: ObservableObject {
         do {
             async let categoriesResponse = repository.categories()
             async let knotsResponse = repository.knots(currentRequest(offset: 0))
-            let categories = try await categoriesResponse.items
+            let categoriesPayload = try await categoriesResponse
+            let categories = categoriesPayload.items
             let knots = try await knotsResponse
             state.categories = categories
             state.categorySummary = categories.first { $0.slug == "knots" || $0.id == "knots" }
@@ -122,6 +128,35 @@ final class SkillsViewModel: ObservableObject {
         state.selectedKnotID = nil
         state.selectedKnot = nil
         state.detailError = nil
+    }
+
+    func cacheAllKnots() async {
+        guard !state.loading else { return }
+        state.loading = true
+        state.error = nil
+        state.cacheResult = nil
+        state.cacheMessage = "正在准备离线缓存"
+        defer { state.loading = false }
+        do {
+            let manifest = try await repository.offlineManifest()
+            let urls = manifest.items
+                .flatMap(\.media)
+                .compactMap { URL(string: $0.url) }
+            let result = await mediaCache.cache(urls: urls, estimatedBytes: manifest.estimatedBytes) { [weak self] progress in
+                self?.state.cacheProgress = progress
+                self?.state.cacheMessage = progress.label
+            }
+            state.cacheResult = result
+            state.cacheMessage = result.label
+        } catch {
+            state.error = error.localizedDescription
+            state.cacheMessage = nil
+        }
+    }
+
+    func resolvedMediaURL(for asset: KnotMediaAsset) -> URL? {
+        guard let url = URL(string: asset.url) else { return nil }
+        return mediaCache.resolvedURL(for: url)
     }
 
     private func currentRequest(offset: Int) -> ListKnotsRequest {
