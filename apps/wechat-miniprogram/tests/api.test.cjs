@@ -203,6 +203,49 @@ test("stored offline state is not treated as current before system confirmation"
   clearCompiledUtilityModules();
 });
 
+test("stale local API base URL is ignored for login requests", async () => {
+  const storage = installWxMock((options) => {
+    assert.equal(options.url, "https://api.example.test/api/auth/wechat-login");
+    options.success({
+      statusCode: 200,
+      data: loginResponse("access-clean-url", "refresh-clean-url"),
+    });
+  });
+  storage.set(
+    "stellartrail_api_base_url",
+    "https://fixture.stellartrail.local",
+  );
+  clearCompiledUtilityModules();
+  const { loginWithWechat } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(loginWithWechat());
+  assert.equal(storage.get("stellartrail_api_base_url"), undefined);
+  clearCompiledUtilityModules();
+});
+
+test("domain allowlist request failures use a safe connection message", async () => {
+  installWxMock((options) => {
+    options.fail({
+      errMsg:
+        "request:fail url not in domain list https://fixture.stellartrail.local",
+    });
+  });
+  clearCompiledUtilityModules();
+  const {
+    getErrorMessage,
+    loginWithWechat,
+  } = require("../.tmp-test/utils/api.js");
+
+  await assert.rejects(
+    () => loginWithWechat(),
+    (error) => {
+      assert.equal(getErrorMessage(error), "服务连接配置异常，请稍后再试");
+      return true;
+    },
+  );
+  clearCompiledUtilityModules();
+});
+
 test("uploadWechatAvatar uploads with bearer token and stores returned user", async () => {
   const storage = installWxMock(
     () => {
