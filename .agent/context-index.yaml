@@ -70,6 +70,7 @@ topics:
     summary: Load when changing Docker Compose, Dockerfiles, Traefik routing, production domains, or deployment config.
     read:
       - .agent/commands.yaml
+      - .agent/knowledge/production_deployment.md
       - infra/test/docker-compose.yml
       - infra/production/domains.example.yaml
       - infra/production/traefik/docker-compose.yml
@@ -174,6 +175,7 @@ tasks:
     keywords: [infra, docker, compose, traefik, production, deployment]
     read:
       - .agent/commands.yaml
+      - .agent/knowledge/production_deployment.md
       - README.md
       - README.en.md
       - infra/test/docker-compose.yml

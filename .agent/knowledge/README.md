@@ -6,6 +6,7 @@ This directory contains durable project knowledge for agents. Keep the root entr
 
 - `architecture.md`: Product boundaries, backend layering, data flow, and cross-module invariants.
 - `codebase_map.md`: Repository directory map, important entry points, and common change locations.
+- `production_deployment.md`: Sanitized production deployment and edge/object-storage debugging lessons.
 
 ## Maintenance rules
 
