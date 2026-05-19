@@ -58,6 +58,14 @@ function installWxMock(handler, uploadHandler, extraHandlers = {}) {
   return storage;
 }
 
+function clearCompiledUtilityModules() {
+  for (const key of Object.keys(require.cache)) {
+    if (key.includes("/.tmp-test/utils/")) {
+      delete require.cache[key];
+    }
+  }
+}
+
 function loginResponse(accessToken, refreshToken) {
   return {
     access_token: accessToken,
@@ -135,6 +143,64 @@ test("loginWithWechat reports request timeout instead of hanging", async () => {
     },
   );
   require("../.tmp-test/utils/network-state.js").initNetworkState();
+});
+
+test("loginWithWechat can retry after a transient request failure", async () => {
+  let callCount = 0;
+  installWxMock((options) => {
+    callCount += 1;
+    assert.equal(options.url, "https://api.example.test/api/auth/wechat-login");
+    if (callCount === 1) {
+      options.fail({ errMsg: "request:fail timeout" });
+      return;
+    }
+    options.success({
+      statusCode: 200,
+      data: loginResponse("access-retry", "refresh-retry"),
+    });
+  });
+  const {
+    getErrorMessage,
+    loginWithWechat,
+  } = require("../.tmp-test/utils/api.js");
+  const {
+    isOffline,
+    initNetworkState,
+  } = require("../.tmp-test/utils/network-state.js");
+  initNetworkState();
+
+  await assert.rejects(
+    () => loginWithWechat(),
+    (error) => {
+      assert.equal(getErrorMessage(error), "网络请求超时，请稍后再试");
+      return true;
+    },
+  );
+  assert.equal(isOffline(), false);
+  await assert.doesNotReject(loginWithWechat());
+  assert.equal(callCount, 2);
+});
+
+test("stored offline state is not treated as current before system confirmation", async () => {
+  const storage = installWxMock((options) => {
+    assert.equal(options.url, "https://api.example.test/api/auth/wechat-login");
+    options.success({
+      statusCode: 200,
+      data: loginResponse("access-stale", "refresh-stale"),
+    });
+  });
+  storage.set("stellartrail_network_state", {
+    isOffline: true,
+    networkType: "none",
+    updatedAt: "2026-05-19T00:00:00.000Z",
+  });
+  clearCompiledUtilityModules();
+  const { isOffline } = require("../.tmp-test/utils/network-state.js");
+  const { loginWithWechat } = require("../.tmp-test/utils/api.js");
+
+  assert.equal(isOffline(), false);
+  await assert.doesNotReject(loginWithWechat());
+  clearCompiledUtilityModules();
 });
 
 test("uploadWechatAvatar uploads with bearer token and stores returned user", async () => {
