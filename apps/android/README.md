@@ -30,3 +30,9 @@ StellarTrail Android 是原生 Kotlin + Jetpack Compose 客户端，复用仓库
 ## 验证说明
 
 自动化验证覆盖 JVM 单测、Debug 构建与 Android Lint。`connectedAndroidTest` 需要可用模拟器或真机，并需要本地/测试 API 服务配合，不作为默认 CI 阶段。
+
+## 发布 / APK 下载
+
+Android 发布默认使用指向 `main` 可达提交的 `vX.Y.Z` 标签（脚本也兼容 `vX.Y` 形式）。标签随合入或推送进入 `main` 后，`Android Release` workflow 会检测尚未创建 GitHub Release 的新标签，构建 Debug APK，生成发布说明，并上传到对应 Release。
+
+默认下载资产为 `StellarTrail-<tag>-android-debug.apk` 与 `StellarTrail-<tag>-android-debug.apk.sha256`；GitHub Release 页面是 APK 的标准下载位置。当前产物是 Debug APK，因为仓库尚未配置 release signing；如需正式签名 APK，需要先添加 GitHub Secrets 与 Gradle 签名配置，再切换到 release 构建。
