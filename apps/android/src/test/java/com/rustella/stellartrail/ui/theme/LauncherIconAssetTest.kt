@@ -89,6 +89,6 @@ class LauncherIconAssetTest {
     }
 
     private companion object {
-        const val PROVIDED_ICON_SHA256 = "a2442106ee75036b7042d1ab9150b8b7a92a00db8174a3197a95d2b5fa584a38"
+        const val PROVIDED_ICON_SHA256 = "50306384e91ef9377669398b0c91a584bdada0489494e59439b75bf91723fbd3"
     }
 }
