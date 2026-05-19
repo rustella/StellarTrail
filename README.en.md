@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <strong>Pick routes</strong> · <strong>Understand risks</strong> · <strong>Pack smarter</strong> · <strong>Learn field skills</strong>
+  <strong>Mini Program ready</strong> · <strong>Android ready</strong> · <strong>Gear library</strong> · <strong>Knot skills</strong>
 </p>
 
 ---
@@ -23,26 +23,30 @@
 
 StellarTrail serves hikers, campers, and lightweight outdoor users in China. The product is designed around one preparation loop: choose a route, understand difficulty, seasonality and risks, generate a packing checklist, compare it with the user's gear library, and learn the related outdoor skills.
 
-The current entry point is a **WeChat Mini Program**. Native **Android** and **iOS** clients share the same core gear and skills experience. A **Rust API service** provides backend capabilities. Phase one focuses on **personal gear library management**, DB-backed gear templates, and knot skills. Route and mountain modules are not implemented yet.
+The current code supports two user-facing entry points: the **WeChat Mini Program** and the native **Android** app. Both clients cover account access, the personal gear library, knot skills, and profile surfaces while sharing the same Rust service capabilities. Web, iOS, and macOS code also live in the repository for showcase/admin and Apple-ecosystem expansion. Phase one focuses on **personal gear library management**, DB-backed gear templates, and knot skills. Route and mountain modules are not implemented yet.
 
-| Module            | Current goal                                                      |
-| ----------------- | ----------------------------------------------------------------- |
-| 🎒 Gear prep      | Manage personal gear and serve DB-backed gear templates           |
-| 🧭 Skills toolbox | Start with knots; media is delivered through MinIO/object storage |
-| 🧱 Rust backend   | Provide stable APIs, domain models, and data boundaries           |
-| 🗺️ Route wiki     | Follow-up module for mountains, routes, difficulty, and risks     |
+| Module            | Current goal                                                           |
+| ----------------- | ---------------------------------------------------------------------- |
+| 📱 Clients        | WeChat Mini Program + Android cover the MVP user flow                  |
+| 🎒 Gear prep      | Manage personal gear and serve DB-backed gear templates                |
+| 🧭 Skills toolbox | Start with knots; media is delivered through MinIO/object storage      |
+| 🧱 Rust service   | Provide account, gear, skills, atlas, feedback, and admin capabilities |
+| 🗺️ Route wiki     | Follow-up module for mountains, routes, difficulty, and risks          |
 
 ## 🚀 MVP scope
 
 Phase one focuses on:
 
-- 🧑‍💻 WeChat Mini Program login, email/username password login, account model, and refresh-token session renewal.
+- 🧑‍💻 WeChat Mini Program: WeChat login, email/username password login, registration, avatar upload, email binding, and refresh-token session renewal.
+- 🤖 Android: email/username password login, registration, encrypted local token storage, automatic 401 refresh, and Profile configuration.
 - 🎒 Personal gear-library CRUD.
 - 🔎 Search, category filtering, status filtering, sorting, and pagination.
 - 📊 Gear count, total value, total weight, and category counts.
 - 🗃️ Available / historical gear via soft archive and restore.
 - 🏷️ Tags, status/location fields, sharing toggle, and notes.
 - 📤 JSON import and CSV export.
+- 🧭 Public gear atlas browsing, personal gear submissions, and admin review.
+- 💬 Feedback image upload, feedback submission, and admin review.
 - 📡 WeChat Mini Program offline read-only support for previously loaded skills, gear atlas, personal gear data, and viewed knot media.
 - 🗄️ SeaORM data access: SQLite by default for local development, PostgreSQL recommended for production.
 - ⚡ Optional Redis read-through cache for high-traffic gear read APIs.
@@ -55,6 +59,15 @@ Routes, trips, skills, realtime navigation, social feeds, guided-trip marketplac
 | ---------------- | ------------------------------------------------------------------------- |
 | 🪢 Knot skills   | Knots3D metadata imported into DB; media served from MinIO/object storage |
 | 🎒 Gear template | Idempotent system defaults seeded into DB at API startup                  |
+
+## 📱 Client support
+
+| Client              | Status    | Coverage                                                                                                                          |
+| ------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| WeChat Mini Program | Supported | Home, gear library/atlas, knot skills, profile, login/registration, avatar/email binding, offline read-only cache, and feedback   |
+| Android             | Supported | Native Kotlin + Compose app, login/registration, gear list/detail/form, skills list/detail, home stats, and Profile configuration |
+| Web                 | Available | Web App and admin-facing surfaces that reuse the same public data, gear, and admin capabilities                                   |
+| iOS / macOS         | In repo   | SwiftUI app shells plus StellarTrailKit for shared account, gear, and skill models; still being refined                           |
 
 ## 🧭 Repository layout
 
@@ -136,39 +149,63 @@ Real client config files stay local or in the build environment and are ignored 
 
 Web reads `VITE_STELLARTRAIL_API_BASE_URL` and `VITE_STELLARTRAIL_ASSETS_BASE_URL`; Android reads `config.properties` during the Gradle build and writes `BuildConfig`; iOS/macOS first read `ClientConfig.plist` from the app bundle and fall back to the production defaults when it is absent.
 
-Currently implemented endpoints:
+Currently implemented service capabilities:
 
 ```http
 GET /healthz
 GET /api/meta
+
 POST /api/auth/wechat-login
 POST /api/auth/email-verification-code
 POST /api/auth/email-login-code
 POST /api/auth/email-login
 POST /api/auth/password-reset-code
 POST /api/auth/password-reset
-POST /api/me/email-binding-code
-POST /api/me/email-binding
 POST /api/auth/register
 POST /api/auth/login
 POST /api/auth/refresh
 POST /api/auth/captcha
+POST /api/me/email-binding-code
+POST /api/me/email-binding
+GET /api/me/profile
+PUT|POST /api/me/profile/avatar
+
 GET /api/skills
 GET /api/skills/knots/list
+GET /api/skills/knots/filters
+GET /api/skills/knots/offline-manifest
 GET /api/skills/knots/detail/:id
-PUT /api/admin/skills/knots/:knot_id/media/:asset_id
 GET /api/gear-templates
 GET /api/gear-templates/:id
+
+GET /api/gear-atlas
+GET /api/gear-atlas/:id
+GET|POST /api/me/gear-atlas-submissions
+POST /api/me/gears/:id/atlas-submission
+
 GET /api/me/gears/categories
 GET /api/me/gears/stats
-GET /api/me/gears
-POST /api/me/gears
-GET /api/me/gears/:id
-PATCH /api/me/gears/:id
-DELETE /api/me/gears/:id
+GET /api/me/gears/spec-key-rankings
+GET /api/me/gears/tag-suggestions
+GET|POST /api/me/gears
+GET|PATCH|DELETE /api/me/gears/:id
 POST /api/me/gears/:id/restore
 GET /api/me/gears/export
 POST /api/me/gears/import
+
+POST /api/me/uploads
+GET /api/me/uploads/:id
+POST /api/me/feedback
+
+GET /api/admin/api-usage
+POST|DELETE /api/admin/admins
+PUT /api/admin/skills/knots/:knot_id/media/:asset_id
+GET /api/admin/gear-atlas-submissions
+GET /api/admin/gear-atlas-submissions/:id
+POST /api/admin/gear-atlas-submissions/:id/approve
+POST /api/admin/gear-atlas-submissions/:id/reject
+GET /api/admin/feedback
+GET /api/admin/feedback-images/:id
 ```
 
 ### 5. Start PostgreSQL + Redis + API with Docker Compose
@@ -196,11 +233,11 @@ The production API no longer uses `infra/production/api/.env`; real `config.yaml
 
 ### 7. Open the WeChat Mini Program
 
-Open `apps/wechat-miniprogram` in WeChat DevTools. The project config points `miniprogramRoot` to `miniprogram/`.
+Open `apps/wechat-miniprogram` in WeChat DevTools. The project config points `miniprogramRoot` to `miniprogram/`. The Mini Program currently covers Home, gear library, gear atlas, knot skills, Profile, login/registration, avatar/email binding, feedback, and offline read-only cache.
 
 ### 8. Android client
 
-The Android app lives in `apps/android` and uses Kotlin, Jetpack Compose, Material 3, Navigation Compose, Ktor Client, and kotlinx.serialization. Gradle reads the default API and image asset endpoints from `apps/android/config.properties`; copy the example and switch it to `http://10.0.2.2:8080` for local emulator testing, or override the API base URL temporarily from the Profile screen.
+The Android app lives in `apps/android` and uses Kotlin, Jetpack Compose, Material 3, Navigation Compose, Ktor Client, and kotlinx.serialization. It currently covers Home, login/registration, gear list/detail/create/edit, skills list/detail, and Profile settings. Gradle reads the default API and image asset endpoints from `apps/android/config.properties`; copy the example and switch it to `http://10.0.2.2:8080` for local emulator testing, or override the API base URL temporarily from the Profile screen.
 
 ```bash
 ./gradlew :apps:android:assembleDebug
