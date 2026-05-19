@@ -7,7 +7,7 @@ struct GearDetailView: View {
 
     init(environment: AppEnvironment, id: String) {
         self.environment = environment
-        _viewModel = StateObject(wrappedValue: GearDetailViewModel(id: id, repository: environment.gearRepository))
+        _viewModel = StateObject(wrappedValue: GearDetailViewModel(id: id, repository: environment.gearRepository, atlasRepository: environment.gearAtlasRepository))
     }
 
     var body: some View {
@@ -18,14 +18,19 @@ struct GearDetailView: View {
                 if let item = viewModel.item {
                     detailContent(item)
                 }
+                if let message = viewModel.message {
+                    TrailSurfaceCard { Text(message) }
+                }
             }
             .padding(16)
         }
+        .trailScreenBackground()
         .navigationTitle(viewModel.item?.name ?? "装备详情")
         .task { await viewModel.load() }
         .sheet(isPresented: $showingEdit, onDismiss: { Task { await viewModel.load() } }) {
             if let item = viewModel.item {
                 NavigationStack { GearFormView(environment: environment, item: item) }
+                    .presentationDetents([.large])
             }
         }
     }
@@ -47,23 +52,46 @@ struct GearDetailView: View {
         }
 
         TrailSurfaceCard {
+            HStack {
+                TrailSectionTitle(title: "图鉴投稿", subtitle: "只提交品牌、型号、规格、重量和官方价等公开字段。")
+                Spacer()
+                if let submission = viewModel.submission {
+                    TrailBadge(text: submission.status.label, tone: submission.status.badgeTone)
+                } else {
+                    TrailBadge(text: "未投稿", tone: .neutral)
+                }
+            }
+            if let submission = viewModel.submission {
+                TrailInfoRow(label: "来源", value: submission.sourceType.label)
+                TrailInfoRow(label: "投稿时间", value: Formatters.date(submission.createdAt))
+                if let reason = submission.rejectionReason {
+                    TrailInfoRow(label: "审核说明", value: reason)
+                }
+            } else {
+                TrailPrimaryButton(title: viewModel.submitting ? "提交中…" : "投稿到图鉴") {
+                    Task { await viewModel.submitToAtlas() }
+                }
+            }
+        }
+
+        TrailSurfaceCard {
             TrailSectionTitle(title: "基础信息")
             TrailInfoRow(label: "品牌型号", value: item.brandModel.nilIfBlank ?? "未填写")
-            TrailInfoRow(label: "颜色", value: item.color ?? "未填写")
-            TrailInfoRow(label: "材质", value: item.material ?? "未填写")
-            TrailInfoRow(label: "容量", value: item.capacity ?? "未填写")
-            TrailInfoRow(label: "尺码", value: item.size ?? "未填写")
+            TrailInfoRow(label: "官方价格", value: item.formattedOfficialPrice)
+            TrailInfoRow(label: "购入价格", value: item.formattedPrice)
             TrailInfoRow(label: "存放位置", value: item.storageLocation ?? "未填写")
         }
 
         TrailSurfaceCard {
             TrailSectionTitle(title: "规格购买")
             TrailInfoRow(label: "重量", value: item.formattedWeight)
-            TrailInfoRow(label: "保暖", value: item.warmthIndex ?? "未填写")
-            TrailInfoRow(label: "防水", value: item.waterproofIndex ?? "未填写")
-            TrailInfoRow(label: "购买日期", value: item.purchaseDate ?? "未填写")
-            TrailInfoRow(label: "购买地点", value: item.purchaseLocation ?? "未填写")
-            TrailInfoRow(label: "保修到期", value: item.expiryOrWarrantyDate ?? "未填写")
+            TrailInfoRow(label: "购买日期", value: Formatters.date(item.purchaseDate))
+            TrailInfoRow(label: "购买渠道", value: item.purchaseLocation ?? "未填写")
+            let fields = GearOptions.specFieldViews(for: item.category, specs: item.specs ?? GearOptions.legacySpecs(from: item))
+                .filter { (item.specs ?? GearOptions.legacySpecs(from: item))[$0.key]?.nilIfBlank != nil }
+            ForEach(fields) { field in
+                TrailInfoRow(label: field.label, value: (item.specs ?? GearOptions.legacySpecs(from: item))[field.key] ?? "未填写")
+            }
         }
 
         TrailSurfaceCard {
@@ -71,7 +99,7 @@ struct GearDetailView: View {
             if item.tags.isEmpty {
                 Text("暂无标签")
             } else {
-                TrailTagRow(tags: item.tags)
+                TrailColorTagRow(tags: item.tagViews)
             }
             TrailInfoRow(label: "共享状态", value: item.shareStatus.label)
             TrailInfoRow(label: "备注", value: item.notes ?? "未填写")

@@ -62,6 +62,60 @@ final class DomainDecodingTests: XCTestCase {
         XCTAssertEqual(item.formattedPrice, "¥899")
     }
 
+    func testGearFormDraftBuildsCurrentGearPayload() throws {
+        var draft = GearFormDraft.blank
+        draft.category = .backpackSystem
+        draft.name = "轻量背包"
+        draft.brand = "山野"
+        draft.weightText = "1.2"
+        draft.weightUnit = .kg
+        draft.officialPriceText = "1099"
+        draft.officialPriceCurrency = .cny
+        draft.purchasePriceText = "12000"
+        draft.purchasePriceCurrency = .jpy
+        draft.specs = ["capacity": "45 L", "legacy_color": "green"]
+        draft.tags = [GearTagView(name: "轻量", color: .teal)]
+
+        let payload = try draft.buildGearPayload()
+        let encoded = try JSONEncoder.stellarTrail.encode(payload)
+        let json = try XCTUnwrap(String(data: encoded, encoding: .utf8))
+
+        XCTAssertEqual(payload.weightG, 1200)
+        XCTAssertEqual(payload.officialPriceCents, 109900)
+        XCTAssertEqual(payload.purchasePriceCents, 12000)
+        XCTAssertEqual(payload.specs, ["capacity": "45 L"])
+        XCTAssertEqual(payload.tagColors, ["轻量": "teal"])
+        XCTAssertFalse(json.contains("legacy_color"))
+    }
+
+    func testGearAtlasItemDecodesPublicFields() throws {
+        let json = """
+        {
+          "id":"atlas-1",
+          "category":"lighting_system",
+          "category_label":"照明系统",
+          "name":"星火 HL200",
+          "brand":"星火",
+          "model":"HL200",
+          "description":"轻量头灯",
+          "weight_g":86,
+          "official_price_cents":19900,
+          "official_price_currency":"CNY",
+          "specs":{"max_brightness":"450 lm"},
+          "approved_at":"2026-05-01T10:00:00Z",
+          "created_at":"2026-04-30T10:00:00Z",
+          "updated_at":"2026-05-01T10:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let item = try JSONDecoder.stellarTrail.decode(GearAtlasPublicItem.self, from: json)
+
+        XCTAssertEqual(item.categoryLabel, "照明系统")
+        XCTAssertEqual(item.formattedWeight, "86 g")
+        XCTAssertEqual(item.formattedOfficialPrice, "¥199")
+        XCTAssertEqual(item.specs?["max_brightness"], "450 lm")
+    }
+
     func testKnotListUsesOffsetPagination() throws {
         let json = """
         {

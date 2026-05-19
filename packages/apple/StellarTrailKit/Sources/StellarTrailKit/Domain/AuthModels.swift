@@ -8,7 +8,15 @@ struct UserProfile: Codable, Equatable, Identifiable {
     let avatarUrl: String?
 
     var displayName: String {
-        nickname?.nilIfBlank ?? username?.nilIfBlank ?? email?.nilIfBlank ?? "已登录用户"
+        nickname?.nilIfBlank ?? username?.nilIfBlank ?? email?.nilIfBlank ?? "寻径星野用户"
+    }
+
+    var avatarInitial: String {
+        String(displayName.prefix(1))
+    }
+
+    var hasEmail: Bool {
+        email?.nilIfBlank != nil
     }
 }
 
@@ -68,10 +76,39 @@ struct EmailVerificationCodeRequest: Encodable, Equatable {
     let email: String
 }
 
+typealias EmailLoginCodeRequest = EmailVerificationCodeRequest
+typealias PasswordResetCodeRequest = EmailVerificationCodeRequest
+typealias BindEmailCodeRequest = EmailVerificationCodeRequest
+
 struct EmailVerificationCodeResponse: Decodable, Equatable {
     let email: String
     let expiresAt: String
     let debugCode: String?
+}
+
+struct EmailLoginRequest: Encodable, Equatable {
+    let email: String
+    let emailVerificationCode: String
+}
+
+struct PasswordResetRequest: Encodable, Equatable {
+    let email: String
+    let emailVerificationCode: String
+    let password: String
+    let confirmPassword: String
+}
+
+struct BindEmailRequest: Encodable, Equatable {
+    let email: String
+    let emailVerificationCode: String
+}
+
+struct BindEmailResponse: Decodable, Equatable {
+    let user: UserProfile
+}
+
+struct ProfileUserResponse: Decodable, Equatable {
+    let user: UserProfile
 }
 
 struct RegisterRequest: Encodable, Equatable {

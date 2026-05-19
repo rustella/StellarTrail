@@ -11,6 +11,7 @@ struct HomeView: View {
         _viewModel = StateObject(wrappedValue: HomeViewModel(
             sessionStore: environment.sessionStore,
             gearRepository: environment.gearRepository,
+            gearAtlasRepository: environment.gearAtlasRepository,
             skillRepository: environment.skillRepository,
             contentRepository: environment.contentRepository
         ))
@@ -25,10 +26,7 @@ struct HomeView: View {
                     subtitle: "跟着清单确认背包、技能和个人设置，轻松开始下一段路线。",
                     chips: [viewModel.state.isLoggedIn ? "我的装备已保存" : "可先浏览清单", "绳结教学可直接看"]
                 ) {
-                    HStack(spacing: 10) {
-                        TrailPrimaryButton(title: "查看装备") {}
-                        TrailSoftButton(title: "学习技能") {}
-                    }
+                    TrailBadge(text: "首页 · 装备 · 技能 · 我的", tone: .brand)
                 }
 
                 quickActions
@@ -51,6 +49,16 @@ struct HomeView: View {
                     }
                 }
 
+                if !viewModel.state.atlasItems.isEmpty {
+                    TrailSectionTitle(title: "装备图鉴", subtitle: "参考已收录装备的公开规格。")
+                    ForEach(viewModel.state.atlasItems) { item in
+                        NavigationLink(destination: GearAtlasDetailView(environment: environment, id: item.id)) {
+                            AtlasPreviewCard(item: item)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 TrailSectionTitle(title: "出行装备参考", subtitle: "按场景准备背包，登录后保存自己的清单。")
                 ForEach(viewModel.state.templates) { template in
                     GearTemplateCard(template: template)
@@ -63,14 +71,19 @@ struct HomeView: View {
             }
             .padding(16)
         }
+        .trailScreenBackground()
         .navigationTitle("首页")
         .task { await viewModel.load() }
+        .onReceive(environment.sessionStore.$currentSession) { _ in
+            Task { await viewModel.load() }
+        }
         .refreshable { await viewModel.load() }
         .sheet(isPresented: $showingAuth, onDismiss: { Task { await viewModel.load() } }) {
-            AuthView(environment: environment, mode: .login)
+            AuthView(environment: environment, mode: .password)
         }
         .sheet(isPresented: $showingCreateGear, onDismiss: { Task { await viewModel.load() } }) {
             NavigationStack { GearFormView(environment: environment) }
+                .presentationDetents([.large])
         }
     }
 
@@ -80,10 +93,35 @@ struct HomeView: View {
             FeatureTile(title: "新增装备", subtitle: viewModel.state.isLoggedIn ? "记录新物品" : "登录后可用", systemImage: "plus.circle.fill") {
                 viewModel.state.isLoggedIn ? (showingCreateGear = true) : (showingAuth = true)
             }
+            NavigationLink(destination: GearAtlasListView(environment: environment)) {
+                FeatureTileCard(title: "装备图鉴", subtitle: "公开规格", systemImage: "square.grid.2x2.fill")
+            }
+            .buttonStyle(.plain)
             FeatureTile(title: "技能", subtitle: "绳结步骤", systemImage: "figure.hiking") {}
             FeatureTile(title: "我的", subtitle: viewModel.state.isLoggedIn ? "已登录" : "待登录", systemImage: "person.crop.circle") {
                 if !viewModel.state.isLoggedIn { showingAuth = true }
             }
+        }
+    }
+}
+
+private struct FeatureTileCard: View {
+    @Environment(\.trailPalette) private var palette
+    let title: String
+    let subtitle: String
+    let systemImage: String
+
+    var body: some View {
+        TrailSurfaceCard(padding: 14) {
+            Image(systemName: systemImage)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(palette.brand)
+            Text(title)
+                .font(.headline.weight(.heavy))
+                .foregroundStyle(palette.textPrimary)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(palette.textMuted)
         }
     }
 }
@@ -97,17 +135,7 @@ private struct FeatureTile: View {
 
     var body: some View {
         Button(action: action) {
-            TrailSurfaceCard(padding: 14) {
-                Image(systemName: systemImage)
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(palette.brand)
-                Text(title)
-                    .font(.headline.weight(.heavy))
-                    .foregroundStyle(palette.textPrimary)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(palette.textMuted)
-            }
+            FeatureTileCard(title: title, subtitle: subtitle, systemImage: systemImage)
         }
         .buttonStyle(.plain)
     }
@@ -158,6 +186,31 @@ private struct GearPreviewCard: View {
                 Spacer()
                 TrailBadge(text: gear.statusLabel, tone: gear.status.badgeTone)
             }
+        }
+    }
+}
+
+private struct AtlasPreviewCard: View {
+    @Environment(\.trailPalette) private var palette
+    let item: GearAtlasPublicItem
+
+    var body: some View {
+        TrailSurfaceCard {
+            HStack {
+                TrailBadge(text: item.categoryLabel, tone: .info)
+                Spacer()
+                TrailBadge(text: item.formattedOfficialPrice, tone: .brand)
+            }
+            Text(item.name)
+                .font(.headline.weight(.heavy))
+                .foregroundStyle(palette.textPrimary)
+            Text(item.brandModel.nilIfBlank ?? "未填写品牌型号")
+                .font(.subheadline)
+                .foregroundStyle(palette.textMuted)
+            Text(item.description ?? "暂无描述")
+                .font(.caption)
+                .foregroundStyle(palette.textMuted)
+                .lineLimit(2)
         }
     }
 }

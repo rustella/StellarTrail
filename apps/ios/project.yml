@@ -20,10 +20,13 @@ targets:
         excludes:
           - Resources/**
       - path: ../../packages/apple/StellarTrailKit/Sources/StellarTrailKit
-    resources:
-      - path: StellarTrail/Resources
-        excludes:
-          - Info.plist
+      - path: StellarTrail/Resources/Assets.xcassets
+        buildPhase: resources
+      - path: StellarTrail/Resources/Localizable.strings
+        buildPhase: resources
+      - path: StellarTrail/Resources/ClientConfig.plist
+        buildPhase: resources
+        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rustella.stellartrail

@@ -14,6 +14,7 @@ struct TrailSurfaceCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             content
         }
+        .foregroundStyle(palette.textPrimary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(padding)
         .background(palette.surface)
@@ -23,6 +24,58 @@ struct TrailSurfaceCard<Content: View>: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .shadow(color: !palette.isDark ? Color.black.opacity(0.05) : Color.clear, radius: 14, x: 0, y: 8)
+    }
+}
+
+struct TrailFormFieldModifier: ViewModifier {
+    @Environment(\.trailPalette) private var palette
+
+    func body(content: Content) -> some View {
+        content
+            .font(.body)
+            .tint(palette.brand)
+            .colorScheme(palette.isDark ? .dark : .light)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 11)
+            .background(palette.controlBackground)
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(palette.controlBorder, lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+extension View {
+    func trailFormField() -> some View {
+        modifier(TrailFormFieldModifier())
+    }
+}
+
+struct TrailPillButton: View {
+    @Environment(\.trailPalette) private var palette
+    let title: String
+    var isSelected = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.84)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .frame(minHeight: 36)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isSelected ? palette.brandText : palette.softControlText)
+        .background(isSelected ? palette.brand : palette.softControlBackground)
+        .overlay {
+            Capsule()
+                .stroke(isSelected ? palette.brand.opacity(0.72) : palette.controlBorder, lineWidth: 1)
+        }
+        .clipShape(Capsule())
     }
 }
 
@@ -63,6 +116,9 @@ struct TrailHeroCard<Actions: View>: View {
                 Text(title)
                     .font(.title.weight(.heavy))
                     .foregroundStyle(!palette.isDark ? palette.textPrimary : .white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
+                    .allowsTightening(true)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)
                     .font(.body)
@@ -337,6 +393,56 @@ struct TrailTagRow: View {
                     TrailBadge(text: tag, tone: .brand)
                 }
             }
+        }
+    }
+}
+
+struct TrailColorTagRow: View {
+    let tags: [GearTagView]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(tags) { tag in
+                    TrailColorTag(tag: tag)
+                }
+            }
+        }
+    }
+}
+
+struct TrailColorTag: View {
+    @Environment(\.trailPalette) private var palette
+    let tag: GearTagView
+
+    var body: some View {
+        Text(tag.name)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(textColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(backgroundColor)
+            .clipShape(Capsule())
+    }
+
+    private var textColor: Color {
+        palette.isDark ? .white : accentColor.opacity(0.95)
+    }
+
+    private var backgroundColor: Color {
+        accentColor.opacity(palette.isDark ? 0.32 : 0.14)
+    }
+
+    private var accentColor: Color {
+        switch tag.color {
+        case .teal: return Color(red: 0.05, green: 0.46, blue: 0.42)
+        case .blue: return Color(red: 0.13, green: 0.32, blue: 0.75)
+        case .violet: return Color(red: 0.43, green: 0.25, blue: 0.76)
+        case .rose: return Color(red: 0.80, green: 0.18, blue: 0.34)
+        case .orange: return Color(red: 0.76, green: 0.30, blue: 0.06)
+        case .amber: return Color(red: 0.70, green: 0.40, blue: 0.02)
+        case .green: return Color(red: 0.12, green: 0.45, blue: 0.20)
+        case .slate: return Color(red: 0.29, green: 0.33, blue: 0.39)
         }
     }
 }

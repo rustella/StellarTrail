@@ -3,6 +3,7 @@ import Foundation
 enum HTTPMethod: String {
     case get = "GET"
     case post = "POST"
+    case put = "PUT"
     case patch = "PATCH"
     case delete = "DELETE"
 }
@@ -23,6 +24,10 @@ struct APIRequest {
 
     static func post(_ path: String) -> APIRequest {
         APIRequest(method: .post, path: path, queryItems: [], body: nil)
+    }
+
+    static func put<Body: Encodable>(_ path: String, body: Body) throws -> APIRequest {
+        APIRequest(method: .put, path: path, queryItems: [], body: try JSONEncoder.stellarTrail.encode(body))
     }
 
     static func patch<Body: Encodable>(_ path: String, body: Body) throws -> APIRequest {
@@ -63,14 +68,46 @@ final class APIClient {
         try await send(request, requiresAuth: requiresAuth, retryOnUnauthorized: retryOnUnauthorized)
     }
 
+    func uploadAvatar(data: Data, fileName: String = "avatar.jpg", mimeType: String = "image/jpeg", retryOnUnauthorized: Bool = true) async throws -> ProfileUserResponse {
+        let responseData = try await uploadAvatarData(data: data, fileName: fileName, mimeType: mimeType, retryOnUnauthorized: retryOnUnauthorized)
+        do {
+            return try JSONDecoder.stellarTrail.decode(ProfileUserResponse.self, from: responseData)
+        } catch {
+            throw AppError.decoding(error.localizedDescription)
+        }
+    }
+
+    private func uploadAvatarData(data: Data, fileName: String, mimeType: String, retryOnUnauthorized: Bool) async throws -> Data {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        let url = try buildURL(path: "/api/me/profile/avatar", queryItems: [])
+        var request = URLRequest(url: url)
+        request.httpMethod = HTTPMethod.put.rawValue
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("zh-CN", forHTTPHeaderField: "X-StellarTrail-Locale")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        guard let token = sessionStore.currentSession?.accessToken else { throw AppError.missingSession }
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = Self.multipartBody(data: data, fieldName: "file", fileName: fileName, mimeType: mimeType, boundary: boundary)
+
+        return try await performURLRequest(request, requiresAuth: true, retryOnUnauthorized: retryOnUnauthorized) {
+            try await self.uploadAvatarData(data: data, fileName: fileName, mimeType: mimeType, retryOnUnauthorized: false)
+        }
+    }
+
     private func perform(_ request: APIRequest, requiresAuth: Bool, retryOnUnauthorized: Bool) async throws -> Data {
         let urlRequest = try buildURLRequest(from: request, requiresAuth: requiresAuth)
+        return try await performURLRequest(urlRequest, requiresAuth: requiresAuth, retryOnUnauthorized: retryOnUnauthorized) {
+            try await self.perform(request, requiresAuth: requiresAuth, retryOnUnauthorized: false)
+        }
+    }
+
+    private func performURLRequest(_ urlRequest: URLRequest, requiresAuth: Bool, retryOnUnauthorized: Bool, retry: @escaping () async throws -> Data) async throws -> Data {
         do {
             let (data, response) = try await session.data(for: urlRequest)
             guard let http = response as? HTTPURLResponse else { throw AppError.network("响应无效") }
             if http.statusCode == 401, requiresAuth, retryOnUnauthorized {
                 try await refreshSession()
-                return try await perform(request, requiresAuth: requiresAuth, retryOnUnauthorized: false)
+                return try await retry()
             }
             guard (200..<300).contains(http.statusCode) else {
                 throw decodeError(data: data, statusCode: http.statusCode)
@@ -146,5 +183,21 @@ final class APIClient {
         }
         if statusCode == 401 { return .unauthorized }
         return .server("请求失败（\(statusCode)）")
+    }
+
+    private static func multipartBody(data: Data, fieldName: String, fileName: String, mimeType: String, boundary: String) -> Data {
+        var body = Data()
+        body.appendString("--\(boundary)\r\n")
+        body.appendString("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\n")
+        body.appendString("Content-Type: \(mimeType)\r\n\r\n")
+        body.append(data)
+        body.appendString("\r\n--\(boundary)--\r\n")
+        return body
+    }
+}
+
+private extension Data {
+    mutating func appendString(_ string: String) {
+        append(Data(string.utf8))
     }
 }
