@@ -88,7 +88,12 @@ export function showOfflineWriteBlockedToast(): void {
 }
 
 export function markNetworkFailure(): void {
-  updateNetworkState("none", true);
+  const now = new Date().toISOString();
+  currentNetworkState = {
+    ...currentNetworkState,
+    updatedAt: now,
+  };
+  persistNetworkState();
 }
 
 function updateNetworkState(networkType: string | undefined, offline: boolean) {
@@ -101,6 +106,10 @@ function updateNetworkState(networkType: string | undefined, offline: boolean) {
       : currentNetworkState.lastOnlineAt || now,
     updatedAt: now,
   };
+  persistNetworkState();
+}
+
+function persistNetworkState() {
   try {
     wx.setStorageSync(NETWORK_STATE_STORAGE_KEY, currentNetworkState);
   } catch {
@@ -110,11 +119,23 @@ function updateNetworkState(networkType: string | undefined, offline: boolean) {
 
 function readStoredNetworkState(): NetworkState | null {
   try {
-    return (
+    const stored =
       (wx.getStorageSync(NETWORK_STATE_STORAGE_KEY) as
         | NetworkState
-        | undefined) ?? null
-    );
+        | undefined) ?? null;
+    if (!stored) {
+      return null;
+    }
+    if (stored.isOffline) {
+      return {
+        ...stored,
+        isOffline: false,
+        networkType:
+          stored.networkType === "none" ? undefined : stored.networkType,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return stored;
   } catch {
     return null;
   }
