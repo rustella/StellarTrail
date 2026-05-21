@@ -63,6 +63,10 @@ fn maps_first_pass_8264_categories() {
     assert_eq!(map_8264_category("炉具套锅"), GearCategory::KitchenSystem);
     assert_eq!(map_8264_category("登山杖"), GearCategory::WalkingSystem);
     assert_eq!(
+        map_8264_category("登山/徒步杖"),
+        GearCategory::WalkingSystem
+    );
+    assert_eq!(
         map_8264_category("冲锋衣服装"),
         GearCategory::ClothingSystem
     );
@@ -76,6 +80,40 @@ fn maps_first_pass_8264_categories() {
         GearCategory::TechnicalGear
     );
     assert_eq!(map_8264_category("未知分类"), GearCategory::OtherGear);
+}
+
+#[test]
+fn prefers_full_8264_title_when_mobile_namebox_is_truncated() {
+    let html = r#"
+    <html>
+      <head>
+        <title>BLACKDIAMOND(黑钻) 120-140登山杖 Distance FL Z-poles 112123 - 8264手机触屏版</title>
+      </head>
+      <body>
+        <div class="namebox">BLACKDIAMOND(黑钻) 120-140登</div>
+        <i class="starvalue">9.0</i>
+        <em class="dpnum">4点评</em>
+        <div class="feleibox">
+          <ul>
+            <li><span>登山/徒步杖</span></li>
+            <li><span>¥799.00</span></li>
+          </ul>
+        </div>
+      </body>
+    </html>
+    "#;
+
+    let record = parse_8264_mobile_gear_page(
+        html,
+        "https://m.8264.com/zhuangbei-equipmentDetail-2081437-1.html",
+    )
+    .expect("parse truncated mobile page");
+
+    assert_eq!(
+        record.name,
+        "BLACKDIAMOND(黑钻) 120-140登山杖 Distance FL Z-poles 112123"
+    );
+    assert_eq!(record.category, GearCategory::WalkingSystem);
 }
 
 #[test]
