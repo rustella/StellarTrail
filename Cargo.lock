@@ -3741,6 +3741,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "sea-orm-migration",
+ "serde",
  "serde_json",
  "stellartrail-db",
  "stellartrail-domain",

@@ -95,6 +95,10 @@ pub struct GearAtlasPublicItemResponse {
     pub official_price_currency: Option<String>,
     pub specs: GearSpecs,
     pub approved_at: Option<String>,
+    pub source_name: Option<String>,
+    pub source_url: Option<String>,
+    pub source_rating_score: Option<f64>,
+    pub source_rating_count: Option<i32>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -121,6 +125,10 @@ impl GearAtlasPublicItemResponse {
             official_price_currency: item.official_price_currency.clone(),
             specs: item.specs.clone(),
             approved_at: item.approved_at.clone(),
+            source_name: item.source_name.clone(),
+            source_url: item.source_url.clone(),
+            source_rating_score: item.source_rating_score,
+            source_rating_count: item.source_rating_count,
             created_at: item.created_at.clone(),
             updated_at: item.updated_at.clone(),
         }

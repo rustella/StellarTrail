@@ -23,7 +23,8 @@ pub use feedback_repository::{
     ListAdminFeedbackOptions,
 };
 pub use gear_atlas_repository::{
-    GearAtlasRepository, ListGearAtlasAdminOptions, ListGearAtlasOptions,
+    GearAtlasExternalImportAction, GearAtlasExternalImportResult, GearAtlasRepository,
+    ListGearAtlasAdminOptions, ListGearAtlasOptions,
 };
 pub use gear_repository::{GearRepository, ListGearOptions};
 pub use gear_template_repository::GearTemplateRepository;
