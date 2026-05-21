@@ -3,8 +3,9 @@ use std::time::Duration;
 use axum::{
     Router,
     body::{Body, to_bytes},
-    http::{Request, StatusCode, header},
+    http::{HeaderMap, Request, StatusCode, header},
 };
+use sea_orm::{ConnectionTrait, Statement};
 use serde_json::{Value, json};
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
@@ -94,9 +95,23 @@ async fn send_empty(
     path: &str,
     token: Option<&str>,
 ) -> (StatusCode, Value) {
+    let (status, _, value) = send_empty_with_headers(app, method, path, token, &[]).await;
+    (status, value)
+}
+
+async fn send_empty_with_headers(
+    app: &Router,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+    headers: &[(&str, &str)],
+) -> (StatusCode, HeaderMap, Value) {
     let mut builder = Request::builder().method(method).uri(path);
     if let Some(token) = token {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    for (name, value) in headers {
+        builder = builder.header(*name, *value);
     }
     let response = app
         .clone()
@@ -104,13 +119,14 @@ async fn send_empty(
         .await
         .unwrap();
     let status = response.status();
+    let headers = response.headers().clone();
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let value = if bytes.is_empty() {
         Value::Null
     } else {
         serde_json::from_slice(&bytes).unwrap()
     };
-    (status, value)
+    (status, headers, value)
 }
 
 async fn login(app: &Router, code: &str) -> String {
@@ -705,10 +721,60 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     assert_eq!(approved["status"], "approved");
     assert!(!approved["approved_at"].is_null());
 
+    let (fallback_status, fallback_headers, fallback_public) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        "/api/gear-atlas",
+        None,
+        &[("X-StellarTrail-Locale", "en")],
+    )
+    .await;
+    assert_eq!(fallback_status, StatusCode::OK, "{fallback_public}");
+    assert_eq!(
+        fallback_headers.get(header::CONTENT_LANGUAGE).unwrap(),
+        "en"
+    );
+    assert_eq!(fallback_public["items"][0]["name"], "公共充电宝");
+    assert_eq!(
+        fallback_public["items"][0]["category_label"],
+        "Electronics System"
+    );
+
+    app.db
+        .execute(Statement::from_sql_and_values(
+            app.db.get_database_backend(),
+            "INSERT INTO gear_atlas_item_localizations(atlas_item_id, locale, name, description) \
+             VALUES (?, 'en', ?, ?) ON CONFLICT(atlas_item_id, locale) DO UPDATE SET name = excluded.name, description = excluded.description",
+            vec![
+                submission_id.to_owned().into(),
+                "Public power bank".to_owned().into(),
+                "Backup power for winter hiking".to_owned().into(),
+            ],
+        ))
+        .await
+        .expect("insert english atlas localization");
+
     let (public_status, public) = send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
     assert_eq!(public_status, StatusCode::OK, "{public}");
     assert_eq!(public["items"].as_array().unwrap().len(), 1);
     assert_eq!(public["items"][0]["id"], submission_id);
+    assert_eq!(public["items"][0]["name"], "公共充电宝");
+
+    let (english_public_status, english_headers, english_public) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        "/api/gear-atlas",
+        None,
+        &[("X-StellarTrail-Locale", "en")],
+    )
+    .await;
+    assert_eq!(english_public_status, StatusCode::OK, "{english_public}");
+    assert_eq!(english_headers.get(header::CONTENT_LANGUAGE).unwrap(), "en");
+    assert_eq!(english_public["items"][0]["name"], "Public power bank");
+    assert_eq!(
+        english_public["items"][0]["category_label"],
+        "Electronics System"
+    );
 
     let (detail_status, detail) = send_empty(
         &app.router,
@@ -724,6 +790,49 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     assert!(detail.get("storage_location").is_none());
     assert!(detail.get("notes").is_none());
     assert!(detail.get("tags").is_none());
+
+    let (english_detail_status, english_detail_headers, english_detail) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        &format!("/api/gear-atlas/{submission_id}"),
+        None,
+        &[("Accept-Language", "en-US,en;q=0.8")],
+    )
+    .await;
+    assert_eq!(english_detail_status, StatusCode::OK, "{english_detail}");
+    assert_eq!(
+        english_detail_headers
+            .get(header::CONTENT_LANGUAGE)
+            .unwrap(),
+        "en"
+    );
+    assert_eq!(english_detail["name"], "Public power bank");
+    assert_eq!(
+        english_detail["description"],
+        "Backup power for winter hiking"
+    );
+
+    let (locale_status, _, locale_body) =
+        send_empty_with_headers(&app.router, "GET", "/api/gear-atlas?locale=en", None, &[]).await;
+    assert_eq!(locale_status, StatusCode::BAD_REQUEST, "{locale_body}");
+    assert_eq!(locale_body["code"], "unsupported_query_parameter");
+    assert_eq!(locale_body["parameter"], "locale");
+
+    let (detail_locale_status, _, detail_locale_body) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        &format!("/api/gear-atlas/{submission_id}?locale=en"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(
+        detail_locale_status,
+        StatusCode::BAD_REQUEST,
+        "{detail_locale_body}"
+    );
+    assert_eq!(detail_locale_body["code"], "unsupported_query_parameter");
+    assert_eq!(detail_locale_body["parameter"], "locale");
 }
 
 #[tokio::test]

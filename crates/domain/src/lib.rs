@@ -5,6 +5,7 @@ pub mod feedback;
 pub mod gear;
 pub mod gear_atlas;
 pub mod gear_template;
+pub mod locale;
 pub mod pagination;
 pub mod skill;
 pub mod upload;

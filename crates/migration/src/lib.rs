@@ -23,6 +23,7 @@ mod m20260518_000003_create_api_usage_daily;
 mod m20260518_000004_add_gear_specs_prices;
 mod m20260518_000005_create_gear_atlas_items;
 mod m20260518_000006_create_admin_roles;
+mod m20260521_000001_add_public_content_localizations;
 
 /// Concrete SeaORM migrator used by the API server and test suites.
 ///
@@ -56,6 +57,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260518_000004_add_gear_specs_prices::Migration),
             Box::new(m20260518_000005_create_gear_atlas_items::Migration),
             Box::new(m20260518_000006_create_admin_roles::Migration),
+            Box::new(m20260521_000001_add_public_content_localizations::Migration),
         ]
     }
 }

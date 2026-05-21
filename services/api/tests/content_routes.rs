@@ -1,7 +1,7 @@
 use axum::{
     Router,
     body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    http::{HeaderMap, Request, StatusCode, header},
 };
 use serde_json::Value;
 use stellartrail_api::{
@@ -57,19 +57,33 @@ async fn test_app() -> TestApp {
 }
 
 async fn get_json(app: &Router, path: &str) -> (StatusCode, Value) {
+    let (status, _, value) = get_json_with_headers(app, path, &[]).await;
+    (status, value)
+}
+
+async fn get_json_with_headers(
+    app: &Router,
+    path: &str,
+    headers: &[(&str, &str)],
+) -> (StatusCode, HeaderMap, Value) {
+    let mut builder = Request::builder().uri(path);
+    for (name, value) in headers {
+        builder = builder.header(*name, *value);
+    }
     let response = app
         .clone()
-        .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+        .oneshot(builder.body(Body::empty()).unwrap())
         .await
         .unwrap();
     let status = response.status();
+    let headers = response.headers().clone();
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let value = if bytes.is_empty() {
         Value::Null
     } else {
         serde_json::from_slice(&bytes).unwrap()
     };
-    (status, value)
+    (status, headers, value)
 }
 
 #[tokio::test]
@@ -89,6 +103,52 @@ async fn gear_template_routes_return_db_seed_without_content_directory() {
     assert_eq!(status, StatusCode::OK, "{template}");
     assert_eq!(template["title"], "入门徒步基础装备模板");
     assert_eq!(template["categories"][0]["id"], "rain_protection");
+}
+
+#[tokio::test]
+async fn gear_template_routes_resolve_english_locale_headers() {
+    let app = test_app().await;
+
+    let (status, headers, templates) = get_json_with_headers(
+        &app.router,
+        "/api/gear-templates",
+        &[("X-StellarTrail-Locale", "en")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{templates}");
+    assert_eq!(headers.get(header::CONTENT_LANGUAGE).unwrap(), "en");
+    assert_eq!(
+        templates["items"][0]["title"],
+        "Beginner Backpacking Essentials Template"
+    );
+    assert_eq!(
+        templates["items"][0]["categories"][0]["items"][0],
+        "Rain shell or hardshell"
+    );
+
+    let (status, headers, detail) = get_json_with_headers(
+        &app.router,
+        "/api/gear-templates/backpacking-basic",
+        &[("Accept-Language", "en-US,en;q=0.8")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{detail}");
+    assert_eq!(headers.get(header::CONTENT_LANGUAGE).unwrap(), "en");
+    assert_eq!(detail["categories"][1]["name"], "Lighting");
+
+    let (status, body) = get_json(&app.router, "/api/gear-templates?locale=en").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert_eq!(body["code"], "unsupported_query_parameter");
+    assert_eq!(body["parameter"], "locale");
+
+    let (status, body) = get_json(
+        &app.router,
+        "/api/gear-templates/backpacking-basic?locale=en",
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert_eq!(body["code"], "unsupported_query_parameter");
+    assert_eq!(body["parameter"], "locale");
 }
 
 #[tokio::test]
