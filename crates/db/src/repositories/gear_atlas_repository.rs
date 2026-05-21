@@ -4,13 +4,16 @@
 //! public queries can only select the atlas table's limited public snapshot
 //! columns.
 
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Value};
+use std::cmp::Ordering;
+
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, TransactionTrait, Value};
 use stellartrail_domain::{
     gear::{GearCategory, GearSpecs},
     gear_atlas::{
         GearAtlasDraft, GearAtlasItem, GearAtlasSort, GearAtlasSourceType, GearAtlasStatus,
         now_atlas_rfc3339,
     },
+    locale::Locale,
 };
 use uuid::Uuid;
 
@@ -76,22 +79,150 @@ impl GearAtlasRepository {
         let id = Uuid::new_v4().to_string();
         let now = now_atlas_rfc3339();
         let specs_json = json_string(&draft.specs)?;
-        self.db
-            .execute(statement(
-                self.db.get_database_backend(),
-                r#"INSERT INTO gear_atlas_items (
-                    id, category, name, brand, model, description, weight_g,
-                    official_price_cents, official_price_currency, specs_json,
-                    source_type, submitted_by_user_id, source_user_gear_id, status,
-                    rejection_reason, reviewed_by_user_id, reviewed_at, approved_at,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
-                atlas_values(&id, draft, &specs_json, &now),
-            ))
-            .await?;
+        let tx = self.db.begin().await?;
+        tx.execute(statement(
+            self.db.get_database_backend(),
+            r#"INSERT INTO gear_atlas_items (
+                id, category, name, brand, model, description, weight_g,
+                official_price_cents, official_price_currency, specs_json,
+                source_type, submitted_by_user_id, source_user_gear_id, status,
+                rejection_reason, reviewed_by_user_id, reviewed_at, approved_at,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+            atlas_values(&id, draft, &specs_json, &now),
+        ))
+        .await?;
+        tx.execute(statement(
+            self.db.get_database_backend(),
+            "INSERT INTO gear_atlas_item_localizations(atlas_item_id, locale, name, description) \
+             VALUES (?, ?, ?, ?) ON CONFLICT(atlas_item_id, locale) DO UPDATE SET name = excluded.name, description = excluded.description",
+            vec![
+                id.clone().into(),
+                Locale::ZhCn.as_str().to_owned().into(),
+                draft.name.clone().into(),
+                draft.description.clone().into(),
+            ],
+        ))
+        .await?;
+        tx.commit().await?;
         self.get_any(&id)
             .await?
             .ok_or_else(|| DbErr::Custom("created gear atlas item not found".to_owned()))
+    }
+
+    /// Lists approved public atlas entries with locale-resolved public text.
+    pub async fn list_public(
+        &self,
+        options: &ListGearAtlasOptions,
+        locale: Locale,
+    ) -> Result<(Vec<GearAtlasItem>, Option<String>), DbErr> {
+        let limit = options.limit.clamp(1, 100);
+        let offset = parse_cursor(options.cursor.as_deref())?;
+        let mut values: Vec<Value> = Vec::new();
+        let mut clauses = vec!["status = 'approved'".to_owned()];
+        if let Some(category) = options.category {
+            clauses.push("category = ?".to_owned());
+            values.push(category.as_str().to_owned().into());
+        }
+        let sql = format!(
+            "{} WHERE {} ORDER BY created_at DESC, id DESC",
+            atlas_select_columns(),
+            clauses.join(" AND "),
+        );
+        let mut items = self.query_items(sql, values).await?;
+        self.localize_public_items(&mut items, locale).await?;
+        if let Some(query) = normalize_plain_query(options.q.as_deref()) {
+            items.retain(|item| public_item_matches_query(item, &query));
+        }
+        sort_public_items(&mut items, options.sort);
+        page_in_memory_items(items, limit, offset)
+    }
+
+    /// Fetches one approved public atlas item with locale-resolved public text.
+    pub async fn get_public(
+        &self,
+        id: &str,
+        locale: Locale,
+    ) -> Result<Option<GearAtlasItem>, DbErr> {
+        let row = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                format!(
+                    "{} WHERE id = ? AND status = 'approved' LIMIT 1",
+                    atlas_select_columns()
+                ),
+                vec![id.to_owned().into()],
+            ))
+            .await?;
+        let mut item = match row.map(|row| map_atlas_item(&row)).transpose()? {
+            Some(item) => item,
+            None => return Ok(None),
+        };
+        self.localize_public_item(&mut item, locale).await?;
+        Ok(Some(item))
+    }
+
+    /// Resolves a public gear category label from DB-backed locale rows.
+    pub async fn category_label(
+        &self,
+        category: GearCategory,
+        locale: Locale,
+    ) -> Result<String, DbErr> {
+        for candidate in locale.fallbacks() {
+            let row = self
+                .db
+                .query_one(statement(
+                    self.db.get_database_backend(),
+                    "SELECT label FROM gear_category_localizations WHERE category = ? AND locale = ?",
+                    vec![
+                        category.as_str().to_owned().into(),
+                        candidate.as_str().to_owned().into(),
+                    ],
+                ))
+                .await?;
+            if let Some(row) = row {
+                return row.try_get("", "label");
+            }
+        }
+        Ok(category.label().to_owned())
+    }
+
+    async fn localize_public_items(
+        &self,
+        items: &mut [GearAtlasItem],
+        locale: Locale,
+    ) -> Result<(), DbErr> {
+        for item in items {
+            self.localize_public_item(item, locale).await?;
+        }
+        Ok(())
+    }
+
+    async fn localize_public_item(
+        &self,
+        item: &mut GearAtlasItem,
+        locale: Locale,
+    ) -> Result<(), DbErr> {
+        for candidate in locale.fallbacks() {
+            let row = self
+                .db
+                .query_one(statement(
+                    self.db.get_database_backend(),
+                    "SELECT name, description FROM gear_atlas_item_localizations WHERE atlas_item_id = ? AND locale = ?",
+                    vec![
+                        item.id.clone().into(),
+                        candidate.as_str().to_owned().into(),
+                    ],
+                ))
+                .await?;
+            if let Some(row) = row {
+                item.name = row.try_get("", "name")?;
+                item.description = row.try_get("", "description")?;
+                return Ok(());
+            }
+        }
+        Ok(())
     }
 
     /// Returns an existing pending or approved submission for a personal gear source.
@@ -113,48 +244,6 @@ impl GearAtlasRepository {
                     user_id.to_owned().into(),
                     source_user_gear_id.to_owned().into(),
                 ],
-            ))
-            .await?;
-        row.map(|row| map_atlas_item(&row)).transpose()
-    }
-
-    /// Lists approved public atlas entries.
-    pub async fn list_public(
-        &self,
-        options: &ListGearAtlasOptions,
-    ) -> Result<(Vec<GearAtlasItem>, Option<String>), DbErr> {
-        let limit = options.limit.clamp(1, 100);
-        let offset = parse_cursor(options.cursor.as_deref())?;
-        let mut values: Vec<Value> = Vec::new();
-        let mut clauses = vec!["status = 'approved'".to_owned()];
-        apply_common_filters(
-            &mut clauses,
-            &mut values,
-            options.category,
-            options.q.as_deref(),
-        );
-        values.push((limit as i64 + 1).into());
-        values.push(offset.into());
-        let sql = format!(
-            "{} WHERE {} {} LIMIT ? OFFSET ?",
-            atlas_select_columns(),
-            clauses.join(" AND "),
-            public_order_by(options.sort),
-        );
-        page_items(self.query_items(sql, values).await?, limit, offset)
-    }
-
-    /// Fetches one approved public atlas item.
-    pub async fn get_public(&self, id: &str) -> Result<Option<GearAtlasItem>, DbErr> {
-        let row = self
-            .db
-            .query_one(statement(
-                self.db.get_database_backend(),
-                format!(
-                    "{} WHERE id = ? AND status = 'approved' LIMIT 1",
-                    atlas_select_columns()
-                ),
-                vec![id.to_owned().into()],
             ))
             .await?;
         row.map(|row| map_atlas_item(&row)).transpose()
@@ -364,17 +453,6 @@ fn apply_common_filters(
     }
 }
 
-fn public_order_by(sort: GearAtlasSort) -> &'static str {
-    match sort {
-        GearAtlasSort::ApprovedAtDesc => "ORDER BY approved_at DESC, created_at DESC, id DESC",
-        GearAtlasSort::NameAsc => "ORDER BY name ASC, approved_at DESC, id DESC",
-        GearAtlasSort::WeightDesc => "ORDER BY weight_g DESC, approved_at DESC, id DESC",
-        GearAtlasSort::OfficialPriceDesc => {
-            "ORDER BY official_price_cents DESC, approved_at DESC, id DESC"
-        }
-    }
-}
-
 fn page_items(
     mut items: Vec<GearAtlasItem>,
     limit: u64,
@@ -387,6 +465,24 @@ fn page_items(
         None
     };
     Ok((items, next_cursor))
+}
+
+fn page_in_memory_items(
+    items: Vec<GearAtlasItem>,
+    limit: u64,
+    offset: i64,
+) -> Result<(Vec<GearAtlasItem>, Option<String>), DbErr> {
+    let start = offset as usize;
+    if start >= items.len() {
+        return Ok((Vec::new(), None));
+    }
+    let end = (start + limit as usize).min(items.len());
+    let next_cursor = if end < items.len() {
+        Some((offset + limit as i64).to_string())
+    } else {
+        None
+    };
+    Ok((items[start..end].to_vec(), next_cursor))
 }
 
 fn parse_cursor(cursor: Option<&str>) -> Result<i64, DbErr> {
@@ -411,6 +507,67 @@ fn normalize_query(q: Option<&str>) -> Option<String> {
         None
     } else {
         Some(format!("%{}%", q.replace('%', "\\%").replace('_', "\\_")))
+    }
+}
+
+fn normalize_plain_query(q: Option<&str>) -> Option<String> {
+    let q = q?.trim().to_lowercase();
+    if q.is_empty() { None } else { Some(q) }
+}
+
+fn public_item_matches_query(item: &GearAtlasItem, query: &str) -> bool {
+    item.name.to_lowercase().contains(query)
+        || item
+            .description
+            .as_deref()
+            .map(|value| value.to_lowercase().contains(query))
+            .unwrap_or(false)
+        || item
+            .brand
+            .as_deref()
+            .map(|value| value.to_lowercase().contains(query))
+            .unwrap_or(false)
+        || item
+            .model
+            .as_deref()
+            .map(|value| value.to_lowercase().contains(query))
+            .unwrap_or(false)
+}
+
+fn sort_public_items(items: &mut [GearAtlasItem], sort: GearAtlasSort) {
+    match sort {
+        GearAtlasSort::ApprovedAtDesc => items.sort_by(cmp_approved_desc),
+        GearAtlasSort::NameAsc => items.sort_by(|left, right| {
+            left.name
+                .to_lowercase()
+                .cmp(&right.name.to_lowercase())
+                .then_with(|| cmp_approved_desc(left, right))
+        }),
+        GearAtlasSort::WeightDesc => items.sort_by(|left, right| {
+            cmp_option_desc(left.weight_g, right.weight_g)
+                .then_with(|| cmp_approved_desc(left, right))
+        }),
+        GearAtlasSort::OfficialPriceDesc => items.sort_by(|left, right| {
+            cmp_option_desc(left.official_price_cents, right.official_price_cents)
+                .then_with(|| cmp_approved_desc(left, right))
+        }),
+    }
+}
+
+fn cmp_approved_desc(left: &GearAtlasItem, right: &GearAtlasItem) -> Ordering {
+    right
+        .approved_at
+        .cmp(&left.approved_at)
+        .then_with(|| right.created_at.cmp(&left.created_at))
+        .then_with(|| right.id.cmp(&left.id))
+}
+
+fn cmp_option_desc<T: Ord>(left: Option<T>, right: Option<T>) -> Ordering {
+    match (left, right) {
+        (Some(left), Some(right)) => right.cmp(&left),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
     }
 }
 

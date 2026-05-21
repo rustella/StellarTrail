@@ -17,6 +17,7 @@ pub struct ListGearAtlasQuery {
     pub sort: GearAtlasSort,
     pub limit: Option<u64>,
     pub cursor: Option<String>,
+    pub locale: Option<String>,
 }
 
 /// Query parameters for a user's own submission list.
@@ -100,10 +101,17 @@ pub struct GearAtlasPublicItemResponse {
 
 impl From<&GearAtlasItem> for GearAtlasPublicItemResponse {
     fn from(item: &GearAtlasItem) -> Self {
+        Self::from_item_and_category_label(item, item.category.label().to_owned())
+    }
+}
+
+impl GearAtlasPublicItemResponse {
+    /// Builds a public response with a locale-resolved category label.
+    pub fn from_item_and_category_label(item: &GearAtlasItem, category_label: String) -> Self {
         Self {
             id: item.id.clone(),
             category: item.category,
-            category_label: item.category.label().to_owned(),
+            category_label,
             name: item.name.clone(),
             brand: item.brand.clone(),
             model: item.model.clone(),

@@ -9,6 +9,7 @@ mod feedback;
 mod gear_atlas;
 mod gears;
 mod health;
+mod localization;
 mod meta;
 mod profile;
 mod skills;

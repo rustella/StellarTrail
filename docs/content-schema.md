@@ -12,9 +12,13 @@ Repo-local `content/` seed folders have been removed. API startup no longer read
 
 媒体二进制不进入 JSON 文件或 repo-local assets。管理员上传接口把媒体写入 MinIO/S3-compatible object storage，并将公开 URL 写入数据库；公开读接口只返回 DB 中 active media 的公共字段。
 
+## Public locale model
+
+公共内容支持 `zh-CN` 和 `en`。接口通过 `X-StellarTrail-Locale` 或 `Accept-Language` 选择语言，默认 `zh-CN`，不接受 `?locale=` query 参数。数据库主表保存稳定 ID、状态、来源和兼容兜底字段，多语言文案保存在 `*_localizations` 表中；公开 API 只返回当前语言字段，不返回并列的 `zh/en` 字段。
+
 ## Gear templates
 
-装备模板由数据库保存，API 启动时幂等 seed 默认系统模板。旧的 `content/gear-templates/*.yaml` 文件源已删除。
+装备模板由数据库保存，API 启动时幂等 seed 默认系统模板。旧的 `content/gear-templates/*.yaml` 文件源已删除。模板标题、分类名和条目名分别存储在 `gear_template_localizations`、`gear_template_category_localizations`、`gear_template_item_localizations` 中；主表旧 `title/name` 字段保留为兼容兜底。
 
 `GET /api/gear-templates` 返回：
 
@@ -37,6 +41,10 @@ Repo-local `content/` seed folders have been removed. API startup no longer read
 ```
 
 `GET /api/gear-templates/:id` 返回单个模板，找不到时返回 404。
+
+## Gear atlas
+
+装备图鉴公共浏览读取 `gear_atlas_items` 中已审核通过的公共字段。`name` 和 `description` 可通过 `gear_atlas_item_localizations` 返回不同语言；新用户投稿默认只写入原文和 `zh-CN` 本地化行，不做自动翻译。`category_label` 来自 `gear_category_localizations`，`brand`、`model`、`specs`、价格和重量等事实字段不做翻译。
 
 ## Removed route families
 

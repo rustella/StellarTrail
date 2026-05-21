@@ -3,6 +3,7 @@ import type {
   AdminUserSelector,
   ApiUsageListRequest,
   ApiUsageListResponse,
+  AppLocale,
   ListAdminFeedbackRequest,
   ListAdminFeedbackResponse,
   BindEmailCodeRequest,
@@ -208,22 +209,32 @@ export class StellarTrailApiClient {
     return `${this.assetsBaseUrl}/${pathOrUrl.replace(/^\/+/, "")}`;
   }
 
-  async listGearTemplates(): Promise<ContentListResponse<GearTemplate>> {
-    return this.get("/api/gear-templates");
+  async listGearTemplates(
+    locale?: AppLocale,
+  ): Promise<ContentListResponse<GearTemplate>> {
+    return this.get("/api/gear-templates", false, locale);
   }
 
-  async getGearTemplate(id: string): Promise<GearTemplate> {
-    return this.get(`/api/gear-templates/${encodeURIComponent(id)}`);
+  async getGearTemplate(id: string, locale?: AppLocale): Promise<GearTemplate> {
+    return this.get(
+      `/api/gear-templates/${encodeURIComponent(id)}`,
+      false,
+      locale,
+    );
   }
 
   async listGearAtlas(
     request: ListGearAtlasRequest = {},
+    locale?: AppLocale,
   ): Promise<ListGearAtlasResponse> {
-    return this.get(`/api/gear-atlas${queryString(request)}`);
+    return this.get(`/api/gear-atlas${queryString(request)}`, false, locale);
   }
 
-  async getGearAtlasItem(id: string): Promise<GearAtlasPublicItem> {
-    return this.get(`/api/gear-atlas/${encodeURIComponent(id)}`);
+  async getGearAtlasItem(
+    id: string,
+    locale?: AppLocale,
+  ): Promise<GearAtlasPublicItem> {
+    return this.get(`/api/gear-atlas/${encodeURIComponent(id)}`, false, locale);
   }
 
   async createGearAtlasSubmission(
@@ -491,7 +502,7 @@ export class StellarTrailApiClient {
   private async get<T>(
     path: string,
     auth = false,
-    locale?: SkillLocale,
+    locale?: AppLocale,
   ): Promise<T> {
     const response = await this.request(path, {}, auth, locale);
     return response.json() as Promise<T>;
@@ -538,7 +549,7 @@ export class StellarTrailApiClient {
     path: string,
     init: RequestInit = {},
     auth = false,
-    locale?: SkillLocale,
+    locale?: AppLocale,
   ): Promise<Response> {
     let response = await this.send(path, init, auth, locale);
     if (response.status === 401 && auth && this.refreshToken) {
@@ -555,7 +566,7 @@ export class StellarTrailApiClient {
     path: string,
     init: RequestInit,
     auth: boolean,
-    locale?: SkillLocale,
+    locale?: AppLocale,
   ): Promise<Response> {
     const headers = new Headers(init.headers);
     if (locale) {

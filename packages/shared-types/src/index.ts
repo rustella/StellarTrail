@@ -12,7 +12,8 @@ export interface ContentListResponse<T> {
   items: T[];
 }
 
-export type SkillLocale = "zh-CN" | "en";
+export type AppLocale = "zh-CN" | "en";
+export type SkillLocale = AppLocale;
 
 export interface SkillCategorySummary {
   id: string;

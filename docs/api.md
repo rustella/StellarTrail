@@ -308,9 +308,9 @@ POST /api/auth/refresh
 }
 ```
 
-## Public skills and gear templates
+## Public skills, gear templates, and gear atlas
 
-公共技能与装备模板接口不需要 Bearer Token。API 启动不再读取 repo-local `content/` 文件树，也不再挂载 `/assets/*` 静态目录；公开媒体 URL 均来自 DB 中保存的 MinIO/S3-compatible 对象存储地址。山峰和路线模块尚未开始实现，因此不注册 `/api/mountains*` 或 `/api/routes*`。
+公共技能、装备模板和装备图鉴浏览接口不需要 Bearer Token。API 启动不再读取 repo-local `content/` 文件树，也不再挂载 `/assets/*` 静态目录；公开媒体 URL 均来自 DB 中保存的 MinIO/S3-compatible 对象存储地址。山峰和路线模块尚未开始实现，因此不注册 `/api/mountains*` 或 `/api/routes*`。
 
 ```http
 GET /api/skills
@@ -320,17 +320,13 @@ GET /api/skills/knots/offline-manifest
 GET /api/skills/knots/detail/:id
 GET /api/gear-templates
 GET /api/gear-templates/:id
+GET /api/gear-atlas?category=lighting_system&q=headlamp&sort=name_asc&limit=20&cursor=0
+GET /api/gear-atlas/:id
 ```
 
-`/api/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不暴露 Markdown mock。`/api/gear-templates` 和 `/api/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。
+`/api/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不暴露 Markdown mock。`/api/gear-templates` 和 `/api/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。`/api/gear-atlas` 和 `/api/gear-atlas/:id` 返回已审核通过的公共装备图鉴，不包含用户个人购买、位置、标签或备注字段。
 
-### Outdoor skills / knots
-
-一期户外技能只有绳结。服务端通过 `import-knots3d` 将 `.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json` 导入数据库；绳结媒体不再从 `/assets/*` 或本地静态目录拼 URL。管理员使用 `PUT /api/admin/skills/knots/:knot_id/media/:asset_id` 上传 GIF/MP4/WebP/PNG 等二进制到 MinIO/S3-compatible object storage，服务端把 `media_resources` 与 `knot_media_resources` 元数据写入数据库。公开读接口只返回 DB 中 active media 的 `url`/`mime_type`/`size_bytes` 等公共字段，允许这些 URL 指向与 API 不同域名的 MinIO/CDN。运行配置只保留一组 `minio` 连接信息，私有反馈图和公开绳结媒体分别配置业务 bucket。
-
-核心媒体 `asset_id` / `media_type`：`thumbnail`、`preview`、`draw_gif`、`turntable_gif`、`draw_mp4`、`turntable_mp4`。Knots3D 全量一期验收目标为 `225 knots × 6 core media = 1350`。
-
-语言不使用 query 参数，统一通过请求头：
+公共内容语言不使用 query 参数，统一通过请求头：
 
 ```http
 X-StellarTrail-Locale: zh-CN
@@ -338,7 +334,19 @@ X-StellarTrail-Locale: zh-CN
 X-StellarTrail-Locale: en
 ```
 
-未显式传 `X-StellarTrail-Locale` 时会尝试 `Accept-Language`，再 fallback 到 `zh-CN`。`?locale=...` 会返回 `400 unsupported_query_parameter`。分页参数为 `offset`/`limit`，筛选参数为 `category`、`difficulty`，关键词为 `q`；响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`。`/api/skills/knots/filters` 返回当前语言下可选用途、难度及数量。`/api/skills/knots/offline-manifest` 不接受 query 参数，返回完整离线清单、`item_count`、去重后的 `media_count` 和 `estimated_bytes`，并复用 public response cache 与 `ETag`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
+未显式传 `X-StellarTrail-Locale` 时会尝试 `Accept-Language`，再 fallback 到 `zh-CN`。`?locale=...` 会返回 `400 unsupported_query_parameter`。公开响应只返回当前语言字段，不返回并列的 `zh/en` 字段；缺少目标语言行时 fallback 到另一种受支持语言，再 fallback 到主表兼容字段。
+
+### Outdoor skills / knots
+
+一期户外技能只有绳结。服务端通过 `import-knots3d` 将 `.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json` 导入数据库；绳结媒体不再从 `/assets/*` 或本地静态目录拼 URL。管理员使用 `PUT /api/admin/skills/knots/:knot_id/media/:asset_id` 上传 GIF/MP4/WebP/PNG 等二进制到 MinIO/S3-compatible object storage，服务端把 `media_resources` 与 `knot_media_resources` 元数据写入数据库。公开读接口只返回 DB 中 active media 的 `url`/`mime_type`/`size_bytes` 等公共字段，允许这些 URL 指向与 API 不同域名的 MinIO/CDN。运行配置只保留一组 `minio` 连接信息，私有反馈图和公开绳结媒体分别配置业务 bucket。
+
+核心媒体 `asset_id` / `media_type`：`thumbnail`、`preview`、`draw_gif`、`turntable_gif`、`draw_mp4`、`turntable_mp4`。Knots3D 全量一期验收目标为 `225 knots × 6 core media = 1350`。
+
+绳结分页参数为 `offset`/`limit`，筛选参数为 `category`、`difficulty`，关键词为 `q`；响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`。`/api/skills/knots/filters` 返回当前语言下可选用途、难度及数量。`/api/skills/knots/offline-manifest` 不接受 query 参数，返回完整离线清单、`item_count`、去重后的 `media_count` 和 `estimated_bytes`，并复用 public response cache 与 `ETag`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
+
+### Gear templates and gear atlas i18n
+
+装备模板的模板标题、分类名、条目名存储在 `gear_template_*_localizations` 表中；默认系统模板同时 seed `zh-CN` 和 `en`。装备图鉴的公共 `name` 和 `description` 存储在 `gear_atlas_item_localizations` 表中，新用户投稿默认写入 `zh-CN` 原文行，不做自动机翻；公共 `category_label` 从 `gear_category_localizations` 表解析。`brand`、`model`、`specs`、价格和重量等事实字段不做翻译。
 
 ### Admin knot media upload
 
