@@ -324,7 +324,7 @@ GET /api/gear-atlas?category=lighting_system&q=headlamp&sort=name_asc&limit=20&c
 GET /api/gear-atlas/:id
 ```
 
-`/api/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不暴露 Markdown mock。`/api/gear-templates` 和 `/api/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。`/api/gear-atlas` 和 `/api/gear-atlas/:id` 返回已审核通过的公共装备图鉴，不包含用户个人购买、位置、标签或备注字段。
+`/api/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不暴露 Markdown mock。`/api/gear-templates` 和 `/api/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。`/api/gear-atlas` 和 `/api/gear-atlas/:id` 返回已审核通过的公共装备图鉴，不包含用户个人购买、位置、标签或备注字段。外部导入来源只暴露 `source_name`、`source_url`、`source_rating_score` 和 `source_rating_count` 等公开审计摘要，不暴露内部去重键、导入批次或授权备注。
 
 公共内容语言不使用 query 参数，统一通过请求头：
 
@@ -347,6 +347,10 @@ X-StellarTrail-Locale: en
 ### Gear templates and gear atlas i18n
 
 装备模板的模板标题、分类名、条目名存储在 `gear_template_*_localizations` 表中；默认系统模板同时 seed `zh-CN` 和 `en`。装备图鉴的公共 `name` 和 `description` 存储在 `gear_atlas_item_localizations` 表中，新用户投稿默认写入 `zh-CN` 原文行，不做自动机翻；公共 `category_label` 从 `gear_category_localizations` 表解析。`brand`、`model`、`specs`、价格和重量等事实字段不做翻译。
+
+### Gear atlas external import POC
+
+`stellartrail-importer` 提供 `import-gear-atlas-cn` POC CLI，用于把人工挑选的 8264 移动装备详情页导入为待审核图鉴条目。该工具只接受显式 URL 或 URL 文件，不自动扫描全站；默认 dry-run 输出解析预览，真实写库必须传 `--write --submitter-user-id <existing-user-id>`。导入器只保存标题、类目、人民币价格、评分汇总和来源链接；不复制第三方图片、介绍正文、用户点评正文或评测长文。`source_key` 用于幂等刷新同一来源条目，已审核条目不会被后续导入覆盖。
 
 ### Admin knot media upload
 

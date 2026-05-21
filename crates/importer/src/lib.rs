@@ -1,5 +1,7 @@
 //! Knots3D metadata importer helpers that convert exported JSON into DB import seeds.
 
+pub mod gear_atlas_cn;
+
 use std::{fs, path::Path};
 
 use anyhow::Context;

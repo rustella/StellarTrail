@@ -14,7 +14,14 @@ use stellartrail_api::{
     routes::build_router,
     state::AppState,
 };
-use stellartrail_db::{DatabaseConfig, connect_database, repositories::AdminRoleRepository};
+use stellartrail_db::{
+    DatabaseConfig, connect_database,
+    repositories::{AdminRoleRepository, GearAtlasRepository},
+};
+use stellartrail_domain::{
+    gear::{GearCategory, GearSpecs},
+    gear_atlas::GearAtlasExternalImportDraft,
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -833,6 +840,72 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     );
     assert_eq!(detail_locale_body["code"], "unsupported_query_parameter");
     assert_eq!(detail_locale_body["parameter"], "locale");
+}
+
+#[tokio::test]
+async fn gear_atlas_public_routes_expose_external_source_summary_without_internal_key() {
+    let app = test_app().await;
+    let login_body = login_response(&app.router, "atlas-external-importer").await;
+    let user_id = login_body["user"]["id"].as_str().unwrap().to_owned();
+    let repo = GearAtlasRepository::new(app.db.clone());
+    let mut draft = GearAtlasExternalImportDraft {
+        category: GearCategory::BackpackSystem,
+        name: "探路者38L户外背包".to_owned(),
+        brand: None,
+        model: None,
+        description: Some(
+            "来自 8264 户外用品点评的公开事实字段，已保留来源链接供审核。".to_owned(),
+        ),
+        weight_g: None,
+        official_price_cents: Some(34_900),
+        official_price_currency: Some("CNY".to_owned()),
+        specs: GearSpecs::new(),
+        submitted_by_user_id: user_id.clone(),
+        source_key: "8264:2074165".to_owned(),
+        source_name: "8264 户外用品点评".to_owned(),
+        source_url: Some("https://m.8264.com/zhuangbei-equipmentDetail-2074165-1.html".to_owned()),
+        source_license_note: Some("facts and source link only".to_owned()),
+        import_batch_id: Some("batch-20260521".to_owned()),
+        source_rating_score: Some(8.6),
+        source_rating_count: Some(7),
+    };
+    draft
+        .validate_and_normalize()
+        .expect("valid external import");
+    let imported = repo
+        .upsert_external_import(&draft)
+        .await
+        .expect("import atlas source")
+        .item;
+    repo.approve(&imported.id, &user_id)
+        .await
+        .expect("approve import")
+        .expect("approved import");
+
+    let (list_status, list) = send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
+    assert_eq!(list_status, StatusCode::OK, "{list}");
+    let item = &list["items"][0];
+    assert_eq!(item["source_name"], "8264 户外用品点评");
+    assert_eq!(
+        item["source_url"],
+        "https://m.8264.com/zhuangbei-equipmentDetail-2074165-1.html"
+    );
+    assert_eq!(item["source_rating_score"].as_f64(), Some(8.6));
+    assert_eq!(item["source_rating_count"].as_i64(), Some(7));
+    assert!(item.get("source_key").is_none());
+    assert!(item.get("source_license_note").is_none());
+    assert!(item.get("import_batch_id").is_none());
+
+    let (detail_status, detail) = send_empty(
+        &app.router,
+        "GET",
+        &format!("/api/gear-atlas/{}", imported.id),
+        None,
+    )
+    .await;
+    assert_eq!(detail_status, StatusCode::OK, "{detail}");
+    assert_eq!(detail["source_name"], "8264 户外用品点评");
+    assert!(detail.get("source_key").is_none());
 }
 
 #[tokio::test]

@@ -54,15 +54,17 @@ pub enum GearAtlasSourceType {
     #[default]
     Manual,
     UserGear,
+    ExternalImport,
 }
 
 impl GearAtlasSourceType {
-    pub const ALL: [Self; 2] = [Self::Manual, Self::UserGear];
+    pub const ALL: [Self; 3] = [Self::Manual, Self::UserGear, Self::ExternalImport];
 
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Manual => "manual",
             Self::UserGear => "user_gear",
+            Self::ExternalImport => "external_import",
         }
     }
 
@@ -111,6 +113,14 @@ pub struct GearAtlasItem {
     pub reviewed_by_user_id: Option<String>,
     pub reviewed_at: Option<String>,
     pub approved_at: Option<String>,
+    pub source_key: Option<String>,
+    pub source_name: Option<String>,
+    pub source_url: Option<String>,
+    pub source_license_note: Option<String>,
+    pub import_batch_id: Option<String>,
+    pub imported_at: Option<String>,
+    pub source_rating_score: Option<f64>,
+    pub source_rating_count: Option<i32>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -130,6 +140,32 @@ pub struct GearAtlasDraft {
     pub source_type: GearAtlasSourceType,
     pub submitted_by_user_id: String,
     pub source_user_gear_id: Option<String>,
+}
+
+/// Writable draft created by a conservative external source import.
+///
+/// The public fields mirror a normal atlas submission, while source metadata is
+/// kept separate so clients can audit where imported facts came from without
+/// exposing crawler-only identifiers such as `source_key`.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GearAtlasExternalImportDraft {
+    pub category: GearCategory,
+    pub name: String,
+    pub brand: Option<String>,
+    pub model: Option<String>,
+    pub description: Option<String>,
+    pub weight_g: Option<i32>,
+    pub official_price_cents: Option<i64>,
+    pub official_price_currency: Option<String>,
+    pub specs: GearSpecs,
+    pub submitted_by_user_id: String,
+    pub source_key: String,
+    pub source_name: String,
+    pub source_url: Option<String>,
+    pub source_license_note: Option<String>,
+    pub import_batch_id: Option<String>,
+    pub source_rating_score: Option<f64>,
+    pub source_rating_count: Option<i32>,
 }
 
 impl GearAtlasDraft {
@@ -178,6 +214,91 @@ impl GearAtlasDraft {
             &mut errors,
         );
         self.specs = normalize_specs(self.category, std::mem::take(&mut self.specs), &mut errors);
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ValidationError::new(errors))
+        }
+    }
+}
+
+impl GearAtlasExternalImportDraft {
+    /// Validates source-audit metadata and the public atlas fields that will be reviewed.
+    pub fn validate_and_normalize(&mut self) -> Result<(), ValidationError> {
+        let mut public_draft = GearAtlasDraft {
+            category: self.category,
+            name: std::mem::take(&mut self.name),
+            brand: self.brand.take(),
+            model: self.model.take(),
+            description: self.description.take(),
+            weight_g: self.weight_g,
+            official_price_cents: self.official_price_cents,
+            official_price_currency: self.official_price_currency.take(),
+            specs: std::mem::take(&mut self.specs),
+            source_type: GearAtlasSourceType::ExternalImport,
+            submitted_by_user_id: std::mem::take(&mut self.submitted_by_user_id),
+            source_user_gear_id: None,
+        };
+        let mut errors = match public_draft.validate_and_normalize() {
+            Ok(()) => Vec::new(),
+            Err(error) => error.fields,
+        };
+
+        self.category = public_draft.category;
+        self.name = public_draft.name;
+        self.brand = public_draft.brand;
+        self.model = public_draft.model;
+        self.description = public_draft.description;
+        self.weight_g = public_draft.weight_g;
+        self.official_price_cents = public_draft.official_price_cents;
+        self.official_price_currency = public_draft.official_price_currency;
+        self.specs = public_draft.specs;
+        self.submitted_by_user_id = public_draft.submitted_by_user_id;
+
+        self.source_key = normalize_required_text(
+            std::mem::take(&mut self.source_key),
+            160,
+            "source_key",
+            &mut errors,
+        );
+        self.source_name = normalize_required_text(
+            std::mem::take(&mut self.source_name),
+            80,
+            "source_name",
+            &mut errors,
+        );
+        self.source_url =
+            normalize_optional_text(self.source_url.take(), 500, "source_url", &mut errors);
+        self.source_license_note = normalize_optional_text(
+            self.source_license_note.take(),
+            240,
+            "source_license_note",
+            &mut errors,
+        );
+        self.import_batch_id = normalize_optional_text(
+            self.import_batch_id.take(),
+            128,
+            "import_batch_id",
+            &mut errors,
+        );
+
+        if let Some(score) = self.source_rating_score {
+            if !score.is_finite() || !(0.0..=10.0).contains(&score) {
+                errors.push(FieldViolation::new(
+                    "source_rating_score",
+                    "must be between 0 and 10",
+                ));
+            }
+        }
+        if let Some(count) = self.source_rating_count {
+            if !(0..=1_000_000).contains(&count) {
+                errors.push(FieldViolation::new(
+                    "source_rating_count",
+                    "must be between 0 and 1000000",
+                ));
+            }
+        }
 
         if errors.is_empty() {
             Ok(())

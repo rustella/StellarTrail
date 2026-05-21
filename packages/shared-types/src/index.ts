@@ -409,7 +409,7 @@ export interface ListGearsResponse {
 
 export type GearAtlasStatus = "pending" | "approved" | "rejected";
 
-export type GearAtlasSourceType = "manual" | "user_gear";
+export type GearAtlasSourceType = "manual" | "user_gear" | "external_import";
 
 export type GearAtlasSort =
   | "approved_at_desc"
@@ -430,6 +430,10 @@ export interface GearAtlasPublicItem {
   official_price_currency?: GearCurrency | string | null;
   specs?: GearSpecs | null;
   approved_at?: string | null;
+  source_name?: string | null;
+  source_url?: string | null;
+  source_rating_score?: number | null;
+  source_rating_count?: number | null;
   created_at: string;
   updated_at: string;
 }

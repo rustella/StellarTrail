@@ -46,6 +46,8 @@ Repo-local `content/` seed folders have been removed. API startup no longer read
 
 装备图鉴公共浏览读取 `gear_atlas_items` 中已审核通过的公共字段。`name` 和 `description` 可通过 `gear_atlas_item_localizations` 返回不同语言；新用户投稿默认只写入原文和 `zh-CN` 本地化行，不做自动翻译。`category_label` 来自 `gear_category_localizations`，`brand`、`model`、`specs`、价格和重量等事实字段不做翻译。
 
+外部装备来源导入目前只作为 POC 审核入口：`import-gear-atlas-cn` 支持人工提供的 8264 移动装备详情页 URL，导入事实字段、评分汇总和来源链接，并写入 `source_key`、`source_name`、`source_url`、`source_license_note`、`import_batch_id`、`imported_at`、`source_rating_score` 和 `source_rating_count`。公开 API 只返回来源名称、来源链接和评分汇总，不返回内部去重键、批次或授权备注。导入器不保存第三方图片、用户点评正文或评测长文；所有导入条目先进入 `pending` 审核状态。
+
 ## Removed route families
 
 山峰和路线模块尚未开始实现，服务端不注册以下旧契约：

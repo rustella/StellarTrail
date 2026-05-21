@@ -6,12 +6,14 @@
 
 use std::cmp::Ordering;
 
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, TransactionTrait, Value};
+use sea_orm::{
+    ConnectionTrait, DatabaseBackend, DatabaseConnection, DbErr, TransactionTrait, Value,
+};
 use stellartrail_domain::{
     gear::{GearCategory, GearSpecs},
     gear_atlas::{
-        GearAtlasDraft, GearAtlasItem, GearAtlasSort, GearAtlasSourceType, GearAtlasStatus,
-        now_atlas_rfc3339,
+        GearAtlasDraft, GearAtlasExternalImportDraft, GearAtlasItem, GearAtlasSort,
+        GearAtlasSourceType, GearAtlasStatus, now_atlas_rfc3339,
     },
     locale::Locale,
 };
@@ -63,6 +65,31 @@ impl Default for ListGearAtlasAdminOptions {
     }
 }
 
+/// Result action after an idempotent external gear atlas import.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GearAtlasExternalImportAction {
+    Created,
+    Updated,
+    SkippedApproved,
+}
+
+impl GearAtlasExternalImportAction {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Created => "created",
+            Self::Updated => "updated",
+            Self::SkippedApproved => "skipped_approved",
+        }
+    }
+}
+
+/// Return value for one external import upsert.
+#[derive(Clone, Debug)]
+pub struct GearAtlasExternalImportResult {
+    pub action: GearAtlasExternalImportAction,
+    pub item: GearAtlasItem,
+}
+
 /// Gear atlas persistence object for public reads, user submissions, and admin review.
 #[derive(Clone)]
 pub struct GearAtlasRepository {
@@ -108,6 +135,66 @@ impl GearAtlasRepository {
         self.get_any(&id)
             .await?
             .ok_or_else(|| DbErr::Custom("created gear atlas item not found".to_owned()))
+    }
+
+    /// Creates or refreshes a pending atlas submission from an external source record.
+    ///
+    /// Approved rows are returned unchanged so a later import cannot silently
+    /// rewrite public reviewed content. Pending and rejected rows are refreshed
+    /// back to `pending` for another administrator review pass.
+    pub async fn upsert_external_import(
+        &self,
+        draft: &GearAtlasExternalImportDraft,
+    ) -> Result<GearAtlasExternalImportResult, DbErr> {
+        if let Some(existing) = self.find_by_source_key(&draft.source_key).await? {
+            if existing.status == GearAtlasStatus::Approved {
+                return Ok(GearAtlasExternalImportResult {
+                    action: GearAtlasExternalImportAction::SkippedApproved,
+                    item: existing,
+                });
+            }
+            let item = self.refresh_external_import(&existing.id, draft).await?;
+            return Ok(GearAtlasExternalImportResult {
+                action: GearAtlasExternalImportAction::Updated,
+                item,
+            });
+        }
+
+        let id = Uuid::new_v4().to_string();
+        let now = now_atlas_rfc3339();
+        let specs_json = json_string(&draft.specs)?;
+        let tx = self.db.begin().await?;
+        tx.execute(statement(
+            self.db.get_database_backend(),
+            r#"INSERT INTO gear_atlas_items (
+                id, category, name, brand, model, description, weight_g,
+                official_price_cents, official_price_currency, specs_json,
+                source_type, submitted_by_user_id, source_user_gear_id, status,
+                rejection_reason, reviewed_by_user_id, reviewed_at, approved_at,
+                source_key, source_name, source_url, source_license_note,
+                import_batch_id, imported_at, source_rating_score, source_rating_count,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+            external_import_values(&id, draft, &specs_json, &now),
+        ))
+        .await?;
+        upsert_zh_localization(
+            &tx,
+            self.db.get_database_backend(),
+            &id,
+            &draft.name,
+            draft.description.clone(),
+        )
+        .await?;
+        tx.commit().await?;
+        let item = self
+            .get_any(&id)
+            .await?
+            .ok_or_else(|| DbErr::Custom("created gear atlas import not found".to_owned()))?;
+        Ok(GearAtlasExternalImportResult {
+            action: GearAtlasExternalImportAction::Created,
+            item,
+        })
     }
 
     /// Lists approved public atlas entries with locale-resolved public text.
@@ -385,6 +472,81 @@ impl GearAtlasRepository {
         }
     }
 
+    async fn find_by_source_key(&self, source_key: &str) -> Result<Option<GearAtlasItem>, DbErr> {
+        let row = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                format!("{} WHERE source_key = ? LIMIT 1", atlas_select_columns()),
+                vec![source_key.to_owned().into()],
+            ))
+            .await?;
+        row.map(|row| map_atlas_item(&row)).transpose()
+    }
+
+    async fn refresh_external_import(
+        &self,
+        id: &str,
+        draft: &GearAtlasExternalImportDraft,
+    ) -> Result<GearAtlasItem, DbErr> {
+        let now = now_atlas_rfc3339();
+        let specs_json = json_string(&draft.specs)?;
+        let tx = self.db.begin().await?;
+        tx.execute(statement(
+            self.db.get_database_backend(),
+            r#"UPDATE gear_atlas_items
+               SET category = ?, name = ?, brand = ?, model = ?, description = ?,
+                   weight_g = ?, official_price_cents = ?, official_price_currency = ?,
+                   specs_json = ?, source_type = ?, submitted_by_user_id = ?,
+                   source_user_gear_id = NULL, status = ?, rejection_reason = NULL,
+                   reviewed_by_user_id = NULL, reviewed_at = NULL, approved_at = NULL,
+                   source_key = ?, source_name = ?, source_url = ?,
+                   source_license_note = ?, import_batch_id = ?, imported_at = ?,
+                   source_rating_score = ?, source_rating_count = ?, updated_at = ?
+               WHERE id = ?"#,
+            vec![
+                draft.category.as_str().to_owned().into(),
+                draft.name.clone().into(),
+                draft.brand.clone().into(),
+                draft.model.clone().into(),
+                draft.description.clone().into(),
+                draft.weight_g.into(),
+                draft.official_price_cents.into(),
+                draft.official_price_currency.clone().into(),
+                specs_json.into(),
+                GearAtlasSourceType::ExternalImport
+                    .as_str()
+                    .to_owned()
+                    .into(),
+                draft.submitted_by_user_id.clone().into(),
+                GearAtlasStatus::Pending.as_str().to_owned().into(),
+                draft.source_key.clone().into(),
+                draft.source_name.clone().into(),
+                draft.source_url.clone().into(),
+                draft.source_license_note.clone().into(),
+                draft.import_batch_id.clone().into(),
+                now.clone().into(),
+                draft.source_rating_score.into(),
+                draft.source_rating_count.into(),
+                now.into(),
+                id.to_owned().into(),
+            ],
+        ))
+        .await?;
+        upsert_zh_localization(
+            &tx,
+            self.db.get_database_backend(),
+            id,
+            &draft.name,
+            draft.description.clone(),
+        )
+        .await?;
+        tx.commit().await?;
+        self.get_any(id)
+            .await?
+            .ok_or_else(|| DbErr::Custom("updated gear atlas import not found".to_owned()))
+    }
+
     async fn query_items(
         &self,
         sql: String,
@@ -424,13 +586,78 @@ fn atlas_values(id: &str, draft: &GearAtlasDraft, specs_json: &str, now: &str) -
     ]
 }
 
+fn external_import_values(
+    id: &str,
+    draft: &GearAtlasExternalImportDraft,
+    specs_json: &str,
+    now: &str,
+) -> Vec<Value> {
+    vec![
+        id.to_owned().into(),
+        draft.category.as_str().to_owned().into(),
+        draft.name.clone().into(),
+        draft.brand.clone().into(),
+        draft.model.clone().into(),
+        draft.description.clone().into(),
+        draft.weight_g.into(),
+        draft.official_price_cents.into(),
+        draft.official_price_currency.clone().into(),
+        specs_json.to_owned().into(),
+        GearAtlasSourceType::ExternalImport
+            .as_str()
+            .to_owned()
+            .into(),
+        draft.submitted_by_user_id.clone().into(),
+        Option::<String>::None.into(),
+        GearAtlasStatus::Pending.as_str().to_owned().into(),
+        Option::<String>::None.into(),
+        Option::<String>::None.into(),
+        Option::<String>::None.into(),
+        Option::<String>::None.into(),
+        draft.source_key.clone().into(),
+        draft.source_name.clone().into(),
+        draft.source_url.clone().into(),
+        draft.source_license_note.clone().into(),
+        draft.import_batch_id.clone().into(),
+        now.to_owned().into(),
+        draft.source_rating_score.into(),
+        draft.source_rating_count.into(),
+        now.to_owned().into(),
+        now.to_owned().into(),
+    ]
+}
+
 fn atlas_select_columns() -> &'static str {
     r#"SELECT id, category, name, brand, model, description, weight_g,
         official_price_cents, official_price_currency, specs_json,
         source_type, submitted_by_user_id, source_user_gear_id, status,
         rejection_reason, reviewed_by_user_id, reviewed_at, approved_at,
+        source_key, source_name, source_url, source_license_note, import_batch_id,
+        imported_at, source_rating_score, source_rating_count,
         created_at, updated_at
        FROM gear_atlas_items"#
+}
+
+async fn upsert_zh_localization(
+    db: &impl ConnectionTrait,
+    backend: DatabaseBackend,
+    id: &str,
+    name: &str,
+    description: Option<String>,
+) -> Result<(), DbErr> {
+    db.execute(statement(
+        backend,
+        "INSERT INTO gear_atlas_item_localizations(atlas_item_id, locale, name, description) \
+         VALUES (?, ?, ?, ?) ON CONFLICT(atlas_item_id, locale) DO UPDATE SET name = excluded.name, description = excluded.description",
+        vec![
+            id.to_owned().into(),
+            Locale::ZhCn.as_str().to_owned().into(),
+            name.to_owned().into(),
+            description.into(),
+        ],
+    ))
+    .await?;
+    Ok(())
 }
 
 fn apply_common_filters(
@@ -604,6 +831,14 @@ fn map_atlas_item(row: &sea_orm::QueryResult) -> Result<GearAtlasItem, DbErr> {
         reviewed_by_user_id: row.try_get("", "reviewed_by_user_id")?,
         reviewed_at: row.try_get("", "reviewed_at")?,
         approved_at: row.try_get("", "approved_at")?,
+        source_key: row.try_get("", "source_key")?,
+        source_name: row.try_get("", "source_name")?,
+        source_url: row.try_get("", "source_url")?,
+        source_license_note: row.try_get("", "source_license_note")?,
+        import_batch_id: row.try_get("", "import_batch_id")?,
+        imported_at: row.try_get("", "imported_at")?,
+        source_rating_score: row.try_get("", "source_rating_score")?,
+        source_rating_count: row.try_get("", "source_rating_count")?,
         created_at: row.try_get("", "created_at")?,
         updated_at: row.try_get("", "updated_at")?,
     })

@@ -2527,7 +2527,13 @@ function atlasStatusLabel(status: GearAtlasStatus): string {
 }
 
 function atlasSourceLabel(sourceType: GearAtlasSubmission["source_type"]) {
-  return sourceType === "user_gear" ? "个人装备生成" : "手动投稿";
+  if (sourceType === "user_gear") {
+    return "个人装备生成";
+  }
+  if (sourceType === "external_import") {
+    return "外部导入";
+  }
+  return "手动投稿";
 }
 
 function formatAtlasPrice(
