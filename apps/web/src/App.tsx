@@ -147,6 +147,7 @@ const emptyForm: GearFormState = {
 };
 
 const THEME_STORAGE_KEY = "stellartrail.web.theme";
+const ATLAS_REVIEW_PAGE_SIZE = 20;
 
 const emptyPasswordLogin: PasswordLoginState = {
   account: "",
@@ -227,7 +228,9 @@ export default function App({ client }: AppProps) {
   const [atlasDetail, setAtlasDetail] = useState<GearAtlasSubmission | null>(
     null,
   );
+  const [atlasNextCursor, setAtlasNextCursor] = useState<string | null>(null);
   const [atlasLoading, setAtlasLoading] = useState(false);
+  const [atlasLoadingMore, setAtlasLoadingMore] = useState(false);
   const [atlasError, setAtlasError] = useState<string | null>(null);
   const [feedbackStatus, setFeedbackStatus] =
     useState<FeedbackStatusFilter>("open");
@@ -236,6 +239,8 @@ export default function App({ client }: AppProps) {
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dashboardRequestRef = useRef(0);
+  const atlasRequestRef = useRef(0);
+  const atlasLoadMoreInFlightRef = useRef(false);
 
   useEffect(() => {
     api.setSessionTokens(session?.accessToken, session?.refreshToken);
@@ -326,31 +331,78 @@ export default function App({ client }: AppProps) {
     void loadDashboard();
   }, [loadDashboard]);
 
-  const loadAtlasSubmissions = useCallback(async () => {
-    if (!session || activePage !== "atlasReview") {
-      return;
-    }
-    setAtlasLoading(true);
-    setAtlasError(null);
-    try {
-      const response = await api.listAdminGearAtlasSubmissions({
-        status: atlasStatus || undefined,
-        limit: 50,
-      });
-      setAtlasSubmissions(response.items);
-      setAtlasDetail((current) =>
-        current
-          ? (response.items.find((item) => item.id === current.id) ?? current)
-          : (response.items[0] ?? null),
-      );
-    } catch (err) {
-      setAtlasSubmissions([]);
-      setAtlasDetail(null);
-      setAtlasError(errorMessage(err));
-    } finally {
-      setAtlasLoading(false);
-    }
-  }, [activePage, api, atlasStatus, session]);
+  const loadAtlasSubmissions = useCallback(
+    async (
+      options: { cursor?: string | null; append?: boolean } = {},
+    ): Promise<void> => {
+      if (!session || activePage !== "atlasReview") {
+        return;
+      }
+      const append = Boolean(options.append && options.cursor);
+      if (append) {
+        if (atlasLoadMoreInFlightRef.current) {
+          return;
+        }
+        atlasLoadMoreInFlightRef.current = true;
+        setAtlasLoadingMore(true);
+      } else {
+        atlasRequestRef.current += 1;
+        setAtlasLoading(true);
+        setAtlasNextCursor(null);
+      }
+      const requestId = atlasRequestRef.current;
+      setAtlasError(null);
+      try {
+        const response = await api.listAdminGearAtlasSubmissions({
+          status: atlasStatus || undefined,
+          limit: ATLAS_REVIEW_PAGE_SIZE,
+          cursor: options.cursor || undefined,
+        });
+        if (requestId !== atlasRequestRef.current) {
+          return;
+        }
+        setAtlasNextCursor(response.next_cursor ?? null);
+        if (append) {
+          setAtlasSubmissions((current) =>
+            mergeAtlasSubmissionPages(current, response.items),
+          );
+          setAtlasDetail((current) =>
+            current
+              ? (response.items.find((item) => item.id === current.id) ??
+                current)
+              : null,
+          );
+        } else {
+          setAtlasSubmissions(response.items);
+          setAtlasDetail((current) =>
+            current
+              ? (response.items.find((item) => item.id === current.id) ??
+                response.items[0] ??
+                null)
+              : (response.items[0] ?? null),
+          );
+        }
+      } catch (err) {
+        if (requestId !== atlasRequestRef.current) {
+          return;
+        }
+        if (!append) {
+          setAtlasSubmissions([]);
+          setAtlasDetail(null);
+          setAtlasNextCursor(null);
+        }
+        setAtlasError(errorMessage(err));
+      } finally {
+        if (append) {
+          atlasLoadMoreInFlightRef.current = false;
+          setAtlasLoadingMore(false);
+        } else if (requestId === atlasRequestRef.current) {
+          setAtlasLoading(false);
+        }
+      }
+    },
+    [activePage, api, atlasStatus, session],
+  );
 
   useEffect(() => {
     void loadAtlasSubmissions();
@@ -1546,13 +1598,29 @@ export default function App({ client }: AppProps) {
             selected={atlasDetail}
             status={atlasStatus}
             loading={atlasLoading}
+            loadingMore={atlasLoadingMore}
             submitting={submitting}
             error={atlasError}
+            hasMore={Boolean(atlasNextCursor)}
             onStatusChange={(nextStatus) => {
+              atlasRequestRef.current += 1;
+              atlasLoadMoreInFlightRef.current = false;
               setAtlasStatus(nextStatus);
+              setAtlasSubmissions([]);
               setAtlasDetail(null);
+              setAtlasNextCursor(null);
+              setAtlasLoadingMore(false);
             }}
             onRefresh={() => void loadAtlasSubmissions()}
+            onLoadMore={() => {
+              if (!atlasNextCursor) {
+                return;
+              }
+              void loadAtlasSubmissions({
+                cursor: atlasNextCursor,
+                append: true,
+              });
+            }}
             onOpen={openAtlasSubmission}
             onApprove={approveAtlasSubmission}
             onReject={rejectAtlasSubmission}
@@ -1601,10 +1669,13 @@ function AtlasReviewPage({
   selected,
   status,
   loading,
+  loadingMore,
   submitting,
   error,
+  hasMore,
   onStatusChange,
   onRefresh,
+  onLoadMore,
   onOpen,
   onApprove,
   onReject,
@@ -1613,14 +1684,29 @@ function AtlasReviewPage({
   selected: GearAtlasSubmission | null;
   status: "" | GearAtlasStatus;
   loading: boolean;
+  loadingMore: boolean;
   submitting: boolean;
   error: string | null;
+  hasMore: boolean;
   onStatusChange(status: "" | GearAtlasStatus): void;
   onRefresh(): void;
+  onLoadMore(): void;
   onOpen(id: string): Promise<void> | void;
   onApprove(id: string): Promise<void> | void;
   onReject(id: string): Promise<void> | void;
 }) {
+  const handleListScroll = useCallback(
+    (event: React.UIEvent<HTMLElement>) => {
+      const list = event.currentTarget;
+      const distanceToBottom =
+        list.scrollHeight - list.scrollTop - list.clientHeight;
+      if (distanceToBottom < 96 && hasMore && !loading && !loadingMore) {
+        onLoadMore();
+      }
+    },
+    [hasMore, loading, loadingMore, onLoadMore],
+  );
+
   return (
     <section className="atlas-review-page">
       <header className="page-header">
@@ -1662,7 +1748,12 @@ function AtlasReviewPage({
       ) : null}
 
       <div className="atlas-review-layout">
-        <section className="content-card atlas-review-list" aria-busy={loading}>
+        <section
+          className="content-card atlas-review-list"
+          aria-busy={loading || loadingMore}
+          aria-label="图鉴审核投稿列表"
+          onScroll={handleListScroll}
+        >
           {loading ? <p className="muted">正在加载投稿...</p> : null}
           {!loading && submissions.length === 0 ? (
             <div className="empty-state compact">
@@ -1691,6 +1782,21 @@ function AtlasReviewPage({
               </small>
             </button>
           ))}
+          {submissions.length > 0 && hasMore ? (
+            <button
+              type="button"
+              className="secondary-button atlas-load-more"
+              disabled={loading || loadingMore}
+              onClick={onLoadMore}
+            >
+              {loadingMore ? "继续加载中..." : "加载更多"}
+            </button>
+          ) : null}
+          {loadingMore ? (
+            <p className="muted atlas-loading-more" role="status">
+              正在加载更多投稿...
+            </p>
+          ) : null}
         </section>
 
         <section className="content-card atlas-review-detail">
@@ -1910,6 +2016,23 @@ function AdminFeedbackPage({
       </section>
     </section>
   );
+}
+
+function mergeAtlasSubmissionPages(
+  current: GearAtlasSubmission[],
+  next: GearAtlasSubmission[],
+): GearAtlasSubmission[] {
+  const existingIds = new Set(current.map((item) => item.id));
+  return [
+    ...current,
+    ...next.filter((item) => {
+      if (existingIds.has(item.id)) {
+        return false;
+      }
+      existingIds.add(item.id);
+      return true;
+    }),
+  ];
 }
 
 function StatCard({
