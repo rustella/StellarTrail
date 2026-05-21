@@ -176,7 +176,11 @@ pub fn parse_8264_mobile_gear_page(
     let source_id = source_id_from_8264_url(source_url)
         .or_else(|| hidden_tid(html))
         .ok_or_else(|| anyhow::anyhow!("missing 8264 source id"))?;
-    let name = class_text(html, "namebox").context("missing 8264 equipment name")?;
+    let namebox = class_text(html, "namebox").context("missing 8264 equipment name")?;
+    let name = html_title_text(html)
+        .and_then(clean_8264_page_title)
+        .filter(|title| title.chars().count() > namebox.chars().count() && title.contains(&namebox))
+        .unwrap_or(namebox);
     let rating_score = class_text(html, "starvalue").and_then(|value| value.parse::<f64>().ok());
     let rating_count =
         class_text(html, "dpnum").and_then(|value| parse_count_before(&value, "点评"));
@@ -219,7 +223,8 @@ pub fn map_8264_category(label: &str) -> GearCategory {
         GearCategory::SleepSystem
     } else if contains_any(label, &["炉具", "餐具", "水壶", "营地灯"]) {
         GearCategory::KitchenSystem
-    } else if contains_any(label, &["登山鞋", "徒步鞋", "越野跑鞋", "登山杖"]) {
+    } else if contains_any(label, &["登山鞋", "徒步鞋", "越野跑鞋", "登山杖", "徒步杖"])
+    {
         GearCategory::WalkingSystem
     } else if contains_any(label, &["服装", "帽子", "手套", "雪套", "护膝"]) {
         GearCategory::ClothingSystem
@@ -276,6 +281,25 @@ fn class_text(html: &str, class_name: &str) -> Option<String> {
     let open_end = html[start..].find('>')? + start + 1;
     let close = html[open_end..].find('<')? + open_end;
     cleaned_text(&html[open_end..close])
+}
+
+fn html_title_text(html: &str) -> Option<String> {
+    let start = html.find("<title>")? + "<title>".len();
+    let close = html[start..].find("</title>")? + start;
+    cleaned_text(&html[start..close])
+}
+
+fn clean_8264_page_title(title: String) -> Option<String> {
+    let without_suffix = title
+        .strip_suffix("- 8264手机触屏版")
+        .or_else(|| title.strip_suffix(" - 8264手机触屏版"))
+        .unwrap_or(title.as_str())
+        .trim();
+    if without_suffix.is_empty() {
+        None
+    } else {
+        Some(without_suffix.to_owned())
+    }
 }
 
 fn class_segment(html: &str, class_name: &str, end_marker: &str) -> Option<String> {
