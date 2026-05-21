@@ -22,31 +22,23 @@
         />
         <text wx:else>{{accountProfile.avatarInitial}}</text>
       </button>
-      <view class="account-copy">
-        <view class="account-title">账号状态</view>
-        <view wx:if="{{loggedIn}}" class="account-name-row">
-          <view class="account-desc">{{accountProfile.displayName}}</view>
-          <button class="account-inline-button" bindtap="openNicknameModal">
-            修改名称
-          </button>
-        </view>
-        <view class="account-hint"
-          >{{loggedIn ? '可以管理自己的装备清单。' :
-          '未登录也可以先看装备图鉴和绳结教学。'}}</view
-        >
-        <view wx:if="{{loggedIn}}" class="account-email-row">
-          <view class="account-email-text">{{accountProfile.emailText}}</view>
-          <button
-            wx:if="{{!accountProfile.hasEmail}}"
-            class="account-inline-button"
-            bindtap="openEmailBindingModal"
+      <view
+        wx:if="{{loggedIn}}"
+        class="account-settings-entry"
+        bindtap="openUserSettings"
+      >
+        <view class="account-copy">
+          <view class="account-name-row">
+            <view class="account-desc">{{accountProfile.displayName}}</view>
+          </view>
+          <view wx:if="{{accountError}}" class="account-error"
+            >{{accountError}}</view
           >
-            绑定邮箱
-          </button>
         </view>
-        <view wx:if="{{accountError}}" class="account-error"
-          >{{accountError}}</view
-        >
+        <view class="account-chevron">›</view>
+      </view>
+      <view wx:else class="account-copy">
+        <view class="account-desc">未登录</view>
       </view>
     </view>
     <button wx:if="{{!loggedIn}}" class="account-button" bindtap="goLogin">
@@ -55,123 +47,213 @@
     <button wx:else class="account-button danger" bindtap="logout">退出</button>
   </view>
 
-  <view class="card theme-settings-card">
-    <view>
-      <view class="theme-settings-title">黑夜模式</view>
-      <view class="theme-settings-desc"
-        >开启后切换为紫色星空暗色界面，夜间浏览更舒服。</view
+  <view class="card settings-card">
+    <view class="settings-card-title">设置与帮助</view>
+    <view class="settings-row">
+      <view class="settings-icon">月</view>
+      <view class="settings-copy">
+        <view class="settings-title">黑夜模式</view>
+        <view class="settings-desc">夜间浏览切换为暗色界面。</view>
+      </view>
+      <button
+        class="theme-toggle"
+        aria-pressed="{{isDarkTheme}}"
+        aria-label="{{themeToggleAriaLabel}}"
+        bindtap="toggleTheme"
       >
+        <text class="theme-toggle-icon">{{themeToggleIcon}}</text
+        >{{themeToggleText}}
+      </button>
     </view>
-    <button
-      class="theme-toggle"
-      aria-pressed="{{isDarkTheme}}"
-      aria-label="{{themeToggleAriaLabel}}"
-      bindtap="toggleTheme"
-    >
-      <text class="theme-toggle-icon">{{themeToggleIcon}}</text
-      >{{themeToggleText}}
-    </button>
+    <view class="settings-row" bindtap="openCachedKnotsModal">
+      <view class="settings-icon">绳</view>
+      <view class="settings-copy">
+        <view class="settings-title">绳结离线缓存</view>
+        <view class="settings-desc">缓存后离线也能查询绳结详情和动图。</view>
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+    <view class="settings-row" bindtap="openFeedbackModal">
+      <view class="settings-icon">馈</view>
+      <view class="settings-copy">
+        <view class="settings-title">意见反馈</view>
+        <view class="settings-desc">告诉我们遇到的问题或想要的功能。</view>
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+    <view class="settings-row" bindtap="openAboutModal">
+      <view class="settings-icon">星</view>
+      <view class="settings-copy">
+        <view class="settings-title">关于寻径星野</view>
+        <view class="settings-desc"
+          >{{aboutInfo.envText}} · {{aboutInfo.versionText}}</view
+        >
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
   </view>
 
-  <view wx:if="{{nicknameModalVisible}}" class="profile-modal-mask">
-    <view class="profile-modal-card">
-      <view class="profile-modal-title">修改名称</view>
-      <form class="profile-name-form" bindsubmit="saveWechatNickname">
-        <input
-          class="profile-name-input"
-          name="nickname"
-          type="nickname"
-          placeholder="点这里后，在下方选择“用微信昵称”"
-          value="{{nicknameDraft}}"
-          disabled="{{nicknameLoading}}"
-          confirm-type="done"
-          bindinput="onNicknameInput"
-          bindnicknamereview="onWechatNicknameReview"
-        />
-        <view wx:if="{{accountError}}" class="profile-modal-error"
-          >{{accountError}}</view
-        >
-        <view class="profile-modal-actions">
-          <button
-            class="account-inline-button"
-            loading="{{nicknameLoading}}"
-            form-type="submit"
+  <view wx:if="{{cachedKnotsModalVisible}}" class="profile-modal-mask">
+    <view class="profile-modal-card cached-knots-card">
+      <view class="profile-modal-title">已缓存绳结</view>
+      <view wx:if="{{cachedKnots.length}}" class="profile-modal-desc"
+        >共 {{cachedKnots.length}} 个绳结，离线时也可以打开详情和动图。</view
+      >
+      <view wx:else class="profile-modal-desc"
+        >还没有缓存绳结。去绳结列表点“缓存全部”后，这里会显示已缓存内容。</view
+      >
+      <view class="cached-knots-stats">
+        <view class="cached-knots-stat">
+          <text class="cached-knots-stat-value"
+            >{{cachedKnotsInfo.cachedCount}}</text
           >
-            保存
-          </button>
+          <text class="cached-knots-stat-label">已缓存</text>
         </view>
-      </form>
-      <view class="profile-modal-footer">
-        <button
-          class="account-inline-button muted"
-          disabled="{{nicknameLoading}}"
-          bindtap="closeNicknameModal"
+        <view class="cached-knots-stat">
+          <text class="cached-knots-stat-value"
+            >{{cachedKnotsInfo.uncachedCountText}}</text
+          >
+          <text class="cached-knots-stat-label">未缓存</text>
+        </view>
+        <view class="cached-knots-stat">
+          <text class="cached-knots-stat-value"
+            >{{cachedKnotsInfo.totalCountText}}</text
+          >
+          <text class="cached-knots-stat-label">全部绳结</text>
+        </view>
+      </view>
+      <view wx:if="{{cachedKnotsStatsLoading}}" class="cached-knots-updating"
+        >正在更新绳结总数</view
+      >
+      <scroll-view
+        wx:if="{{cachedKnots.length}}"
+        class="cached-knots-list"
+        scroll-y
+      >
+        <view
+          wx:for="{{cachedKnots}}"
+          wx:key="id"
+          class="cached-knot-row"
+          data-id="{{item.id}}"
+          bindtap="openCachedKnotDetail"
         >
-          取消
+          <view class="cached-knot-copy">
+            <view class="cached-knot-title">{{item.title}}</view>
+            <view class="cached-knot-summary">{{item.summary}}</view>
+          </view>
+          <view class="cached-knot-meta">
+            <text class="cached-knot-tag">{{item.categoryText}}</text>
+            <text class="cached-knot-tag muted">{{item.difficultyText}}</text>
+            <button
+              class="cached-knot-delete"
+              data-id="{{item.id}}"
+              data-title="{{item.title}}"
+              catchtap="removeCachedKnot"
+            >
+              删除
+            </button>
+          </view>
+        </view>
+      </scroll-view>
+      <view class="profile-modal-actions">
+        <button
+          class="account-inline-button profile-modal-action-button"
+          bindtap="goKnotOfflineCache"
+        >
+          去绳结列表
+        </button>
+        <button
+          wx:if="{{cachedKnots.length}}"
+          class="account-inline-button danger profile-modal-action-button"
+          bindtap="clearCachedKnots"
+        >
+          删除全部
+        </button>
+        <button
+          class="account-inline-button muted profile-modal-action-button"
+          bindtap="closeCachedKnotsModal"
+        >
+          关闭
         </button>
       </view>
     </view>
   </view>
 
-  <view wx:if="{{emailBindingModalVisible}}" class="profile-modal-mask">
+  <view wx:if="{{feedbackModalVisible}}" class="profile-modal-mask">
     <view class="profile-modal-card">
-      <view class="profile-modal-title">绑定邮箱</view>
+      <view class="profile-modal-title">意见反馈</view>
       <view class="profile-modal-desc"
-        >绑定后可用邮箱登录，也可以找回密码。</view
+        >你的反馈会进入后台处理，我们会优先看问题和内容纠错。</view
       >
-      <view class="profile-email-form">
+      <view class="profile-feedback-form">
+        <picker
+          value="{{feedbackCategoryIndex}}"
+          range="{{feedbackCategoryLabels}}"
+          bindchange="onFeedbackCategoryChange"
+        >
+          <view class="profile-feedback-picker"
+            >{{feedbackCategoryLabels[feedbackCategoryIndex]}}</view
+          >
+        </picker>
+        <textarea
+          class="profile-feedback-textarea"
+          maxlength="2000"
+          placeholder="写下问题、建议或需要纠正的内容"
+          value="{{feedbackContent}}"
+          data-field="feedbackContent"
+          disabled="{{feedbackLoading}}"
+          bindinput="onFeedbackInput"
+        />
         <input
           class="profile-name-input"
           type="text"
-          placeholder="邮箱"
-          value="{{emailBindingEmail}}"
-          data-field="emailBindingEmail"
-          disabled="{{emailCodeLoading || emailBindingLoading}}"
-          confirm-type="next"
-          bindinput="onEmailBindingInput"
+          placeholder="联系方式（可选）"
+          value="{{feedbackContact}}"
+          data-field="feedbackContact"
+          disabled="{{feedbackLoading}}"
+          bindinput="onFeedbackInput"
         />
-        <view class="profile-email-code-row">
-          <input
-            class="profile-name-input profile-email-code-input"
-            type="text"
-            placeholder="邮箱验证码"
-            value="{{emailBindingCode}}"
-            data-field="emailBindingCode"
-            disabled="{{emailBindingLoading}}"
-            confirm-type="done"
-            bindinput="onEmailBindingInput"
-          />
-          <button
-            class="account-inline-button"
-            loading="{{emailCodeLoading}}"
-            disabled="{{emailBindingLoading}}"
-            bindtap="sendEmailBindingCode"
-          >
-            获取验证码
-          </button>
-        </view>
-        <view wx:if="{{emailBindingNotice}}" class="profile-modal-notice"
-          >{{emailBindingNotice}}</view
-        >
-        <view wx:if="{{accountError}}" class="profile-modal-error"
-          >{{accountError}}</view
+        <view wx:if="{{feedbackError}}" class="profile-modal-error"
+          >{{feedbackError}}</view
         >
         <view class="profile-modal-actions">
           <button
             class="account-inline-button profile-modal-action-button"
-            loading="{{emailBindingLoading}}"
-            bindtap="submitEmailBinding"
+            loading="{{feedbackLoading}}"
+            bindtap="submitFeedback"
           >
-            确定
+            提交
           </button>
           <button
             class="account-inline-button muted profile-modal-action-button"
-            disabled="{{emailCodeLoading || emailBindingLoading}}"
-            bindtap="closeEmailBindingModal"
+            disabled="{{feedbackLoading}}"
+            bindtap="closeFeedbackModal"
           >
             取消
           </button>
         </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{aboutModalVisible}}" class="profile-modal-mask">
+    <view class="profile-modal-card">
+      <view class="profile-modal-title">关于寻径星野</view>
+      <view class="about-row">
+        <text>运行版本</text>
+        <text>{{aboutInfo.envText}}</text>
+      </view>
+      <view class="about-row">
+        <text>版本号</text>
+        <text>{{aboutInfo.versionText}}</text>
+      </view>
+      <view class="profile-modal-actions">
+        <button
+          class="account-inline-button profile-modal-action-button"
+          bindtap="closeAboutModal"
+        >
+          知道了
+        </button>
       </view>
     </view>
   </view>

@@ -129,6 +129,38 @@ interface BindEmailResponse {
   user: WechatLoginResponse["user"];
 }
 
+export type FeedbackCategory =
+  | "suggestion"
+  | "bug"
+  | "content_correction"
+  | "other";
+
+export interface CreateFeedbackRequest {
+  category: FeedbackCategory;
+  content: string;
+  contact?: string | null;
+  page?: string | null;
+  client_platform?: string | null;
+  client_version?: string | null;
+  device_model?: string | null;
+  image_ids?: string[];
+}
+
+export interface FeedbackResponse {
+  id: string;
+  category: string;
+  content: string;
+  contact?: string | null;
+  page?: string | null;
+  client_platform?: string | null;
+  client_version?: string | null;
+  device_model?: string | null;
+  status: string;
+  images: unknown[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface RegisterRequest {
   username: string;
   email: string;
@@ -346,6 +378,16 @@ export async function bindEmailToCurrentAccount(
   );
   saveUser(response.user);
   return response.user;
+}
+
+export function createFeedback(
+  request: CreateFeedbackRequest,
+): Promise<FeedbackResponse> {
+  return requestJson("/api/me/feedback", {
+    method: "POST",
+    auth: true,
+    data: request,
+  });
 }
 
 export async function ensureAccessToken(): Promise<string> {

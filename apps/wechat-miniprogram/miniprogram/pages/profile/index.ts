@@ -1,16 +1,15 @@
 import {
-  bindEmailToCurrentAccount,
   clearLoginState,
+  createFeedback,
+  type FeedbackCategory,
   getCurrentUser,
   getErrorMessage,
-  getStoredUser,
   hasAccessToken,
   isLoginRequiredError,
   isNotFoundApiError,
-  loginWithWechat,
-  sendBindEmailCode,
   uploadWechatAvatar,
 } from "../../utils/api";
+import { buildAccountProfile } from "../../utils/account-profile";
 import { loginPageUrl } from "../../utils/auth-prompt";
 import {
   getThemeViewData,
@@ -21,24 +20,49 @@ import {
   isOffline,
   showOfflineWriteBlockedToast,
 } from "../../utils/network-state";
+import {
+  clearKnotOfflineCache,
+  deleteCachedKnot,
+  getKnotOfflineCacheInventory,
+  refreshKnotOfflineCacheInventory,
+  type CachedKnotPreview,
+  type KnotOfflineCacheInventory,
+} from "../../utils/knot-offline-cache";
+
+const KNOT_CACHE_ENTRY_KEY = "stellartrail_open_knots_cache";
+
+const FEEDBACK_CATEGORY_OPTIONS: Array<{
+  value: FeedbackCategory;
+  label: string;
+}> = [
+  { value: "suggestion", label: "功能建议" },
+  { value: "bug", label: "问题反馈" },
+  { value: "content_correction", label: "内容纠错" },
+  { value: "other", label: "其他" },
+];
 
 Page({
   data: {
     title: "我的寻径星野",
     loggedIn: hasAccessToken(),
     accountProfile: buildAccountProfile(hasAccessToken()),
+    feedbackCategoryLabels: FEEDBACK_CATEGORY_OPTIONS.map((item) => item.label),
+    feedbackCategoryIndex: 0,
+    feedbackContent: "",
+    feedbackContact: "",
+    feedbackModalVisible: false,
+    feedbackLoading: false,
+    feedbackError: "",
+    aboutModalVisible: false,
+    aboutInfo: buildAboutInfo(),
+    cachedKnotsModalVisible: false,
+    cachedKnots: [] as CachedKnotPreview[],
+    cachedKnotsInfo: buildCachedKnotsInfo(
+      getKnotOfflineCacheInventory("zh-CN"),
+    ),
+    cachedKnotsStatsLoading: false,
     accountError: "",
     avatarLoading: false,
-    nicknameDraft: "",
-    nicknameModalVisible: false,
-    nicknameLoading: false,
-    nicknameReviewBlocked: false,
-    emailBindingModalVisible: false,
-    emailBindingEmail: "",
-    emailBindingCode: "",
-    emailBindingNotice: "",
-    emailCodeLoading: false,
-    emailBindingLoading: false,
     ...getThemeViewData(),
   },
 
@@ -82,212 +106,6 @@ Page({
         return;
       }
       this.setData({ accountError: getErrorMessage(error) });
-    }
-  },
-
-  openNicknameModal() {
-    if (!this.data.loggedIn || this.data.nicknameLoading) {
-      return;
-    }
-    this.setData({
-      nicknameModalVisible: true,
-      nicknameDraft: this.data.accountProfile.hasNickname
-        ? this.data.accountProfile.displayName
-        : "",
-      nicknameReviewBlocked: false,
-      accountError: "",
-    });
-  },
-
-  onNicknameInput(event: WechatMiniprogram.Input) {
-    this.setData({ nicknameDraft: event.detail.value });
-  },
-
-  onWechatNicknameReview(
-    event: WechatMiniprogram.CustomEvent<{ pass?: boolean; timeout?: boolean }>,
-  ) {
-    const reviewBlocked = event.detail.pass === false && !event.detail.timeout;
-    this.setData({
-      nicknameReviewBlocked: reviewBlocked,
-      accountError: reviewBlocked
-        ? "微信名称未通过安全检测，请重新选择或手动输入名称"
-        : "",
-    });
-  },
-
-  async saveWechatNickname(event: WechatNicknameSubmitEvent) {
-    if (this.data.nicknameLoading) {
-      return;
-    }
-    const nickname = getSubmittedWechatNickname(event, this.data.nicknameDraft);
-    if (!nickname) {
-      this.setData({ accountError: "请选择或输入名称" });
-      return;
-    }
-    if (this.data.nicknameReviewBlocked) {
-      this.setData({
-        accountError: "微信名称未通过安全检测，请重新选择或手动输入名称",
-      });
-      return;
-    }
-    this.setData({ nicknameDraft: nickname, accountError: "" });
-    await this.saveNicknameValue(nickname);
-  },
-
-  closeNicknameModal() {
-    if (this.data.nicknameLoading) {
-      return;
-    }
-    this.setData({
-      nicknameModalVisible: false,
-      nicknameDraft: "",
-      nicknameReviewBlocked: false,
-      accountError: "",
-    });
-  },
-
-  openEmailBindingModal() {
-    if (
-      !this.data.loggedIn ||
-      this.data.emailBindingLoading ||
-      this.data.accountProfile.hasEmail
-    ) {
-      return;
-    }
-    this.setData({
-      emailBindingModalVisible: true,
-      emailBindingEmail: "",
-      emailBindingCode: "",
-      emailBindingNotice: "",
-      accountError: "",
-    });
-  },
-
-  closeEmailBindingModal() {
-    if (this.data.emailCodeLoading || this.data.emailBindingLoading) {
-      return;
-    }
-    this.setData({
-      emailBindingModalVisible: false,
-      emailBindingEmail: "",
-      emailBindingCode: "",
-      emailBindingNotice: "",
-      accountError: "",
-    });
-  },
-
-  onEmailBindingInput(event: WechatMiniprogram.Input) {
-    const field = event.currentTarget.dataset.field as
-      | "emailBindingEmail"
-      | "emailBindingCode"
-      | undefined;
-    if (!field) {
-      return;
-    }
-    this.setData({ [field]: event.detail.value, accountError: "" });
-  },
-
-  async sendEmailBindingCode() {
-    if (this.data.emailCodeLoading) {
-      return;
-    }
-    if (isOffline()) {
-      showOfflineWriteBlockedToast();
-      return;
-    }
-    const email = this.data.emailBindingEmail.trim();
-    if (!isEmailLike(email)) {
-      this.setData({ accountError: "请填写可用邮箱", emailBindingNotice: "" });
-      return;
-    }
-    this.setData({
-      emailCodeLoading: true,
-      accountError: "",
-      emailBindingNotice: "",
-    });
-    try {
-      await sendBindEmailCode(email);
-      this.setData({ emailBindingNotice: "验证码已发送，请查看邮箱" });
-    } catch (error) {
-      this.handleAccountAuthError(error);
-    } finally {
-      this.setData({ emailCodeLoading: false });
-    }
-  },
-
-  async submitEmailBinding() {
-    if (this.data.emailBindingLoading) {
-      return;
-    }
-    if (isOffline()) {
-      showOfflineWriteBlockedToast();
-      return;
-    }
-    const email = this.data.emailBindingEmail.trim();
-    const emailCode = this.data.emailBindingCode.trim();
-    if (!isEmailLike(email)) {
-      this.setData({ accountError: "请填写可用邮箱", emailBindingNotice: "" });
-      return;
-    }
-    if (!emailCode) {
-      this.setData({
-        accountError: "请填写邮箱验证码",
-        emailBindingNotice: "",
-      });
-      return;
-    }
-    this.setData({
-      emailBindingLoading: true,
-      accountError: "",
-      emailBindingNotice: "",
-    });
-    try {
-      await bindEmailToCurrentAccount({
-        email,
-        email_verification_code: emailCode,
-      });
-      this.setData({
-        loggedIn: hasAccessToken(),
-        accountProfile: buildAccountProfile(true),
-        emailBindingModalVisible: false,
-        emailBindingEmail: "",
-        emailBindingCode: "",
-        emailBindingNotice: "",
-        accountError: "",
-      });
-      wx.showToast({ title: "邮箱已绑定", icon: "success" });
-    } catch (error) {
-      this.handleAccountAuthError(error);
-    } finally {
-      this.setData({ emailBindingLoading: false });
-    }
-  },
-
-  async saveNicknameValue(nickname: string) {
-    if (isOffline()) {
-      showOfflineWriteBlockedToast();
-      return;
-    }
-    this.setData({ nicknameLoading: true, accountError: "" });
-    try {
-      await loginWithWechat({ nickname });
-      this.setData({
-        loggedIn: hasAccessToken(),
-        accountProfile: buildAccountProfile(true),
-        nicknameModalVisible: false,
-        nicknameDraft: "",
-        nicknameReviewBlocked: false,
-        accountError: "",
-      });
-      wx.showToast({ title: "名称已更新", icon: "success" });
-    } catch (error) {
-      if (isLoginRequiredError(error)) {
-        this.resetLoggedOutAccountState();
-        return;
-      }
-      this.setData({ accountError: getErrorMessage(error) });
-    } finally {
-      this.setData({ nicknameLoading: false });
     }
   },
 
@@ -336,6 +154,14 @@ Page({
     wx.navigateTo({ url: loginPageUrl("/pages/profile/index") });
   },
 
+  openUserSettings() {
+    if (!this.data.loggedIn) {
+      this.goLogin();
+      return;
+    }
+    wx.navigateTo({ url: "/pages/profile/settings/index" });
+  },
+
   logout() {
     wx.showModal({
       title: "退出登录？",
@@ -357,98 +183,283 @@ Page({
     togglePageTheme(this);
   },
 
+  openCachedKnotsModal() {
+    const inventory = getKnotOfflineCacheInventory("zh-CN");
+    this.setData({
+      cachedKnotsModalVisible: true,
+      cachedKnots: inventory.items,
+      cachedKnotsInfo: buildCachedKnotsInfo(inventory),
+    });
+    void this.refreshCachedKnotsInfo();
+  },
+
+  closeCachedKnotsModal() {
+    this.setData({ cachedKnotsModalVisible: false });
+  },
+
+  async refreshCachedKnotsInfo() {
+    this.setData({ cachedKnotsStatsLoading: true });
+    try {
+      const inventory = await refreshKnotOfflineCacheInventory("zh-CN");
+      this.applyKnotCacheInventory(inventory);
+    } catch {
+      this.applyKnotCacheInventory(getKnotOfflineCacheInventory("zh-CN"));
+    } finally {
+      this.setData({ cachedKnotsStatsLoading: false });
+    }
+  },
+
+  applyKnotCacheInventory(inventory: KnotOfflineCacheInventory) {
+    this.setData({
+      cachedKnots: inventory.items,
+      cachedKnotsInfo: buildCachedKnotsInfo(inventory),
+    });
+  },
+
+  goKnotOfflineCache() {
+    this.setData({ cachedKnotsModalVisible: false });
+    wx.setStorageSync(KNOT_CACHE_ENTRY_KEY, true);
+    wx.switchTab({ url: "/pages/skills/index" });
+  },
+
+  openCachedKnotDetail(event: WechatMiniprogram.BaseEvent) {
+    const id = event.currentTarget.dataset.id as string | undefined;
+    if (!id) {
+      return;
+    }
+    this.setData({ cachedKnotsModalVisible: false });
+    wx.navigateTo({
+      url: `/pages/skills/detail/index?id=${encodeURIComponent(id)}`,
+    });
+  },
+
+  removeCachedKnot(event: WechatMiniprogram.BaseEvent) {
+    const id = event.currentTarget.dataset.id as string | undefined;
+    const title = event.currentTarget.dataset.title as string | undefined;
+    if (!id) {
+      return;
+    }
+    wx.showModal({
+      title: "删除绳结缓存？",
+      content: `将删除「${title || "这个绳结"}」的离线详情和媒体资源。`,
+      confirmText: "删除",
+      confirmColor: "#dc2626",
+      success: (result) => {
+        if (!result.confirm) {
+          return;
+        }
+        const inventory = deleteCachedKnot(id, "zh-CN");
+        this.applyKnotCacheInventory(inventory);
+        wx.showToast({ title: "已删除缓存", icon: "success" });
+      },
+    });
+  },
+
+  clearCachedKnots() {
+    if (!this.data.cachedKnots.length) {
+      return;
+    }
+    wx.showModal({
+      title: "删除全部绳结缓存？",
+      content: "将删除已缓存的绳结详情、离线列表和对应媒体资源。",
+      confirmText: "删除全部",
+      confirmColor: "#dc2626",
+      success: (result) => {
+        if (!result.confirm) {
+          return;
+        }
+        const inventory = clearKnotOfflineCache("zh-CN");
+        this.applyKnotCacheInventory(inventory);
+        wx.showToast({ title: "已清空缓存", icon: "success" });
+      },
+    });
+  },
+
+  openFeedbackModal() {
+    if (!this.data.loggedIn) {
+      wx.showModal({
+        title: "登录后反馈",
+        content: "登录后可以提交意见反馈，帮助我们改进寻径星野。",
+        confirmText: "去登录",
+        success: (result) => {
+          if (result.confirm) {
+            this.goLogin();
+          }
+        },
+      });
+      return;
+    }
+    const email = this.data.accountProfile.email;
+    this.setData({
+      feedbackModalVisible: true,
+      feedbackCategoryIndex: 0,
+      feedbackContent: "",
+      feedbackContact: email,
+      feedbackError: "",
+    });
+  },
+
+  closeFeedbackModal() {
+    if (this.data.feedbackLoading) {
+      return;
+    }
+    this.setData({
+      feedbackModalVisible: false,
+      feedbackContent: "",
+      feedbackContact: "",
+      feedbackError: "",
+    });
+  },
+
+  onFeedbackCategoryChange(event: any) {
+    const index = Number(event.detail.value || 0);
+    this.setData({ feedbackCategoryIndex: index, feedbackError: "" });
+  },
+
+  onFeedbackInput(event: WechatMiniprogram.BaseEvent) {
+    const field = event.currentTarget.dataset.field as
+      | "feedbackContent"
+      | "feedbackContact"
+      | undefined;
+    if (!field) {
+      return;
+    }
+    this.setData({ [field]: (event as any).detail.value, feedbackError: "" });
+  },
+
+  async submitFeedback() {
+    if (this.data.feedbackLoading) {
+      return;
+    }
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
+    const content = this.data.feedbackContent.trim();
+    if (!content) {
+      this.setData({ feedbackError: "请填写反馈内容" });
+      return;
+    }
+    const category =
+      FEEDBACK_CATEGORY_OPTIONS[this.data.feedbackCategoryIndex]?.value ??
+      "suggestion";
+    this.setData({ feedbackLoading: true, feedbackError: "" });
+    try {
+      await createFeedback({
+        category,
+        content,
+        contact: normalizeOptionalText(this.data.feedbackContact),
+        page: currentPagePath(),
+        client_platform: "wechat_miniprogram",
+        client_version: miniProgramVersion(),
+        device_model: deviceModel(),
+        image_ids: [],
+      });
+      this.setData({
+        feedbackModalVisible: false,
+        feedbackContent: "",
+        feedbackContact: "",
+        feedbackError: "",
+      });
+      wx.showToast({ title: "反馈已提交", icon: "success" });
+    } catch (error) {
+      if (isLoginRequiredError(error)) {
+        this.resetLoggedOutAccountState();
+        return;
+      }
+      this.setData({ feedbackError: getErrorMessage(error) });
+    } finally {
+      this.setData({ feedbackLoading: false });
+    }
+  },
+
+  openAboutModal() {
+    this.setData({
+      aboutModalVisible: true,
+      aboutInfo: buildAboutInfo(),
+    });
+  },
+
+  closeAboutModal() {
+    this.setData({ aboutModalVisible: false });
+  },
+
   resetLoggedOutAccountState() {
     this.setData({
       loggedIn: false,
       accountProfile: buildAccountProfile(false),
-      nicknameModalVisible: false,
-      nicknameDraft: "",
-      nicknameReviewBlocked: false,
-      emailBindingModalVisible: false,
-      emailBindingEmail: "",
-      emailBindingCode: "",
-      emailBindingNotice: "",
+      cachedKnotsModalVisible: false,
+      feedbackModalVisible: false,
+      feedbackContent: "",
+      feedbackContact: "",
+      feedbackError: "",
       accountError: "",
     });
     wx.showToast({ title: "请重新登录", icon: "none" });
   },
-
-  handleAccountAuthError(error: unknown) {
-    if (isLoginRequiredError(error)) {
-      this.resetLoggedOutAccountState();
-      return;
-    }
-    this.setData({ accountError: getErrorMessage(error) });
-  },
 });
 
-interface WechatNicknameSubmitEvent {
-  detail: {
-    value?: {
-      nickname?: string;
-    };
-  };
+function normalizeOptionalText(value: string): string | null {
+  const normalized = value.trim();
+  return normalized || null;
 }
 
-function getSubmittedWechatNickname(
-  event: WechatNicknameSubmitEvent,
-  fallback: string,
-): string {
-  return (event.detail.value?.nickname ?? fallback).trim();
-}
-
-function buildAccountProfile(loggedIn: boolean): {
-  displayName: string;
-  avatarUrl: string;
-  avatarInitial: string;
-  hasNickname: boolean;
-  email: string;
-  emailText: string;
-  hasEmail: boolean;
+function buildCachedKnotsInfo(inventory: KnotOfflineCacheInventory): {
+  cachedCount: number;
+  totalCountText: string;
+  uncachedCountText: string;
 } {
-  const user = getStoredUser();
-  if (!loggedIn) {
-    return {
-      displayName: "",
-      avatarUrl: "",
-      avatarInitial: "",
-      hasNickname: false,
-      email: "",
-      emailText: "",
-      hasEmail: false,
-    };
-  }
-  if (!user) {
-    return {
-      displayName: "微信用户",
-      avatarUrl: "",
-      avatarInitial: "微",
-      hasNickname: false,
-      email: "",
-      emailText: "还没有绑定邮箱",
-      hasEmail: false,
-    };
-  }
-  const nickname = normalizeProfileNickname(user.nickname);
-  const displayName = nickname || user.username || user.email || "微信用户";
-  const email = user.email?.trim() ?? "";
   return {
-    displayName,
-    avatarUrl: user.avatar_url || "",
-    avatarInitial: displayName.trim().slice(0, 1) || "微",
-    hasNickname: Boolean(nickname),
-    email,
-    emailText: email ? `已绑定 ${email}` : "还没有绑定邮箱",
-    hasEmail: Boolean(email),
+    cachedCount: inventory.cachedCount,
+    totalCountText: String(inventory.totalCount),
+    uncachedCountText: String(inventory.uncachedCount),
   };
 }
 
-function normalizeProfileNickname(value?: string | null): string {
-  const nickname = value?.trim() ?? "";
-  const defaultNames = ["寻径星野用户", "微信用户", "WeChat User"];
-  return nickname && !defaultNames.includes(nickname) ? nickname : "";
+function currentPagePath(): string {
+  const pages = getCurrentPages();
+  const current = pages[pages.length - 1];
+  return current?.route ? `/${current.route}` : "/pages/profile/index";
 }
 
-function isEmailLike(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+function miniProgramVersion(): string {
+  const info = safeAccountInfo();
+  return info?.miniProgram?.version || "dev";
+}
+
+function buildAboutInfo(): {
+  envText: string;
+  versionText: string;
+} {
+  const miniProgram = safeAccountInfo()?.miniProgram;
+  return {
+    envText: envVersionText(miniProgram?.envVersion),
+    versionText: miniProgram?.version || "dev",
+  };
+}
+
+function safeAccountInfo(): WechatMiniprogram.AccountInfo | undefined {
+  try {
+    return wx.getAccountInfoSync();
+  } catch {
+    return undefined;
+  }
+}
+
+function envVersionText(value?: string): string {
+  if (value === "release") {
+    return "正式版";
+  }
+  if (value === "trial") {
+    return "体验版";
+  }
+  return "开发版";
+}
+
+function deviceModel(): string | null {
+  try {
+    return wx.getSystemInfoSync().model || null;
+  } catch {
+    return null;
+  }
 }

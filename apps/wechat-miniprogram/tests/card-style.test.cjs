@@ -111,10 +111,16 @@ test("homepage keeps the canonical hero and surface tokens", () => {
   assert.match(hero, /background:\s*var\(--hero-surface-gradient\)/);
   assert.match(hero, /box-shadow:\s*var\(--hero-surface-shadow\)/);
 
-  const firstLevel = selectorGroupBlock(wxss, [".quick-card", ".section-card"]);
+  const firstLevel = selectorBlock(wxss, ".section-card");
   assert.match(firstLevel, /border-radius:\s*var\(--card-radius\)/);
   assert.match(firstLevel, /background:\s*var\(--surface-color\)/);
   assert.match(firstLevel, /box-shadow:\s*var\(--shadow-soft\)/);
+
+  const wxml = read("pages/index/index.wxml");
+  const knotPack = selectorBlock(wxss, ".knot-pack");
+  assert.match(wxml, /class="knot-pack"/);
+  assert.match(wxml, /class="skill-thumb-image"[\s\S]*mode="aspectFit"/);
+  assert.match(knotPack, /border-radius:\s*var\(--card-inner-radius\)/);
 });
 
 test("page hero cards align with homepage in light and dark modes", () => {
@@ -160,12 +166,7 @@ test("primary page cards share homepage surface tokens", () => {
   const cases = [
     [
       "pages/gears/index.wxss",
-      [
-        ".tab-card",
-        ".search-card",
-        ".gear-card",
-        ".guest-card",
-      ],
+      [".tab-card", ".search-card", ".gear-card", ".guest-card"],
     ],
     [
       "pages/skills/index.wxss",
@@ -178,7 +179,8 @@ test("primary page cards share homepage surface tokens", () => {
     ],
     ["pages/login/index.wxss", [".login-card"]],
     ["pages/register/index.wxss", [".register-card"]],
-    ["pages/profile/index.wxss", [".account-card"]],
+    ["pages/profile/index.wxss", [".account-card", ".settings-card"]],
+    ["pages/profile/settings/index.wxss", [".settings-card"]],
     ["pages/gears/detail/index.wxss", [".info-card", ".state-card"]],
     [
       "pages/gears/form/index.wxss",
@@ -225,6 +227,8 @@ test("inner cards and panels use homepage inner surface tokens", () => {
     ["pages/gears/detail/index.wxss", [".summary-item"]],
     ["pages/gears/form/index.wxss", [".field", ".picker-row"]],
     ["pages/skills/index.wxss", [".category-icon", ".skill-thumb"]],
+    ["pages/profile/index.wxss", [".settings-row"]],
+    ["pages/profile/settings/index.wxss", [".settings-row"]],
   ];
   for (const [file, selectors] of cases) {
     const wxss = read(file);
@@ -329,6 +333,12 @@ test("skills knot list offers search and category-only filtering", () => {
   assert.match(ts, /categoryFilters/);
   assert.match(ts, /categoryFilterLabels/);
   assert.match(ts, /const KNOTS_PAGE_SIZE = 10/);
+  assert.match(ts, /knotListRequestSeq/);
+  assert.match(ts, /searchQuery,\s*nextOffset:\s*null,\s*loadingMore:\s*false/);
+  assert.match(
+    ts,
+    /const allKnots = await Promise\.all\(response\.items\.map\(mapKnotListCard\)\);[\s\S]*requestSeq !== knotListRequestSeq/,
+  );
   assert.match(ts, /onReachBottom\(\)/);
   assert.match(ts, /loadMoreKnots/);
   assert.match(ts, /preparingKnotCache/);
@@ -342,5 +352,15 @@ test("skills knot list offers search and category-only filtering", () => {
     /item\.categories\.map\(\(category\) => category\.id \|\| category\.slug\)/,
   );
   assert.match(ts, /knot\.categoryIds\.includes\(selectedCategoryId\)/);
-  assert.match(ts, /item\.types\.map\(\(type\) => type\.title\)/);
+  assert.match(ts, /q:\s*normalizeOptionalFilter\(searchQuery\)/);
+  assert.match(ts, /category:[\s\S]*selectedCategoryId !== "all"/);
+  assert.match(ts, /item\.types\.flatMap/);
+  assert.match(ts, /buildKnotSearchText/);
+  assert.match(ts, /normalizeKnotSearchText/);
+  assert.match(ts, /item\.id/);
+  assert.match(ts, /item\.slug/);
+  assert.match(ts, /description/);
+  assert.match(ts, /steps/);
+  assert.match(ts, /category\.slug/);
+  assert.match(ts, /type\.slug/);
 });

@@ -18,6 +18,13 @@ interface GetFileInfoOptions {
   fail: () => void;
 }
 
+interface RemoveSavedFileOptions {
+  filePath: string;
+  success?: () => void;
+  fail?: (error: unknown) => void;
+  complete?: () => void;
+}
+
 const MEDIA_CACHE_PREFIX = "stellartrail_media_cache_v1";
 const MEDIA_CACHE_INDEX_KEY = "stellartrail_media_cache_index_v1";
 const pendingDownloads = new Map<string, Promise<void>>();
@@ -78,6 +85,32 @@ export async function cacheMediaUrlForOffline(url: string): Promise<boolean> {
       pendingDownloads.delete(url);
     }
   }
+}
+
+export function removeCachedMediaUrls(urls: string[]): number {
+  let removedCount = 0;
+  Array.from(new Set(urls)).forEach((url) => {
+    if (removeCachedMediaUrl(url)) {
+      removedCount += 1;
+    }
+  });
+  return removedCount;
+}
+
+export function removeCachedMediaUrl(url: string): boolean {
+  const entry = readMediaCacheEntry(url);
+  if (!entry) {
+    return false;
+  }
+  const mediaWx = getMediaWx();
+  if (typeof mediaWx.removeSavedFile === "function") {
+    mediaWx.removeSavedFile({
+      filePath: entry.filePath,
+      complete: () => {},
+    });
+  }
+  removeMediaCacheEntry(url);
+  return true;
 }
 
 async function readValidCachedMediaPath(url: string): Promise<string | null> {
@@ -148,10 +181,12 @@ function downloadAndSaveMediaUrl(url: string): Promise<void> {
 function getMediaWx(): typeof wx & {
   saveFile(options: SaveFileOptions): void;
   getFileInfo(options: GetFileInfoOptions): void;
+  removeSavedFile?: (options: RemoveSavedFileOptions) => void;
 } {
   return wx as typeof wx & {
     saveFile(options: SaveFileOptions): void;
     getFileInfo(options: GetFileInfoOptions): void;
+    removeSavedFile?: (options: RemoveSavedFileOptions) => void;
   };
 }
 

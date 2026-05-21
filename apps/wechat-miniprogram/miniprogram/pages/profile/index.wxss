@@ -16,6 +16,7 @@
 .account-main {
   display: flex;
   align-items: center;
+  flex: 1;
   min-width: 0;
   gap: 20rpx;
 }
@@ -48,19 +49,24 @@
 
 .account-copy {
   min-width: 0;
+  flex: 1;
 }
 
-.account-title {
-  color: var(--text-color);
-  font-size: 30rpx;
-  font-weight: 900;
+.account-settings-entry {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 96rpx;
+  flex: 1;
+  gap: 16rpx;
+  cursor: pointer;
 }
 
 .account-desc {
   min-width: 0;
-  color: var(--heading-muted-color);
-  font-size: 26rpx;
-  font-weight: 800;
+  color: var(--text-color);
+  font-size: 30rpx;
+  font-weight: 900;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -70,7 +76,6 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  margin-top: 8rpx;
   gap: 12rpx;
 }
 
@@ -96,29 +101,9 @@
   background: var(--soft-control-bg);
 }
 
-.account-hint {
-  margin-top: 6rpx;
-  color: var(--muted-color);
-  font-size: 23rpx;
-  line-height: 1.5;
-}
-
-.account-email-row {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  margin-top: 10rpx;
-  gap: 12rpx;
-}
-
-.account-email-text {
-  min-width: 0;
-  color: var(--heading-muted-color);
-  font-size: 23rpx;
-  font-weight: 800;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.account-inline-button.danger {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
 }
 
 .account-error {
@@ -126,6 +111,13 @@
   color: var(--status-danger-text);
   font-size: 22rpx;
   line-height: 1.4;
+}
+
+.account-chevron {
+  flex: 0 0 auto;
+  color: var(--muted-color);
+  font-size: 34rpx;
+  font-weight: 900;
 }
 
 .account-button {
@@ -143,6 +135,67 @@
 .account-button.danger {
   color: var(--status-danger-text);
   background: var(--status-danger-bg);
+}
+
+.settings-card {
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.settings-card-title {
+  color: var(--text-color);
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  margin-top: 18rpx;
+  padding: 20rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.settings-icon {
+  flex: 0 0 auto;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 18rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 56rpx;
+  text-align: center;
+}
+
+.settings-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-title {
+  color: var(--text-color);
+  font-size: 27rpx;
+  font-weight: 900;
+}
+
+.settings-desc {
+  margin-top: 6rpx;
+  color: var(--muted-color);
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
+.settings-chevron {
+  flex: 0 0 auto;
+  color: var(--muted-color);
+  font-size: 34rpx;
+  font-weight: 900;
 }
 
 .profile-modal-mask {
@@ -170,6 +223,10 @@
   box-sizing: border-box;
 }
 
+.cached-knots-card {
+  max-height: 82vh;
+}
+
 .profile-modal-title {
   color: var(--text-color);
   font-size: 32rpx;
@@ -189,6 +246,41 @@
 
 .profile-email-form {
   margin-top: 24rpx;
+}
+
+.profile-feedback-form {
+  margin-top: 24rpx;
+}
+
+.profile-feedback-picker {
+  height: 78rpx;
+  padding: 0 22rpx;
+  border: 1rpx solid var(--control-border);
+  border-radius: 18rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 27rpx;
+  font-weight: 800;
+  line-height: 78rpx;
+  box-sizing: border-box;
+}
+
+.profile-feedback-textarea {
+  width: 100%;
+  min-height: 220rpx;
+  margin-top: 18rpx;
+  padding: 20rpx 22rpx;
+  border: 1rpx solid var(--control-border);
+  border-radius: 18rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 26rpx;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.profile-feedback-textarea + .profile-name-input {
+  margin-top: 18rpx;
 }
 
 .profile-name-input {
@@ -244,8 +336,132 @@
   line-height: 64rpx;
 }
 
+.cached-knots-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12rpx;
+  margin-top: 22rpx;
+}
+
+.cached-knots-stat {
+  padding: 18rpx 12rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+  text-align: center;
+}
+
+.cached-knots-stat-value {
+  display: block;
+  color: var(--text-color);
+  font-size: 32rpx;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.cached-knots-stat-label {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 21rpx;
+  font-weight: 800;
+}
+
+.cached-knots-updating {
+  margin-top: 14rpx;
+  color: var(--muted-color);
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
+.cached-knots-list {
+  max-height: 560rpx;
+  margin-top: 22rpx;
+}
+
+.cached-knot-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 20rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.cached-knot-row + .cached-knot-row {
+  margin-top: 14rpx;
+}
+
+.cached-knot-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.cached-knot-title {
+  color: var(--text-color);
+  font-size: 26rpx;
+  font-weight: 900;
+}
+
+.cached-knot-summary {
+  margin-top: 6rpx;
+  color: var(--muted-color);
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
+.cached-knot-meta {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8rpx;
+}
+
+.cached-knot-tag {
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 20rpx;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.cached-knot-tag.muted {
+  color: var(--heading-muted-color);
+  background: var(--soft-control-bg);
+}
+
+.cached-knot-delete {
+  margin: 0;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+  font-size: 20rpx;
+  font-weight: 900;
+  line-height: 44rpx;
+}
+
+.cached-knot-delete::after {
+  border: 0;
+}
+
 .profile-modal-footer {
   display: flex;
   justify-content: flex-end;
   margin-top: 18rpx;
+}
+
+.about-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-top: 18rpx;
+  padding: 20rpx;
+  border-radius: var(--card-inner-radius);
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 25rpx;
+  font-weight: 800;
 }

@@ -8,6 +8,7 @@ import {
   listGears,
   listKnots,
   loginWithWechat,
+  resolveAssetUrl,
   uploadWechatAvatar,
 } from "../../utils/api";
 import {
@@ -16,7 +17,12 @@ import {
   type GearStatsResponse,
   type GearSummary,
 } from "../../utils/gear-utils";
-import { mapSkillCard, type SkillCard } from "../../utils/skill-utils";
+import {
+  mapSkillCard,
+  type KnotMediaAsset,
+  type KnotSummary,
+  type SkillCard,
+} from "../../utils/skill-utils";
 import {
   getDefaultLoginPrompt,
   hideLoginPrompt,
@@ -24,18 +30,7 @@ import {
   requireLoginForAction,
 } from "../../utils/auth-prompt";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
-import {
-  isOffline,
-  showOfflineWriteBlockedToast,
-} from "../../utils/network-state";
-
-interface QuickAction {
-  id: string;
-  icon: string;
-  title: string;
-  description: string;
-  target: "gears" | "addGear" | "atlas" | "skills" | "profile";
-}
+import { resolveCachedMediaUrl } from "../../utils/media-cache";
 
 interface HomeStatCard {
   label: string;
@@ -54,6 +49,11 @@ interface ChecklistItem {
   icon: string;
   title: string;
   description: string;
+}
+
+interface HomeSkillCard extends SkillCard {
+  thumbnailUrl: string;
+  hasThumbnail: boolean;
 }
 
 const EMPTY_STATS: GearStatsResponse = {
@@ -89,44 +89,6 @@ const WECHAT_PROFILE_PROMPT_SEEN_KEY =
 const WECHAT_PROFILE_PROMPT_PENDING_KEY =
   "stellartrail_wechat_profile_prompt_pending";
 
-const QUICK_ACTIONS: QuickAction[] = [
-  {
-    id: "gears",
-    icon: "🎒",
-    title: "装备库",
-    description: "管理我的装备",
-    target: "gears",
-  },
-  {
-    id: "addGear",
-    icon: "➕",
-    title: "添加装备",
-    description: "快速添加新装备",
-    target: "addGear",
-  },
-  {
-    id: "atlas",
-    icon: "📚",
-    title: "装备图鉴",
-    description: "浏览已收录市面装备",
-    target: "atlas",
-  },
-  {
-    id: "skills",
-    icon: "🧭",
-    title: "户外技能",
-    description: "绳结、天气、急救知识",
-    target: "skills",
-  },
-  {
-    id: "profile",
-    icon: "⚙️",
-    title: "个人设置",
-    description: "黑夜模式与账号",
-    target: "profile",
-  },
-];
-
 const CHECKLIST_ITEMS: ChecklistItem[] = [
   {
     icon: "✓",
@@ -143,14 +105,19 @@ const CHECKLIST_ITEMS: ChecklistItem[] = [
     title: "急救与应急联系人",
     description: "复习急救知识并告知行程信息",
   },
+  {
+    icon: "保",
+    title: "户外保险",
+    description: "确认保障范围、保单和紧急救援电话",
+  },
 ];
 
 Page({
   data: {
     title: "寻径星野",
-    quickActions: QUICK_ACTIONS,
     checklistItems: CHECKLIST_ITEMS,
     isLoggedIn: INITIAL_LOGGED_IN,
+    heroStatusText: INITIAL_LOGGED_IN ? "正在同步装备状态" : "未登录也可先浏览",
     gearLoading: false,
     gearError: "",
     skillLoading: false,
@@ -160,7 +127,7 @@ Page({
       ? buildGearStatCards(EMPTY_STATS)
       : LOCKED_GEAR_STATS,
     recentGears: [] as HomeGearCard[],
-    featuredSkills: [] as SkillCard[],
+    featuredSkills: [] as HomeSkillCard[],
     loginPrompt: getDefaultLoginPrompt(),
     wechatProfilePromptVisible: false,
     wechatProfilePromptCanRetry: false,
@@ -186,13 +153,18 @@ Page({
 
   loadHomeDashboard() {
     const isLoggedIn = hasAccessToken();
-    this.setData({ isLoggedIn, offlineNotice: "" });
+    this.setData({
+      isLoggedIn,
+      heroStatusText: isLoggedIn ? "正在同步装备状态" : "未登录也可先浏览",
+      offlineNotice: "",
+    });
     if (isLoggedIn) {
       this.loadGearSummary();
     } else {
       this.setData({
         gearLoading: false,
         gearError: "",
+        heroStatusText: "未登录也可先浏览",
         gearStatCards: LOCKED_GEAR_STATS,
         recentGears: [] as HomeGearCard[],
       });
@@ -210,6 +182,7 @@ Page({
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         isLoggedIn: true,
+        heroStatusText: buildHeroStatusText(stats),
         gearStatCards: buildGearStatCards(stats),
         recentGears: gears.items.map(mapHomeGearCard),
         gearLoading: false,
@@ -221,6 +194,7 @@ Page({
           isLoggedIn: false,
           gearError: "",
           gearLoading: false,
+          heroStatusText: "未登录也可先浏览",
           gearStatCards: buildGearStatCards(EMPTY_STATS),
           recentGears: [] as HomeGearCard[],
         });
@@ -234,6 +208,7 @@ Page({
       this.setData({
         gearError: getErrorMessage(error),
         gearLoading: false,
+        heroStatusText: "装备状态暂时不可用",
         recentGears: [] as HomeGearCard[],
       });
     }
@@ -243,9 +218,12 @@ Page({
     this.setData({ skillLoading: true, skillError: "" });
     try {
       const response = await listKnots({ offset: 0, limit: 3 });
+      const featuredSkills = await Promise.all(
+        response.items.slice(0, 3).map(mapHomeSkillCard),
+      );
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
-        featuredSkills: response.items.slice(0, 3).map(mapSkillCard),
+        featuredSkills,
         skillLoading: false,
         ...(offlineNotice ? { offlineNotice } : {}),
       });
@@ -258,31 +236,8 @@ Page({
       this.setData({
         skillError: getErrorMessage(error),
         skillLoading: false,
-        featuredSkills: [] as SkillCard[],
+        featuredSkills: [] as HomeSkillCard[],
       });
-    }
-  },
-
-  onQuickAction(event: WechatMiniprogram.BaseEvent) {
-    const target = event.currentTarget.dataset.target as QuickAction["target"];
-    if (target === "gears") {
-      this.goGears();
-      return;
-    }
-    if (target === "addGear") {
-      this.goAddGear();
-      return;
-    }
-    if (target === "atlas") {
-      this.goAtlas();
-      return;
-    }
-    if (target === "skills") {
-      this.goSkills();
-      return;
-    }
-    if (target === "profile") {
-      this.goProfile();
     }
   },
 
@@ -297,32 +252,8 @@ Page({
     wx.switchTab({ url: "/pages/gears/index" });
   },
 
-  goAddGear() {
-    if (isOffline()) {
-      showOfflineWriteBlockedToast();
-      return;
-    }
-    if (
-      !requireLoginForAction(this, {
-        message: "登录后就能把这件装备保存到自己的清单里。",
-        redirectUrl: "/pages/gears/form/index",
-      })
-    ) {
-      return;
-    }
-    wx.navigateTo({ url: "/pages/gears/form/index" });
-  },
-
-  goAtlas() {
-    wx.navigateTo({ url: "/pages/gear-atlas/index" });
-  },
-
   goSkills() {
     wx.switchTab({ url: "/pages/skills/index" });
-  },
-
-  goProfile() {
-    wx.switchTab({ url: "/pages/profile/index" });
   },
 
   goSkillDetail(event: WechatMiniprogram.BaseEvent) {
@@ -474,6 +405,21 @@ function buildGearStatCards(stats: GearStatsResponse): HomeStatCard[] {
   ];
 }
 
+function buildHeroStatusText(stats: GearStatsResponse): string {
+  const availableCount = stats.current_count;
+  const archivedCount = stats.archived_count;
+  if (availableCount > 0 && archivedCount > 0) {
+    return `可用 ${availableCount} 件 · 已归档 ${archivedCount} 件`;
+  }
+  if (availableCount > 0) {
+    return `可用装备 ${availableCount} 件`;
+  }
+  if (archivedCount > 0) {
+    return `已归档装备 ${archivedCount} 件`;
+  }
+  return "还没有装备记录";
+}
+
 function mapHomeGearCard(item: GearSummary): HomeGearCard {
   const brandModelText = [item.brand, item.model].filter(Boolean).join(" · ");
   return {
@@ -482,4 +428,23 @@ function mapHomeGearCard(item: GearSummary): HomeGearCard {
     brandModelText: brandModelText || "未记录品牌型号",
     weightText: formatGearWeight(item.weight_g),
   };
+}
+
+async function mapHomeSkillCard(item: KnotSummary): Promise<HomeSkillCard> {
+  const thumbnail = findThumbnail(item.media);
+  const thumbnailUrl = thumbnail
+    ? await resolveCachedMediaUrl(resolveAssetUrl(thumbnail.url))
+    : "";
+  return {
+    ...mapSkillCard(item),
+    thumbnailUrl,
+    hasThumbnail: Boolean(thumbnailUrl),
+  };
+}
+
+function findThumbnail(media: KnotMediaAsset[]): KnotMediaAsset | undefined {
+  return (
+    media.find((item) => item.media_type === "thumbnail") ??
+    media.find((item) => item.mime_type.startsWith("image/"))
+  );
 }

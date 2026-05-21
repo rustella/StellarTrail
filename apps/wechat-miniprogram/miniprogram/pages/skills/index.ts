@@ -48,6 +48,9 @@ interface KnotCategoryFilter {
 }
 
 const KNOTS_PAGE_SIZE = 10;
+const KNOT_CACHE_ENTRY_KEY = "stellartrail_open_knots_cache";
+let knotSearchTimer: ReturnType<typeof setTimeout> | null = null;
+let knotListRequestSeq = 0;
 
 const SKILL_CATEGORIES: SkillCategoryCard[] = [
   {
@@ -88,6 +91,10 @@ Page({
 
   onShow() {
     syncPageTheme(this);
+    if (wx.getStorageSync(KNOT_CACHE_ENTRY_KEY) === true) {
+      wx.removeStorageSync(KNOT_CACHE_ENTRY_KEY);
+      this.openKnotsFromEntry();
+    }
   },
 
   onPullDownRefresh() {
@@ -109,9 +116,15 @@ Page({
     if (id !== "knots") {
       return;
     }
+    this.openKnotsFromEntry();
+  },
+
+  openKnotsFromEntry() {
     wx.setNavigationBarTitle({ title: "绳结" });
     this.setData({ mode: "knots", error: "", offlineNotice: "" });
-    this.loadKnots();
+    if (!this.data.allKnots.length) {
+      this.loadKnots();
+    }
   },
 
   showSkillCatalog() {
@@ -119,20 +132,41 @@ Page({
     this.setData({ mode: "catalog", error: "", loading: false });
   },
 
-  async loadKnots() {
+  async loadKnots(
+    filterState: {
+      searchQuery?: string;
+      selectedCategoryId?: string;
+      selectedCategoryIndex?: number;
+    } = {},
+  ) {
+    const searchQuery = filterState.searchQuery ?? this.data.searchQuery;
+    const selectedCategoryId =
+      filterState.selectedCategoryId ?? this.data.selectedCategoryId;
+    const selectedCategoryIndex =
+      filterState.selectedCategoryIndex ?? this.data.selectedCategoryIndex;
     this.setData({
       loading: true,
       loadingMore: false,
       error: "",
+      searchQuery,
+      selectedCategoryId,
+      selectedCategoryIndex,
     });
+    const requestSeq = ++knotListRequestSeq;
     try {
-      const response = await loadKnotsPage(0);
+      const response = await loadKnotsPage(0, searchQuery, selectedCategoryId);
+      if (requestSeq !== knotListRequestSeq) {
+        return;
+      }
       const allKnots = await Promise.all(response.items.map(mapKnotListCard));
+      if (requestSeq !== knotListRequestSeq) {
+        return;
+      }
       const nextOffset = response.page.next_offset ?? null;
       const listState = buildKnotListState(
         allKnots,
-        this.data.selectedCategoryId,
-        this.data.searchQuery,
+        selectedCategoryId,
+        searchQuery,
         nextOffset,
       );
       const offlineNotice = consumeOfflineCacheNotice();
@@ -144,8 +178,21 @@ Page({
         ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
+      if (requestSeq !== knotListRequestSeq) {
+        return;
+      }
       if (isOfflineCacheMissError(error) && this.data.allKnots.length) {
-        this.setData({ loading: false });
+        const listState = buildKnotListState(
+          this.data.allKnots,
+          selectedCategoryId,
+          searchQuery,
+          this.data.nextOffset,
+        );
+        this.setData({
+          ...listState,
+          searchQuery,
+          loading: false,
+        });
         wx.showToast({ title: getErrorMessage(error), icon: "none" });
         return;
       }
@@ -166,9 +213,20 @@ Page({
       return;
     }
     this.setData({ loadingMore: true, error: "" });
+    const requestSeq = knotListRequestSeq;
     try {
-      const response = await loadKnotsPage(nextOffset);
+      const response = await loadKnotsPage(
+        nextOffset,
+        this.data.searchQuery,
+        this.data.selectedCategoryId,
+      );
+      if (requestSeq !== knotListRequestSeq) {
+        return;
+      }
       const nextKnots = await Promise.all(response.items.map(mapKnotListCard));
+      if (requestSeq !== knotListRequestSeq) {
+        return;
+      }
       const allKnots = appendUniqueKnots(this.data.allKnots, nextKnots);
       const nextPageOffset = response.page.next_offset ?? null;
       const listState = buildKnotListState(
@@ -278,17 +336,24 @@ Page({
 
   onSearchInput(event: any) {
     const searchQuery = String(event.detail.value ?? "");
-    this.applyFilters({
-      searchQuery,
-      selectedCategoryId: this.data.selectedCategoryId,
-      selectedCategoryIndex: this.data.selectedCategoryIndex,
-    });
+    this.setData({ searchQuery, nextOffset: null, loadingMore: false });
+    if (knotSearchTimer) {
+      clearTimeout(knotSearchTimer);
+    }
+    knotSearchTimer = setTimeout(() => {
+      knotSearchTimer = null;
+      this.loadKnots({
+        searchQuery,
+        selectedCategoryId: this.data.selectedCategoryId,
+        selectedCategoryIndex: this.data.selectedCategoryIndex,
+      });
+    }, 250);
   },
 
   onCategoryFilterChange(event: any) {
     const selectedCategoryIndex = Number(event.detail.value || 0);
     const selectedCategoryId = this.data.categoryFilters[selectedCategoryIndex]?.id ?? "all";
-    this.applyFilters({
+    this.loadKnots({
       searchQuery: this.data.searchQuery,
       selectedCategoryId,
       selectedCategoryIndex,
@@ -296,7 +361,11 @@ Page({
   },
 
   clearKnotFilters() {
-    this.applyFilters({
+    if (knotSearchTimer) {
+      clearTimeout(knotSearchTimer);
+      knotSearchTimer = null;
+    }
+    this.loadKnots({
       searchQuery: "",
       selectedCategoryId: "all",
       selectedCategoryIndex: 0,
@@ -328,8 +397,25 @@ Page({
   },
 });
 
-function loadKnotsPage(offset: number) {
-  return listKnots({ offset, limit: KNOTS_PAGE_SIZE });
+function loadKnotsPage(
+  offset: number,
+  searchQuery = "",
+  selectedCategoryId = "all",
+) {
+  return listKnots({
+    offset,
+    limit: KNOTS_PAGE_SIZE,
+    q: normalizeOptionalFilter(searchQuery),
+    category:
+      selectedCategoryId && selectedCategoryId !== "all"
+        ? selectedCategoryId
+        : undefined,
+  });
+}
+
+function normalizeOptionalFilter(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function confirmKnotOfflineCache(plan: KnotOfflineCachePlan): Promise<boolean> {
@@ -407,9 +493,22 @@ async function mapKnotListCard(
     : "";
   const categoryIds = item.categories.map((category) => category.id || category.slug);
   const categoryTitles = item.categories.map((category) => category.title);
-  const searchParts = [item.title, item.summary].concat(
-    categoryTitles,
-    item.types.map((type) => type.title),
+  const description = "description" in item ? item.description : "";
+  const steps = "steps" in item ? item.steps : [];
+  const searchParts = [
+    item.id,
+    item.slug,
+    item.title,
+    item.summary,
+    description ?? "",
+  ].concat(
+    steps,
+    item.categories.flatMap((category) => [
+      category.id,
+      category.slug,
+      category.title,
+    ]),
+    item.types.flatMap((type) => [type.id, type.slug, type.title]),
   );
   return {
     ...mapSkillCard(item),
@@ -417,7 +516,7 @@ async function mapKnotListCard(
     hasThumbnail: Boolean(thumbnailUrl),
     categoryIds,
     categoryTitles,
-    searchText: searchParts.join(" ").toLocaleLowerCase(),
+    searchText: buildKnotSearchText(searchParts),
   };
 }
 
@@ -493,13 +592,30 @@ function filterKnots(
   selectedCategoryId: string,
   searchQuery: string,
 ): KnotListCard[] {
-  const query = searchQuery.trim().toLocaleLowerCase();
+  const query = normalizeKnotSearchText(searchQuery);
   return knots.filter((knot) => {
     const matchesCategory =
       selectedCategoryId === "all" || knot.categoryIds.includes(selectedCategoryId);
     const matchesSearch = !query || knot.searchText.includes(query);
     return matchesCategory && matchesSearch;
   });
+}
+
+function buildKnotSearchText(parts: Array<string | null | undefined>): string {
+  const raw = parts
+    .map((part) => (typeof part === "string" ? part.trim() : ""))
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase();
+  const normalized = normalizeKnotSearchText(raw);
+  return `${raw} ${normalized}`;
+}
+
+function normalizeKnotSearchText(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[\s\-_/.,，。:：;；·•()（）【】\[\]]+/g, "");
 }
 
 function hasActiveFilters(selectedCategoryId: string, searchQuery: string): boolean {

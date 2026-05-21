@@ -4,8 +4,16 @@ import {
   knotListPath,
   resolveAssetUrl,
 } from "./api";
-import { cacheMediaUrlForOffline } from "./media-cache";
-import { makeOfflineCacheKey, writeOfflineCache } from "./offline-cache";
+import { cacheMediaUrlForOffline, removeCachedMediaUrls } from "./media-cache";
+import {
+  listOfflineCaches,
+  makeOfflineCacheKey,
+  readOfflineCache,
+  removeOfflineCacheByKey,
+  removeOfflineCachesWhere,
+  writeOfflineCache,
+  type OfflineCacheEnvelope,
+} from "./offline-cache";
 import type {
   KnotDetail,
   KnotListResponse,
@@ -13,6 +21,7 @@ import type {
   KnotSummary,
   SkillLocale,
 } from "./skill-utils";
+import { getSkillDifficultyLabel } from "./skill-utils";
 
 export type KnotOfflineCachePhase = "list" | "detail" | "media";
 
@@ -46,6 +55,35 @@ export interface KnotOfflineCachePlan {
   failedDetailCount: number;
 }
 
+export interface CachedKnotPreview {
+  id: string;
+  title: string;
+  summary: string;
+  categoryText: string;
+  difficultyText: string;
+  cachedAt: string;
+}
+
+export interface KnotOfflineCacheInventory {
+  items: CachedKnotPreview[];
+  cachedCount: number;
+  totalCount: number;
+  uncachedCount: number;
+}
+
+interface KnotOfflineCacheMeta {
+  locale: SkillLocale;
+  totalCount: number;
+  mediaTotal: number;
+  estimatedBytes: number;
+  updatedAt: string;
+}
+
+interface CachedKnotDetailRecord {
+  cache: OfflineCacheEnvelope<KnotDetail>;
+  item: KnotDetail;
+}
+
 interface CacheAllKnotsForOfflineOptions {
   locale?: SkillLocale;
   pageSize?: number;
@@ -54,6 +92,9 @@ interface CacheAllKnotsForOfflineOptions {
 }
 
 const DEFAULT_PAGE_SIZE = 10;
+const KNOT_OFFLINE_META_PATH = "/api/skills/knots/offline-cache-meta";
+const KNOT_DETAIL_PATH_PREFIX = "/api/skills/knots/detail/";
+const KNOT_LIST_PATH_PREFIX = "/api/skills/knots/list";
 
 export async function cacheAllKnotsForOffline(
   options: CacheAllKnotsForOfflineOptions = {},
@@ -65,6 +106,11 @@ export async function cacheAllKnotsForOffline(
     plan.locale,
     options.pageSize ?? DEFAULT_PAGE_SIZE,
   );
+  writeKnotOfflineCacheMeta(plan.locale, {
+    totalCount: plan.detailCount,
+    mediaTotal: plan.mediaTotal,
+    estimatedBytes: plan.estimatedBytes,
+  });
   let mediaReadyCount = 0;
   let failedMediaCount = 0;
   for (let index = 0; index < urls.length; index += 1) {
@@ -123,6 +169,90 @@ export async function prepareAllKnotsOfflineCache(
   };
 }
 
+export function listCachedKnotPreviews(
+  locale: SkillLocale = "zh-CN",
+): CachedKnotPreview[] {
+  return getKnotOfflineCacheInventory(locale).items;
+}
+
+export function getKnotOfflineCacheInventory(
+  locale: SkillLocale = "zh-CN",
+): KnotOfflineCacheInventory {
+  const previews = new Map<string, CachedKnotPreview>();
+  const detailRecords = listCachedKnotDetailRecords(locale);
+
+  detailRecords.forEach(({ cache, item }) => {
+    addCachedKnotPreview(previews, item, cache.cachedAt);
+  });
+
+  const items = Array.from(previews.values());
+  const meta = readKnotOfflineCacheMeta(locale);
+  const totalCount = Math.max(meta?.totalCount ?? items.length, items.length);
+  const cachedCount = items.length;
+  return {
+    items,
+    cachedCount,
+    totalCount,
+    uncachedCount: Math.max(totalCount - cachedCount, 0),
+  };
+}
+
+export async function refreshKnotOfflineCacheInventory(
+  locale: SkillLocale = "zh-CN",
+): Promise<KnotOfflineCacheInventory> {
+  const manifest = await getKnotOfflineManifest(locale);
+  writeKnotOfflineCacheMeta(locale, {
+    totalCount: manifest.item_count,
+    mediaTotal: manifest.media_count,
+    estimatedBytes: manifest.estimated_bytes,
+  });
+  return getKnotOfflineCacheInventory(locale);
+}
+
+export function deleteCachedKnot(
+  id: string,
+  locale: SkillLocale = "zh-CN",
+): KnotOfflineCacheInventory {
+  const records = listCachedKnotDetailRecords(locale);
+  const target = records.find(({ item }) => item.id === id);
+  if (!target) {
+    return getKnotOfflineCacheInventory(locale);
+  }
+  ensureKnotOfflineCacheMeta(locale, records.length);
+  removeOfflineCacheByKey(target.cache.key);
+
+  const remainingItems = records
+    .filter(({ item }) => item.id !== id)
+    .map(({ item }) => item);
+  rewriteKnotListCaches(remainingItems, locale);
+  removeUnreferencedMedia(target.item, remainingItems);
+  return getKnotOfflineCacheInventory(locale);
+}
+
+export function clearKnotOfflineCache(
+  locale: SkillLocale = "zh-CN",
+): KnotOfflineCacheInventory {
+  const records = listCachedKnotDetailRecords(locale);
+  ensureKnotOfflineCacheMeta(locale, records.length);
+  const mediaUrls = collectItemMediaUrls(records.map(({ item }) => item));
+
+  removeOfflineCachesWhere((cache) => {
+    if (
+      cache.scope !== "public" ||
+      !isCacheLocale(cache.key, cache.locale, locale)
+    ) {
+      return false;
+    }
+    const path = cachePath(cache.key);
+    return (
+      path.startsWith(KNOT_DETAIL_PATH_PREFIX) ||
+      path.startsWith(KNOT_LIST_PATH_PREFIX)
+    );
+  });
+  removeCachedMediaUrls(mediaUrls);
+  return getKnotOfflineCacheInventory(locale);
+}
+
 function writeKnotOfflineApiCaches(
   items: KnotDetail[],
   locale: SkillLocale,
@@ -131,7 +261,14 @@ function writeKnotOfflineApiCaches(
   items.forEach((item) => {
     writePublicOfflineCache(knotDetailPath(item.id), locale, item);
   });
+  writeKnotOfflineListCaches(items, locale, pageSize);
+}
 
+function writeKnotOfflineListCaches(
+  items: KnotDetail[],
+  locale: SkillLocale,
+  pageSize: number,
+): void {
   const effectivePageSize = Math.max(1, pageSize || DEFAULT_PAGE_SIZE);
   if (!items.length) {
     writeKnotListCache(locale, effectivePageSize, 0, []);
@@ -184,6 +321,68 @@ function writePublicOfflineCache<T>(
   );
 }
 
+function writeKnotOfflineCacheMeta(
+  locale: SkillLocale,
+  meta: Omit<KnotOfflineCacheMeta, "locale" | "updatedAt">,
+): void {
+  writePublicOfflineCache(KNOT_OFFLINE_META_PATH, locale, {
+    locale,
+    ...meta,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function readKnotOfflineCacheMeta(
+  locale: SkillLocale,
+): KnotOfflineCacheMeta | null {
+  return (
+    readOfflineCache<KnotOfflineCacheMeta>({
+      key: makeOfflineCacheKey(KNOT_OFFLINE_META_PATH, { locale }),
+      scope: "public",
+      locale,
+    })?.data ?? null
+  );
+}
+
+function ensureKnotOfflineCacheMeta(
+  locale: SkillLocale,
+  currentTotalCount: number,
+): void {
+  if (readKnotOfflineCacheMeta(locale)) {
+    return;
+  }
+  writeKnotOfflineCacheMeta(locale, {
+    totalCount: currentTotalCount,
+    mediaTotal: 0,
+    estimatedBytes: 0,
+  });
+}
+
+function listCachedKnotDetailRecords(
+  locale: SkillLocale,
+): CachedKnotDetailRecord[] {
+  return listOfflineCaches<KnotDetail>("public")
+    .filter(
+      (cache) =>
+        isCacheLocale(cache.key, cache.locale, locale) &&
+        cachePath(cache.key).startsWith(KNOT_DETAIL_PATH_PREFIX) &&
+        Boolean(cache.data?.id),
+    )
+    .map((cache) => ({ cache, item: cache.data }));
+}
+
+function rewriteKnotListCaches(items: KnotDetail[], locale: SkillLocale): void {
+  removeOfflineCachesWhere(
+    (cache) =>
+      cache.scope === "public" &&
+      isCacheLocale(cache.key, cache.locale, locale) &&
+      cachePath(cache.key).startsWith(KNOT_LIST_PATH_PREFIX),
+  );
+  if (items.length) {
+    writeKnotOfflineListCaches(items, locale, DEFAULT_PAGE_SIZE);
+  }
+}
+
 function toKnotSummary(item: KnotDetail): KnotSummary {
   return {
     id: item.id,
@@ -217,4 +416,53 @@ function sumMediaBytes(mediaByUrl: Map<string, number>): number {
     total += sizeBytes;
   });
   return total;
+}
+
+function collectItemMediaUrls(items: KnotDetail[]): string[] {
+  const mediaByUrl = new Map<string, number>();
+  items.forEach((item) => collectMediaUrls(item.media, mediaByUrl));
+  return Array.from(mediaByUrl.keys());
+}
+
+function removeUnreferencedMedia(
+  target: KnotDetail,
+  remainingItems: KnotDetail[],
+): void {
+  const targetUrls = collectItemMediaUrls([target]);
+  if (!targetUrls.length) {
+    return;
+  }
+  const remainingUrls = new Set(collectItemMediaUrls(remainingItems));
+  removeCachedMediaUrls(targetUrls.filter((url) => !remainingUrls.has(url)));
+}
+
+function addCachedKnotPreview(
+  previews: Map<string, CachedKnotPreview>,
+  item: KnotSummary | KnotDetail,
+  cachedAt: string,
+): void {
+  if (!item?.id || previews.has(item.id)) {
+    return;
+  }
+  previews.set(item.id, {
+    id: item.id,
+    title: item.title || "未命名绳结",
+    summary:
+      item.summary || ("description" in item ? item.description || "" : ""),
+    categoryText: item.categories[0]?.title ?? "绳结",
+    difficultyText: getSkillDifficultyLabel(item.difficulty),
+    cachedAt,
+  });
+}
+
+function cachePath(key: string): string {
+  return key.split("|")[0] ?? key;
+}
+
+function isCacheLocale(
+  key: string,
+  envelopeLocale: string | undefined,
+  locale: SkillLocale,
+): boolean {
+  return (envelopeLocale || key.split("|")[1] || "zh-CN") === locale;
 }

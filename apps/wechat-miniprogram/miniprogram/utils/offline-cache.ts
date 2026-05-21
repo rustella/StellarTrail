@@ -76,6 +76,71 @@ export function writeOfflineCache<T>(
   }
 }
 
+export function listOfflineCaches<T = unknown>(
+  scope?: OfflineCacheScope,
+): Array<OfflineCacheEnvelope<T>> {
+  return readCacheIndex()
+    .map((item) => {
+      const envelope = safeGetStorage<OfflineCacheEnvelope<T>>(item.storageKey);
+      if (
+        !envelope ||
+        envelope.version !== CACHE_VERSION ||
+        envelope.scope !== item.scope ||
+        (item.scope === "user" && envelope.userId !== item.userId)
+      ) {
+        return null;
+      }
+      if (scope && envelope.scope !== scope) {
+        return null;
+      }
+      return envelope;
+    })
+    .filter((item): item is OfflineCacheEnvelope<T> => Boolean(item));
+}
+
+export function removeOfflineCacheByKey(key: string): boolean {
+  const storageKey = cacheStorageKey(key);
+  const index = readCacheIndex();
+  const nextIndex = index.filter((item) => item.storageKey !== storageKey);
+  try {
+    wx.removeStorageSync(storageKey);
+  } catch {
+    // Best-effort cleanup.
+  }
+  if (nextIndex.length !== index.length) {
+    writeCacheIndex(nextIndex);
+    return true;
+  }
+  return false;
+}
+
+export function removeOfflineCachesWhere(
+  shouldRemove: (envelope: OfflineCacheEnvelope<unknown>) => boolean,
+): number {
+  let removedCount = 0;
+  const nextIndex: OfflineCacheIndexItem[] = [];
+  readCacheIndex().forEach((item) => {
+    const envelope = safeGetStorage<OfflineCacheEnvelope<unknown>>(
+      item.storageKey,
+    );
+    if (!envelope) {
+      return;
+    }
+    if (shouldRemove(envelope)) {
+      try {
+        wx.removeStorageSync(item.storageKey);
+      } catch {
+        // Best-effort cleanup.
+      }
+      removedCount += 1;
+      return;
+    }
+    nextIndex.push(item);
+  });
+  writeCacheIndex(nextIndex);
+  return removedCount;
+}
+
 export function clearUserOfflineCaches(userId?: string): void {
   const nextIndex: OfflineCacheIndexItem[] = [];
   readCacheIndex().forEach((item) => {
