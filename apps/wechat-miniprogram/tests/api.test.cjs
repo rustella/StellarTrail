@@ -54,6 +54,14 @@ function installWxMock(handler, uploadHandler, extraHandlers = {}) {
       }
       extraHandlers.getFileInfo(options, storage);
     },
+    removeSavedFile(options) {
+      if (!extraHandlers.removeSavedFile) {
+        options.success?.();
+        options.complete?.();
+        return;
+      }
+      extraHandlers.removeSavedFile(options, storage);
+    },
   };
   return storage;
 }
@@ -381,6 +389,67 @@ test("email binding sends authenticated code and stores bound email", async () =
       data: {
         email: "bound@example.com",
         email_verification_code: "123456",
+      },
+      authorization: "Bearer access-old",
+    },
+  ]);
+});
+
+test("createFeedback posts authenticated user feedback", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      method: options.method,
+      data: options.data,
+      authorization: options.header && options.header.authorization,
+    });
+    options.success({
+      statusCode: 201,
+      data: {
+        id: "feedback-1",
+        category: "suggestion",
+        content: "希望增加设置区",
+        contact: "trail@example.com",
+        page: "/pages/profile/index",
+        client_platform: "wechat_miniprogram",
+        client_version: "dev",
+        device_model: "iPhone",
+        status: "open",
+        images: [],
+        created_at: "2026-05-20T00:00:00Z",
+        updated_at: "2026-05-20T00:00:00Z",
+      },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  const { createFeedback } = require("../.tmp-test/utils/api.js");
+
+  const feedback = await createFeedback({
+    category: "suggestion",
+    content: "希望增加设置区",
+    contact: "trail@example.com",
+    page: "/pages/profile/index",
+    client_platform: "wechat_miniprogram",
+    client_version: "dev",
+    device_model: "iPhone",
+    image_ids: [],
+  });
+
+  assert.equal(feedback.id, "feedback-1");
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.example.test/api/me/feedback",
+      method: "POST",
+      data: {
+        category: "suggestion",
+        content: "希望增加设置区",
+        contact: "trail@example.com",
+        page: "/pages/profile/index",
+        client_platform: "wechat_miniprogram",
+        client_version: "dev",
+        device_model: "iPhone",
+        image_ids: [],
       },
       authorization: "Bearer access-old",
     },
@@ -885,7 +954,14 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
                 slug: "bowline",
                 title: "布林结",
                 summary: "固定绳圈",
-                categories: [],
+                difficulty: "beginner",
+                categories: [
+                  {
+                    id: "camping",
+                    slug: "camping",
+                    title: "露营",
+                  },
+                ],
                 types: [],
                 media: [
                   {
@@ -949,10 +1025,18 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
           savedFilePath: `wxfile://saved/${downloads.length}`,
         });
       },
+      removeSavedFile(options) {
+        storage.set(`removed:${options.filePath}`, true);
+        options.complete?.();
+      },
     },
   );
   const {
     cacheAllKnotsForOffline,
+    clearKnotOfflineCache,
+    deleteCachedKnot,
+    getKnotOfflineCacheInventory,
+    listCachedKnotPreviews,
   } = require("../.tmp-test/utils/knot-offline-cache.js");
   require("../.tmp-test/utils/network-state.js").initNetworkState();
 
@@ -987,6 +1071,56 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
       "/api/skills/knots/detail/bowline|zh-CN|",
     ),
   );
+  assert.deepEqual(getKnotOfflineCacheInventory("zh-CN"), {
+    cachedCount: 2,
+    totalCount: 2,
+    uncachedCount: 0,
+    items: listCachedKnotPreviews("zh-CN"),
+  });
+  assert.deepEqual(
+    listCachedKnotPreviews("zh-CN").map((item) => ({
+      id: item.id,
+      title: item.title,
+      categoryText: item.categoryText,
+      difficultyText: item.difficultyText,
+    })),
+    [
+      {
+        id: "bowline",
+        title: "布林结",
+        categoryText: "露营",
+        difficultyText: "新手",
+      },
+      {
+        id: "clove",
+        title: "丁香结",
+        categoryText: "绳结",
+        difficultyText: "未分级",
+      },
+    ],
+  );
+
+  const afterDelete = deleteCachedKnot("bowline", "zh-CN");
+  assert.equal(afterDelete.cachedCount, 1);
+  assert.equal(afterDelete.totalCount, 2);
+  assert.equal(afterDelete.uncachedCount, 1);
+  assert.deepEqual(
+    afterDelete.items.map((item) => item.id),
+    ["clove"],
+  );
+  assert.ok(
+    !offlineCacheKeys(storage).includes(
+      "/api/skills/knots/detail/bowline|zh-CN|",
+    ),
+  );
+  assert.equal(storage.get("removed:wxfile://saved/1"), true);
+  assert.equal(storage.get("removed:wxfile://saved/2"), true);
+
+  const afterClear = clearKnotOfflineCache("zh-CN");
+  assert.equal(afterClear.cachedCount, 0);
+  assert.equal(afterClear.totalCount, 2);
+  assert.equal(afterClear.uncachedCount, 2);
+  assert.deepEqual(listCachedKnotPreviews("zh-CN"), []);
 });
 
 test("prepareAllKnotsOfflineCache only reads the manifest before confirmation", async () => {

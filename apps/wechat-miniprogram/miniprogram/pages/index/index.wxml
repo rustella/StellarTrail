@@ -1,12 +1,12 @@
 <view class="home-page {{themeClass}}">
   <view class="hero-card">
-    <view class="hero-eyebrow">寻径星野 · 出发前检查</view>
+    <view class="hero-eyebrow">寻径星野</view>
     <view class="hero-title">今天准备好出发了吗？</view>
     <view class="hero-subtitle">先核对装备状态，再补一项户外技能。</view>
     <view class="hero-status-row">
       <view class="hero-status-pill">
         <text class="hero-status-dot"></text>
-        <text>{{isLoggedIn ? '我的装备已保存' : '未登录也可先浏览'}}</text>
+        <text>{{heroStatusText}}</text>
       </view>
     </view>
     <view class="hero-actions">
@@ -18,20 +18,6 @@
   <view wx:if="{{offlineNotice}}" class="offline-notice"
     >{{offlineNotice}}</view
   >
-
-  <view class="quick-grid">
-    <block wx:for="{{quickActions}}" wx:key="id">
-      <view
-        class="quick-card"
-        data-target="{{item.target}}"
-        bindtap="onQuickAction"
-      >
-        <view class="quick-icon">{{item.icon}}</view>
-        <view class="quick-title">{{item.title}}</view>
-        <view class="quick-desc">{{item.description}}</view>
-      </view>
-    </block>
-  </view>
 
   <view class="section-card">
     <view class="section-header">
@@ -102,23 +88,48 @@
       <view wx:if="{{skillLoading}}" class="state-card"
         >正在加载户外技能...</view
       >
-      <view wx:elif="{{featuredSkills.length}}" class="skill-list">
-        <block wx:for="{{featuredSkills}}" wx:key="id">
-          <view
-            class="skill-card"
-            data-id="{{item.id}}"
-            bindtap="goSkillDetail"
-          >
-            <view class="skill-tags">
-              <text class="skill-tag">{{item.categoryText}}</text>
-              <text class="skill-tag {{item.difficultyTone}}"
-                >{{item.difficultyText}}</text
-              >
-            </view>
-            <view class="skill-title">{{item.title}}</view>
-            <view class="skill-summary">{{item.summary}}</view>
+      <view wx:elif="{{featuredSkills.length}}" class="knot-pack">
+        <view class="knot-pack-header">
+          <view>
+            <view class="knot-pack-title">绳结</view>
+            <view class="knot-pack-desc">常用连接、固定与收纳绳结</view>
           </view>
-        </block>
+          <view
+            class="knot-pack-link"
+            hover-class="knot-pack-link-active"
+            bindtap="goSkills"
+            >查看全部</view
+          >
+        </view>
+        <view class="skill-list">
+          <block wx:for="{{featuredSkills}}" wx:key="id">
+            <view
+              class="skill-card"
+              data-id="{{item.id}}"
+              bindtap="goSkillDetail"
+            >
+              <view class="skill-thumb">
+                <image
+                  wx:if="{{item.hasThumbnail}}"
+                  class="skill-thumb-image"
+                  mode="aspectFit"
+                  src="{{item.thumbnailUrl}}"
+                />
+                <view wx:else class="thumb-placeholder">绳结</view>
+              </view>
+              <view class="skill-content">
+                <view class="skill-tags">
+                  <text class="skill-tag">{{item.categoryText}}</text>
+                  <text class="skill-tag {{item.difficultyTone}}"
+                    >{{item.difficultyText}}</text
+                  >
+                </view>
+                <view class="skill-title">{{item.title}}</view>
+                <view class="skill-summary">{{item.summary}}</view>
+              </view>
+            </view>
+          </block>
+        </view>
       </view>
       <view wx:else class="empty-inline">技能内容准备中。</view>
     </block>

@@ -10,6 +10,7 @@
     "pages/skills/index",
     "pages/skills/detail/index",
     "pages/profile/index",
+    "pages/profile/settings/index",
     "pages/register/index",
     "pages/login/index"
   ],
@@ -26,19 +27,27 @@
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "首页"
+        "text": "首页",
+        "iconPath": "assets/tabbar/home-normal.png",
+        "selectedIconPath": "assets/tabbar/home-selected.png"
       },
       {
         "pagePath": "pages/gears/index",
-        "text": "装备"
+        "text": "装备",
+        "iconPath": "assets/tabbar/gear-normal.png",
+        "selectedIconPath": "assets/tabbar/gear-selected.png"
       },
       {
         "pagePath": "pages/skills/index",
-        "text": "技能"
+        "text": "技能",
+        "iconPath": "assets/tabbar/skills-normal.png",
+        "selectedIconPath": "assets/tabbar/skills-selected.png"
       },
       {
         "pagePath": "pages/profile/index",
-        "text": "我的"
+        "text": "我的",
+        "iconPath": "assets/tabbar/profile-normal.png",
+        "selectedIconPath": "assets/tabbar/profile-selected.png"
       }
     ]
   },

@@ -61,6 +61,7 @@ ${ts}`;
 
 test("profile page renders stored WeChat nickname and avatar", () => {
   const wxml = read("pages/profile/index.wxml");
+  const wxss = read("pages/profile/index.wxss");
   const ts = read("pages/profile/index.ts");
   const pageSource = `${wxml}
 ${ts}`;
@@ -72,48 +73,115 @@ ${ts}`;
   assert.match(wxml, /open-type="chooseAvatar"/);
   assert.match(wxml, /bindchooseavatar="onChooseWechatAvatar"/);
   assert.doesNotMatch(wxml, /account-avatar-badge/);
-  assert.match(wxml, /type="nickname"/);
-  assert.match(wxml, /修改名称/);
-  assert.match(wxml, /绑定邮箱/);
-  assert.match(wxml, /accountProfile\.emailText/);
-  assert.match(wxml, /accountProfile\.hasEmail/);
-  assert.match(wxml, /bindtap="openEmailBindingModal"/);
-  assert.match(wxml, /bindtap="sendEmailBindingCode"/);
-  assert.match(wxml, /bindtap="submitEmailBinding"/);
-  assert.match(
-    wxml,
-    /bindtap="submitEmailBinding"[\s\S]*确定[\s\S]*bindtap="closeEmailBindingModal"[\s\S]*取消/,
-  );
-  assert.match(wxml, /data-field="emailBindingEmail"/);
-  assert.match(wxml, /data-field="emailBindingCode"/);
-  assert.match(wxml, /点这里后，在下方选择“用微信昵称”/);
+  assert.match(wxml, /bindtap="openUserSettings"/);
+  assert.match(wxml, /account-settings-entry/);
+  assert.match(wxss, /\.account-main\s*\{[\s\S]*flex:\s*1;/);
+  assert.match(wxss, /\.account-settings-entry\s*\{[\s\S]*flex:\s*1;/);
+  assert.doesNotMatch(wxml, /type="nickname"/);
+  assert.doesNotMatch(wxml, /bindtap="openNicknameModal"/);
+  assert.doesNotMatch(wxml, /bindtap="openEmailBindingModal"/);
+  assert.doesNotMatch(wxml, /账号状态/);
+  assert.doesNotMatch(wxml, /可以管理自己的装备清单/);
+  assert.doesNotMatch(wxml, /accountProfile\.emailText/);
+  assert.doesNotMatch(wxml, /已绑定/);
+  assert.match(wxml, /设置与帮助/);
+  assert.match(wxml, /绳结离线缓存/);
+  assert.match(wxml, /意见反馈/);
+  assert.match(wxml, /关于寻径星野/);
+  assert.match(wxml, /已缓存绳结/);
+  assert.match(wxml, /已缓存/);
+  assert.match(wxml, /未缓存/);
+  assert.match(wxml, /全部绳结/);
+  assert.match(wxml, /删除全部/);
+  assert.match(wxml, /cachedKnots\.length/);
+  assert.match(wxml, /cachedKnotsInfo\.cachedCount/);
+  assert.match(wxml, /cachedKnotsInfo\.uncachedCountText/);
+  assert.match(wxml, /bindtap="openCachedKnotsModal"/);
+  assert.match(wxml, /bindtap="goKnotOfflineCache"/);
+  assert.match(wxml, /bindtap="openCachedKnotDetail"/);
+  assert.match(wxml, /catchtap="removeCachedKnot"/);
+  assert.match(wxml, /bindtap="clearCachedKnots"/);
+  assert.match(wxml, /bindtap="closeCachedKnotsModal"/);
+  assert.match(wxml, /bindtap="openFeedbackModal"/);
+  assert.match(wxml, /bindtap="openAboutModal"/);
+  assert.match(wxml, /bindchange="onFeedbackCategoryChange"/);
+  assert.match(wxml, /bindtap="submitFeedback"/);
+  assert.match(wxml, /aboutInfo\.envText/);
+  assert.match(wxml, /aboutInfo\.versionText/);
+  assert.doesNotMatch(wxml, /点这里后，在下方选择“用微信昵称”/);
   assert.doesNotMatch(wxml, /导入微信名称/);
   assert.doesNotMatch(wxml, /使用自定义名称/);
   assert.doesNotMatch(wxml, /导入昵称/);
   assert.doesNotMatch(wxml, /bindtap="saveNickname"/);
-  assert.match(wxml, /bindtap="openNicknameModal"/);
   assert.doesNotMatch(wxml, /bindtap="importWechatNickname"/);
-  assert.match(wxml, /bindsubmit="saveWechatNickname"/);
-  assert.match(wxml, /name="nickname"/);
-  assert.match(wxml, /bindnicknamereview="onWechatNicknameReview"/);
   assert.doesNotMatch(wxml, /bindtap="useCustomNickname"/);
   assert.match(pageSource, /buildAccountProfile/);
   assert.match(pageSource, /getCurrentUser/);
+  assert.doesNotMatch(pageSource, /sendBindEmailCode/);
+  assert.doesNotMatch(pageSource, /bindEmailToCurrentAccount/);
+  assert.doesNotMatch(pageSource, /getUserProfile/);
+  assert.doesNotMatch(pageSource, /loginWithWechat\(\{ nickname \}\)/);
+  assert.doesNotMatch(pageSource, /WechatNicknameSubmitEvent/);
+  assert.doesNotMatch(pageSource, /nicknameEditMode/);
+  assert.doesNotMatch(pageSource, /saveNicknameValue/);
+  assert.match(pageSource, /uploadWechatAvatar/);
+  assert.match(pageSource, /createFeedback/);
+  assert.match(pageSource, /getKnotOfflineCacheInventory/);
+  assert.match(pageSource, /refreshKnotOfflineCacheInventory/);
+  assert.match(pageSource, /deleteCachedKnot/);
+  assert.match(pageSource, /clearKnotOfflineCache/);
+  assert.match(
+    pageSource,
+    /wx\.switchTab\(\{ url: "\/pages\/skills\/index" \}\)/,
+  );
+  assert.match(pageSource, /wx\.getAccountInfoSync\(\)/);
+  assert.match(pageSource, /wx\.getSystemInfoSync\(\)\.model/);
+  assert.match(pageSource, /client_platform: "wechat_miniprogram"/);
+  assert.match(pageSource, /image_ids: \[\]/);
+  assert.match(pageSource, /isNotFoundApiError/);
+  assert.doesNotMatch(pageSource, /normalizeProfileNickname\(user\.nickname\)/);
+  assert.match(pageSource, /头像保存暂不可用/);
+  assert.match(
+    pageSource,
+    /wx\.navigateTo\(\{ url: "\/pages\/profile\/settings\/index" \}\)/,
+  );
+});
+
+test("profile settings page owns account identity and password actions", () => {
+  const appConfig = JSON.parse(read("app.json"));
+  const wxml = read("pages/profile/settings/index.wxml");
+  const ts = read("pages/profile/settings/index.ts");
+  const pageSource = `${wxml}
+${ts}`;
+
+  assert.ok(appConfig.pages.includes("pages/profile/settings/index"));
+  assert.match(wxml, /用户设置/);
+  assert.match(wxml, /修改名称/);
+  assert.match(wxml, /修改邮箱/);
+  assert.match(wxml, /绑定邮箱/);
+  assert.match(wxml, /修改密码/);
+  assert.match(wxml, /头像可回到“我的”页点击头像修改/);
+  assert.doesNotMatch(wxml, /open-type="chooseAvatar"/);
+  assert.match(wxml, /type="nickname"/);
+  assert.match(wxml, /点这里后，在下方选择“用微信昵称”/);
+  assert.match(wxml, /bindsubmit="saveWechatNickname"/);
+  assert.match(wxml, /bindnicknamereview="onWechatNicknameReview"/);
+  assert.match(wxml, /bindtap="openEmailBindingModal"/);
+  assert.match(wxml, /bindtap="sendEmailBindingCode"/);
+  assert.match(wxml, /bindtap="submitEmailBinding"/);
+  assert.match(wxml, /bindtap="openPasswordModal"/);
+  assert.match(wxml, /bindtap="sendPasswordCode"/);
+  assert.match(wxml, /bindtap="submitPasswordChange"/);
+  assert.match(wxml, /password="{{true}}"/);
+  assert.match(pageSource, /loginWithWechat\(\{ nickname \}\)/);
   assert.match(pageSource, /sendBindEmailCode/);
   assert.match(pageSource, /bindEmailToCurrentAccount/);
-  assert.doesNotMatch(pageSource, /getUserProfile/);
-  assert.match(pageSource, /loginWithWechat\(\{ nickname \}\)/);
+  assert.match(pageSource, /sendPasswordResetCode/);
+  assert.match(pageSource, /resetPassword/);
+  assert.match(pageSource, /openEmailBindingModal/);
+  assert.match(pageSource, /先绑定邮箱/);
+  assert.match(pageSource, /buildAccountProfile/);
   assert.match(pageSource, /WechatNicknameSubmitEvent/);
-  assert.doesNotMatch(pageSource, /nicknameEditMode/);
-  assert.match(pageSource, /saveNicknameValue/);
-  assert.match(pageSource, /uploadWechatAvatar/);
-  assert.match(pageSource, /isNotFoundApiError/);
-  assert.match(pageSource, /normalizeProfileNickname/);
-  assert.match(pageSource, /"寻径星野用户", "微信用户", "WeChat User"/);
-  assert.match(pageSource, /头像保存暂不可用/);
-  assert.match(pageSource, /normalizeProfileNickname\(user\.nickname\)/);
-  assert.match(pageSource, /nickname \|\| user\.username \|\| user\.email/);
-  assert.match(pageSource, /user\.avatar_url \|\| ""/);
 });
 
 test("register page captures account email verification and password confirmation", () => {
@@ -150,8 +218,9 @@ test("home gear summary aligns logged-out and logged-in card surfaces", () => {
   assert.match(wxml, /showLoginForGearSummary/);
   assert.match(ts, /LOCKED_GEAR_STATS/);
   assert.match(ts, /登录后可见/);
-  assert.match(ts, /快速添加新装备/);
+  assert.match(ts, /buildHeroStatusText/);
   assert.doesNotMatch(ts, /登录后快速记录装备/);
+  assert.doesNotMatch(ts, /我的装备已保存/);
   assert.match(ts, /value: "—"/);
   assert.match(
     guestInlineBlock,

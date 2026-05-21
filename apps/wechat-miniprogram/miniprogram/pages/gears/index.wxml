@@ -47,6 +47,16 @@
   </block>
 
   <block wx:else>
+    <view class="stats-grid">
+      <block wx:for="{{statCards}}" wx:key="label">
+        <view class="stat-card">
+          <view class="stat-value">{{item.value}}</view>
+          <view class="stat-label">{{item.label}}</view>
+          <view class="stat-hint">{{item.hint}}</view>
+        </view>
+      </block>
+    </view>
+
     <view class="tab-card">
       <block wx:for="{{tabOptions}}" wx:key="value">
         <view
@@ -55,16 +65,6 @@
           bindtap="switchTab"
         >
           {{item.label}}
-        </view>
-      </block>
-    </view>
-
-    <view class="stats-grid">
-      <block wx:for="{{statCards}}" wx:key="label">
-        <view class="stat-card">
-          <view class="stat-value">{{item.value}}</view>
-          <view class="stat-label">{{item.label}}</view>
-          <view class="stat-hint">{{item.hint}}</view>
         </view>
       </block>
     </view>

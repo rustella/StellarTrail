@@ -165,47 +165,11 @@
   background: rgba(255, 255, 255, 0.82);
 }
 
-.quick-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20rpx;
-  margin-top: 24rpx;
-}
-
-.quick-card,
 .section-card {
   border: 1rpx solid var(--border-color);
   border-radius: var(--card-radius);
   background: var(--surface-color);
   box-shadow: var(--shadow-soft);
-}
-
-.quick-card {
-  padding: 26rpx;
-}
-
-.quick-icon {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 22rpx;
-  background: var(--brand-soft-bg);
-  font-size: 34rpx;
-  line-height: 64rpx;
-  text-align: center;
-}
-
-.quick-title {
-  margin-top: 18rpx;
-  color: var(--text-color);
-  font-size: 29rpx;
-  font-weight: 900;
-}
-
-.quick-desc {
-  margin-top: 8rpx;
-  color: var(--muted-color);
-  font-size: 23rpx;
-  line-height: 1.45;
 }
 
 .section-card {
@@ -288,6 +252,51 @@
   margin-top: 20rpx;
 }
 
+.knot-pack {
+  margin-top: 22rpx;
+  padding: 18rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.knot-pack-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+  padding: 4rpx 2rpx 0;
+}
+
+.knot-pack-title {
+  color: var(--text-color);
+  font-size: 28rpx;
+  font-weight: 900;
+}
+
+.knot-pack-desc {
+  margin-top: 6rpx;
+  color: var(--muted-color);
+  font-size: 22rpx;
+}
+
+.knot-pack-link {
+  flex: 0 0 auto;
+  min-width: 128rpx;
+  padding: 12rpx 20rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  box-shadow: 0 10rpx 24rpx rgba(15, 118, 110, 0.24);
+  font-size: 23rpx;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.knot-pack-link-active {
+  opacity: 0.82;
+}
+
 .recent-item {
   display: flex;
   align-items: center;
@@ -354,9 +363,41 @@
 }
 
 .skill-card {
+  display: flex;
+  gap: 18rpx;
+  align-items: center;
   padding: 24rpx;
   border-radius: var(--card-inner-radius);
   background: var(--control-bg);
+}
+
+.skill-thumb {
+  display: flex;
+  flex: 0 0 132rpx;
+  align-items: center;
+  justify-content: center;
+  width: 132rpx;
+  height: 104rpx;
+  overflow: hidden;
+  border-radius: 20rpx;
+  background: var(--control-bg);
+}
+
+.skill-thumb-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.thumb-placeholder {
+  color: var(--muted-color);
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
+.skill-content {
+  min-width: 0;
+  flex: 1;
 }
 
 .skill-tags {
@@ -389,7 +430,7 @@
 }
 
 .skill-title {
-  margin-top: 16rpx;
+  margin-top: 14rpx;
   font-size: 30rpx;
 }
 
