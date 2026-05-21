@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import type { GearAtlasSubmission } from "@stellartrail/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
@@ -42,6 +43,33 @@ const sampleKnotDetail = {
   steps: ["将绳头绕过主绳。", "收紧后检查受力。"],
   locale: "zh-CN" as const,
 };
+
+function buildAtlasSubmission(
+  overrides: Partial<GearAtlasSubmission> = {},
+): GearAtlasSubmission {
+  return {
+    id: "atlas-fixture",
+    category: "electronics_system",
+    category_label: "电子系统",
+    name: "测试装备",
+    brand: null,
+    model: null,
+    description: "公开字段",
+    weight_g: 315,
+    official_price_cents: 69900,
+    official_price_currency: "CNY",
+    specs: { battery_capacity: "20000 mAh" },
+    approved_at: null,
+    source_type: "external_import",
+    source_user_gear_id: null,
+    status: "pending",
+    rejection_reason: null,
+    reviewed_at: null,
+    created_at: "2026-01-23T00:00:00Z",
+    updated_at: "2026-01-23T00:00:00Z",
+    ...overrides,
+  };
+}
 
 function buildClient(): WebGearApi {
   return {
@@ -566,7 +594,70 @@ describe("App", () => {
     ).toBeGreaterThan(0);
     expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
       status: "pending",
-      limit: 50,
+      limit: 20,
+    });
+  });
+
+  it("loads additional atlas review submissions when the list is scrolled", async () => {
+    const client = buildClient();
+    vi.mocked(client.listAdminGearAtlasSubmissions)
+      .mockResolvedValueOnce({
+        next_cursor: "20",
+        items: [
+          buildAtlasSubmission({
+            id: "atlas-page-1",
+            name: "第一页审核装备",
+          }),
+        ],
+      })
+      .mockResolvedValueOnce({
+        next_cursor: null,
+        items: [
+          buildAtlasSubmission({
+            id: "atlas-page-2",
+            name: "第二页审核装备",
+          }),
+        ],
+      });
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    );
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
+    );
+
+    expect(await screen.findAllByText("第一页审核装备")).toHaveLength(2);
+    const reviewList = screen.getByLabelText("图鉴审核投稿列表");
+    Object.defineProperty(reviewList, "scrollHeight", {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(reviewList, "clientHeight", {
+      configurable: true,
+      value: 400,
+    });
+    Object.defineProperty(reviewList, "scrollTop", {
+      configurable: true,
+      value: 560,
+    });
+
+    fireEvent.scroll(reviewList);
+
+    expect(await screen.findByText("第二页审核装备")).toBeInTheDocument();
+    expect(client.listAdminGearAtlasSubmissions).toHaveBeenLastCalledWith({
+      status: "pending",
+      limit: 20,
+      cursor: "20",
     });
   });
 
@@ -627,7 +718,7 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
       status: "pending",
-      limit: 50,
+      limit: 20,
     });
   });
 

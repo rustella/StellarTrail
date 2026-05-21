@@ -831,14 +831,27 @@ dd {
 }
 
 .atlas-review-layout {
+  align-items: start;
   display: grid;
   grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.4fr);
   gap: 16px;
+  min-height: 0;
 }
 
 .atlas-review-list,
 .atlas-review-detail {
+  max-height: calc(100vh - 220px);
   min-height: 420px;
+}
+
+.atlas-review-list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 14px;
+}
+
+.atlas-review-detail {
+  overflow: auto;
 }
 
 .atlas-review-row {
@@ -865,6 +878,16 @@ dd {
 
 .atlas-review-row small {
   color: var(--muted-color);
+}
+
+.atlas-load-more {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.atlas-loading-more {
+  margin: 10px 0 0;
+  text-align: center;
 }
 
 .atlas-detail-head {
