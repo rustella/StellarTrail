@@ -1,6 +1,8 @@
 package com.rustella.stellartrail.core.network
 
 import io.ktor.http.HttpStatusCode
+import java.io.IOException
+import java.net.UnknownHostException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -30,5 +32,7 @@ class ApiException(
 
 fun Throwable.userMessage(): String = when (this) {
     is ApiException -> message
+    is UnknownHostException -> "无法连接到 API，请检查网络或 API Base URL。"
+    is IOException -> "网络请求失败，请检查网络后重试。"
     else -> message ?: "网络请求失败，请稍后重试"
 }

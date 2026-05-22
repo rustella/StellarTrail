@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 
 data class GearListUiState(
     val isLoggedIn: Boolean = false,
@@ -68,19 +69,24 @@ class GearListViewModel(private val repository: GearRepositoryContract) : ViewMo
                     return@launch
                 }
                 val request = buildRequest(cursor = null)
-                val categories = async { repository.listCategories(request.tab) }
-                val stats = async { repository.stats(request.tab) }
-                val list = async { repository.list(request) }
-                val templates = async { repository.listTemplates() }
-                val response = list.await()
-                _state.update {
-                    it.copy(
-                        categories = categories.await(),
-                        stats = stats.await(),
-                        gears = response.items,
-                        templates = templates.await().items,
-                        nextCursor = response.nextCursor,
-                    )
+                supervisorScope {
+                    val categories = async { repository.listCategories(request.tab) }
+                    val stats = async { repository.stats(request.tab) }
+                    val list = async { repository.list(request) }
+                    val templates = async { repository.listTemplates() }
+                    val categoriesValue = categories.await()
+                    val statsValue = stats.await()
+                    val response = list.await()
+                    val templateItems = templates.await().items
+                    _state.update {
+                        it.copy(
+                            categories = categoriesValue,
+                            stats = statsValue,
+                            gears = response.items,
+                            templates = templateItems,
+                            nextCursor = response.nextCursor,
+                        )
+                    }
                 }
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }

@@ -16,14 +16,14 @@ class ProfileViewModel(
     val session = authRepository.session
     val theme: StateFlow<ThemeMode> = themeRepository.theme
     val config = appConfigStore.config
-    val canEditBaseUrl: Boolean = BuildConfig.DEBUG
+    val canEditBaseUrl: Boolean = BuildConfig.DEBUG && BuildConfig.APPLICATION_ID.endsWith(".debug")
 
     fun setTheme(theme: ThemeMode) = themeRepository.setTheme(theme)
     fun updateBaseUrl(value: String) {
-        if (BuildConfig.DEBUG) appConfigStore.updateBaseUrl(value)
+        if (canEditBaseUrl) appConfigStore.updateBaseUrl(value)
     }
     fun resetBaseUrl() {
-        if (BuildConfig.DEBUG) appConfigStore.resetBaseUrl()
+        if (canEditBaseUrl) appConfigStore.resetBaseUrl()
     }
     fun logout() = authRepository.logout()
 }

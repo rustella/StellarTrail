@@ -32,6 +32,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
+import java.net.UnknownHostException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
@@ -61,6 +62,21 @@ class HomeViewModelTest {
         assertEquals(0, gearRepository.privateGearCalls)
         assertEquals("周末轻徒步清单", state.templates.single().title)
         assertEquals("绳结", state.skills.single().title)
+    }
+
+    @Test
+    fun guestDashboardNetworkFailureUpdatesErrorWithoutCrashing() = runTest {
+        val viewModel = HomeViewModel(
+            gearRepository = FakeGearRepository(),
+            skillRepository = FakeSkillRepository(failListSkills = true),
+        )
+
+        viewModel.load(isLoggedIn = false)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertFalse(state.loading)
+        assertEquals("无法连接到 API，请检查网络或 API Base URL。", state.error)
     }
 
     private class FakeGearRepository : GearRepositoryContract {
@@ -104,10 +120,14 @@ class HomeViewModelTest {
         override suspend fun restore(id: String): GearItem = error("unused")
     }
 
-    private class FakeSkillRepository : SkillRepositoryContract {
+    private class FakeSkillRepository(
+        private val failListSkills: Boolean = false,
+    ) : SkillRepositoryContract {
         override suspend fun listSkills(locale: SkillLocale): SkillCategoriesResponse = SkillCategoriesResponse(
             listOf(SkillCategorySummary("knots", "knots", "绳结", "常用户外绳结", 8, "/api/skills/knots")),
-        )
+        ).also {
+            if (failListSkills) throw UnknownHostException("api.stellartrail.example")
+        }
 
         override suspend fun listKnots(locale: SkillLocale, request: ListKnotsRequest): KnotListResponse =
             KnotListResponse(locale, emptyList(), PageInfo(limit = 20, offset = 0))

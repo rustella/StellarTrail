@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -49,8 +50,9 @@ import androidx.compose.ui.unit.dp
 import com.rustella.stellartrail.ui.theme.StellarTrailDesignColors
 import com.rustella.stellartrail.ui.theme.StellarTrailPalette
 
-val TrailCardShape = RoundedCornerShape(20.dp)
-val TrailHeroShape = RoundedCornerShape(22.dp)
+val TrailCardShape = RoundedCornerShape(15.dp)
+val TrailInnerCardShape = RoundedCornerShape(12.dp)
+val TrailHeroShape = RoundedCornerShape(18.dp)
 val TrailPillShape = RoundedCornerShape(999.dp)
 
 enum class BadgeTone { Brand, Neutral, Success, Warning, Danger, Info }
@@ -90,7 +92,7 @@ fun ErrorState(message: String, onRetry: (() -> Unit)? = null, modifier: Modifie
 fun SurfaceCard(
     modifier: Modifier = Modifier,
     containerColor: Color? = null,
-    contentPadding: PaddingValues = PaddingValues(18.dp),
+    contentPadding: PaddingValues = PaddingValues(14.dp),
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -108,6 +110,56 @@ fun SurfaceCard(
             horizontalAlignment = horizontalAlignment,
             content = content,
         )
+    }
+}
+
+@Composable
+fun IntroCard(
+    eyebrow: String,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    actionText: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    val palette = currentTrailPalette()
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(TrailHeroShape)
+            .background(Brush.linearGradient(listOf(palette.heroStart, palette.heroMid, palette.heroEnd)))
+            .border(1.dp, palette.softBorder, TrailHeroShape)
+            .padding(16.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    eyebrow,
+                    color = palette.brandSoftText,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+                Text(
+                    title,
+                    color = palette.textPrimary,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+                Text(
+                    subtitle,
+                    color = palette.textMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight,
+                )
+            }
+            if (actionText != null && onAction != null) {
+                CompactPillAction(actionText, onAction)
+            }
+        }
     }
 }
 
@@ -314,8 +366,8 @@ fun PrimaryPillButton(text: String, onClick: () -> Unit, modifier: Modifier = Mo
         enabled = enabled,
         modifier = modifier,
         shape = TrailPillShape,
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-    ) { Text(text, fontWeight = FontWeight.Bold) }
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+    ) { Text(text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge) }
 }
 
 @Composable
@@ -331,8 +383,73 @@ fun SoftPillButton(text: String, onClick: () -> Unit, modifier: Modifier = Modif
             containerColor = palette.softControlBackground,
             contentColor = palette.softControlText,
         ),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
-    ) { Text(text, fontWeight = FontWeight.Bold) }
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
+    ) { Text(text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge) }
+}
+
+@Composable
+fun CompactPillAction(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    filled: Boolean = true,
+    enabled: Boolean = true,
+) {
+    val palette = currentTrailPalette()
+    val background = if (filled) palette.brand else palette.softControlBackground
+    val foreground = if (filled) palette.brandText else palette.softControlText
+    Text(
+        text = text,
+        modifier = modifier
+            .clip(TrailPillShape)
+            .background(background)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        color = foreground,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.ExtraBold,
+        textAlign = TextAlign.Center,
+    )
+}
+
+@Composable
+fun CompactTextInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+) {
+    val palette = currentTrailPalette()
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = palette.textPrimary),
+        modifier = modifier.height(36.dp),
+        decorationBox = { innerTextField ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(palette.controlBackground)
+                    .border(1.dp, palette.softBorder, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 11.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        placeholder,
+                        color = palette.textMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                innerTextField()
+            }
+        },
+    )
 }
 
 @Composable
@@ -351,16 +468,16 @@ fun MetricTile(label: String, value: String, modifier: Modifier = Modifier) {
     val palette = currentTrailPalette()
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(18.dp))
+            .clip(TrailInnerCardShape)
             .background(palette.controlBackground)
-            .border(1.dp, palette.softBorder, RoundedCornerShape(18.dp))
-            .padding(horizontal = 10.dp, vertical = 12.dp),
+            .border(1.dp, palette.softBorder, TrailInnerCardShape)
+            .padding(horizontal = 9.dp, vertical = 9.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Text(
             value,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -403,9 +520,9 @@ fun Badge(text: String, tone: BadgeTone = BadgeTone.Brand, modifier: Modifier = 
         modifier = modifier
             .clip(TrailPillShape)
             .background(colors.first)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         color = colors.second,
-        style = MaterialTheme.typography.labelMedium,
+        style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
     )
 }
@@ -431,9 +548,9 @@ fun TagList(tags: List<String>, modifier: Modifier = Modifier) {
 @Composable
 fun SectionTitle(title: String, subtitle: String? = null, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
         if (subtitle != null) {
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -458,7 +575,7 @@ fun FeatureTile(
         Box(
             modifier = Modifier
                 .size(iconSize)
-                .clip(RoundedCornerShape(if (compact) 13.dp else 16.dp))
+                .clip(TrailInnerCardShape)
                 .background(palette.brandSoft),
             contentAlignment = Alignment.Center,
         ) {

@@ -11,16 +11,23 @@ import com.rustella.stellartrail.R
 
 object AppRoutes {
     const val AUTH = "auth"
+    const val AUTH_REGISTER = "auth/register"
     const val HOME = "home"
+    const val GEAR_ATLAS = "gear-atlas"
+    const val GEAR_ATLAS_DETAIL = "gear-atlas/detail/{id}"
+    const val GEAR_ATLAS_SUBMIT = "gear-atlas/submit"
     const val GEARS = "gears"
     const val GEAR_DETAIL = "gear/{id}"
     const val GEAR_NEW = "gear/new"
     const val GEAR_EDIT = "gear/{id}/edit"
     const val SKILLS = "skills"
+    const val SKILL_DETAIL = "skills/{id}"
     const val PROFILE = "profile"
 
     fun gearDetail(id: String): String = "gear/$id"
     fun gearEdit(id: String): String = "gear/$id/edit"
+    fun gearAtlasDetail(id: String): String = "gear-atlas/detail/$id"
+    fun skillDetail(id: String): String = "skills/$id"
 }
 
 data class TopLevelDestination(

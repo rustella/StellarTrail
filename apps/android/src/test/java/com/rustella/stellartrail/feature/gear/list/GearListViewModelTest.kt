@@ -26,6 +26,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.net.UnknownHostException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GearListViewModelTest {
@@ -62,7 +63,22 @@ class GearListViewModelTest {
         assertEquals(EMPTY_STATS, state.stats)
     }
 
-    private class FakeGearRepository : GearRepositoryContract {
+    @Test
+    fun loggedInGearListNetworkFailureUpdatesErrorWithoutCrashing() = runTest {
+        val repository = FakeGearRepository(failStats = true)
+        val viewModel = GearListViewModel(repository)
+
+        viewModel.refresh(isLoggedIn = true)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertFalse(state.loading)
+        assertEquals("无法连接到 API，请检查网络或 API Base URL。", state.error)
+    }
+
+    private class FakeGearRepository(
+        private val failStats: Boolean = false,
+    ) : GearRepositoryContract {
         var templateCalls = 0
         var privateGearCalls = 0
 
@@ -88,6 +104,7 @@ class GearListViewModelTest {
 
         override suspend fun stats(tab: GearTab): GearStatsResponse {
             privateGearCalls += 1
+            if (failStats) throw UnknownHostException("api.stellartrail.example")
             return EMPTY_STATS
         }
 

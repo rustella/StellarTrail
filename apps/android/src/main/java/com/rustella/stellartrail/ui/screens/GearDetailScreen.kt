@@ -33,6 +33,7 @@ import com.rustella.stellartrail.domain.gear.formatPrice
 import com.rustella.stellartrail.domain.gear.formatWeight
 import com.rustella.stellartrail.domain.gear.joinBrandModel
 import com.rustella.stellartrail.domain.gear.label
+import com.rustella.stellartrail.domain.atlas.GearAtlasStatus
 import com.rustella.stellartrail.feature.gear.detail.GearDetailViewModel
 import com.rustella.stellartrail.ui.common.Badge
 import com.rustella.stellartrail.ui.common.BadgeTone
@@ -78,13 +79,33 @@ fun GearDetailScreen(
         ) {
             if (state.loading) LoadingState()
             if (state.error != null) ErrorState(state.error!!, onRetry = viewModel::load)
-            state.item?.let { item -> GearDetailContent(item, onEdit, { viewModel.archive(onClosed) }, viewModel::restore) }
+            state.item?.let { item ->
+                GearDetailContent(
+                    item = item,
+                    atlasStatus = state.atlasStatus,
+                    atlasMessage = state.atlasMessage,
+                    submittingAtlas = state.submittingAtlas,
+                    onEdit = onEdit,
+                    onArchive = { viewModel.archive(onClosed) },
+                    onRestore = viewModel::restore,
+                    onSubmitToAtlas = viewModel::submitToAtlas,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun GearDetailContent(item: GearItem, onEdit: () -> Unit, onArchive: () -> Unit, onRestore: () -> Unit) {
+private fun GearDetailContent(
+    item: GearItem,
+    atlasStatus: GearAtlasStatus?,
+    atlasMessage: String?,
+    submittingAtlas: Boolean,
+    onEdit: () -> Unit,
+    onArchive: () -> Unit,
+    onRestore: () -> Unit,
+    onSubmitToAtlas: () -> Unit,
+) {
     SurfaceCard(contentPadding = PaddingValues(22.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Badge(item.category.label)
@@ -104,6 +125,19 @@ private fun GearDetailContent(item: GearItem, onEdit: () -> Unit, onArchive: () 
             SoftPillButton("恢复可用", onRestore, Modifier.weight(1f))
         } else {
             SoftPillButton("移入历史", onArchive, Modifier.weight(1f))
+        }
+    }
+    SurfaceCard {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SectionTitle("装备图鉴投稿")
+                Text(atlasSubmissionHint(atlasStatus, atlasMessage), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            PrimaryPillButton(
+                text = if (submittingAtlas) "提交中..." else atlasSubmissionButton(atlasStatus),
+                onClick = onSubmitToAtlas,
+                enabled = !submittingAtlas && atlasStatus != GearAtlasStatus.PENDING && atlasStatus != GearAtlasStatus.APPROVED,
+            )
         }
     }
     if (item.tags.isNotEmpty()) {
@@ -133,6 +167,20 @@ private fun GearDetailContent(item: GearItem, onEdit: () -> Unit, onArchive: () 
         if (!item.description.isNullOrBlank()) Text(item.description)
         if (!item.notes.isNullOrBlank()) Text("备注：${item.notes}")
     }
+}
+
+private fun atlasSubmissionButton(status: GearAtlasStatus?): String = when (status) {
+    GearAtlasStatus.PENDING -> "审核中"
+    GearAtlasStatus.APPROVED -> "已收录"
+    GearAtlasStatus.REJECTED -> "重新投稿"
+    null -> "投稿到图鉴"
+}
+
+private fun atlasSubmissionHint(status: GearAtlasStatus?, message: String?): String = when (status) {
+    GearAtlasStatus.PENDING -> "已提交审核，通过后会展示在公共图鉴。"
+    GearAtlasStatus.APPROVED -> "这件装备已收录到公共图鉴。"
+    GearAtlasStatus.REJECTED -> message ?: "上次投稿未通过，可以整理公开信息后重新投稿。"
+    null -> "只复制适合公开展示的字段，不会提交私人备注和存放位置。"
 }
 
 private fun statusTone(status: GearStatus): BadgeTone = when (status) {

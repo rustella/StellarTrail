@@ -26,10 +26,8 @@ import com.rustella.stellartrail.core.theme.ThemeMode
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
 import com.rustella.stellartrail.ui.common.Badge
 import com.rustella.stellartrail.ui.common.BadgeTone
-import com.rustella.stellartrail.ui.common.HeroButton
-import com.rustella.stellartrail.ui.common.HeroCard
+import com.rustella.stellartrail.ui.common.CompactPillAction
 import com.rustella.stellartrail.ui.common.MetadataRow
-import com.rustella.stellartrail.ui.common.NoticeCard
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SectionTitle
 import com.rustella.stellartrail.ui.common.SoftPillButton
@@ -40,6 +38,7 @@ fun ProfileScreen(viewModel: ProfileViewModel, onLogin: () -> Unit, modifier: Mo
     val session by viewModel.session.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val config by viewModel.config.collectAsStateWithLifecycle()
+    val canEditBaseUrl = viewModel.canEditBaseUrl
     var baseUrl by remember(config.baseUrl) { mutableStateOf(config.baseUrl) }
     Column(
         modifier = modifier
@@ -49,23 +48,28 @@ fun ProfileScreen(viewModel: ProfileViewModel, onLogin: () -> Unit, modifier: Mo
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        HeroCard(
-            eyebrow = "寻径星野账号",
-            title = "我的",
-            subtitle = "管理登录状态、主题和本地调试地址，保持与微信端一致的轻卡片界面。",
-            chips = listOf(theme.label(), if (session == null) "待登录" else "已登录"),
-            actions = {
-                if (session == null) {
-                    HeroButton("去登录", onLogin)
-                }
-            },
-        )
-        if (session == null) {
-            NoticeCard(
-                title = "登录后保存自己的准备进度",
-                body = "当前仍可浏览首页、装备参考和技能内容。",
-                action = { PrimaryPillButton("去登录", onLogin) },
+        SurfaceCard {
+            Text("我的寻径星野", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            Text(
+                "管理装备、学习技能，也可以切换黑夜模式。",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
             )
+        }
+        if (session == null) {
+            SurfaceCard {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("账号状态", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            "未登录也可以先看装备图鉴和绳结教学。",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    CompactPillAction("登录 / 注册", onLogin)
+                }
+            }
         } else {
             SurfaceCard {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -82,18 +86,23 @@ fun ProfileScreen(viewModel: ProfileViewModel, onLogin: () -> Unit, modifier: Mo
             }
         }
         SurfaceCard {
-            SectionTitle("主题", "所有移动端默认共享微信端品牌配色，避免被动态取色冲淡。")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ThemeMode.entries.forEach { mode ->
-                    FilterChip(
-                        selected = theme == mode,
-                        onClick = { viewModel.setTheme(mode) },
-                        label = { Text(mode.label(), fontWeight = FontWeight.Bold) },
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionTitle("黑夜模式")
+                    Text(
+                        "开启后切换为紫色星空暗色界面，夜间浏览更舒服。",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
+                CompactPillAction(
+                    text = if (theme == ThemeMode.DARK) "浅色模式" else "黑夜模式",
+                    onClick = { viewModel.setTheme(if (theme == ThemeMode.DARK) ThemeMode.LIGHT else ThemeMode.DARK) },
+                    filled = false,
+                )
             }
         }
-        if (viewModel.canEditBaseUrl) {
+        if (canEditBaseUrl) {
             SurfaceCard {
                 SectionTitle("本地调试地址")
                 OutlinedTextField(
