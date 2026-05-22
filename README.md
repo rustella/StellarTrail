@@ -148,7 +148,7 @@ curl http://127.0.0.1:8080/api/meta
 | iOS        | `apps/ios/StellarTrail/Resources/ClientConfig.example.plist`      | `apps/ios/StellarTrail/Resources/ClientConfig.plist`      |
 | macOS      | `apps/macos/StellarTrailMac/Resources/ClientConfig.example.plist` | `apps/macos/StellarTrailMac/Resources/ClientConfig.plist` |
 
-Web 可通过 `VITE_STELLARTRAIL_API_BASE_URL` 和 `VITE_STELLARTRAIL_ASSETS_BASE_URL` 覆盖；Android 会在 Gradle 构建时读取 `config.properties` 并写入 `BuildConfig`；iOS/macOS 会优先读取应用 Bundle 内的 `ClientConfig.plist`，缺失时回退到默认正式地址。
+Web 可通过 `VITE_STELLARTRAIL_API_BASE_URL` 和 `VITE_STELLARTRAIL_ASSETS_BASE_URL` 覆盖；本地 Vite 开发默认使用同源 `/api`，并通过 `VITE_STELLARTRAIL_API_PROXY_TARGET` 代理到正式或本地 API，避免浏览器 CORS 拦截。Android 会在 Gradle 构建时读取 `config.properties` 并写入 `BuildConfig`；iOS/macOS 会优先读取应用 Bundle 内的 `ClientConfig.plist`，缺失时回退到默认正式地址。
 
 当前已实现服务能力：
 
@@ -202,7 +202,7 @@ GET /api/admin/api-usage
 POST|DELETE /api/admin/admins
 PUT /api/admin/skills/knots/:knot_id/media/:asset_id
 GET /api/admin/gear-atlas-submissions
-GET /api/admin/gear-atlas-submissions/:id
+GET|PATCH /api/admin/gear-atlas-submissions/:id
 POST /api/admin/gear-atlas-submissions/:id/approve
 POST /api/admin/gear-atlas-submissions/:id/reject
 GET /api/admin/feedback

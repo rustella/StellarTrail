@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { StellarTrailApiClient } from "@stellartrail/api-client";
+import {
+  StellarTrailApiClient,
+  StellarTrailApiError,
+} from "@stellartrail/api-client";
 
 import { createWebGearApi } from "./api";
 
@@ -21,7 +24,7 @@ describe("createWebGearApi", () => {
       if (this !== globalThis) {
         throw new TypeError("Illegal invocation");
       }
-      expect(input).toBe("https://api.example.invalid/api/meta");
+      expect(input).toBe("/api/meta");
       expect(init).toBeDefined();
       return Promise.resolve(
         new Response(
@@ -125,6 +128,37 @@ describe("createWebGearApi", () => {
         refresh_token: "refresh-new",
       }),
     );
+  });
+
+  it("surfaces the API error envelope message", async () => {
+    const client = new StellarTrailApiClient({
+      baseUrl: "",
+      fetcher: vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              code: "invalid_credentials",
+              message: "用户名/邮箱或密码不正确",
+            }),
+            { status: 401, headers: { "content-type": "application/json" } },
+          ),
+      ) as typeof fetch,
+    });
+
+    try {
+      await client.loginWithPassword({
+        account: "stellarisw@qq.com",
+        password: "wrong-password",
+      });
+      throw new Error("expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(StellarTrailApiError);
+      expect(error).toMatchObject({
+        status: 401,
+        code: "invalid_credentials",
+        message: "用户名/邮箱或密码不正确",
+      });
+    }
   });
 });
 

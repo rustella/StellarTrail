@@ -1222,6 +1222,20 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
     assert_eq!(updated["variants"][0]["label"], "宽版");
     assert_eq!(updated["variants"][0]["weight_g"], 88);
 
+    let (blank_reject_status, blank_reject) = send_json(
+        &app.router,
+        "POST",
+        &format!("/api/admin/gear-atlas-submissions/{submission_id}/reject"),
+        Some(admin_token.as_str()),
+        json!({"reason": "  "}),
+    )
+    .await;
+    assert_eq!(
+        blank_reject_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{blank_reject}"
+    );
+
     let (reject_status, rejected) = send_json(
         &app.router,
         "POST",
@@ -1237,6 +1251,111 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
     let (public_status, public) = send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
     assert_eq!(public_status, StatusCode::OK, "{public}");
     assert_eq!(public["items"].as_array().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn gear_atlas_admin_edits_are_reported_to_submitter_after_approval() {
+    let app = test_app().await;
+    let token = login(&app.router, "atlas-review-change-user").await;
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gear-atlas-submissions",
+        Some(&token),
+        json!({
+            "category": "sleep_system",
+            "name": "原始睡袋",
+            "brand": "BLACKICE",
+            "model": "G700",
+            "description": "原始描述",
+            "weight_g": 1000,
+            "official_price_cents": 90000,
+            "official_price_currency": "CNY",
+            "variants": [{"key": "m-75-195", "label": "M 75*195"}],
+            "specs": {"fill_weight": "700 g", "filling": "白鹅绒"}
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+
+    let admin_login = register_password_user_response(
+        &app.router,
+        "atlas_review_change_admin",
+        "atlas-review-change-admin@example.test",
+    )
+    .await;
+    let admin_token = admin_login["access_token"].as_str().unwrap().to_owned();
+    let admin_user_id = admin_login["user"]["id"].as_str().unwrap();
+    grant_admin_role(&app, admin_user_id, admin_user_id).await;
+    let submission_id = created["id"].as_str().unwrap();
+
+    let (update_status, updated) = send_json(
+        &app.router,
+        "PATCH",
+        &format!("/api/admin/gear-atlas-submissions/{submission_id}"),
+        Some(admin_token.as_str()),
+        json!({
+            "category": "sleep_system",
+            "name": "审核后睡袋",
+            "brand": "BLACKICE",
+            "model": "G700 Pro",
+            "description": "公开展示描述",
+            "weight_g": 980,
+            "official_price_cents": 95000,
+            "official_price_currency": "CNY",
+            "variants": [
+                {"key": "m-75-195", "label": "M 75*195", "official_price_cents": 95000, "official_price_currency": "CNY"},
+                {"key": "l-80-205", "label": "L 80*205", "weight_g": 1020}
+            ],
+            "specs": {"fill_weight": "720 g", "filling": "白鹅绒"}
+        }),
+    )
+    .await;
+    assert_eq!(update_status, StatusCode::OK, "{updated}");
+
+    let (approve_status, approved) = send_empty(
+        &app.router,
+        "POST",
+        &format!("/api/admin/gear-atlas-submissions/{submission_id}/approve"),
+        Some(admin_token.as_str()),
+    )
+    .await;
+    assert_eq!(approve_status, StatusCode::OK, "{approved}");
+    assert_eq!(approved["status"], "approved");
+    let changes = approved["review_changes"].as_array().unwrap();
+    assert!(changes.iter().any(|change| {
+        change["field"] == "name"
+            && change["label"] == "名称"
+            && change["before"] == "原始睡袋"
+            && change["after"] == "审核后睡袋"
+    }));
+    assert!(changes.iter().any(|change| change["field"] == "variants"));
+    assert!(changes.iter().any(|change| {
+        change["field"] == "specs.fill_weight" && change["label"] == "分类参数 · 填充重量"
+    }));
+
+    let (mine_status, mine) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gear-atlas-submissions",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(mine_status, StatusCode::OK, "{mine}");
+    assert!(
+        mine["items"][0]["review_changes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|change| change["field"] == "name")
+    );
+
+    let (public_status, public) = send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
+    assert_eq!(public_status, StatusCode::OK, "{public}");
+    assert_eq!(public["items"][0]["name"], "审核后睡袋");
+    assert!(public["items"][0].get("review_changes").is_none());
+    assert!(public["items"][0].get("rejection_reason").is_none());
+    assert!(public["items"][0].get("submitted_snapshot").is_none());
 }
 
 #[tokio::test]

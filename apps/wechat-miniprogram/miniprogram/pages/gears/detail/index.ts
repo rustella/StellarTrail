@@ -337,13 +337,30 @@ function buildAtlasSubmissionData(submission: GearAtlasSubmission | null) {
     submission.status === "rejected" && submission.rejection_reason
       ? submission.rejection_reason
       : submission.status === "approved"
-        ? "审核通过后已出现在装备图鉴。"
+        ? formatApprovedAtlasSubmissionHint(submission)
         : "已提交审核，审核通过后会出现在装备图鉴。";
   return {
     atlasSubmissionStatus: submission.status,
     atlasSubmissionText: getGearAtlasStatusLabel(submission.status),
     atlasSubmissionHint: hint,
   };
+}
+
+function formatApprovedAtlasSubmissionHint(
+  submission: GearAtlasSubmission,
+): string {
+  if (!submission.review_changes?.length) {
+    return "审核通过后已出现在装备图鉴。";
+  }
+  const summary = submission.review_changes
+    .map(
+      (change) =>
+        `${change.label} 从 ${change.before || "—"} 改为 ${
+          change.after || "—"
+        }`,
+    )
+    .join("；");
+  return `审核通过，管理员调整：${summary}`;
 }
 
 function buildGroups(item: GearItem): DetailGroup[] {

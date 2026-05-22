@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { StellarTrailApiError } from "@stellartrail/api-client";
 import type {
   AdminFeedbackItem,
   CreateGearRequest,
   GearAtlasPublicItem,
   GearCategory,
   GearCategoryFilter,
+  GearCurrency,
+  GearSpecs,
   GearAtlasStatus,
   GearAtlasSubmission,
   GearItem,
@@ -21,8 +24,10 @@ import type {
 import { createWebGearApi, type WebGearApi } from "./api";
 import GearAtlasPage from "./GearAtlasPage";
 import {
+  combineSpecValue,
+  getGearAtlasSpecFieldViews,
+  normalizeSpecsForCategory,
   normalizeVariants,
-  specLabel,
   variantKeyFromLabel,
   variantSummary,
 } from "./gear-atlas-utils";
@@ -127,6 +132,19 @@ interface GearFormState {
   notes: string;
 }
 
+interface AtlasReviewFormState {
+  category: GearCategory;
+  name: string;
+  brand: string;
+  model: string;
+  description: string;
+  weightG: string;
+  officialPrice: string;
+  officialPriceCurrency: GearCurrency;
+  variants: GearVariant[];
+  specs: GearSpecs;
+}
+
 const EMPTY_STATS: GearStatsResponse = {
   current_count: 0,
   archived_count: 0,
@@ -139,6 +157,8 @@ const EMPTY_STATS: GearStatsResponse = {
 const EMPTY_CATEGORIES: GearCategoryFilter[] = [
   { id: "all", label: "全部装备", count: 0 },
 ];
+
+const CURRENCY_OPTIONS: GearCurrency[] = ["CNY", "USD", "EUR", "JPY", "HKD"];
 
 const emptyForm: GearFormState = {
   category: "backpack_system",
@@ -242,6 +262,8 @@ export default function App({ client }: AppProps) {
   const [detail, setDetail] = useState<GearItem | null>(null);
   const [detailAtlasItem, setDetailAtlasItem] =
     useState<GearAtlasPublicItem | null>(null);
+  const [detailAtlasSubmission, setDetailAtlasSubmission] =
+    useState<GearAtlasSubmission | null>(null);
   const [atlasStatus, setAtlasStatus] = useState<"" | GearAtlasStatus>(
     "pending",
   );
@@ -466,6 +488,7 @@ export default function App({ client }: AppProps) {
     setLoading(false);
     setDetail(null);
     setDetailAtlasItem(null);
+    setDetailAtlasSubmission(null);
   }
 
   function completeLogin(response: WechatLoginResponse) {
@@ -519,7 +542,7 @@ export default function App({ client }: AppProps) {
       completeLogin(response);
     } catch (err) {
       const message = errorMessage(err);
-      if (message.includes("428")) {
+      if (isApiStatus(err, 428)) {
         try {
           await loadCaptcha(account);
           setError("多次登录失败，请输入验证码后重试");
@@ -781,6 +804,7 @@ export default function App({ client }: AppProps) {
       const item = await api.getGear(id);
       setDetail(item);
       setDetailAtlasItem(null);
+      setDetailAtlasSubmission(null);
       if (item.atlas_item_id) {
         try {
           setDetailAtlasItem(
@@ -789,6 +813,18 @@ export default function App({ client }: AppProps) {
         } catch {
           setDetailAtlasItem(null);
         }
+      }
+      try {
+        const submissions = await api.listMyGearAtlasSubmissions({
+          limit: 100,
+        });
+        setDetailAtlasSubmission(
+          submissions.items.find(
+            (submission) => submission.source_user_gear_id === item.id,
+          ) ?? null,
+        );
+      } catch {
+        setDetailAtlasSubmission(null);
       }
     } catch (err) {
       setError(errorMessage(err));
@@ -939,21 +975,18 @@ export default function App({ client }: AppProps) {
       await loadAtlasSubmissions();
     } catch (err) {
       setAtlasError(errorMessage(err));
+      throw err;
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function rejectAtlasSubmission(id: string) {
-    const reason = window.prompt("请输入拒绝原因（可选）");
-    if (reason === null) {
-      return;
-    }
+  async function rejectAtlasSubmission(id: string, reason: string) {
     setSubmitting(true);
     setAtlasError(null);
     try {
       const updated = await api.rejectGearAtlasSubmission(id, {
-        reason: reason.trim() || null,
+        reason: reason.trim(),
       });
       setAtlasDetail(updated);
       await loadAtlasSubmissions();
@@ -972,7 +1005,8 @@ export default function App({ client }: AppProps) {
     setSubmitting(true);
     setError(null);
     try {
-      await api.createGearAtlasSubmissionFromGear(id);
+      const submission = await api.createGearAtlasSubmissionFromGear(id);
+      setDetailAtlasSubmission(submission);
       setError("已提交图鉴审核");
     } catch (err) {
       setError(errorMessage(err));
@@ -1774,10 +1808,12 @@ export default function App({ client }: AppProps) {
         <GearDetailDrawer
           item={detail}
           atlasItem={detailAtlasItem}
+          atlasSubmission={detailAtlasSubmission}
           submitting={submitting}
           onClose={() => {
             setDetail(null);
             setDetailAtlasItem(null);
+            setDetailAtlasSubmission(null);
           }}
           onEdit={() => void openEditForm(detail.id)}
           onSubmitToAtlas={() => void submitGearToAtlas(detail.id)}
@@ -1821,13 +1857,38 @@ function AtlasReviewPage({
     request: UpdateGearAtlasSubmissionRequest,
   ): Promise<void> | void;
   onApprove(id: string): Promise<void> | void;
-  onReject(id: string): Promise<void> | void;
+  onReject(id: string, reason: string): Promise<void> | void;
 }) {
-  const [editedVariants, setEditedVariants] = useState<GearVariant[]>([]);
+  const [form, setForm] = useState<AtlasReviewFormState | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectError, setRejectError] = useState<string | null>(null);
+  const rejectReasonRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    setEditedVariants(selected?.variants ?? []);
+    setForm(selected ? atlasReviewFormFromSubmission(selected) : null);
+    setFormError(null);
+    setRejectReason("");
+    setRejectError(null);
   }, [selected]);
+
+  const specFields = useMemo(
+    () => (form ? getGearAtlasSpecFieldViews(form.category, form.specs) : []),
+    [form],
+  );
+
+  const isDirty = useMemo(
+    () =>
+      Boolean(
+        selected &&
+        form &&
+        !atlasReviewPayloadsEqual(
+          atlasReviewPayloadFromSubmission(selected),
+          atlasReviewPayloadFromForm(form),
+        ),
+      ),
+    [form, selected],
+  );
 
   const handleListScroll = useCallback(
     (event: React.UIEvent<HTMLElement>) => {
@@ -1841,43 +1902,95 @@ function AtlasReviewPage({
     [hasMore, loading, loadingMore, onLoadMore],
   );
   const updateVariant = (index: number, patch: Partial<GearVariant>) => {
-    setEditedVariants((current) =>
-      current.map((variant, currentIndex) =>
-        currentIndex === index ? { ...variant, ...patch } : variant,
-      ),
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            variants: current.variants.map((variant, currentIndex) =>
+              currentIndex === index ? { ...variant, ...patch } : variant,
+            ),
+          }
+        : current,
     );
   };
   const addVariant = () => {
-    setEditedVariants((current) => [
-      ...current,
-      {
-        key: "",
-        label: "",
-        official_price_cents: null,
-        official_price_currency: "CNY",
-        weight_g: null,
-      },
-    ]);
-  };
-  const removeVariant = (index: number) => {
-    setEditedVariants((current) =>
-      current.filter((_, currentIndex) => currentIndex !== index),
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            variants: [
+              ...current.variants,
+              {
+                key: "",
+                label: "",
+                official_price_cents: null,
+                official_price_currency: current.officialPriceCurrency,
+                weight_g: null,
+              },
+            ],
+          }
+        : current,
     );
   };
-  const saveSelected = () => {
+  const removeVariant = (index: number) => {
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            variants: current.variants.filter(
+              (_, currentIndex) => currentIndex !== index,
+            ),
+          }
+        : current,
+    );
+  };
+  const updateSpecValue = (key: string, value: string, unit?: string) => {
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            specs: {
+              ...current.specs,
+              [key]: combineSpecValue(value, unit),
+            },
+          }
+        : current,
+    );
+  };
+  const saveSelected = async () => {
+    if (!selected || !form) return;
+    try {
+      setFormError(null);
+      await onUpdate(selected.id, atlasReviewPayloadFromForm(form));
+    } catch (err) {
+      setFormError(errorMessage(err));
+    }
+  };
+  const approveSelected = async () => {
+    if (!selected || !form) return;
+    try {
+      setFormError(null);
+      if (isDirty) {
+        await onUpdate(selected.id, atlasReviewPayloadFromForm(form));
+      }
+      await onApprove(selected.id);
+    } catch (err) {
+      setFormError(errorMessage(err));
+    }
+  };
+  const rejectSelected = () => {
     if (!selected) return;
-    onUpdate(selected.id, {
-      category: selected.category,
-      name: selected.name,
-      brand: selected.brand ?? null,
-      model: selected.model ?? null,
-      description: selected.description ?? null,
-      weight_g: selected.weight_g ?? null,
-      official_price_cents: selected.official_price_cents ?? null,
-      official_price_currency: selected.official_price_currency ?? null,
-      variants: normalizeVariants(editedVariants),
-      specs: selected.specs ?? {},
-    });
+    const reason = (rejectReasonRef.current?.value ?? rejectReason).trim();
+    if (!reason) {
+      setRejectError("请填写拒绝原因");
+      return;
+    }
+    setRejectError(null);
+    onReject(selected.id, reason);
+  };
+  const updateRejectReason = (value: string) => {
+    setRejectReason(value);
+    setRejectError(null);
   };
 
   return (
@@ -1992,139 +2105,312 @@ function AtlasReviewPage({
                 </span>
               </div>
 
-              <dl className="atlas-public-fields">
-                <div>
-                  <dt>描述</dt>
-                  <dd>{selected.description || "—"}</dd>
-                </div>
-                <div>
-                  <dt>重量</dt>
-                  <dd>{formatWeight(selected.weight_g)}</dd>
-                </div>
-                <div>
-                  <dt>官方价格</dt>
-                  <dd>
-                    {formatAtlasPrice(
-                      selected.official_price_cents,
-                      selected.official_price_currency,
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt>来源装备</dt>
-                  <dd>{selected.source_user_gear_id || "手动投稿"}</dd>
-                </div>
-              </dl>
-
-              <div className="atlas-specs">
-                <h3>可选尺寸</h3>
-                {editedVariants.length ? (
-                  <div className="atlas-variant-editor">
-                    {editedVariants.map((variant, index) => (
-                      <div
-                        className="atlas-variant-row"
-                        key={`${index}-${variant.key}`}
+              {form ? (
+                <form
+                  className="atlas-review-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveSelected();
+                  }}
+                >
+                  <fieldset className="atlas-review-fieldset">
+                    <legend>公共字段</legend>
+                    <label>
+                      分类
+                      <select
+                        value={form.category}
+                        onChange={(event) => {
+                          const category = event.target.value as GearCategory;
+                          setForm({
+                            ...form,
+                            category,
+                            specs: normalizeSpecsForCategory(
+                              category,
+                              form.specs,
+                            ),
+                          });
+                        }}
                       >
-                        <label>
-                          尺寸
-                          <input
-                            value={variant.label}
-                            placeholder="例如 M 75*195"
-                            onChange={(event) =>
-                              updateVariant(index, {
-                                label: event.target.value,
-                                key: variantKeyFromLabel(
-                                  event.target.value,
-                                  index,
-                                ),
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          分尺寸官方价
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="例如 900.00"
-                            value={fromPriceCents(variant.official_price_cents)}
-                            onChange={(event) =>
-                              updateVariant(index, {
-                                official_price_cents: toPriceCents(
-                                  event.target.value,
-                                ),
-                                official_price_currency:
-                                  selected.official_price_currency || "CNY",
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          重量（g）
-                          <input
-                            type="number"
-                            min="0"
-                            placeholder="例如 1000"
-                            value={variant.weight_g ?? ""}
-                            onChange={(event) =>
-                              updateVariant(index, {
-                                weight_g: event.target.value
-                                  ? Number(event.target.value)
-                                  : null,
-                              })
-                            }
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          className="secondary-button variant-remove-button"
-                          onClick={() => removeVariant(index)}
-                        >
-                          移除
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="muted">未填写可选尺寸。</p>
-                )}
-                <div className="actions inline-actions">
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={addVariant}
-                  >
-                    添加尺寸
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    disabled={submitting}
-                    onClick={saveSelected}
-                  >
-                    {submitting ? "保存中..." : "保存尺寸"}
-                  </button>
-                </div>
-              </div>
+                        {CATEGORY_OPTIONS.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      名称
+                      <input
+                        required
+                        value={form.name}
+                        onChange={(event) =>
+                          setForm({ ...form, name: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      品牌
+                      <input
+                        value={form.brand}
+                        onChange={(event) =>
+                          setForm({ ...form, brand: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      型号
+                      <input
+                        value={form.model}
+                        onChange={(event) =>
+                          setForm({ ...form, model: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      重量（g）
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.weightG}
+                        onChange={(event) =>
+                          setForm({ ...form, weightG: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      官方价格
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.officialPrice}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            officialPrice: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      价格币种
+                      <select
+                        value={form.officialPriceCurrency}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            officialPriceCurrency: event.target
+                              .value as GearCurrency,
+                          })
+                        }
+                      >
+                        {CURRENCY_OPTIONS.map((currency) => (
+                          <option key={currency} value={currency}>
+                            {currency}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="full-width">
+                      描述
+                      <textarea
+                        value={form.description}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            description: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </fieldset>
 
-              <div className="atlas-specs">
-                <h3>分类参数</h3>
-                {Object.entries(selected.specs ?? {}).length ? (
-                  <dl>
-                    {Object.entries(selected.specs ?? {}).map(
-                      ([key, value]) => (
-                        <div key={key}>
-                          <dt>{specLabel(selected.category, key)}</dt>
-                          <dd>{value}</dd>
-                        </div>
-                      ),
-                    )}
+                  <dl className="atlas-public-fields atlas-readonly-fields">
+                    <div>
+                      <dt>来源类型</dt>
+                      <dd>{atlasSourceLabel(selected.source_type)}</dd>
+                    </div>
+                    <div>
+                      <dt>来源装备</dt>
+                      <dd>{selected.source_user_gear_id || "手动投稿"}</dd>
+                    </div>
+                    <div>
+                      <dt>来源链接</dt>
+                      <dd>{selected.source_url || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>评分摘要</dt>
+                      <dd>{atlasRatingSummary(selected)}</dd>
+                    </div>
                   </dl>
-                ) : (
-                  <p className="muted">未填写分类参数。</p>
-                )}
-              </div>
+
+                  <div className="atlas-specs">
+                    <h3>可选尺寸</h3>
+                    {form.variants.length ? (
+                      <div className="atlas-variant-editor">
+                        {form.variants.map((variant, index) => (
+                          <div
+                            className="atlas-variant-row"
+                            key={`${index}-${variant.key}`}
+                          >
+                            <label>
+                              尺寸
+                              <input
+                                value={variant.label}
+                                placeholder="例如 M 75*195"
+                                onChange={(event) =>
+                                  updateVariant(index, {
+                                    label: event.target.value,
+                                    key: variantKeyFromLabel(
+                                      event.target.value,
+                                      index,
+                                    ),
+                                  })
+                                }
+                              />
+                            </label>
+                            <label>
+                              分尺寸官方价
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="例如 900.00"
+                                value={fromPriceCents(
+                                  variant.official_price_cents,
+                                )}
+                                onChange={(event) =>
+                                  updateVariant(index, {
+                                    official_price_cents: toPriceCents(
+                                      event.target.value,
+                                    ),
+                                    official_price_currency:
+                                      variant.official_price_currency ||
+                                      form.officialPriceCurrency,
+                                  })
+                                }
+                              />
+                            </label>
+                            <label>
+                              重量（g）
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="例如 1000"
+                                value={variant.weight_g ?? ""}
+                                onChange={(event) =>
+                                  updateVariant(index, {
+                                    weight_g: event.target.value
+                                      ? Number(event.target.value)
+                                      : null,
+                                  })
+                                }
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="secondary-button variant-remove-button"
+                              onClick={() => removeVariant(index)}
+                            >
+                              移除
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted">未填写可选尺寸。</p>
+                    )}
+                    <div className="actions inline-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={addVariant}
+                      >
+                        添加尺寸
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="atlas-specs">
+                    <h3>分类参数</h3>
+                    {specFields.length ? (
+                      <div className="atlas-review-spec-grid">
+                        {specFields.map((field) => (
+                          <div className="atlas-spec-input" key={field.key}>
+                            <label htmlFor={`atlas-review-spec-${field.key}`}>
+                              {field.label}
+                            </label>
+                            <div className="atlas-spec-input-row">
+                              {field.choiceOnly ? (
+                                <span
+                                  className={
+                                    field.unitLabel
+                                      ? "choice-value"
+                                      : "choice-value muted"
+                                  }
+                                >
+                                  {field.unitLabel || field.placeholder}
+                                </span>
+                              ) : (
+                                <input
+                                  id={`atlas-review-spec-${field.key}`}
+                                  type={
+                                    field.inputType === "number"
+                                      ? "number"
+                                      : "text"
+                                  }
+                                  value={field.valueText}
+                                  placeholder={field.placeholder}
+                                  onChange={(event) =>
+                                    updateSpecValue(
+                                      field.key,
+                                      event.target.value,
+                                      field.unitLabel,
+                                    )
+                                  }
+                                />
+                              )}
+                              {field.units?.length ? (
+                                <select
+                                  aria-label={`${field.label}单位`}
+                                  value={field.unitIndex}
+                                  onChange={(event) => {
+                                    const unitIndex = Number(
+                                      event.target.value || 0,
+                                    );
+                                    const unit = field.units?.[unitIndex] ?? "";
+                                    updateSpecValue(
+                                      field.key,
+                                      field.choiceOnly ? "" : field.valueText,
+                                      unit,
+                                    );
+                                  }}
+                                >
+                                  {field.unitLabels.map((label, index) => (
+                                    <option
+                                      key={`${field.key}-${label}`}
+                                      value={index}
+                                    >
+                                      {label || "无单位"}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted">未填写分类参数。</p>
+                    )}
+                  </div>
+                  {formError ? (
+                    <div className="notice" role="status">
+                      {formError}
+                    </div>
+                  ) : null}
+                </form>
+              ) : null}
 
               {selected.rejection_reason ? (
                 <div className="notice">
@@ -2132,20 +2418,64 @@ function AtlasReviewPage({
                 </div>
               ) : null}
 
+              {selected.review_changes?.length ? (
+                <div className="notice">
+                  管理员调整：
+                  {selected.review_changes
+                    .map(
+                      (change) =>
+                        `${change.label} 从 ${change.before || "—"} 改为 ${
+                          change.after || "—"
+                        }`,
+                    )
+                    .join("；")}
+                </div>
+              ) : null}
+
+              <label className="atlas-reject-reason">
+                拒绝原因
+                <textarea
+                  key={selected.id}
+                  ref={rejectReasonRef}
+                  defaultValue=""
+                  maxLength={200}
+                  placeholder="请说明需要用户修改的字段或原因"
+                  onChange={(event) => {
+                    updateRejectReason(event.target.value);
+                  }}
+                  onInput={(event) => {
+                    updateRejectReason(event.currentTarget.value);
+                  }}
+                />
+              </label>
+              {rejectError ? (
+                <div className="notice" role="status">
+                  {rejectError}
+                </div>
+              ) : null}
+
               <div className="actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={submitting || !isDirty}
+                  onClick={() => void saveSelected()}
+                >
+                  {submitting ? "保存中..." : isDirty ? "保存字段" : "已保存"}
+                </button>
                 <button
                   type="button"
                   className="primary-button"
                   disabled={submitting || selected.status === "approved"}
-                  onClick={() => void onApprove(selected.id)}
+                  onClick={() => void approveSelected()}
                 >
-                  通过
+                  {isDirty ? "保存并通过" : "通过"}
                 </button>
                 <button
                   type="button"
                   className="secondary-button"
                   disabled={submitting || selected.status === "rejected"}
-                  onClick={() => void onReject(selected.id)}
+                  onClick={rejectSelected}
                 >
                   拒绝
                 </button>
@@ -2281,6 +2611,126 @@ function AdminFeedbackPage({
       </section>
     </section>
   );
+}
+
+function atlasReviewFormFromSubmission(
+  item: GearAtlasSubmission,
+): AtlasReviewFormState {
+  return {
+    category: item.category,
+    name: item.name,
+    brand: item.brand ?? "",
+    model: item.model ?? "",
+    description: item.description ?? "",
+    weightG: item.weight_g?.toString() ?? "",
+    officialPrice: fromPriceCents(item.official_price_cents),
+    officialPriceCurrency:
+      (item.official_price_currency as GearCurrency | null | undefined) ??
+      "CNY",
+    variants: normalizeVariants(item.variants ?? []),
+    specs: item.specs ?? {},
+  };
+}
+
+function atlasReviewPayloadFromForm(
+  form: AtlasReviewFormState,
+): UpdateGearAtlasSubmissionRequest {
+  const name = form.name.trim();
+  if (!name) {
+    throw new Error("请填写装备名称");
+  }
+  return {
+    category: form.category,
+    name,
+    brand: optionalAtlasText(form.brand),
+    model: optionalAtlasText(form.model),
+    description: optionalAtlasText(form.description),
+    weight_g: optionalAtlasWholeNumber(form.weightG, "重量必须是非负整数"),
+    official_price_cents: optionalAtlasPriceCents(form.officialPrice),
+    official_price_currency: form.officialPrice.trim()
+      ? form.officialPriceCurrency
+      : null,
+    variants: normalizeVariants(form.variants),
+    specs: normalizeSpecsForCategory(form.category, form.specs),
+  };
+}
+
+function atlasReviewPayloadFromSubmission(
+  item: GearAtlasSubmission,
+): UpdateGearAtlasSubmissionRequest {
+  return {
+    category: item.category,
+    name: item.name,
+    brand: item.brand ?? null,
+    model: item.model ?? null,
+    description: item.description ?? null,
+    weight_g: item.weight_g ?? null,
+    official_price_cents: item.official_price_cents ?? null,
+    official_price_currency: item.official_price_currency ?? null,
+    variants: normalizeVariants(item.variants ?? []),
+    specs: normalizeSpecsForCategory(item.category, item.specs ?? {}),
+  };
+}
+
+function atlasReviewPayloadsEqual(
+  left: UpdateGearAtlasSubmissionRequest,
+  right: UpdateGearAtlasSubmissionRequest,
+): boolean {
+  return (
+    JSON.stringify(normalizeAtlasReviewPayload(left)) ===
+    JSON.stringify(normalizeAtlasReviewPayload(right))
+  );
+}
+
+function normalizeAtlasReviewPayload(
+  payload: UpdateGearAtlasSubmissionRequest,
+): UpdateGearAtlasSubmissionRequest {
+  const specs = Object.fromEntries(
+    Object.entries(payload.specs ?? {}).sort(([left], [right]) =>
+      left.localeCompare(right),
+    ),
+  );
+  return {
+    ...payload,
+    brand: payload.brand || null,
+    model: payload.model || null,
+    description: payload.description || null,
+    official_price_currency:
+      payload.official_price_cents !== undefined &&
+      payload.official_price_cents !== null
+        ? payload.official_price_currency || "CNY"
+        : null,
+    variants: normalizeVariants(payload.variants ?? []),
+    specs,
+  };
+}
+
+function optionalAtlasText(value: string): string | null {
+  const text = value.trim();
+  return text || null;
+}
+
+function optionalAtlasWholeNumber(
+  value: string,
+  message: string,
+): number | null {
+  const text = value.trim();
+  if (!text) return null;
+  const parsed = Number(text);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(message);
+  }
+  return parsed;
+}
+
+function optionalAtlasPriceCents(value: string): number | null {
+  const text = value.trim();
+  if (!text) return null;
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error("官方价格必须是非负数字");
+  }
+  return Math.round(parsed * 100);
 }
 
 function mergeAtlasSubmissionPages(
@@ -2761,6 +3211,7 @@ function GearFormModal({
 function GearDetailDrawer({
   item,
   atlasItem,
+  atlasSubmission,
   submitting,
   onClose,
   onEdit,
@@ -2768,6 +3219,7 @@ function GearDetailDrawer({
 }: {
   item: GearItem;
   atlasItem: GearAtlasPublicItem | null;
+  atlasSubmission: GearAtlasSubmission | null;
   submitting: boolean;
   onClose(): void;
   onEdit(): void;
@@ -2841,13 +3293,29 @@ function GearDetailDrawer({
           <dd>{item.notes || "—"}</dd>
         </div>
       </dl>
+      {atlasSubmission ? (
+        <div className="notice atlas-submission-status">
+          <strong>图鉴投稿：{atlasStatusLabel(atlasSubmission.status)}</strong>
+          <span>{atlasSubmissionHint(atlasSubmission)}</span>
+        </div>
+      ) : null}
       <div className="actions detail-actions">
         <button
           className="secondary-button"
           onClick={onSubmitToAtlas}
-          disabled={submitting}
+          disabled={
+            submitting ||
+            atlasSubmission?.status === "pending" ||
+            atlasSubmission?.status === "approved"
+          }
         >
-          {submitting ? "提交中..." : "投稿到图鉴"}
+          {submitting
+            ? "提交中..."
+            : atlasSubmission?.status === "rejected"
+              ? "重新投稿到图鉴"
+              : atlasSubmission
+                ? "已投稿"
+                : "投稿到图鉴"}
         </button>
         <button className="primary-button" onClick={onEdit}>
           编辑装备
@@ -3001,6 +3469,42 @@ function atlasSourceLabel(sourceType: GearAtlasSubmission["source_type"]) {
   return "手动投稿";
 }
 
+function atlasSubmissionHint(submission: GearAtlasSubmission): string {
+  if (submission.status === "rejected") {
+    return submission.rejection_reason
+      ? `拒绝原因：${submission.rejection_reason}`
+      : "审核未通过，暂未填写原因。";
+  }
+  if (submission.status === "approved" && submission.review_changes?.length) {
+    return `管理员调整：${submission.review_changes
+      .map(
+        (change) =>
+          `${change.label} 从 ${change.before || "—"} 改为 ${
+            change.after || "—"
+          }`,
+      )
+      .join("；")}`;
+  }
+  if (submission.status === "approved") {
+    return "已收录到装备图鉴。";
+  }
+  return "审核中，结果会在这里显示。";
+}
+
+function atlasRatingSummary(item: GearAtlasSubmission): string {
+  if (
+    item.source_rating_score === undefined ||
+    item.source_rating_score === null
+  ) {
+    return "—";
+  }
+  const count =
+    item.source_rating_count !== undefined && item.source_rating_count !== null
+      ? ` / ${item.source_rating_count} 条`
+      : "";
+  return `${item.source_rating_score.toFixed(1)} 分${count}`;
+}
+
 function formatAtlasPrice(
   cents?: number | null,
   currency?: string | null,
@@ -3101,6 +3605,10 @@ function loadThemePreference(): ThemeMode {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "请求失败，请稍后重试";
+}
+
+function isApiStatus(err: unknown, status: number): boolean {
+  return err instanceof StellarTrailApiError && err.status === status;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

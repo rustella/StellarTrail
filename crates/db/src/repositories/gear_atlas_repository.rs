@@ -12,8 +12,9 @@ use sea_orm::{
 use stellartrail_domain::{
     gear::{GearCategory, GearSpecs, GearVariants},
     gear_atlas::{
-        GearAtlasDraft, GearAtlasExternalImportDraft, GearAtlasItem, GearAtlasSort,
-        GearAtlasSourceType, GearAtlasStatus, now_atlas_rfc3339,
+        GearAtlasDraft, GearAtlasExternalImportDraft, GearAtlasItem, GearAtlasPublicSnapshot,
+        GearAtlasReviewChanges, GearAtlasSort, GearAtlasSourceType, GearAtlasStatus,
+        now_atlas_rfc3339, review_changes_between,
     },
     locale::Locale,
 };
@@ -107,17 +108,26 @@ impl GearAtlasRepository {
         let now = now_atlas_rfc3339();
         let specs_json = json_string(&draft.specs)?;
         let variants_json = variants_json(&draft.variants)?;
+        let submitted_snapshot_json = snapshot_json(&GearAtlasPublicSnapshot::from_draft(draft))?;
         let tx = self.db.begin().await?;
         tx.execute(statement(
             self.db.get_database_backend(),
             r#"INSERT INTO gear_atlas_items (
                 id, category, name, brand, model, description, weight_g,
                 official_price_cents, official_price_currency, variants_json, specs_json,
+                submitted_snapshot_json, review_changes_json,
                 source_type, submitted_by_user_id, source_user_gear_id, status,
                 rejection_reason, reviewed_by_user_id, reviewed_at, approved_at,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
-            atlas_values(&id, draft, &variants_json, &specs_json, &now),
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+            atlas_values(
+                &id,
+                draft,
+                &variants_json,
+                &specs_json,
+                &submitted_snapshot_json,
+                &now,
+            ),
         ))
         .await?;
         tx.execute(statement(
@@ -165,19 +175,28 @@ impl GearAtlasRepository {
         let now = now_atlas_rfc3339();
         let specs_json = json_string(&draft.specs)?;
         let variants_json = variants_json(&draft.variants)?;
+        let submitted_snapshot_json = snapshot_json(&snapshot_from_external_import(draft))?;
         let tx = self.db.begin().await?;
         tx.execute(statement(
             self.db.get_database_backend(),
             r#"INSERT INTO gear_atlas_items (
                 id, category, name, brand, model, description, weight_g,
                 official_price_cents, official_price_currency, variants_json, specs_json,
+                submitted_snapshot_json, review_changes_json,
                 source_type, submitted_by_user_id, source_user_gear_id, status,
                 rejection_reason, reviewed_by_user_id, reviewed_at, approved_at,
                 source_key, source_name, source_url, source_license_note,
                 import_batch_id, imported_at, source_rating_score, source_rating_count,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
-            external_import_values(&id, draft, &variants_json, &specs_json, &now),
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+            external_import_values(
+                &id,
+                draft,
+                &variants_json,
+                &specs_json,
+                &submitted_snapshot_json,
+                &now,
+            ),
         ))
         .await?;
         upsert_zh_localization(
@@ -462,6 +481,13 @@ impl GearAtlasRepository {
         id: &str,
         reviewer_user_id: &str,
     ) -> Result<Option<GearAtlasItem>, DbErr> {
+        let Some(existing) = self.get_any(id).await? else {
+            return Ok(None);
+        };
+        let review_changes = review_changes_between(
+            &existing.submitted_snapshot,
+            &GearAtlasPublicSnapshot::from_item(&existing),
+        );
         let now = now_atlas_rfc3339();
         self.update_review(
             id,
@@ -469,6 +495,7 @@ impl GearAtlasRepository {
             reviewer_user_id,
             None,
             Some(now),
+            Some(&review_changes),
         )
         .await
     }
@@ -478,13 +505,14 @@ impl GearAtlasRepository {
         &self,
         id: &str,
         reviewer_user_id: &str,
-        reason: Option<String>,
+        reason: String,
     ) -> Result<Option<GearAtlasItem>, DbErr> {
         self.update_review(
             id,
             GearAtlasStatus::Rejected,
             reviewer_user_id,
-            reason,
+            Some(reason),
+            None,
             None,
         )
         .await
@@ -497,14 +525,17 @@ impl GearAtlasRepository {
         reviewer_user_id: &str,
         rejection_reason: Option<String>,
         approved_at: Option<String>,
+        review_changes: Option<&GearAtlasReviewChanges>,
     ) -> Result<Option<GearAtlasItem>, DbErr> {
         let now = now_atlas_rfc3339();
+        let review_changes_json = review_changes.map(json_string).transpose()?;
         let result = self
             .db
             .execute(statement(
                 self.db.get_database_backend(),
                 "UPDATE gear_atlas_items SET status = ?, rejection_reason = ?, \
-                 reviewed_by_user_id = ?, reviewed_at = ?, approved_at = ?, updated_at = ? \
+                 reviewed_by_user_id = ?, reviewed_at = ?, approved_at = ?, \
+                 review_changes_json = ?, updated_at = ? \
                  WHERE id = ?",
                 vec![
                     status.as_str().to_owned().into(),
@@ -512,6 +543,7 @@ impl GearAtlasRepository {
                     reviewer_user_id.to_owned().into(),
                     now.clone().into(),
                     approved_at.into(),
+                    review_changes_json.into(),
                     now.into(),
                     id.to_owned().into(),
                 ],
@@ -544,13 +576,15 @@ impl GearAtlasRepository {
         let now = now_atlas_rfc3339();
         let specs_json = json_string(&draft.specs)?;
         let variants_json = variants_json(&draft.variants)?;
+        let submitted_snapshot_json = snapshot_json(&snapshot_from_external_import(draft))?;
         let tx = self.db.begin().await?;
         tx.execute(statement(
             self.db.get_database_backend(),
             r#"UPDATE gear_atlas_items
                SET category = ?, name = ?, brand = ?, model = ?, description = ?,
                    weight_g = ?, official_price_cents = ?, official_price_currency = ?,
-                   variants_json = ?, specs_json = ?, source_type = ?, submitted_by_user_id = ?,
+                   variants_json = ?, specs_json = ?, submitted_snapshot_json = ?,
+                   review_changes_json = NULL, source_type = ?, submitted_by_user_id = ?,
                    source_user_gear_id = NULL, status = ?, rejection_reason = NULL,
                    reviewed_by_user_id = NULL, reviewed_at = NULL, approved_at = NULL,
                    source_key = ?, source_name = ?, source_url = ?,
@@ -568,6 +602,7 @@ impl GearAtlasRepository {
                 draft.official_price_currency.clone().into(),
                 variants_json.into(),
                 specs_json.into(),
+                submitted_snapshot_json.into(),
                 GearAtlasSourceType::ExternalImport
                     .as_str()
                     .to_owned()
@@ -620,6 +655,7 @@ fn atlas_values(
     draft: &GearAtlasDraft,
     variants_json: &str,
     specs_json: &str,
+    submitted_snapshot_json: &str,
     now: &str,
 ) -> Vec<Value> {
     vec![
@@ -634,6 +670,8 @@ fn atlas_values(
         draft.official_price_currency.clone().into(),
         variants_json.to_owned().into(),
         specs_json.to_owned().into(),
+        submitted_snapshot_json.to_owned().into(),
+        Option::<String>::None.into(),
         draft.source_type.as_str().to_owned().into(),
         draft.submitted_by_user_id.clone().into(),
         draft.source_user_gear_id.clone().into(),
@@ -652,6 +690,7 @@ fn external_import_values(
     draft: &GearAtlasExternalImportDraft,
     variants_json: &str,
     specs_json: &str,
+    submitted_snapshot_json: &str,
     now: &str,
 ) -> Vec<Value> {
     vec![
@@ -666,6 +705,8 @@ fn external_import_values(
         draft.official_price_currency.clone().into(),
         variants_json.to_owned().into(),
         specs_json.to_owned().into(),
+        submitted_snapshot_json.to_owned().into(),
+        Option::<String>::None.into(),
         GearAtlasSourceType::ExternalImport
             .as_str()
             .to_owned()
@@ -693,6 +734,7 @@ fn external_import_values(
 fn atlas_select_columns() -> &'static str {
     r#"SELECT id, category, name, brand, model, description, weight_g,
         official_price_cents, official_price_currency, variants_json, specs_json,
+        submitted_snapshot_json, review_changes_json,
         source_type, submitted_by_user_id, source_user_gear_id, status,
         rejection_reason, reviewed_by_user_id, reviewed_at, approved_at,
         source_key, source_name, source_url, source_license_note, import_batch_id,
@@ -861,12 +903,31 @@ fn cmp_option_desc<T: Ord>(left: Option<T>, right: Option<T>) -> Ordering {
     }
 }
 
-fn json_string(specs: &GearSpecs) -> Result<String, DbErr> {
-    serde_json::to_string(specs).map_err(|err| DbErr::Custom(err.to_string()))
+fn json_string<T: serde::Serialize>(value: &T) -> Result<String, DbErr> {
+    serde_json::to_string(value).map_err(|err| DbErr::Custom(err.to_string()))
 }
 
 fn variants_json(variants: &GearVariants) -> Result<String, DbErr> {
     serde_json::to_string(variants).map_err(|err| DbErr::Custom(err.to_string()))
+}
+
+fn snapshot_json(snapshot: &GearAtlasPublicSnapshot) -> Result<String, DbErr> {
+    json_string(snapshot)
+}
+
+fn snapshot_from_external_import(draft: &GearAtlasExternalImportDraft) -> GearAtlasPublicSnapshot {
+    GearAtlasPublicSnapshot {
+        category: draft.category,
+        name: draft.name.clone(),
+        brand: draft.brand.clone(),
+        model: draft.model.clone(),
+        description: draft.description.clone(),
+        weight_g: draft.weight_g,
+        official_price_cents: draft.official_price_cents,
+        official_price_currency: draft.official_price_currency.clone(),
+        variants: draft.variants.clone(),
+        specs: draft.specs.clone(),
+    }
 }
 
 fn map_atlas_item(row: &sea_orm::QueryResult) -> Result<GearAtlasItem, DbErr> {
@@ -875,21 +936,52 @@ fn map_atlas_item(row: &sea_orm::QueryResult) -> Result<GearAtlasItem, DbErr> {
     let status_raw: String = row.try_get("", "status")?;
     let specs_json: String = row.try_get("", "specs_json")?;
     let variants_json: String = row.try_get("", "variants_json")?;
+    let submitted_snapshot_json: Option<String> = row.try_get("", "submitted_snapshot_json")?;
+    let review_changes_json: Option<String> = row.try_get("", "review_changes_json")?;
     let specs: GearSpecs = serde_json::from_str(&specs_json).unwrap_or_default();
     let variants: GearVariants = serde_json::from_str(&variants_json).unwrap_or_default();
+    let category = GearCategory::from_key(&category_raw)
+        .ok_or_else(|| DbErr::Custom(format!("invalid gear atlas category: {category_raw}")))?;
+    let name: String = row.try_get("", "name")?;
+    let brand: Option<String> = row.try_get("", "brand")?;
+    let model: Option<String> = row.try_get("", "model")?;
+    let description: Option<String> = row.try_get("", "description")?;
+    let weight_g: Option<i32> = row.try_get("", "weight_g")?;
+    let official_price_cents: Option<i64> = row.try_get("", "official_price_cents")?;
+    let official_price_currency: Option<String> = row.try_get("", "official_price_currency")?;
+    let submitted_snapshot = submitted_snapshot_json
+        .as_deref()
+        .and_then(|value| serde_json::from_str(value).ok())
+        .unwrap_or_else(|| GearAtlasPublicSnapshot {
+            category,
+            name: name.clone(),
+            brand: brand.clone(),
+            model: model.clone(),
+            description: description.clone(),
+            weight_g,
+            official_price_cents,
+            official_price_currency: official_price_currency.clone(),
+            variants: variants.clone(),
+            specs: specs.clone(),
+        });
+    let review_changes: GearAtlasReviewChanges = review_changes_json
+        .as_deref()
+        .and_then(|value| serde_json::from_str(value).ok())
+        .unwrap_or_default();
     Ok(GearAtlasItem {
         id: row.try_get("", "id")?,
-        category: GearCategory::from_key(&category_raw)
-            .ok_or_else(|| DbErr::Custom(format!("invalid gear atlas category: {category_raw}")))?,
-        name: row.try_get("", "name")?,
-        brand: row.try_get("", "brand")?,
-        model: row.try_get("", "model")?,
-        description: row.try_get("", "description")?,
-        weight_g: row.try_get("", "weight_g")?,
-        official_price_cents: row.try_get("", "official_price_cents")?,
-        official_price_currency: row.try_get("", "official_price_currency")?,
+        category,
+        name,
+        brand,
+        model,
+        description,
+        weight_g,
+        official_price_cents,
+        official_price_currency,
         variants,
         specs,
+        submitted_snapshot,
+        review_changes,
         source_type: GearAtlasSourceType::from_key(&source_type_raw).ok_or_else(|| {
             DbErr::Custom(format!("invalid gear atlas source type: {source_type_raw}"))
         })?,

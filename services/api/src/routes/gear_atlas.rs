@@ -314,13 +314,19 @@ async fn reject_submission(
     Ok(Json(GearAtlasSubmissionResponse::from(&item)))
 }
 
-fn normalize_rejection_reason(value: Option<String>) -> Result<Option<String>, ApiError> {
+fn normalize_rejection_reason(value: Option<String>) -> Result<String, ApiError> {
     let Some(value) = value else {
-        return Ok(None);
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "reason",
+            "is required",
+        )]));
     };
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return Ok(None);
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "reason",
+            "is required",
+        )]));
     }
     if trimmed.chars().count() > 200 {
         return Err(ApiError::Validation(vec![FieldViolation::new(
@@ -328,5 +334,5 @@ fn normalize_rejection_reason(value: Option<String>) -> Result<Option<String>, A
             "must be at most 200 characters",
         )]));
     }
-    Ok(Some(trimmed.to_owned()))
+    Ok(trimmed.to_owned())
 }

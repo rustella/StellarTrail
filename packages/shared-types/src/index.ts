@@ -467,11 +467,19 @@ export interface GearAtlasPublicItem {
   updated_at: string;
 }
 
+export interface GearAtlasReviewChange {
+  field: string;
+  label: string;
+  before?: string | null;
+  after?: string | null;
+}
+
 export interface GearAtlasSubmission extends GearAtlasPublicItem {
   source_type: GearAtlasSourceType;
   source_user_gear_id?: string | null;
   status: GearAtlasStatus;
   rejection_reason?: string | null;
+  review_changes?: GearAtlasReviewChange[] | null;
   reviewed_at?: string | null;
 }
 
@@ -517,7 +525,7 @@ export interface ListGearAtlasSubmissionsResponse {
 }
 
 export interface RejectGearAtlasSubmissionRequest {
-  reason?: string | null;
+  reason: string;
 }
 
 export interface WechatLoginRequest {

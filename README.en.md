@@ -147,7 +147,7 @@ Real client config files stay local or in the build environment and are ignored 
 | iOS                 | `apps/ios/StellarTrail/Resources/ClientConfig.example.plist`      | `apps/ios/StellarTrail/Resources/ClientConfig.plist`      |
 | macOS               | `apps/macos/StellarTrailMac/Resources/ClientConfig.example.plist` | `apps/macos/StellarTrailMac/Resources/ClientConfig.plist` |
 
-Web reads `VITE_STELLARTRAIL_API_BASE_URL` and `VITE_STELLARTRAIL_ASSETS_BASE_URL`; Android reads `config.properties` during the Gradle build and writes `BuildConfig`; iOS/macOS first read `ClientConfig.plist` from the app bundle and fall back to the production defaults when it is absent.
+Web reads `VITE_STELLARTRAIL_API_BASE_URL` and `VITE_STELLARTRAIL_ASSETS_BASE_URL`; local Vite development uses same-origin `/api` by default and proxies it through `VITE_STELLARTRAIL_API_PROXY_TARGET` to the production or local API to avoid browser CORS failures. Android reads `config.properties` during the Gradle build and writes `BuildConfig`; iOS/macOS first read `ClientConfig.plist` from the app bundle and fall back to the production defaults when it is absent.
 
 Currently implemented service capabilities:
 
@@ -201,7 +201,7 @@ GET /api/admin/api-usage
 POST|DELETE /api/admin/admins
 PUT /api/admin/skills/knots/:knot_id/media/:asset_id
 GET /api/admin/gear-atlas-submissions
-GET /api/admin/gear-atlas-submissions/:id
+GET|PATCH /api/admin/gear-atlas-submissions/:id
 POST /api/admin/gear-atlas-submissions/:id/approve
 POST /api/admin/gear-atlas-submissions/:id/reject
 GET /api/admin/feedback

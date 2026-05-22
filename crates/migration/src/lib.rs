@@ -26,6 +26,7 @@ mod m20260518_000006_create_admin_roles;
 mod m20260521_000001_add_public_content_localizations;
 mod m20260521_000002_add_gear_atlas_import_metadata;
 mod m20260522_000001_add_gear_variants;
+mod m20260523_000001_add_gear_atlas_review_snapshots;
 
 /// Concrete SeaORM migrator used by the API server and test suites.
 ///
@@ -62,6 +63,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260521_000001_add_public_content_localizations::Migration),
             Box::new(m20260521_000002_add_gear_atlas_import_metadata::Migration),
             Box::new(m20260522_000001_add_gear_variants::Migration),
+            Box::new(m20260523_000001_add_gear_atlas_review_snapshots::Migration),
         ]
     }
 }
