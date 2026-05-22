@@ -1,5 +1,7 @@
 package com.rustella.stellartrail.domain.gear
 
+import com.rustella.stellartrail.domain.atlas.GearAtlasStatus
+
 val GearCategory.label: String
     get() = when (this) {
         GearCategory.BACKPACK_SYSTEM -> "背负系统"
@@ -34,6 +36,13 @@ val GearShareStatus.label: String
         GearShareStatus.APPROVED -> "已通过"
         GearShareStatus.REJECTED -> "已拒绝"
         GearShareStatus.WITHDRAWN -> "已撤回"
+    }
+
+val GearAtlasStatus.label: String
+    get() = when (this) {
+        GearAtlasStatus.PENDING -> "审核中"
+        GearAtlasStatus.APPROVED -> "已收录"
+        GearAtlasStatus.REJECTED -> "已拒绝"
     }
 
 val GearSort.label: String

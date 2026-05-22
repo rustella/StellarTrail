@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 
 data class HomeUiState(
     val isLoggedIn: Boolean = false,
@@ -40,35 +41,43 @@ class HomeViewModel(
         viewModelScope.launch {
             _state.update { it.copy(isLoggedIn = isLoggedIn, loading = true, error = null) }
             try {
-                val templates = async { gearRepository.listTemplates() }
-                val skills = async { skillRepository.listSkills() }
-                if (isLoggedIn) {
-                    val stats = async { gearRepository.stats(GearTab.AVAILABLE) }
-                    val gears = async {
-                        gearRepository.list(
-                            ListGearsRequest(
-                                tab = GearTab.AVAILABLE,
-                                limit = 2,
-                                sort = GearSort.CREATED_AT_DESC,
-                            ),
-                        )
-                    }
-                    _state.update {
-                        it.copy(
-                            stats = stats.await(),
-                            recentGears = gears.await().items,
-                            templates = templates.await().items.take(2),
-                            skills = skills.await().items.take(3),
-                        )
-                    }
-                } else {
-                    _state.update {
-                        it.copy(
-                            stats = EMPTY_STATS,
-                            recentGears = emptyList(),
-                            templates = templates.await().items.take(2),
-                            skills = skills.await().items.take(3),
-                        )
+                supervisorScope {
+                    val templates = async { gearRepository.listTemplates() }
+                    val skills = async { skillRepository.listSkills() }
+                    if (isLoggedIn) {
+                        val stats = async { gearRepository.stats(GearTab.AVAILABLE) }
+                        val gears = async {
+                            gearRepository.list(
+                                ListGearsRequest(
+                                    tab = GearTab.AVAILABLE,
+                                    limit = 2,
+                                    sort = GearSort.CREATED_AT_DESC,
+                                ),
+                            )
+                        }
+                        val templateItems = templates.await().items.take(2)
+                        val skillItems = skills.await().items.take(3)
+                        val statsValue = stats.await()
+                        val recentGearItems = gears.await().items
+                        _state.update {
+                            it.copy(
+                                stats = statsValue,
+                                recentGears = recentGearItems,
+                                templates = templateItems,
+                                skills = skillItems,
+                            )
+                        }
+                    } else {
+                        val templateItems = templates.await().items.take(2)
+                        val skillItems = skills.await().items.take(3)
+                        _state.update {
+                            it.copy(
+                                stats = EMPTY_STATS,
+                                recentGears = emptyList(),
+                                templates = templateItems,
+                                skills = skillItems,
+                            )
+                        }
                     }
                 }
             } catch (throwable: Throwable) {

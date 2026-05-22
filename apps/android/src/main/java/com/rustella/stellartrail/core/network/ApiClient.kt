@@ -1,5 +1,6 @@
 package com.rustella.stellartrail.core.network
 
+import android.util.Log
 import com.rustella.stellartrail.core.config.AppConfig
 import com.rustella.stellartrail.domain.auth.LoginResponse
 import com.rustella.stellartrail.domain.auth.RefreshTokenRequest
@@ -26,6 +27,14 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import okhttp3.Call
+import okhttp3.EventListener
+import okhttp3.Handshake
+import okhttp3.Protocol
+import java.io.IOException
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Proxy
 
 /** Thin HTTP boundary around the existing StellarTrail Rust JSON API. */
 class ApiClient(
@@ -74,30 +83,40 @@ class ApiClient(
         locale: SkillLocale? = null,
         crossinline configure: HttpRequestBuilder.() -> Unit = {},
     ): Response {
-        var response = httpClient.prepareRequest(buildUrl(path, query)) {
-            this.method = method
-            attachAuthAndDefaults(locale)
-            configure()
-        }.execute()
-        if (response.status == HttpStatusCode.Unauthorized && canRefreshAfterUnauthorized(path)) {
-            val refreshed = refreshWithStoredToken()
-            if (refreshed) {
-                response = httpClient.prepareRequest(buildUrl(path, query)) {
-                    this.method = method
-                    attachAuthAndDefaults(locale)
-                    configure()
-                }.execute()
+        val requestUrl = buildUrl(path, query)
+        try {
+            var response = httpClient.prepareRequest(requestUrl) {
+                this.method = method
+                attachAuthAndDefaults(locale)
+                configure()
+            }.execute()
+            if (response.status == HttpStatusCode.Unauthorized && canRefreshAfterUnauthorized(path)) {
+                val refreshed = refreshWithStoredToken()
+                if (refreshed) {
+                    response = httpClient.prepareRequest(requestUrl) {
+                        this.method = method
+                        attachAuthAndDefaults(locale)
+                        configure()
+                    }.execute()
+                }
             }
+            val text = response.bodyAsText()
+            if (!response.status.isSuccess()) {
+                throw ApiException.from(response.status, text, json)
+            }
+            if (Response::class == Unit::class) {
+                @Suppress("UNCHECKED_CAST")
+                return Unit as Response
+            }
+            return json.decodeFromString(text)
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            Log.w(
+                NETWORK_LOG_TAG,
+                "${method.value} ${requestUrl.substringBefore('?')} failed: ${error::class.java.name}: ${error.message}",
+            )
+            throw error
         }
-        val text = response.bodyAsText()
-        if (!response.status.isSuccess()) {
-            throw ApiException.from(response.status, text, json)
-        }
-        if (Response::class == Unit::class) {
-            @Suppress("UNCHECKED_CAST")
-            return Unit as Response
-        }
-        return json.decodeFromString(text)
     }
 
     fun resolveAssetUrl(pathOrUrl: String): String {
@@ -153,9 +172,78 @@ class ApiClient(
         }
 
         fun defaultHttpClient(): HttpClient = HttpClient(OkHttp) {
+            engine {
+                config {
+                    eventListenerFactory { NetworkDiagnosticsEventListener() }
+                }
+            }
             install(ContentNegotiation) {
                 json(defaultJson)
             }
         }
+    }
+}
+
+@PublishedApi
+internal const val NETWORK_LOG_TAG = "StellarTrailApi"
+
+private class NetworkDiagnosticsEventListener : EventListener() {
+    override fun dnsStart(call: Call, domainName: String) {
+        Log.i(NETWORK_LOG_TAG, "dnsStart ${call.label()} domain=$domainName")
+    }
+
+    override fun dnsEnd(call: Call, domainName: String, inetAddressList: List<InetAddress>) {
+        val addresses = inetAddressList.joinToString(",") { it.hostAddress ?: it.hostName }
+        Log.i(NETWORK_LOG_TAG, "dnsEnd ${call.label()} domain=$domainName addresses=$addresses")
+    }
+
+    override fun connectStart(call: Call, inetSocketAddress: InetSocketAddress, proxy: Proxy) {
+        Log.i(NETWORK_LOG_TAG, "connectStart ${call.label()} target=${inetSocketAddress.label()} proxy=${proxy.type()}")
+    }
+
+    override fun secureConnectStart(call: Call) {
+        Log.i(NETWORK_LOG_TAG, "tlsStart ${call.label()}")
+    }
+
+    override fun secureConnectEnd(call: Call, handshake: Handshake?) {
+        Log.i(
+            NETWORK_LOG_TAG,
+            "tlsEnd ${call.label()} version=${handshake?.tlsVersion} cipher=${handshake?.cipherSuite}",
+        )
+    }
+
+    override fun connectEnd(call: Call, inetSocketAddress: InetSocketAddress, proxy: Proxy, protocol: Protocol?) {
+        Log.i(NETWORK_LOG_TAG, "connectEnd ${call.label()} target=${inetSocketAddress.label()} protocol=$protocol")
+    }
+
+    override fun connectFailed(
+        call: Call,
+        inetSocketAddress: InetSocketAddress,
+        proxy: Proxy,
+        protocol: Protocol?,
+        ioe: IOException,
+    ) {
+        Log.w(
+            NETWORK_LOG_TAG,
+            "connectFailed ${call.label()} target=${inetSocketAddress.label()} protocol=$protocol error=${ioe::class.java.name}: ${ioe.message}",
+        )
+    }
+
+    override fun responseHeadersEnd(call: Call, response: okhttp3.Response) {
+        Log.i(NETWORK_LOG_TAG, "responseHeaders ${call.label()} code=${response.code}")
+    }
+
+    override fun callFailed(call: Call, ioe: IOException) {
+        Log.w(NETWORK_LOG_TAG, "callFailed ${call.label()} error=${ioe::class.java.name}: ${ioe.message}")
+    }
+
+    private fun Call.label(): String {
+        val url = request().url
+        return "${request().method} ${url.host}${url.encodedPath}"
+    }
+
+    private fun InetSocketAddress.label(): String {
+        val host = address?.hostAddress ?: hostString
+        return "$host:$port"
     }
 }

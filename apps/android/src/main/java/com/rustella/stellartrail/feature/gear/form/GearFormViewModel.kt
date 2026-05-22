@@ -58,6 +58,7 @@ class GearFormViewModel(
     fun updateSize(value: String) = updateForm { copy(size = value) }
     fun updateDescription(value: String) = updateForm { copy(description = value) }
     fun updateWeight(value: String) = updateForm { copy(weightG = value) }
+    fun updateOfficialPrice(value: String) = updateForm { copy(officialPrice = value) }
     fun updateWarmth(value: String) = updateForm { copy(warmthIndex = value) }
     fun updateWaterproof(value: String) = updateForm { copy(waterproofIndex = value) }
     fun updatePurchaseDate(value: String) = updateForm { copy(purchaseDate = value) }

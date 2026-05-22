@@ -1,7 +1,9 @@
 package com.rustella.stellartrail.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,18 +11,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButtonDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -32,6 +29,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,7 +39,6 @@ import com.rustella.stellartrail.domain.gear.GearSort
 import com.rustella.stellartrail.domain.gear.GearStatus
 import com.rustella.stellartrail.domain.gear.GearSummary
 import com.rustella.stellartrail.domain.gear.GearTab
-import com.rustella.stellartrail.domain.gear.GearTemplate
 import com.rustella.stellartrail.domain.gear.allGearSorts
 import com.rustella.stellartrail.domain.gear.allGearStatuses
 import com.rustella.stellartrail.domain.gear.formatPrice
@@ -50,26 +48,27 @@ import com.rustella.stellartrail.domain.gear.label
 import com.rustella.stellartrail.feature.gear.list.GearListViewModel
 import com.rustella.stellartrail.ui.common.Badge
 import com.rustella.stellartrail.ui.common.BadgeTone
+import com.rustella.stellartrail.ui.common.CompactPillAction
 import com.rustella.stellartrail.ui.common.EmptyState
 import com.rustella.stellartrail.ui.common.ErrorState
-import com.rustella.stellartrail.ui.common.HeroButton
-import com.rustella.stellartrail.ui.common.HeroCard
-import com.rustella.stellartrail.ui.common.HeroSoftButton
+import com.rustella.stellartrail.ui.common.IntroCard
 import com.rustella.stellartrail.ui.common.LoadingState
 import com.rustella.stellartrail.ui.common.MetricTile
-import com.rustella.stellartrail.ui.common.NoticeCard
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SectionTitle
 import com.rustella.stellartrail.ui.common.SoftPillButton
 import com.rustella.stellartrail.ui.common.StatCard
 import com.rustella.stellartrail.ui.common.SurfaceCard
-import com.rustella.stellartrail.ui.common.TagList
+import com.rustella.stellartrail.ui.common.TrailInnerCardShape
+import com.rustella.stellartrail.ui.common.TrailPillShape
+import com.rustella.stellartrail.ui.common.currentTrailPalette
 
 @Composable
 fun GearListScreen(
     viewModel: GearListViewModel,
     onOpenGear: (String) -> Unit,
     onCreateGear: () -> Unit,
+    onOpenAtlas: () -> Unit,
     onLogin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -77,42 +76,28 @@ fun GearListScreen(
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = if (state.isLoggedIn) onCreateGear else onLogin,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text(if (state.isLoggedIn) "新增装备" else "登录管理", fontWeight = FontWeight.Bold) },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-            )
-        },
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(innerPadding),
-            contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 96.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
-                HeroCard(
-                    eyebrow = "行前装备",
-                    title = "装备库",
-                    subtitle = "延续微信端真机截图的浅色卡片和柔和控件；登录前也能先看出行清单。",
-                    chips = listOf(if (state.isLoggedIn) "我的装备" else "公开清单", "轻量优先"),
-                    actions = {
-                        HeroButton(if (state.isLoggedIn) "新增装备" else "去登录", if (state.isLoggedIn) onCreateGear else onLogin)
-                        HeroSoftButton("刷新", { viewModel.refresh(state.isLoggedIn) })
+                IntroCard(
+                    eyebrow = "寻径星野装备库",
+                    title = "户外装备库",
+                    subtitle = if (state.isLoggedIn) {
+                        "记录自己的装备、重量、价格和历史状态。"
+                    } else {
+                        "可以先浏览装备图鉴和户外技能；登录后记录自己的装备。"
                     },
+                    actionText = "+ 添加",
+                    onAction = if (state.isLoggedIn) onCreateGear else onLogin,
                 )
             }
+            item { GearAtlasEntryCard(onOpenAtlas) }
             if (!state.isLoggedIn) {
-                item {
-                    NoticeCard(
-                        title = "可先看清单",
-                        body = "登录后即可保存自己的装备、重量、价格和历史记录。",
-                        action = { PrimaryPillButton("去登录", onLogin) },
-                    )
-                }
+                item { GuestGearLoginCard(onLogin) }
             }
             if (state.error != null) item { ErrorState(state.error!!, onRetry = { viewModel.refresh(state.isLoggedIn) }) }
             if (state.loading) item { LoadingState() }
@@ -130,7 +115,7 @@ fun GearListScreen(
                         StatCard("总价值", formatPrice(state.stats.totalValueCents), Modifier.weight(1f), hint = "预算参考")
                     }
                 }
-                item { SectionTitle("我的装备", "圆角卡片聚合分类、状态、重量和价格。") }
+                item { SectionTitle("我的装备") }
                 if (!state.loading && state.gears.isEmpty()) {
                     item { EmptyState("暂无装备", "点击右下角新增第一件装备。") }
                 }
@@ -148,11 +133,75 @@ fun GearListScreen(
                     }
                 }
             }
-            item { SectionTitle("出行装备参考", "所有移动端统一使用这组公开清单作为登录前浏览体验。") }
-            if (!state.loading && state.templates.isEmpty()) {
-                item { EmptyState("暂无参考清单", "稍后刷新或检查网络。") }
+        }
+    }
+}
+
+@Composable
+private fun GearAtlasEntryCard(onClick: () -> Unit) {
+    val palette = currentTrailPalette()
+    SurfaceCard(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        contentPadding = PaddingValues(horizontal = 13.dp, vertical = 11.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(
+                    Modifier
+                        .size(32.dp)
+                        .clip(TrailInnerCardShape)
+                        .background(palette.brandSoft),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .size(width = 18.dp, height = 16.dp)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(3.dp))
+                            .border(2.dp, palette.brandSoftText, androidx.compose.foundation.shape.RoundedCornerShape(3.dp)),
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("装备图鉴", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+                    Text("浏览已审核收录的市面装备", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                }
             }
-            items(state.templates, key = { it.id }) { template -> TemplateCard(template) }
+            Text(
+                "去浏览 ›",
+                modifier = Modifier.clip(TrailPillShape).background(palette.brandSoft).padding(horizontal = 12.dp, vertical = 6.dp),
+                color = palette.brandSoftText,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun GuestGearLoginCard(onLogin: () -> Unit) {
+    val palette = currentTrailPalette()
+    SurfaceCard(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 13.dp, vertical = 14.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(38.dp)
+                    .clip(TrailInnerCardShape)
+                    .background(palette.brandSoft),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("包", color = palette.brandSoftText, fontWeight = FontWeight.ExtraBold)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("未登录也可先浏览", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "可以先看装备图鉴和绳结教学；要保存自己的装备时再登录。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            CompactPillAction("登录", onLogin)
         }
     }
 }
@@ -239,29 +288,11 @@ private fun GearCard(gear: GearSummary, onClick: () -> Unit) {
             Badge(gear.statusLabel, tone = statusTone(gear.status))
         }
         Text(gear.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-        Text(joinBrandModel(gear.brand, gear.model), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(joinBrandModel(gear.brand, gear.model), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MetricTile("重量", formatWeight(gear.weightG), Modifier.weight(1f))
             MetricTile("价格", formatPrice(gear.purchasePriceCents), Modifier.weight(1f))
             MetricTile("购买", gear.purchaseDate ?: "未记录", Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun TemplateCard(template: GearTemplate) {
-    SurfaceCard(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Badge("参考清单")
-            Badge("${template.categories.size} 个系统", tone = BadgeTone.Info)
-        }
-        Text(template.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-        Text(template.categories.joinToString(" · ") { it.name }, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        template.categories.take(2).forEach { category ->
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(category.name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                TagList(category.items.take(4))
-            }
         }
     }
 }

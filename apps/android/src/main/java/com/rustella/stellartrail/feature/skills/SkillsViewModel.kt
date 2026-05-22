@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 
 data class SkillsUiState(
     val categories: List<SkillCategorySummary> = emptyList(),
@@ -34,15 +35,18 @@ class SkillsViewModel(private val repository: SkillRepositoryContract) : ViewMod
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             try {
-                val categories = async { repository.listSkills(SkillLocale.ZH_CN) }
-                val knots = async { repository.listKnots(SkillLocale.ZH_CN, ListKnotsRequest(limit = 20)) }
-                val knotResponse = knots.await()
-                _state.update {
-                    it.copy(
-                        categories = categories.await().items,
-                        knots = knotResponse.items,
-                        nextOffset = knotResponse.page.nextOffset,
-                    )
+                supervisorScope {
+                    val categories = async { repository.listSkills(SkillLocale.ZH_CN) }
+                    val knots = async { repository.listKnots(SkillLocale.ZH_CN, ListKnotsRequest(limit = 20)) }
+                    val categoryItems = categories.await().items
+                    val knotResponse = knots.await()
+                    _state.update {
+                        it.copy(
+                            categories = categoryItems,
+                            knots = knotResponse.items,
+                            nextOffset = knotResponse.page.nextOffset,
+                        )
+                    }
                 }
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }

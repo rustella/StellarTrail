@@ -34,8 +34,11 @@ data class AuthUiState(
     val loading: Boolean = false,
 )
 
-class AuthViewModel(private val repository: AuthRepositoryContract) : ViewModel() {
-    private val _state = MutableStateFlow(AuthUiState())
+class AuthViewModel(
+    private val repository: AuthRepositoryContract,
+    initialMode: AuthMode = AuthMode.LOGIN,
+) : ViewModel() {
+    private val _state = MutableStateFlow(AuthUiState(mode = initialMode))
     val state: StateFlow<AuthUiState> = _state.asStateFlow()
 
     fun switchMode(mode: AuthMode) {

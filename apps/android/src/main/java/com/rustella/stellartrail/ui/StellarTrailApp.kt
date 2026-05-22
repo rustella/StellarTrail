@@ -26,34 +26,49 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.rustella.stellartrail.di.AppContainer
+import com.rustella.stellartrail.feature.atlas.detail.GearAtlasDetailViewModel
+import com.rustella.stellartrail.feature.atlas.list.GearAtlasListViewModel
+import com.rustella.stellartrail.feature.atlas.submit.GearAtlasSubmitViewModel
+import com.rustella.stellartrail.feature.auth.AuthMode
 import com.rustella.stellartrail.feature.auth.AuthViewModel
 import com.rustella.stellartrail.feature.gear.detail.GearDetailViewModel
 import com.rustella.stellartrail.feature.gear.form.GearFormViewModel
 import com.rustella.stellartrail.feature.gear.list.GearListViewModel
 import com.rustella.stellartrail.feature.home.HomeViewModel
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
+import com.rustella.stellartrail.feature.skills.detail.SkillDetailViewModel
 import com.rustella.stellartrail.feature.skills.SkillsViewModel
 import com.rustella.stellartrail.ui.common.currentTrailPalette
 import com.rustella.stellartrail.ui.common.viewModelFactory
 import com.rustella.stellartrail.ui.navigation.AppRoutes
 import com.rustella.stellartrail.ui.navigation.topLevelDestinations
 import com.rustella.stellartrail.ui.screens.AuthScreen
+import com.rustella.stellartrail.ui.screens.GearAtlasDetailScreen
+import com.rustella.stellartrail.ui.screens.GearAtlasListScreen
+import com.rustella.stellartrail.ui.screens.GearAtlasSubmitScreen
 import com.rustella.stellartrail.ui.screens.GearDetailScreen
 import com.rustella.stellartrail.ui.screens.GearFormScreen
 import com.rustella.stellartrail.ui.screens.GearListScreen
 import com.rustella.stellartrail.ui.screens.HomeScreen
+import com.rustella.stellartrail.ui.screens.LoginRequiredScreen
 import com.rustella.stellartrail.ui.screens.ProfileScreen
+import com.rustella.stellartrail.ui.screens.SkillDetailScreen
 import com.rustella.stellartrail.ui.screens.SkillsScreen
 import com.rustella.stellartrail.ui.theme.StellarTrailDesignColors
 
 @Composable
-fun StellarTrailApp(container: AppContainer, modifier: Modifier = Modifier) {
+fun StellarTrailApp(
+    container: AppContainer,
+    modifier: Modifier = Modifier,
+    startDestination: String = AppRoutes.HOME,
+) {
     val session by container.sessionStore.session.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     AuthenticatedApp(
         container = container,
         isLoggedIn = session != null,
         navController = navController,
+        startDestination = startDestination,
         modifier = modifier,
     )
 }
@@ -63,12 +78,13 @@ private fun AuthenticatedApp(
     container: AppContainer,
     isLoggedIn: Boolean,
     navController: NavHostController,
+    startDestination: String,
     modifier: Modifier = Modifier,
 ) {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
     LaunchedEffect(isLoggedIn, currentRoute) {
-        if (isLoggedIn && currentRoute == AppRoutes.AUTH) {
+        if (isLoggedIn && currentRoute in listOf(AppRoutes.AUTH, AppRoutes.AUTH_REGISTER)) {
             navController.navigate(AppRoutes.HOME) {
                 popUpTo(AppRoutes.AUTH) { inclusive = true }
                 launchSingleTop = true
@@ -112,12 +128,18 @@ private fun AuthenticatedApp(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = AppRoutes.HOME,
+            startDestination = startDestination,
             modifier = Modifier.padding(innerPadding),
         ) {
             composable(AppRoutes.AUTH) {
                 val authViewModel: AuthViewModel = viewModel(
                     factory = viewModelFactory { AuthViewModel(container.authRepository) },
+                )
+                AuthScreen(viewModel = authViewModel)
+            }
+            composable(AppRoutes.AUTH_REGISTER) {
+                val authViewModel: AuthViewModel = viewModel(
+                    factory = viewModelFactory { AuthViewModel(container.authRepository, AuthMode.REGISTER) },
                 )
                 AuthScreen(viewModel = authViewModel)
             }
@@ -153,7 +175,50 @@ private fun AuthenticatedApp(
                     onCreateGear = {
                         if (isLoggedIn) navController.navigate(AppRoutes.GEAR_NEW) else navController.navigate(AppRoutes.AUTH)
                     },
+                    onOpenAtlas = { navController.navigate(AppRoutes.GEAR_ATLAS) },
                     onLogin = { navController.navigate(AppRoutes.AUTH) },
+                )
+            }
+            composable(AppRoutes.GEAR_ATLAS) {
+                val viewModel: GearAtlasListViewModel = viewModel(factory = viewModelFactory {
+                    GearAtlasListViewModel(container.gearAtlasRepository)
+                })
+                LaunchedEffect(Unit) { viewModel.refresh() }
+                GearAtlasListScreen(
+                    viewModel = viewModel,
+                    onOpenItem = { id -> navController.navigate(AppRoutes.gearAtlasDetail(id)) },
+                    onSubmit = {
+                        if (isLoggedIn) navController.navigate(AppRoutes.GEAR_ATLAS_SUBMIT) else navController.navigate(AppRoutes.AUTH)
+                    },
+                )
+            }
+            composable(
+                AppRoutes.GEAR_ATLAS_DETAIL,
+                arguments = listOf(navArgument("id") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val id = requireNotNull(backStackEntry.arguments?.getString("id"))
+                val viewModel: GearAtlasDetailViewModel = viewModel(
+                    key = "gear-atlas-detail-$id",
+                    factory = viewModelFactory { GearAtlasDetailViewModel(container.gearAtlasRepository, id) },
+                )
+                LaunchedEffect(id) { viewModel.load() }
+                GearAtlasDetailScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable(AppRoutes.GEAR_ATLAS_SUBMIT) {
+                val viewModel: GearAtlasSubmitViewModel = viewModel(factory = viewModelFactory {
+                    GearAtlasSubmitViewModel(container.gearAtlasRepository)
+                })
+                GearAtlasSubmitScreen(
+                    viewModel = viewModel,
+                    isLoggedIn = isLoggedIn,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    onSubmitted = {
+                        navController.navigate(AppRoutes.GEAR_ATLAS) {
+                            popUpTo(AppRoutes.GEAR_ATLAS)
+                            launchSingleTop = true
+                        }
+                    },
                 )
             }
             composable(
@@ -161,9 +226,17 @@ private fun AuthenticatedApp(
                 arguments = listOf(navArgument("id") { type = NavType.StringType }),
             ) { backStackEntry ->
                 val id = requireNotNull(backStackEntry.arguments?.getString("id"))
+                if (!isLoggedIn) {
+                    LoginRequiredScreen(
+                        title = "登录后查看装备详情",
+                        body = "这是你的个人装备记录，登录后可继续查看和编辑。",
+                        onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    )
+                    return@composable
+                }
                 val viewModel: GearDetailViewModel = viewModel(
                     key = "gear-detail-$id",
-                    factory = viewModelFactory { GearDetailViewModel(container.gearRepository, id) },
+                    factory = viewModelFactory { GearDetailViewModel(container.gearRepository, container.gearAtlasRepository, id) },
                 )
                 LaunchedEffect(id) { viewModel.load() }
                 GearDetailScreen(
@@ -174,6 +247,14 @@ private fun AuthenticatedApp(
                 )
             }
             composable(AppRoutes.GEAR_NEW) {
+                if (!isLoggedIn) {
+                    LoginRequiredScreen(
+                        title = "登录后添加装备",
+                        body = "添加或修改装备会保存到你的个人清单，请先登录。",
+                        onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    )
+                    return@composable
+                }
                 val viewModel: GearFormViewModel = viewModel(factory = viewModelFactory {
                     GearFormViewModel(container.gearRepository)
                 })
@@ -192,6 +273,14 @@ private fun AuthenticatedApp(
                 arguments = listOf(navArgument("id") { type = NavType.StringType }),
             ) { backStackEntry ->
                 val id = requireNotNull(backStackEntry.arguments?.getString("id"))
+                if (!isLoggedIn) {
+                    LoginRequiredScreen(
+                        title = "登录后编辑装备",
+                        body = "添加或修改装备会保存到你的个人清单，请先登录。",
+                        onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    )
+                    return@composable
+                }
                 val viewModel: GearFormViewModel = viewModel(
                     key = "gear-edit-$id",
                     factory = viewModelFactory { GearFormViewModel(container.gearRepository, id) },
@@ -208,7 +297,19 @@ private fun AuthenticatedApp(
                     SkillsViewModel(container.skillRepository)
                 })
                 LaunchedEffect(Unit) { viewModel.load() }
-                SkillsScreen(viewModel = viewModel)
+                SkillsScreen(viewModel = viewModel, onOpenKnot = { id -> navController.navigate(AppRoutes.skillDetail(id)) })
+            }
+            composable(
+                AppRoutes.SKILL_DETAIL,
+                arguments = listOf(navArgument("id") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val id = requireNotNull(backStackEntry.arguments?.getString("id"))
+                val viewModel: SkillDetailViewModel = viewModel(
+                    key = "skill-detail-$id",
+                    factory = viewModelFactory { SkillDetailViewModel(container.skillRepository, id) },
+                )
+                LaunchedEffect(id) { viewModel.load() }
+                SkillDetailScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
             }
             composable(AppRoutes.PROFILE) {
                 val viewModel: ProfileViewModel = viewModel(factory = viewModelFactory {

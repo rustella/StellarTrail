@@ -8,6 +8,9 @@ import com.rustella.stellartrail.core.session.AndroidSessionStore
 import com.rustella.stellartrail.core.session.SessionStore
 import com.rustella.stellartrail.core.theme.AndroidThemeRepository
 import com.rustella.stellartrail.core.theme.ThemeRepository
+import com.rustella.stellartrail.data.atlas.GearAtlasApi
+import com.rustella.stellartrail.data.atlas.GearAtlasRepository
+import com.rustella.stellartrail.data.atlas.GearAtlasRepositoryContract
 import com.rustella.stellartrail.data.auth.AuthApi
 import com.rustella.stellartrail.data.auth.AuthRepository
 import com.rustella.stellartrail.data.auth.AuthRepositoryContract
@@ -25,6 +28,7 @@ interface AppContainer {
     val apiClient: ApiClient
     val authRepository: AuthRepositoryContract
     val gearRepository: GearRepositoryContract
+    val gearAtlasRepository: GearAtlasRepositoryContract
     val skillRepository: SkillRepositoryContract
 }
 
@@ -41,5 +45,6 @@ class DefaultAppContainer(context: Context) : AppContainer {
     )
     override val authRepository: AuthRepositoryContract = AuthRepository(AuthApi(apiClient), sessionStore)
     override val gearRepository: GearRepositoryContract = GearRepository(GearApi(apiClient))
+    override val gearAtlasRepository: GearAtlasRepositoryContract = GearAtlasRepository(GearAtlasApi(apiClient))
     override val skillRepository: SkillRepositoryContract = SkillRepository(SkillApi(apiClient))
 }

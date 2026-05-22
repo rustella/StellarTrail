@@ -100,13 +100,16 @@ fun GearFormScreen(
                 SectionTitle("规格与购买", "将重量、价格和日期整理成微信端同款轻量信息层级。")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(state.form.weightG, viewModel::updateWeight, label = { Text("重量 g") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(state.form.purchasePrice, viewModel::updatePrice, label = { Text("价格 ¥") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(state.form.officialPrice, viewModel::updateOfficialPrice, label = { Text("官方价格 ¥") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(state.form.purchasePrice, viewModel::updatePrice, label = { Text("购入价格 ¥") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(state.form.purchaseLocation, viewModel::updatePurchaseLocation, label = { Text("购买渠道") }, singleLine = true, modifier = Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(state.form.purchaseDate, viewModel::updatePurchaseDate, label = { Text("购买日期") }, singleLine = true, modifier = Modifier.weight(1f))
                     OutlinedTextField(state.form.expiryOrWarrantyDate, viewModel::updateWarrantyDate, label = { Text("保修/过期") }, singleLine = true, modifier = Modifier.weight(1f))
                 }
-                OutlinedTextField(state.form.purchaseLocation, viewModel::updatePurchaseLocation, label = { Text("购买地点") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(state.form.color, viewModel::updateColor, label = { Text("颜色") }, singleLine = true, modifier = Modifier.weight(1f))
                     OutlinedTextField(state.form.material, viewModel::updateMaterial, label = { Text("材质") }, singleLine = true, modifier = Modifier.weight(1f))
