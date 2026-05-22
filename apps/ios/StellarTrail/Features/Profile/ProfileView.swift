@@ -82,7 +82,6 @@ struct ProfileView: View {
                 } else {
                     TrailSurfaceCard {
                         TrailSectionTitle(title: "登录后保存自己的准备进度", subtitle: "当前仍可浏览首页、装备参考和技能内容。")
-                        TrailPrimaryButton(title: "去登录") { showingAuth = true }
                     }
                 }
 
