@@ -7,7 +7,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    gear::{GearCategory, GearSpecs, SUPPORTED_CURRENCIES, normalize_specs, now_rfc3339},
+    gear::{
+        GearCategory, GearSpecs, GearVariant, GearVariants, SUPPORTED_CURRENCIES, normalize_specs,
+        normalize_variants, now_rfc3339, variant_key_from_label,
+    },
     validation::{
         FieldViolation, ValidationError, normalize_optional_text, normalize_required_text,
     },
@@ -104,6 +107,7 @@ pub struct GearAtlasItem {
     pub weight_g: Option<i32>,
     pub official_price_cents: Option<i64>,
     pub official_price_currency: Option<String>,
+    pub variants: GearVariants,
     pub specs: GearSpecs,
     pub source_type: GearAtlasSourceType,
     pub submitted_by_user_id: String,
@@ -136,6 +140,7 @@ pub struct GearAtlasDraft {
     pub weight_g: Option<i32>,
     pub official_price_cents: Option<i64>,
     pub official_price_currency: Option<String>,
+    pub variants: GearVariants,
     pub specs: GearSpecs,
     pub source_type: GearAtlasSourceType,
     pub submitted_by_user_id: String,
@@ -157,6 +162,7 @@ pub struct GearAtlasExternalImportDraft {
     pub weight_g: Option<i32>,
     pub official_price_cents: Option<i64>,
     pub official_price_currency: Option<String>,
+    pub variants: GearVariants,
     pub specs: GearSpecs,
     pub submitted_by_user_id: String,
     pub source_key: String,
@@ -213,6 +219,7 @@ impl GearAtlasDraft {
             self.official_price_currency.take(),
             &mut errors,
         );
+        self.variants = normalize_variants(std::mem::take(&mut self.variants), &mut errors);
         self.specs = normalize_specs(self.category, std::mem::take(&mut self.specs), &mut errors);
 
         if errors.is_empty() {
@@ -235,6 +242,7 @@ impl GearAtlasExternalImportDraft {
             weight_g: self.weight_g,
             official_price_cents: self.official_price_cents,
             official_price_currency: self.official_price_currency.take(),
+            variants: std::mem::take(&mut self.variants),
             specs: std::mem::take(&mut self.specs),
             source_type: GearAtlasSourceType::ExternalImport,
             submitted_by_user_id: std::mem::take(&mut self.submitted_by_user_id),
@@ -253,6 +261,7 @@ impl GearAtlasExternalImportDraft {
         self.weight_g = public_draft.weight_g;
         self.official_price_cents = public_draft.official_price_cents;
         self.official_price_currency = public_draft.official_price_currency;
+        self.variants = public_draft.variants;
         self.specs = public_draft.specs;
         self.submitted_by_user_id = public_draft.submitted_by_user_id;
 
@@ -320,11 +329,28 @@ pub fn draft_from_personal_gear(user_id: &str, item: &crate::gear::GearItem) -> 
         weight_g: item.weight_g,
         official_price_cents: item.official_price_cents,
         official_price_currency: item.official_price_currency.clone(),
+        variants: variant_from_personal_gear(item),
         specs: item.specs.clone(),
         source_type: GearAtlasSourceType::UserGear,
         submitted_by_user_id: user_id.to_owned(),
         source_user_gear_id: Some(item.id.clone()),
     }
+}
+
+fn variant_from_personal_gear(item: &crate::gear::GearItem) -> GearVariants {
+    let Some(label) = item.selected_variant_label.as_deref() else {
+        return GearVariants::new();
+    };
+    vec![GearVariant {
+        key: item
+            .selected_variant_key
+            .clone()
+            .unwrap_or_else(|| variant_key_from_label(label, 0)),
+        label: label.to_owned(),
+        official_price_cents: None,
+        official_price_currency: None,
+        weight_g: None,
+    }]
 }
 
 fn normalize_official_price_currency(

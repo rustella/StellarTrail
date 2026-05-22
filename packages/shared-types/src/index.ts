@@ -263,6 +263,13 @@ export type GearSort =
 
 export type GearCurrency = "CNY" | "USD" | "EUR" | "JPY" | "HKD";
 export type GearSpecs = Record<string, string>;
+export interface GearVariant {
+  key: string;
+  label: string;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
+  weight_g?: number | null;
+}
 export type GearTagColor =
   | "teal"
   | "blue"
@@ -291,6 +298,9 @@ export interface GearItem {
   purchase_location?: string | null;
   status: GearStatus;
   storage_location?: string | null;
+  atlas_item_id?: string | null;
+  selected_variant_key?: string | null;
+  selected_variant_label?: string | null;
   specs?: GearSpecs | null;
   tags: string[];
   tag_colors?: GearTagColorMap | null;
@@ -317,6 +327,9 @@ export interface GearSummary {
   purchase_price_cents?: number | null;
   purchase_price_currency?: GearCurrency | string | null;
   purchase_date?: string | null;
+  atlas_item_id?: string | null;
+  selected_variant_key?: string | null;
+  selected_variant_label?: string | null;
   specs?: GearSpecs | null;
   tags: string[];
   tag_colors?: GearTagColorMap | null;
@@ -339,6 +352,9 @@ export interface CreateGearRequest {
   purchase_location?: string | null;
   status?: GearStatus | null;
   storage_location?: string | null;
+  atlas_item_id?: string | null;
+  selected_variant_key?: string | null;
+  selected_variant_label?: string | null;
   specs?: GearSpecs | null;
   tags?: string[];
   tag_colors?: GearTagColorMap | null;
@@ -428,6 +444,7 @@ export interface GearAtlasPublicItem {
   weight_g?: number | null;
   official_price_cents?: number | null;
   official_price_currency?: GearCurrency | string | null;
+  variants?: GearVariant[] | null;
   specs?: GearSpecs | null;
   approved_at?: string | null;
   source_name?: string | null;
@@ -455,8 +472,11 @@ export interface CreateGearAtlasSubmissionRequest {
   weight_g?: number | null;
   official_price_cents?: number | null;
   official_price_currency?: GearCurrency | string | null;
+  variants?: GearVariant[] | null;
   specs?: GearSpecs | null;
 }
+
+export type UpdateGearAtlasSubmissionRequest = CreateGearAtlasSubmissionRequest;
 
 export interface ListGearAtlasRequest {
   category?: GearCategory;

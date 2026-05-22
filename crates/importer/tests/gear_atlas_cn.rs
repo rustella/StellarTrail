@@ -126,10 +126,8 @@ fn prefers_full_8264_title_when_mobile_namebox_is_truncated() {
         Some("120-140登山杖 Distance FL Z-poles 112123")
     );
     assert_eq!(record.weight_g, Some(450));
-    assert_eq!(
-        record.specs.get("size_or_length").map(String::as_str),
-        Some("120-140cm 携带长度40cm")
-    );
+    assert_eq!(record.variants[0].label, "120-140cm 携带长度40cm");
+    assert!(record.specs.get("size_or_length").is_none());
     assert_eq!(
         record.specs.get("material").map(String::as_str),
         Some("铝合金")
@@ -206,9 +204,14 @@ fn parses_structured_8264_specs_into_supported_fields() {
     assert_eq!(record.model.as_deref(), Some("超轻羽绒睡袋 G700"));
     assert_eq!(record.weight_g, Some(1010));
     assert_eq!(
-        record.specs.get("size").map(String::as_str),
-        Some("M 75*195 L 80*205")
+        record
+            .variants
+            .iter()
+            .map(|variant| variant.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["M 75*195", "L 80*205"]
     );
+    assert!(record.specs.get("size").is_none());
     assert_eq!(
         record.specs.get("filling").map(String::as_str),
         Some("FP700+ 90% 白鹅绒")

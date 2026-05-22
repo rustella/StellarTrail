@@ -23,7 +23,7 @@ use crate::{
         CreateGearAtlasSubmissionRequest, GearAtlasPublicItemResponse, GearAtlasSubmissionResponse,
         ListAdminGearAtlasSubmissionsQuery, ListGearAtlasQuery, ListGearAtlasResponse,
         ListGearAtlasSubmissionsResponse, ListMyGearAtlasSubmissionsQuery,
-        RejectGearAtlasSubmissionRequest,
+        RejectGearAtlasSubmissionRequest, UpdateGearAtlasSubmissionRequest,
     },
     error::ApiError,
     extractors::AuthenticatedUser,
@@ -52,7 +52,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route(
             "/api/admin/gear-atlas-submissions/:id",
-            get(get_admin_submission),
+            get(get_admin_submission).patch(update_admin_submission),
         )
         .route(
             "/api/admin/gear-atlas-submissions/:id/approve",
@@ -224,6 +224,28 @@ async fn get_admin_submission(
     admin_service::ensure_admin(&state, &user).await?;
     let item = GearAtlasRepository::new(state.db().clone())
         .get_any(&id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(GearAtlasSubmissionResponse::from(&item)))
+}
+
+async fn update_admin_submission(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(id): Path<String>,
+    Json(payload): Json<UpdateGearAtlasSubmissionRequest>,
+) -> Result<Json<GearAtlasSubmissionResponse>, ApiError> {
+    admin_service::ensure_admin(&state, &user).await?;
+    let repo = GearAtlasRepository::new(state.db().clone());
+    let existing = repo.get_any(&id).await?.ok_or(ApiError::NotFound)?;
+    let mut draft = payload.into_draft(&existing.submitted_by_user_id);
+    draft.source_type = existing.source_type;
+    draft.source_user_gear_id = existing.source_user_gear_id;
+    draft
+        .validate_and_normalize()
+        .map_err(|error| ApiError::Validation(error.fields))?;
+    let item = repo
+        .update_submission(&id, &draft)
         .await?
         .ok_or(ApiError::NotFound)?;
     Ok(Json(GearAtlasSubmissionResponse::from(&item)))

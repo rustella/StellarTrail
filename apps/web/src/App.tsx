@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AdminFeedbackItem,
   CreateGearRequest,
+  GearAtlasPublicItem,
   GearCategory,
   GearCategoryFilter,
   GearAtlasStatus,
@@ -12,12 +13,19 @@ import type {
   GearStatus,
   GearSummary,
   GearTab,
+  GearVariant,
+  UpdateGearAtlasSubmissionRequest,
   WechatLoginResponse,
 } from "@stellartrail/shared-types";
 
 import { createWebGearApi, type WebGearApi } from "./api";
 import GearAtlasPage from "./GearAtlasPage";
-import { specLabel } from "./gear-atlas-utils";
+import {
+  normalizeVariants,
+  specLabel,
+  variantKeyFromLabel,
+  variantSummary,
+} from "./gear-atlas-utils";
 import KnotsPage from "./KnotsPage";
 import {
   CATEGORY_OPTIONS,
@@ -102,7 +110,9 @@ interface GearFormState {
   color: string;
   material: string;
   capacity: string;
-  size: string;
+  atlasItemId: string;
+  selectedVariantKey: string;
+  selectedVariantLabel: string;
   description: string;
   weightG: string;
   warmthIndex: string;
@@ -138,7 +148,9 @@ const emptyForm: GearFormState = {
   color: "",
   material: "",
   capacity: "",
-  size: "",
+  atlasItemId: "",
+  selectedVariantKey: "",
+  selectedVariantLabel: "",
   description: "",
   weightG: "",
   warmthIndex: "",
@@ -224,8 +236,12 @@ export default function App({ client }: AppProps) {
   const [formMode, setFormMode] = useState<FormMode>("create");
   const [formGearId, setFormGearId] = useState<string | null>(null);
   const [form, setForm] = useState<GearFormState>(emptyForm);
+  const [formAtlasItem, setFormAtlasItem] =
+    useState<GearAtlasPublicItem | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [detail, setDetail] = useState<GearItem | null>(null);
+  const [detailAtlasItem, setDetailAtlasItem] =
+    useState<GearAtlasPublicItem | null>(null);
   const [atlasStatus, setAtlasStatus] = useState<"" | GearAtlasStatus>(
     "pending",
   );
@@ -449,6 +465,7 @@ export default function App({ client }: AppProps) {
     setGears([]);
     setLoading(false);
     setDetail(null);
+    setDetailAtlasItem(null);
   }
 
   function completeLogin(response: WechatLoginResponse) {
@@ -727,6 +744,7 @@ export default function App({ client }: AppProps) {
     setFormMode("create");
     setFormGearId(null);
     setForm(emptyForm);
+    setFormAtlasItem(null);
     setIsFormOpen(true);
   }
 
@@ -738,6 +756,16 @@ export default function App({ client }: AppProps) {
       setFormMode("edit");
       setFormGearId(id);
       setForm(formFromGear(item));
+      setFormAtlasItem(null);
+      if (item.atlas_item_id) {
+        try {
+          setFormAtlasItem(
+            await api.getGearAtlasItem(item.atlas_item_id, "zh-CN"),
+          );
+        } catch {
+          setFormAtlasItem(null);
+        }
+      }
       setIsFormOpen(true);
     } catch (err) {
       setError(errorMessage(err));
@@ -750,7 +778,18 @@ export default function App({ client }: AppProps) {
     setSubmitting(true);
     setError(null);
     try {
-      setDetail(await api.getGear(id));
+      const item = await api.getGear(id);
+      setDetail(item);
+      setDetailAtlasItem(null);
+      if (item.atlas_item_id) {
+        try {
+          setDetailAtlasItem(
+            await api.getGearAtlasItem(item.atlas_item_id, "zh-CN"),
+          );
+        } catch {
+          setDetailAtlasItem(null);
+        }
+      }
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -774,6 +813,7 @@ export default function App({ client }: AppProps) {
         await api.createGear(payload);
       }
       setIsFormOpen(false);
+      setFormAtlasItem(null);
       await loadDashboard();
     } catch (err) {
       setError(errorMessage(err));
@@ -878,6 +918,23 @@ export default function App({ client }: AppProps) {
     setAtlasError(null);
     try {
       const updated = await api.approveGearAtlasSubmission(id);
+      setAtlasDetail(updated);
+      await loadAtlasSubmissions();
+    } catch (err) {
+      setAtlasError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function updateAtlasSubmission(
+    id: string,
+    request: UpdateGearAtlasSubmissionRequest,
+  ) {
+    setSubmitting(true);
+    setAtlasError(null);
+    try {
+      const updated = await api.updateAdminGearAtlasSubmission(id, request);
       setAtlasDetail(updated);
       await loadAtlasSubmissions();
     } catch (err) {
@@ -1677,6 +1734,7 @@ export default function App({ client }: AppProps) {
               });
             }}
             onOpen={openAtlasSubmission}
+            onUpdate={updateAtlasSubmission}
             onApprove={approveAtlasSubmission}
             onReject={rejectAtlasSubmission}
           />
@@ -1701,9 +1759,13 @@ export default function App({ client }: AppProps) {
       {isFormOpen ? (
         <GearFormModal
           form={form}
+          atlasItem={formAtlasItem}
           mode={formMode}
           submitting={submitting}
-          onClose={() => setIsFormOpen(false)}
+          onClose={() => {
+            setIsFormOpen(false);
+            setFormAtlasItem(null);
+          }}
           onSubmit={submitForm}
           onChange={setForm}
         />
@@ -1711,8 +1773,12 @@ export default function App({ client }: AppProps) {
       {detail ? (
         <GearDetailDrawer
           item={detail}
+          atlasItem={detailAtlasItem}
           submitting={submitting}
-          onClose={() => setDetail(null)}
+          onClose={() => {
+            setDetail(null);
+            setDetailAtlasItem(null);
+          }}
           onEdit={() => void openEditForm(detail.id)}
           onSubmitToAtlas={() => void submitGearToAtlas(detail.id)}
         />
@@ -1734,6 +1800,7 @@ function AtlasReviewPage({
   onRefresh,
   onLoadMore,
   onOpen,
+  onUpdate,
   onApprove,
   onReject,
 }: {
@@ -1749,9 +1816,19 @@ function AtlasReviewPage({
   onRefresh(): void;
   onLoadMore(): void;
   onOpen(id: string): Promise<void> | void;
+  onUpdate(
+    id: string,
+    request: UpdateGearAtlasSubmissionRequest,
+  ): Promise<void> | void;
   onApprove(id: string): Promise<void> | void;
   onReject(id: string): Promise<void> | void;
 }) {
+  const [editedVariants, setEditedVariants] = useState<GearVariant[]>([]);
+
+  useEffect(() => {
+    setEditedVariants(selected?.variants ?? []);
+  }, [selected]);
+
   const handleListScroll = useCallback(
     (event: React.UIEvent<HTMLElement>) => {
       const list = event.currentTarget;
@@ -1763,6 +1840,45 @@ function AtlasReviewPage({
     },
     [hasMore, loading, loadingMore, onLoadMore],
   );
+  const updateVariant = (index: number, patch: Partial<GearVariant>) => {
+    setEditedVariants((current) =>
+      current.map((variant, currentIndex) =>
+        currentIndex === index ? { ...variant, ...patch } : variant,
+      ),
+    );
+  };
+  const addVariant = () => {
+    setEditedVariants((current) => [
+      ...current,
+      {
+        key: "",
+        label: "",
+        official_price_cents: null,
+        official_price_currency: "CNY",
+        weight_g: null,
+      },
+    ]);
+  };
+  const removeVariant = (index: number) => {
+    setEditedVariants((current) =>
+      current.filter((_, currentIndex) => currentIndex !== index),
+    );
+  };
+  const saveSelected = () => {
+    if (!selected) return;
+    onUpdate(selected.id, {
+      category: selected.category,
+      name: selected.name,
+      brand: selected.brand ?? null,
+      model: selected.model ?? null,
+      description: selected.description ?? null,
+      weight_g: selected.weight_g ?? null,
+      official_price_cents: selected.official_price_cents ?? null,
+      official_price_currency: selected.official_price_currency ?? null,
+      variants: normalizeVariants(editedVariants),
+      specs: selected.specs ?? {},
+    });
+  };
 
   return (
     <section className="atlas-review-page">
@@ -1899,6 +2015,95 @@ function AtlasReviewPage({
                   <dd>{selected.source_user_gear_id || "手动投稿"}</dd>
                 </div>
               </dl>
+
+              <div className="atlas-specs">
+                <h3>可选尺寸</h3>
+                {editedVariants.length ? (
+                  <div className="atlas-variant-editor">
+                    {editedVariants.map((variant, index) => (
+                      <div
+                        className="atlas-variant-row"
+                        key={`${index}-${variant.key}`}
+                      >
+                        <label>
+                          尺寸
+                          <input
+                            value={variant.label}
+                            onChange={(event) =>
+                              updateVariant(index, {
+                                label: event.target.value,
+                                key: variantKeyFromLabel(
+                                  event.target.value,
+                                  index,
+                                ),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          分尺寸官方价
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={fromPriceCents(variant.official_price_cents)}
+                            onChange={(event) =>
+                              updateVariant(index, {
+                                official_price_cents: toPriceCents(
+                                  event.target.value,
+                                ),
+                                official_price_currency:
+                                  selected.official_price_currency || "CNY",
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          重量（g）
+                          <input
+                            type="number"
+                            min="0"
+                            value={variant.weight_g ?? ""}
+                            onChange={(event) =>
+                              updateVariant(index, {
+                                weight_g: event.target.value
+                                  ? Number(event.target.value)
+                                  : null,
+                              })
+                            }
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => removeVariant(index)}
+                        >
+                          移除
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted">未填写可选尺寸。</p>
+                )}
+                <div className="actions inline-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={addVariant}
+                  >
+                    添加尺寸
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={submitting}
+                    onClick={saveSelected}
+                  >
+                    {submitting ? "保存中..." : "保存尺寸"}
+                  </button>
+                </div>
+              </div>
 
               <div className="atlas-specs">
                 <h3>分类参数</h3>
@@ -2269,6 +2474,7 @@ function EmptyState({ onCreate }: { onCreate(): void }) {
 
 function GearFormModal({
   form,
+  atlasItem,
   mode,
   submitting,
   onClose,
@@ -2276,6 +2482,7 @@ function GearFormModal({
   onChange,
 }: {
   form: GearFormState;
+  atlasItem: GearAtlasPublicItem | null;
   mode: FormMode;
   submitting: boolean;
   onClose(): void;
@@ -2286,6 +2493,7 @@ function GearFormModal({
     key: K,
     value: GearFormState[K],
   ) => onChange({ ...form, [key]: value });
+  const atlasVariants = atlasItem?.variants ?? [];
   return (
     <div className="modal-backdrop" role="presentation">
       <form
@@ -2391,12 +2599,46 @@ function GearFormModal({
             />
           </label>
           <label>
-            尺寸
+            我的尺寸
             <input
-              value={form.size}
-              onChange={(event) => update("size", event.target.value)}
+              placeholder="例如 M 75*195"
+              value={form.selectedVariantLabel}
+              onChange={(event) =>
+                onChange({
+                  ...form,
+                  selectedVariantKey: "",
+                  selectedVariantLabel: event.target.value,
+                })
+              }
             />
           </label>
+          {atlasVariants.length ? (
+            <label>
+              图鉴尺寸
+              <select
+                value={form.selectedVariantKey}
+                onChange={(event) => {
+                  const variant = atlasVariants.find(
+                    (item) => item.key === event.target.value,
+                  );
+                  onChange({
+                    ...form,
+                    atlasItemId: atlasItem?.id ?? form.atlasItemId,
+                    selectedVariantKey: variant?.key ?? "",
+                    selectedVariantLabel:
+                      variant?.label ?? form.selectedVariantLabel,
+                  });
+                }}
+              >
+                <option value="">保留手填尺寸</option>
+                {atlasVariants.map((variant) => (
+                  <option key={variant.key} value={variant.key}>
+                    {variant.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             保暖指数
             <input
@@ -2515,18 +2757,21 @@ function GearFormModal({
 
 function GearDetailDrawer({
   item,
+  atlasItem,
   submitting,
   onClose,
   onEdit,
   onSubmitToAtlas,
 }: {
   item: GearItem;
+  atlasItem: GearAtlasPublicItem | null;
   submitting: boolean;
   onClose(): void;
   onEdit(): void;
   onSubmitToAtlas(): Promise<void> | void;
 }) {
   const specs = item.specs ?? {};
+  const variants = atlasItem?.variants ?? [];
   return (
     <aside className="detail-drawer" aria-label="装备详情">
       <button className="icon-button" onClick={onClose} aria-label="关闭详情">
@@ -2555,9 +2800,29 @@ function GearDetailDrawer({
           <dd>{item.storage_location || "—"}</dd>
         </div>
         <div>
-          <dt>容量/尺寸</dt>
+          <dt>容量</dt>
+          <dd>{specs.capacity || "—"}</dd>
+        </div>
+        <div>
+          <dt>我的尺寸</dt>
+          <dd>{item.selected_variant_label || "—"}</dd>
+        </div>
+        <div>
+          <dt>可选尺寸</dt>
           <dd>
-            {[specs.capacity, specs.size].filter(Boolean).join(" · ") || "—"}
+            {item.atlas_item_id ? (
+              variants.length ? (
+                variants
+                  .map((variant) => variantSummary(variant, formatAtlasPrice))
+                  .join("、")
+              ) : (
+                "—"
+              )
+            ) : (
+              <span className="muted">
+                关联或投稿到图鉴后可查看该装备可选尺寸
+              </span>
+            )}
           </dd>
         </div>
         <div>
@@ -2602,6 +2867,9 @@ function formToPayload(form: GearFormState): CreateGearRequest {
     purchase_location: optional(form.purchaseLocation),
     status: form.status,
     storage_location: optional(form.storageLocation),
+    atlas_item_id: optional(form.atlasItemId),
+    selected_variant_key: optional(form.selectedVariantKey),
+    selected_variant_label: optional(form.selectedVariantLabel),
     specs: specsFromForm(form),
     tags: form.tags
       .split(/[,，]/)
@@ -2622,7 +2890,9 @@ function formFromGear(item: GearItem): GearFormState {
     color: specs.color ?? "",
     material: specs.material ?? "",
     capacity: specs.capacity ?? "",
-    size: specs.size ?? "",
+    atlasItemId: item.atlas_item_id ?? "",
+    selectedVariantKey: item.selected_variant_key ?? "",
+    selectedVariantLabel: item.selected_variant_label ?? "",
     description: item.description ?? "",
     weightG:
       item.weight_g === null || item.weight_g === undefined
@@ -2646,7 +2916,6 @@ function specsFromForm(form: GearFormState): Record<string, string> {
   setSpec(specs, "color", form.color);
   setSpec(specs, "material", form.material);
   setSpec(specs, "capacity", form.capacity);
-  setSpec(specs, "size", form.size);
   setSpec(specs, "warmth_index", form.warmthIndex);
   setSpec(specs, "waterproof_index", form.waterproofIndex);
   setSpec(specs, "expiry_or_warranty_date", form.expiryOrWarrantyDate);

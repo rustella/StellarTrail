@@ -36,6 +36,7 @@ function buildItem(
     weight_g: 86,
     official_price_cents: 19900,
     official_price_currency: "CNY",
+    variants: [],
     specs: { max_brightness: "450 lm" },
     approved_at: "2026-01-24T00:00:00Z",
     source_name: "8264",
@@ -224,9 +225,9 @@ describe("GearAtlasPage", () => {
           fill_weight: "700g",
           filling: "FP700+ 90% 白鹅绒",
           material: "15D 460T 超细尼龙",
-          size: "M 75*195",
           temperature_or_r_value: "0~-10度",
         },
+        variants: [{ key: "m-75-195", label: "M 75*195" }],
       }),
     );
     render(<GearAtlasPage api={api} session={null} />);
@@ -237,7 +238,8 @@ describe("GearAtlasPage", () => {
     expect(screen.getByText("填充重量")).toBeInTheDocument();
     expect(screen.getByText("填充物")).toBeInTheDocument();
     expect(screen.getByText("材质")).toBeInTheDocument();
-    expect(screen.getByText("尺寸")).toBeInTheDocument();
+    expect(screen.getByText("可选尺寸")).toBeInTheDocument();
+    expect(screen.getAllByText("M 75*195").length).toBeGreaterThan(0);
     expect(screen.getByText("温标/R 值")).toBeInTheDocument();
     expect(screen.queryByText("fill_weight")).not.toBeInTheDocument();
     expect(screen.queryByText("filling")).not.toBeInTheDocument();
@@ -277,6 +279,16 @@ describe("GearAtlasPage", () => {
     fireEvent.change(screen.getByLabelText("官方价格"), {
       target: { value: "699" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "添加尺寸" }));
+    fireEvent.change(screen.getByPlaceholderText("例如 M 75*195"), {
+      target: { value: "M 75*195" },
+    });
+    fireEvent.change(screen.getByLabelText("分尺寸官方价"), {
+      target: { value: "799" },
+    });
+    fireEvent.change(screen.getAllByLabelText("重量（g）")[0], {
+      target: { value: "912" },
+    });
     fireEvent.change(screen.getByLabelText("容量"), {
       target: { value: "45" },
     });
@@ -292,6 +304,15 @@ describe("GearAtlasPage", () => {
         weight_g: 86,
         official_price_cents: 69900,
         official_price_currency: "CNY",
+        variants: [
+          {
+            key: "m-75-195",
+            label: "M 75*195",
+            official_price_cents: 79900,
+            official_price_currency: "CNY",
+            weight_g: 912,
+          },
+        ],
         specs: { capacity: "45 L" },
       });
     });

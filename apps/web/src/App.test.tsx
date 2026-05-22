@@ -61,6 +61,7 @@ function buildAtlasSubmission(
     weight_g: 315,
     official_price_cents: 69900,
     official_price_currency: "CNY",
+    variants: [],
     specs: { battery_capacity: "20000 mAh" },
     approved_at: null,
     source_type: "external_import",
@@ -276,6 +277,10 @@ function buildClient(): WebGearApi {
       purchase_location: "京东",
       status: "available",
       storage_location: "装备柜 A1",
+      atlas_item_id: null,
+      selected_variant_key: "standard",
+      selected_variant_label: "标准版",
+      specs: { battery_capacity: "20000 mAh" },
       tags: ["冬季", "电子"],
       share_enabled: false,
       share_status: "not_shared",
@@ -394,6 +399,7 @@ function buildClient(): WebGearApi {
           weight_g: 315,
           official_price_cents: 69900,
           official_price_currency: "CNY",
+          variants: [],
           specs: { battery_capacity: "20000 mAh" },
           approved_at: null,
           source_type: "user_gear",
@@ -417,6 +423,7 @@ function buildClient(): WebGearApi {
       weight_g: 315,
       official_price_cents: 69900,
       official_price_currency: "CNY",
+      variants: [],
       specs: { battery_capacity: "20000 mAh" },
       approved_at: null,
       source_type: "user_gear",
@@ -427,6 +434,14 @@ function buildClient(): WebGearApi {
       created_at: "2026-01-23T00:00:00Z",
       updated_at: "2026-01-23T00:00:00Z",
     }),
+    updateAdminGearAtlasSubmission: vi.fn().mockImplementation((_, request) =>
+      Promise.resolve(
+        buildAtlasSubmission({
+          id: "atlas-1",
+          ...request,
+        }),
+      ),
+    ),
     approveGearAtlasSubmission: vi.fn().mockResolvedValue({
       id: "atlas-1",
       category: "electronics_system",
@@ -438,6 +453,7 @@ function buildClient(): WebGearApi {
       weight_g: 315,
       official_price_cents: 69900,
       official_price_currency: "CNY",
+      variants: [],
       specs: { battery_capacity: "20000 mAh" },
       approved_at: "2026-01-24T00:00:00Z",
       source_type: "user_gear",
@@ -459,6 +475,7 @@ function buildClient(): WebGearApi {
       weight_g: 315,
       official_price_cents: 69900,
       official_price_currency: "CNY",
+      variants: [],
       specs: { battery_capacity: "20000 mAh" },
       approved_at: null,
       source_type: "user_gear",
@@ -709,9 +726,9 @@ describe("App", () => {
             fill_weight: "700g",
             filling: "FP700+ 90% 白鹅绒",
             material: "15D 460T 超细尼龙",
-            size: "M 75*195",
             temperature_or_r_value: "0~-10度",
           },
+          variants: [{ key: "m-75-195", label: "M 75*195" }],
         }),
       ],
     });
@@ -735,7 +752,8 @@ describe("App", () => {
     expect(await screen.findByText("填充重量")).toBeInTheDocument();
     expect(screen.getByText("填充物")).toBeInTheDocument();
     expect(screen.getByText("材质")).toBeInTheDocument();
-    expect(screen.getByText("尺寸")).toBeInTheDocument();
+    expect(screen.getByText("可选尺寸")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("M 75*195")).toBeInTheDocument();
     expect(screen.getByText("温标/R 值")).toBeInTheDocument();
     expect(screen.queryByText("fill_weight")).not.toBeInTheDocument();
     expect(screen.queryByText("filling")).not.toBeInTheDocument();
@@ -744,6 +762,18 @@ describe("App", () => {
     expect(
       screen.queryByText("temperature_or_r_value"),
     ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "保存尺寸" }));
+    await waitFor(() => {
+      expect(client.updateAdminGearAtlasSubmission).toHaveBeenCalledWith(
+        "sleep-atlas",
+        expect.objectContaining({
+          variants: expect.arrayContaining([
+            expect.objectContaining({ key: "m-75-195", label: "M 75*195" }),
+          ]),
+        }),
+      );
+    });
   });
 
   it("loads additional atlas review submissions when the list is scrolled", async () => {
@@ -1095,6 +1125,11 @@ describe("App", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "查看" })[0]);
 
     expect(await screen.findByLabelText("装备详情")).toBeInTheDocument();
+    expect(screen.getByText("我的尺寸")).toBeInTheDocument();
+    expect(screen.getByText("标准版")).toBeInTheDocument();
+    expect(
+      screen.getByText("关联或投稿到图鉴后可查看该装备可选尺寸"),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "投稿到图鉴" }));
 
     await waitFor(() => {
@@ -1103,6 +1138,60 @@ describe("App", () => {
       );
     });
     expect(await screen.findByText("已提交图鉴审核")).toBeInTheDocument();
+  });
+
+  it("shows atlas variants with the selected personal size when gear is linked", async () => {
+    const client = buildClient();
+    vi.mocked(client.getGear).mockResolvedValueOnce({
+      id: "gear-1",
+      user_id: "u1",
+      category: "sleep_system",
+      name: "超轻羽绒睡袋",
+      brand: "BLACKICE",
+      model: "G700",
+      description: "冬季备用",
+      weight_g: 1010,
+      purchase_date: "2026-01-22",
+      purchase_price_cents: 90000,
+      purchase_location: "京东",
+      status: "available",
+      storage_location: "装备柜 A1",
+      atlas_item_id: "atlas-public-1",
+      selected_variant_key: "m-75-195",
+      selected_variant_label: "M 75*195",
+      specs: {},
+      tags: ["冬季"],
+      share_enabled: false,
+      share_status: "not_shared",
+      notes: null,
+      archived_at: null,
+      created_at: "2026-01-23T00:00:00Z",
+      updated_at: "2026-01-23T00:00:00Z",
+    });
+    vi.mocked(client.getGearAtlasItem).mockResolvedValueOnce(
+      buildAtlasPublicItem({
+        id: "atlas-public-1",
+        variants: [
+          { key: "m-75-195", label: "M 75*195" },
+          { key: "l-80-205", label: "L 80*205" },
+        ],
+      }),
+    );
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    await screen.findByRole("heading", { name: "装备管理" });
+    const viewButtons = await screen.findAllByRole("button", { name: "查看" });
+    fireEvent.click(viewButtons[0]);
+
+    expect(await screen.findByLabelText("装备详情")).toBeInTheDocument();
+    expect(client.getGearAtlasItem).toHaveBeenCalledWith(
+      "atlas-public-1",
+      "zh-CN",
+    );
+    expect(screen.getByText("我的尺寸")).toBeInTheDocument();
+    expect(screen.getAllByText("M 75*195").length).toBeGreaterThan(0);
+    expect(screen.getByText(/L 80\*205/)).toBeInTheDocument();
   });
 
   it("shows the theme switch in the global app shell and persists the preference", async () => {

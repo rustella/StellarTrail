@@ -1,4 +1,8 @@
-import type { GearCategory, GearSpecs } from "@stellartrail/shared-types";
+import type {
+  GearCategory,
+  GearSpecs,
+  GearVariant,
+} from "@stellartrail/shared-types";
 
 export interface GearSpecField {
   key: string;
@@ -21,18 +25,6 @@ const CAPACITY_UNITS = ["L", "ml", "fl oz"];
 const CONSUMABLE_CONTENT_UNITS = ["g", "ml", "kg", "L", "oz"];
 const LENGTH_UNITS = ["cm", "m", "mm", "in"];
 const BACK_LENGTH_UNITS = ["cm", "in"];
-const BACKPACK_SIZE_UNITS = ["", "XS", "S", "M", "L", "XL", "XXL", "均码"];
-const BACKPACK_SIZE_UNIT_LABELS = [
-  "选择尺码",
-  "XS",
-  "S",
-  "M",
-  "L",
-  "XL",
-  "XXL",
-  "均码",
-];
-const SHOE_SIZE_OR_LENGTH_UNITS = ["cm", "EU", "US", "UK", "in"];
 const LOAD_UNITS = ["kg", "g", "lb"];
 const TEMPERATURE_UNITS = ["℃", "℉"];
 const TIME_UNITS = ["h", "min"];
@@ -53,14 +45,6 @@ export const GEAR_ATLAS_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
     spec("recommended_load", "推荐负重", "例如 12", "number", LOAD_UNITS),
     spec("back_length", "背长", "例如 48", "number", BACK_LENGTH_UNITS),
     spec(
-      "backpack_size",
-      "尺码",
-      "选择 XS / S / M / L",
-      "text",
-      BACKPACK_SIZE_UNITS,
-      { choiceOnly: true, unitLabels: BACKPACK_SIZE_UNIT_LABELS },
-    ),
-    spec(
       "waterproof_rating",
       "防水等级",
       "例如 防泼水",
@@ -78,7 +62,6 @@ export const GEAR_ATLAS_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
     ]),
     spec("filling", "填充物", "例如 800FP 羽绒"),
     spec("fill_weight", "填充重量", "例如 700", "number", ["g", "kg", "oz"]),
-    spec("size", "尺寸", "例如 M 75 x 195"),
     spec("material", "材质", "例如 15D 尼龙"),
     spec("packed_size", "收纳尺寸", "例如 18 x 30", "text", LENGTH_UNITS),
     spec(
@@ -97,13 +80,6 @@ export const GEAR_ATLAS_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
     spec("packed_size", "收纳尺寸", "例如 12 x 8", "text", LENGTH_UNITS),
   ],
   walking_system: [
-    spec(
-      "size_or_length",
-      "尺码/长度",
-      "例如 42 或 120",
-      "text",
-      SHOE_SIZE_OR_LENGTH_UNITS,
-    ),
     spec("terrain", "适用地形", "例如 山地 / 泥地"),
     spec(
       "waterproof_rating",
@@ -116,7 +92,6 @@ export const GEAR_ATLAS_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
     spec("support", "缓震/支撑", "例如 中等支撑"),
   ],
   clothing_system: [
-    spec("size", "尺码", "例如 M"),
     spec("layer", "适用层级", "例如 中间层"),
     spec("warmth_rating", "保暖等级", "例如 200", "text", ["g/m²"]),
     spec("waterproof_rating", "防水指数", "例如 20000", "number", ["mm"]),
@@ -265,8 +240,50 @@ export function specLabel(category: GearCategory, key: string): string {
 const EXTRA_SPEC_LABELS: Record<string, string> = {
   fill_weight: "填充重量",
   material: "材质",
-  size: "尺寸",
 };
+
+export function normalizeVariants(
+  values?: GearVariant[] | null,
+): GearVariant[] {
+  const normalized: GearVariant[] = [];
+  (values ?? []).forEach((variant, index) => {
+    const label = variant.label?.trim();
+    if (!label) return;
+    const key = variant.key?.trim() || variantKeyFromLabel(label, index);
+    if (normalized.some((existing) => existing.key === key)) return;
+    normalized.push({
+      key,
+      label,
+      official_price_cents: variant.official_price_cents ?? null,
+      official_price_currency: variant.official_price_currency ?? null,
+      weight_g: variant.weight_g ?? null,
+    });
+  });
+  return normalized;
+}
+
+export function variantKeyFromLabel(label: string, index = 0): string {
+  const key = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return key || `variant-${index}`;
+}
+
+export function variantSummary(
+  variant: GearVariant,
+  formatPrice: (cents?: number | null, currency?: string | null) => string,
+): string {
+  const details = [
+    formatPrice(variant.official_price_cents, variant.official_price_currency),
+    variant.weight_g ? `${variant.weight_g} g` : "",
+  ].filter((value) => value && value !== "—");
+  return details.length
+    ? `${variant.label} · ${details.join(" · ")}`
+    : variant.label;
+}
 
 function spec(
   key: string,

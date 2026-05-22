@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use serde::Serialize;
 use stellartrail_domain::{
-    gear::{GearCategory, GearSpecs},
+    gear::{GearCategory, GearSpecs, GearVariant, GearVariants, variant_key_from_label},
     gear_atlas::GearAtlasExternalImportDraft,
 };
 
@@ -33,6 +33,7 @@ pub struct GearAtlasCnSourceRecord {
     pub category: GearCategory,
     pub weight_g: Option<i32>,
     pub official_price_cents: Option<i64>,
+    pub variants: GearVariants,
     pub specs: GearSpecs,
     pub source_rating_score: Option<f64>,
     pub source_rating_count: Option<i32>,
@@ -54,6 +55,7 @@ impl GearAtlasCnSourceRecord {
             weight_g: self.weight_g,
             official_price_cents: self.official_price_cents,
             official_price_currency: self.official_price_cents.map(|_| "CNY".to_owned()),
+            variants: self.variants,
             specs: self.specs,
             submitted_by_user_id: submitter_user_id,
             source_key: self.source_key,
@@ -223,7 +225,8 @@ pub fn parse_8264_mobile_gear_page(
     let weight_g = labeled_facts
         .iter()
         .find_map(|(label, value)| parse_weight_g_for_label(label, value));
-    let specs = specs_from_labeled_facts(category, &labeled_facts);
+    let mut specs = specs_from_labeled_facts(category, &labeled_facts);
+    let variants = variants_from_size_specs(&mut specs);
     let canonical_url = canonical_8264_source_url(&source_id);
 
     Ok(GearAtlasCnSourceRecord {
@@ -238,6 +241,7 @@ pub fn parse_8264_mobile_gear_page(
         category,
         weight_g,
         official_price_cents,
+        variants,
         specs,
         source_rating_score: rating_score,
         source_rating_count: rating_count,
@@ -649,6 +653,81 @@ fn insert_spec(specs: &mut GearSpecs, key: &str, value: &str) {
     if !value.is_empty() && value.chars().count() <= 100 {
         specs.insert(key.to_owned(), value.to_owned());
     }
+}
+
+fn variants_from_size_specs(specs: &mut GearSpecs) -> GearVariants {
+    let mut labels = Vec::new();
+    for key in ["size", "backpack_size", "size_or_length"] {
+        let Some(value) = specs.remove(key) else {
+            continue;
+        };
+        labels.extend(split_variant_labels(&value));
+    }
+    dedupe_strings(labels)
+        .into_iter()
+        .enumerate()
+        .map(|(index, label)| GearVariant {
+            key: variant_key_from_label(&label, index),
+            label,
+            official_price_cents: None,
+            official_price_currency: None,
+            weight_g: None,
+        })
+        .collect()
+}
+
+fn split_variant_labels(value: &str) -> Vec<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Vec::new();
+    }
+    if value.contains([',', '，', '、', ';', '；', '\n', '|']) {
+        return value
+            .split([',', '，', '、', ';', '；', '\n', '|'])
+            .map(str::trim)
+            .filter(|label| !label.is_empty())
+            .map(ToOwned::to_owned)
+            .collect();
+    }
+    let tokens: Vec<&str> = value.split_whitespace().collect();
+    if tokens.len() >= 4 && tokens.iter().filter(|token| is_size_marker(token)).count() >= 2 {
+        let mut labels = Vec::new();
+        let mut current = Vec::new();
+        for token in tokens {
+            if is_size_marker(token) && !current.is_empty() {
+                labels.push(current.join(" "));
+                current.clear();
+            }
+            current.push(token);
+        }
+        if !current.is_empty() {
+            labels.push(current.join(" "));
+        }
+        return labels;
+    }
+    vec![value.to_owned()]
+}
+
+fn is_size_marker(token: &str) -> bool {
+    let token = token.trim_matches(|ch: char| {
+        ch == ':' || ch == '：' || ch == '-' || ch == '(' || ch == ')' || ch == '（' || ch == '）'
+    });
+    matches!(
+        token.to_ascii_uppercase().as_str(),
+        "XXS" | "XS" | "S" | "M" | "L" | "XL" | "XXL" | "XXXL" | "2XL" | "3XL"
+    )
+}
+
+fn dedupe_strings(values: Vec<String>) -> Vec<String> {
+    let mut deduped = Vec::new();
+    for value in values {
+        let value = value.trim();
+        if value.is_empty() || deduped.iter().any(|existing| existing == value) {
+            continue;
+        }
+        deduped.push(value.to_owned());
+    }
+    deduped
 }
 
 fn clean_spec_value(key: &str, value: &str) -> String {

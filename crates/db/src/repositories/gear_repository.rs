@@ -63,9 +63,10 @@ impl GearRepository {
                 r#"INSERT INTO user_gear_items (
                     id, user_id, category, name, brand, model, description, weight_g,
                     official_price_cents, official_price_currency, purchase_date, purchase_price_cents,
-                    purchase_price_currency, purchase_location, status, storage_location, specs_json,
+                    purchase_price_currency, purchase_location, status, storage_location,
+                    atlas_item_id, selected_variant_key, selected_variant_label, specs_json,
                     tags_json, share_enabled, share_status, notes, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
                 gear_values(&id, user_id, draft, &specs_json, &tags_json, &now, &now),
             ))
             .await?;
@@ -113,6 +114,9 @@ impl GearRepository {
             draft.purchase_location.clone().into(),
             draft.status.as_str().to_owned().into(),
             draft.storage_location.clone().into(),
+            draft.atlas_item_id.clone().into(),
+            draft.selected_variant_key.clone().into(),
+            draft.selected_variant_label.clone().into(),
             specs_json.into(),
             tags_json.into(),
             draft.share_enabled.into(),
@@ -130,7 +134,8 @@ impl GearRepository {
                     category = ?, name = ?, brand = ?, model = ?, description = ?, weight_g = ?,
                     official_price_cents = ?, official_price_currency = ?, purchase_date = ?,
                     purchase_price_cents = ?, purchase_price_currency = ?, purchase_location = ?,
-                    status = ?, storage_location = ?, specs_json = ?, tags_json = ?, share_enabled = ?,
+                    status = ?, storage_location = ?, atlas_item_id = ?, selected_variant_key = ?,
+                    selected_variant_label = ?, specs_json = ?, tags_json = ?, share_enabled = ?,
                     share_status = ?, notes = ?, updated_at = ?
                    WHERE user_id = ? AND id = ?"#,
                 values,
@@ -364,6 +369,9 @@ fn gear_values(
         draft.purchase_location.clone().into(),
         draft.status.as_str().to_owned().into(),
         draft.storage_location.clone().into(),
+        draft.atlas_item_id.clone().into(),
+        draft.selected_variant_key.clone().into(),
+        draft.selected_variant_label.clone().into(),
         specs_json.to_owned().into(),
         tags_json.to_owned().into(),
         draft.share_enabled.into(),
@@ -384,7 +392,8 @@ fn gear_select_columns() -> &'static str {
     r#"SELECT id, user_id, category, name, brand, model, description,
         weight_g, official_price_cents, official_price_currency,
         purchase_date, purchase_price_cents, purchase_price_currency,
-        purchase_location, status, storage_location, tags_json,
+        purchase_location, status, storage_location, atlas_item_id, selected_variant_key,
+        selected_variant_label, tags_json,
         specs_json, share_enabled, share_status, notes, archived_at, created_at, updated_at
        FROM user_gear_items"#
 }
@@ -469,6 +478,9 @@ fn map_gear(row: &sea_orm::QueryResult) -> Result<GearItem, DbErr> {
         status: GearStatus::from_key(&status_raw)
             .ok_or_else(|| DbErr::Custom(format!("invalid gear status: {status_raw}")))?,
         storage_location: row.try_get("", "storage_location")?,
+        atlas_item_id: row.try_get("", "atlas_item_id")?,
+        selected_variant_key: row.try_get("", "selected_variant_key")?,
+        selected_variant_label: row.try_get("", "selected_variant_label")?,
         specs,
         tags,
         share_enabled: row.try_get("", "share_enabled")?,
@@ -505,6 +517,9 @@ mod tests {
             purchase_location: None,
             status: GearStatus::Available,
             storage_location: Some("装备柜".to_owned()),
+            atlas_item_id: None,
+            selected_variant_key: None,
+            selected_variant_label: None,
             specs: GearSpecs::from([("battery_capacity".to_owned(), "20000 mAh".to_owned())]),
             tags: vec!["电子".to_owned()],
             share_enabled: false,
