@@ -350,7 +350,7 @@ X-StellarTrail-Locale: en
 
 ### Gear atlas external import POC
 
-`stellartrail-importer` 提供 `import-gear-atlas-cn` POC CLI，用于把人工挑选的 8264 移动装备详情页导入为待审核图鉴条目。该工具只接受显式 URL 或 URL 文件，不自动扫描全站；默认 dry-run 输出解析预览，真实写库必须传 `--write --submitter-user-id <existing-user-id>`。导入器只保存标题、类目、人民币价格、评分汇总和来源链接；不复制第三方图片、介绍正文、用户点评正文或评测长文。`source_key` 用于幂等刷新同一来源条目，已审核条目不会被后续导入覆盖。
+`stellartrail-importer` 提供 `import-gear-atlas-cn` POC CLI，用于把人工挑选的 8264 移动装备详情页导入为待审核图鉴条目。该工具只接受显式 URL 或 URL 文件，不自动扫描全站；默认 dry-run 输出解析预览，真实写库必须传 `--write --submitter-user-id <existing-user-id>`。导入器只保存标题、类目、品牌/型号启发式拆分、重量、人民币价格、结构化 `specs`、评分汇总和来源链接；不复制第三方图片、介绍正文、用户点评正文或评测长文。`source_key` 用于幂等刷新同一来源条目，已审核条目不会被后续导入覆盖。
 
 ### Admin knot media upload
 

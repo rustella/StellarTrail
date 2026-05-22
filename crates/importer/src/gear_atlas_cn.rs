@@ -2,8 +2,8 @@
 //!
 //! The first supported source is 8264 mobile equipment detail HTML. The parser
 //! extracts only fact-like fields that can be reviewed later: name, category,
-//! RMB price, rating summary, and source link. It deliberately ignores images,
-//! introduction body text, and individual review text.
+//! RMB price, structured specs, rating summary, and source link. It deliberately
+//! ignores images, introduction body text, and individual review text.
 
 use std::path::PathBuf;
 
@@ -27,9 +27,13 @@ pub struct GearAtlasCnSourceRecord {
     pub source_url: String,
     pub source_license_note: String,
     pub name: String,
+    pub brand: Option<String>,
+    pub model: Option<String>,
     pub source_category_label: Option<String>,
     pub category: GearCategory,
+    pub weight_g: Option<i32>,
     pub official_price_cents: Option<i64>,
+    pub specs: GearSpecs,
     pub source_rating_score: Option<f64>,
     pub source_rating_count: Option<i32>,
 }
@@ -44,13 +48,13 @@ impl GearAtlasCnSourceRecord {
         GearAtlasExternalImportDraft {
             category: self.category,
             name: self.name,
-            brand: None,
-            model: None,
+            brand: self.brand,
+            model: self.model,
             description: Some(IMPORT_DESCRIPTION_8264.to_owned()),
-            weight_g: None,
+            weight_g: self.weight_g,
             official_price_cents: self.official_price_cents,
             official_price_currency: self.official_price_cents.map(|_| "CNY".to_owned()),
-            specs: GearSpecs::new(),
+            specs: self.specs,
             submitted_by_user_id: submitter_user_id,
             source_key: self.source_key,
             source_name: self.source_name,
@@ -184,12 +188,27 @@ pub fn parse_8264_mobile_gear_page(
     let rating_score = class_text(html, "starvalue").and_then(|value| value.parse::<f64>().ok());
     let rating_count =
         class_text(html, "dpnum").and_then(|value| parse_count_before(&value, "点评"));
-    let facts = class_segment(html, "feleibox", "<div class=\"introduction")
-        .map(|segment| span_texts(&segment))
+    let facts_segment = class_segment(html, "feleibox", "<div class=\"introduction");
+    let primary_facts = facts_segment.as_deref().map(fact_texts).unwrap_or_default();
+    let introduction_facts = class_segment(html, "introductioncon", "</div>")
+        .as_deref()
+        .map(text_lines)
         .unwrap_or_default();
-    let source_category_label = facts
+    let facts = dedupe_preserving_order(
+        primary_facts
+            .iter()
+            .cloned()
+            .chain(introduction_facts)
+            .collect(),
+    );
+    let source_category_label = primary_facts
         .iter()
-        .find(|value| !value.contains('¥') && !value.contains('￥'))
+        .find(|value| {
+            !value.contains('¥')
+                && !value.contains('￥')
+                && !value.contains(':')
+                && !value.contains('：')
+        })
         .cloned();
     let category = source_category_label
         .as_deref()
@@ -199,6 +218,12 @@ pub fn parse_8264_mobile_gear_page(
         .iter()
         .find_map(|value| parse_rmb_price_cents(value))
         .or_else(|| parse_rmb_price_cents(html));
+    let labeled_facts = parse_labeled_facts(&facts);
+    let (brand, model) = infer_brand_model(&name);
+    let weight_g = labeled_facts
+        .iter()
+        .find_map(|(label, value)| parse_weight_g_for_label(label, value));
+    let specs = specs_from_labeled_facts(category, &labeled_facts);
     let canonical_url = canonical_8264_source_url(&source_id);
 
     Ok(GearAtlasCnSourceRecord {
@@ -207,9 +232,13 @@ pub fn parse_8264_mobile_gear_page(
         source_url: canonical_url,
         source_license_note: SOURCE_LICENSE_NOTE_8264.to_owned(),
         name,
+        brand,
+        model,
         source_category_label,
         category,
+        weight_g,
         official_price_cents,
+        specs,
         source_rating_score: rating_score,
         source_rating_count: rating_count,
     })
@@ -330,6 +359,452 @@ fn span_texts(segment: &str) -> Vec<String> {
         rest = &rest[after_open + close + "</span>".len()..];
     }
     values
+}
+
+fn fact_texts(segment: &str) -> Vec<String> {
+    let mut values = span_texts(segment);
+    values.extend(text_lines(segment));
+    dedupe_preserving_order(values)
+}
+
+fn text_lines(segment: &str) -> Vec<String> {
+    let mut text = String::with_capacity(segment.len());
+    let mut in_tag = false;
+    for ch in segment.chars() {
+        match ch {
+            '<' => {
+                in_tag = true;
+                text.push('\n');
+            }
+            '>' => {
+                in_tag = false;
+                text.push('\n');
+            }
+            _ if !in_tag => text.push(ch),
+            _ => {}
+        }
+    }
+    decode_html_entities(&text)
+        .lines()
+        .filter_map(cleaned_text)
+        .filter(|line| !line.starts_with("function") && !line.starts_with('$'))
+        .collect()
+}
+
+fn dedupe_preserving_order(values: Vec<String>) -> Vec<String> {
+    let mut deduped = Vec::new();
+    for value in values {
+        if !deduped.iter().any(|existing| existing == &value) {
+            deduped.push(value);
+        }
+    }
+    deduped
+}
+
+fn parse_labeled_facts(values: &[String]) -> Vec<(String, String)> {
+    values
+        .iter()
+        .filter_map(|value| {
+            let (label, raw_value) = value.split_once('：').or_else(|| value.split_once(':'))?;
+            let label = label.trim();
+            let raw_value = raw_value.trim();
+            if label.is_empty() || raw_value.is_empty() {
+                return None;
+            }
+            Some((label.to_owned(), raw_value.to_owned()))
+        })
+        .collect()
+}
+
+fn specs_from_labeled_facts(category: GearCategory, facts: &[(String, String)]) -> GearSpecs {
+    let mut specs = GearSpecs::new();
+    for (label, value) in facts {
+        if let Some(key) = map_8264_spec_key(category, label) {
+            insert_spec(&mut specs, key, value);
+        }
+    }
+    specs
+}
+
+fn map_8264_spec_key(category: GearCategory, label: &str) -> Option<&'static str> {
+    let normalized = label.replace(' ', "");
+    match category {
+        GearCategory::BackpackSystem => backpack_spec_key(&normalized),
+        GearCategory::SleepSystem => sleep_spec_key(&normalized),
+        GearCategory::KitchenSystem => kitchen_spec_key(&normalized),
+        GearCategory::WalkingSystem => walking_spec_key(&normalized),
+        GearCategory::ClothingSystem => clothing_spec_key(&normalized),
+        GearCategory::LightingSystem => lighting_spec_key(&normalized),
+        GearCategory::ElectronicsSystem => electronics_spec_key(&normalized),
+        GearCategory::TechnicalGear => technical_spec_key(&normalized),
+        GearCategory::FirstAidSystem => first_aid_spec_key(&normalized),
+        GearCategory::Consumable => consumable_spec_key(&normalized),
+        GearCategory::OtherGear => other_spec_key(&normalized),
+    }
+}
+
+fn backpack_spec_key(label: &str) -> Option<&'static str> {
+    if contains_any(label, &["容量", "升数"]) {
+        Some("capacity")
+    } else if contains_any(label, &["建议负重", "推荐负重", "负重"]) {
+        Some("recommended_load")
+    } else if contains_any(label, &["背长"]) {
+        Some("back_length")
+    } else if contains_any(label, &["尺寸", "规格"]) {
+        Some("backpack_size")
+    } else if contains_any(label, &["防水"]) {
+        Some("waterproof_rating")
+    } else if contains_any(label, &["材质", "面料"]) {
+        Some("material")
+    } else {
+        None
+    }
+}
+
+fn sleep_spec_key(label: &str) -> Option<&'static str> {
+    if contains_any(label, &["类型", "款式"]) {
+        Some("type")
+    } else if contains_any(label, &["人数", "适用人数"]) {
+        Some("people_count")
+    } else if contains_any(label, &["温标", "r值", "R值"]) {
+        Some("temperature_or_r_value")
+    } else if contains_any(label, &["充绒量"])
+        || (contains_any(label, &["填充", "充绒"]) && contains_any(label, &["重量"]))
+    {
+        Some("fill_weight")
+    } else if contains_any(label, &["填充", "蓬松"]) {
+        Some("filling")
+    } else if contains_any(label, &["收纳", "包装尺寸"]) {
+        Some("packed_size")
+    } else if contains_any(label, &["尺寸", "规格", "尺码"]) {
+        Some("size")
+    } else if contains_any(label, &["防水"]) {
+        Some("waterproof_rating")
+    } else if contains_any(label, &["材质", "面料"]) {
+        Some("material")
+    } else {
+        None
+    }
+}
+
+fn kitchen_spec_key(label: &str) -> Option<&'static str> {
+    if contains_any(label, &["燃料"]) {
+        Some("fuel_type")
+    } else if contains_any(label, &["容量"]) {
+        Some("capacity")
+    } else if contains_any(label, &["功率", "火力"]) {
+        Some("power")
+    } else if contains_any(label, &["人数"]) {
+        Some("people_count")
+    } else if contains_any(label, &["收纳", "尺寸", "规格"]) {
+        Some("packed_size")
+    } else if contains_any(label, &["材质"]) {
+        Some("material")
+    } else {
+        None
+    }
+}
+
+fn walking_spec_key(label: &str) -> Option<&'static str> {
+    if contains_any(label, &["长度", "尺码", "尺寸", "规格"]) {
+        Some("size_or_length")
+    } else if contains_any(label, &["地形", "路面"]) {
+        Some("terrain")
+    } else if contains_any(label, &["防水"]) {
+        Some("waterproof_rating")
+    } else if contains_any(label, &["材质", "面料"]) {
+        Some("material")
+    } else if contains_any(label, &["支撑", "缓震", "锁定", "锁紧"]) {
+        Some("support")
+    } else {
+        None
+    }
+}
+
+fn clothing_spec_key(label: &str) -> Option<&'static str> {
+    if contains_any(label, &["尺码", "尺寸", "规格"]) {
+        Some("size")
+    } else if contains_any(label, &["层", "类型"]) {
+        Some("layer")
+    } else if contains_any(label, &["保暖", "温标"]) {
+        Some("warmth_rating")
+    } else if contains_any(label, &["防水"]) {
+        Some("waterproof_rating")
+    } else if contains_any(label, &["透气"]) {
+        Some("breathability_rating")
+    } else if contains_any(label, &["季节"]) {
+        Some("season")
+    } else if contains_any(label, &["材质", "面料"]) {
+        Some("material")
+    } else {
+        None
+    }
+}
+
+fn lighting_spec_key(label: &str) -> Option<&'static str> {
+    if contains_any(label, &["亮度", "流明"]) {
+        Some("max_brightness")
+    } else if contains_any(label, &["续航", "运行时间", "使用时间"]) {
+        Some("runtime")
+    } else if contains_any(label, &["电池"]) {
+        Some("battery_type")
+    } else if contains_any(label, &["充电", "接口"]) {
+        Some("charging_port")
+    } else if contains_any(label, &["防水"]) {
+        Some("waterproof_rating")
+    } else if contains_any(label, &["照射距离", "光束距离", "距离"]) {
+        Some("beam_distance")
+    } else {
+        None
+    }
+}
+
+fn electronics_spec_key(label: &str) -> Option<&'static str> {
+    if contains_any(label, &["电池容量", "容量"]) {
+        Some("battery_capacity")
+    } else if contains_any(label, &["额定能量"]) {
+        Some("rated_energy")
+    } else if contains_any(label, &["输出", "功率"]) {
+        Some("output_power")
+    } else if contains_any(label, &["接口", "端口"]) {
+        Some("ports")
+    } else if contains_any(label, &["防水"]) {
+        Some("waterproof_rating")
+    } else if contains_any(label, &["工作温度", "温度"]) {
+        Some("working_temperature")
+    } else {
+        None
+    }
+}
+
+fn technical_spec_key(label: &str) -> Option<&'static str> {
+    if contains_any(label, &["认证"]) {
+        Some("certification")
+    } else if contains_any(label, &["强度", "拉力", "承重"]) {
+        Some("strength")
+    } else if contains_any(label, &["长度"]) {
+        Some("length")
+    } else if contains_any(label, &["材质"]) {
+        Some("material")
+    } else if contains_any(label, &["规格", "尺寸"]) {
+        Some("specification")
+    } else {
+        None
+    }
+}
+
+fn first_aid_spec_key(label: &str) -> Option<&'static str> {
+    if contains_any(label, &["规格", "尺寸"]) {
+        Some("kit_size")
+    } else if contains_any(label, &["有效期", "保质期"]) {
+        Some("expiry_date")
+    } else if contains_any(label, &["人数"]) {
+        Some("people_count")
+    } else if contains_any(label, &["天数"]) {
+        Some("days")
+    } else if contains_any(label, &["防水"]) {
+        Some("waterproof_packaging")
+    } else {
+        None
+    }
+}
+
+fn consumable_spec_key(label: &str) -> Option<&'static str> {
+    if contains_any(label, &["类型"]) {
+        Some("type")
+    } else if contains_any(label, &["净含量", "含量"]) {
+        Some("net_content")
+    } else if contains_any(label, &["数量"]) {
+        Some("quantity")
+    } else if contains_any(label, &["有效期", "保质期"]) {
+        Some("expiry_date")
+    } else if contains_any(label, &["储存", "保存"]) {
+        Some("storage_condition")
+    } else {
+        None
+    }
+}
+
+fn other_spec_key(label: &str) -> Option<&'static str> {
+    if contains_any(label, &["用途", "使用场景"]) {
+        Some("use_case")
+    } else if contains_any(label, &["规格", "尺寸", "长度"]) {
+        Some("specification")
+    } else if contains_any(label, &["容量"]) {
+        Some("capacity")
+    } else if contains_any(label, &["防水"]) {
+        Some("waterproof_rating")
+    } else if contains_any(label, &["配件"]) {
+        Some("accessories")
+    } else if contains_any(label, &["材质"]) {
+        Some("material")
+    } else {
+        None
+    }
+}
+
+fn insert_spec(specs: &mut GearSpecs, key: &str, value: &str) {
+    let value = clean_spec_value(key, value);
+    let value = value.trim();
+    if !value.is_empty() && value.chars().count() <= 100 {
+        specs.insert(key.to_owned(), value.to_owned());
+    }
+}
+
+fn clean_spec_value(key: &str, value: &str) -> String {
+    if matches!(
+        key,
+        "size" | "size_or_length" | "backpack_size" | "specification"
+    ) {
+        return strip_weight_clause(value);
+    }
+    value.to_owned()
+}
+
+fn strip_weight_clause(value: &str) -> String {
+    let Some(index) = ["重量", "总重", "自重"]
+        .into_iter()
+        .filter_map(|marker| value.find(marker))
+        .min()
+    else {
+        return value.to_owned();
+    };
+    value[..index]
+        .trim()
+        .trim_end_matches([':', '：', ';', '；', ',', '，', ' '])
+        .to_owned()
+}
+
+fn parse_weight_g_for_label(label: &str, value: &str) -> Option<i32> {
+    let label = label.replace(' ', "");
+    if contains_any(&label, &["重量", "总重", "自重"]) && !contains_any(&label, &["填充", "充绒"])
+    {
+        return parse_weight_g(value);
+    }
+    if contains_any(value, &["重量", "总重", "自重"]) {
+        return parse_weight_g(value);
+    }
+    None
+}
+
+fn parse_weight_g(value: &str) -> Option<i32> {
+    let lower = value.to_ascii_lowercase();
+    let (unit_index, multiplier) = [
+        ("kg", 1000.0),
+        ("千克", 1000.0),
+        ("公斤", 1000.0),
+        ("g", 1.0),
+        ("克", 1.0),
+    ]
+    .into_iter()
+    .filter_map(|(unit, multiplier)| lower.find(unit).map(|index| (index, multiplier)))
+    .min_by_key(|(index, _)| *index)?;
+    let prefix = &lower[..unit_index];
+    let amount = trailing_decimal(prefix)?;
+    let grams = amount * multiplier;
+    if grams.is_finite() && grams >= 0.0 && grams <= i32::MAX as f64 {
+        Some(grams.round() as i32)
+    } else {
+        None
+    }
+}
+
+fn trailing_decimal(value: &str) -> Option<f64> {
+    let mut chars = value.chars().rev().skip_while(|ch| ch.is_whitespace());
+    let mut reversed = String::new();
+    for ch in &mut chars {
+        if ch.is_ascii_digit() || ch == '.' {
+            reversed.push(ch);
+        } else if !reversed.is_empty() {
+            break;
+        }
+    }
+    if reversed.is_empty() {
+        return None;
+    }
+    let number: String = reversed.chars().rev().collect();
+    number.parse().ok()
+}
+
+fn infer_brand_model(name: &str) -> (Option<String>, Option<String>) {
+    if let Some((brand, model)) = split_parenthesized_brand(name) {
+        return (Some(brand), Some(model));
+    }
+    let parts: Vec<&str> = name.split_whitespace().collect();
+    if parts.len() < 2 || !looks_like_ascii_brand(parts[0]) {
+        return (None, None);
+    }
+    let mut brand_parts = vec![parts[0]];
+    let mut model_start = 1;
+    if parts.len() >= 3
+        && (is_short_chinese_alias(parts[1]) || is_parenthesized_alias(parts[1]))
+        && !looks_like_category_word(parts[1])
+    {
+        brand_parts.push(parts[1]);
+        model_start = 2;
+    }
+    let model = parts[model_start..].join(" ");
+    if model.is_empty() {
+        (None, None)
+    } else {
+        (Some(brand_parts.join(" ")), Some(model))
+    }
+}
+
+fn split_parenthesized_brand(name: &str) -> Option<(String, String)> {
+    let (close, close_len) = name
+        .find('）')
+        .map(|index| (index, '）'.len_utf8()))
+        .or_else(|| name.find(')').map(|index| (index, ')'.len_utf8())))?;
+    let brand = name[..close + close_len].trim();
+    let model = name[close + close_len..].trim();
+    if brand.is_empty()
+        || model.is_empty()
+        || brand.chars().count() > 80
+        || !brand.chars().any(|ch| ch.is_ascii_alphabetic())
+    {
+        return None;
+    }
+    Some((brand.to_owned(), model.to_owned()))
+}
+
+fn looks_like_ascii_brand(value: &str) -> bool {
+    value.chars().any(|ch| ch.is_ascii_alphabetic())
+        && value
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '\'' | '-' | '_' | '&' | '.'))
+}
+
+fn is_short_chinese_alias(value: &str) -> bool {
+    value.chars().count() <= 6
+        && value
+            .chars()
+            .all(|ch| ('\u{4e00}'..='\u{9fff}').contains(&ch))
+}
+
+fn is_parenthesized_alias(value: &str) -> bool {
+    (value.starts_with('(') && value.ends_with(')'))
+        || (value.starts_with('（') && value.ends_with('）'))
+}
+
+fn looks_like_category_word(value: &str) -> bool {
+    contains_any(
+        value,
+        &[
+            "背包",
+            "睡袋",
+            "帐篷",
+            "登山鞋",
+            "徒步鞋",
+            "越野跑鞋",
+            "登山杖",
+            "徒步杖",
+            "头灯",
+            "手电",
+            "炉具",
+            "水壶",
+        ],
+    )
 }
 
 fn cleaned_text(raw: &str) -> Option<String> {
