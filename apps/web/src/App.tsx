@@ -16,6 +16,7 @@ import type {
 } from "@stellartrail/shared-types";
 
 import { createWebGearApi, type WebGearApi } from "./api";
+import GearAtlasPage from "./GearAtlasPage";
 import KnotsPage from "./KnotsPage";
 import {
   CATEGORY_OPTIONS,
@@ -47,7 +48,12 @@ type ViewMode = "table" | "cards";
 type ThemeMode = "light" | "dark";
 type FormMode = "create" | "edit";
 type AuthMode = "wechat" | "password" | "email" | "reset" | "register";
-type ActivePage = "gear" | "atlasReview" | "adminFeedback" | "knots";
+type ActivePage =
+  | "gear"
+  | "gearAtlas"
+  | "atlasReview"
+  | "adminFeedback"
+  | "knots";
 type FeedbackStatusFilter = "" | "open";
 
 interface PasswordLoginState {
@@ -697,6 +703,13 @@ export default function App({ client }: AppProps) {
     resetDashboardState();
   }
 
+  function navigateToLogin() {
+    setActivePage("gear");
+    if (window.location.pathname !== "/") {
+      window.history.pushState(null, "", "/");
+    }
+  }
+
   function toggleTheme() {
     setTheme((current) => (current === "dark" ? "light" : "dark"));
   }
@@ -893,7 +906,24 @@ export default function App({ client }: AppProps) {
     }
   }
 
-  if (!session) {
+  async function submitGearToAtlas(id: string) {
+    if (!session) {
+      setError("登录后可以把个人装备投稿到图鉴审核。");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.createGearAtlasSubmissionFromGear(id);
+      setError("已提交图鉴审核");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!session && activePage !== "gearAtlas") {
     return (
       <main className="login-page">
         <section className="login-card">
@@ -1320,6 +1350,14 @@ export default function App({ client }: AppProps) {
           >
             装备库
           </button>
+          <button
+            type="button"
+            className={activePage === "gearAtlas" ? "active" : ""}
+            aria-current={activePage === "gearAtlas" ? "page" : undefined}
+            onClick={() => navigateToPage("gearAtlas")}
+          >
+            装备图鉴
+          </button>
           <div
             className="nav-group"
             data-active-parent={activePage === "knots" ? "true" : undefined}
@@ -1410,10 +1448,16 @@ export default function App({ client }: AppProps) {
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
         <div className="sidebar-footer">
-          <span>{displayUserName(session)}</span>
-          <button className="ghost-button" onClick={handleLogout}>
-            退出
-          </button>
+          <span>{session ? displayUserName(session) : "未登录"}</span>
+          {session ? (
+            <button className="ghost-button" onClick={handleLogout}>
+              退出
+            </button>
+          ) : (
+            <button className="ghost-button" onClick={navigateToLogin}>
+              登录
+            </button>
+          )}
         </div>
       </aside>
 
@@ -1591,6 +1635,16 @@ export default function App({ client }: AppProps) {
             ) : null}
           </section>
         </main>
+      ) : activePage === "gearAtlas" ? (
+        <main className="dashboard" id="gear-atlas">
+          <GearAtlasPage
+            api={api}
+            session={session}
+            initialDetailId={gearAtlasDetailIdFromPath(
+              window.location.pathname,
+            )}
+          />
+        </main>
       ) : activePage === "atlasReview" ? (
         <main className="dashboard" id="atlas-review">
           <AtlasReviewPage
@@ -1656,8 +1710,10 @@ export default function App({ client }: AppProps) {
       {detail ? (
         <GearDetailDrawer
           item={detail}
+          submitting={submitting}
           onClose={() => setDetail(null)}
           onEdit={() => void openEditForm(detail.id)}
+          onSubmitToAtlas={() => void submitGearToAtlas(detail.id)}
         />
       ) : null}
     </div>
@@ -2458,12 +2514,16 @@ function GearFormModal({
 
 function GearDetailDrawer({
   item,
+  submitting,
   onClose,
   onEdit,
+  onSubmitToAtlas,
 }: {
   item: GearItem;
+  submitting: boolean;
   onClose(): void;
   onEdit(): void;
+  onSubmitToAtlas(): Promise<void> | void;
 }) {
   const specs = item.specs ?? {};
   return (
@@ -2512,9 +2572,18 @@ function GearDetailDrawer({
           <dd>{item.notes || "—"}</dd>
         </div>
       </dl>
-      <button className="primary-button" onClick={onEdit}>
-        编辑装备
-      </button>
+      <div className="actions detail-actions">
+        <button
+          className="secondary-button"
+          onClick={onSubmitToAtlas}
+          disabled={submitting}
+        >
+          {submitting ? "提交中..." : "投稿到图鉴"}
+        </button>
+        <button className="primary-button" onClick={onEdit}>
+          编辑装备
+        </button>
+      </div>
     </aside>
   );
 }
@@ -2707,6 +2776,9 @@ function feedbackUserName(user: AdminFeedbackItem["user"]): string {
 }
 
 function activePageFromPath(pathname: string): ActivePage {
+  if (pathname === "/gear-atlas" || pathname.startsWith("/gear-atlas/")) {
+    return "gearAtlas";
+  }
   if (
     pathname === "/admin/feedback" ||
     pathname.startsWith("/admin/feedback/")
@@ -2723,6 +2795,9 @@ function activePageFromPath(pathname: string): ActivePage {
 }
 
 function pathForActivePage(page: ActivePage): string {
+  if (page === "gearAtlas") {
+    return "/gear-atlas";
+  }
   if (page === "adminFeedback") {
     return "/admin/feedback";
   }
@@ -2733,6 +2808,14 @@ function pathForActivePage(page: ActivePage): string {
     return "/skills/knots";
   }
   return "/";
+}
+
+function gearAtlasDetailIdFromPath(pathname: string): string | null {
+  if (!pathname.startsWith("/gear-atlas/")) {
+    return null;
+  }
+  const id = pathname.slice("/gear-atlas/".length);
+  return id ? decodeURIComponent(id) : null;
 }
 
 function isAdminPage(page: ActivePage): boolean {
