@@ -64,6 +64,8 @@ async fn external_import_upserts_pending_rows_and_skips_approved_rows() {
     let repo = GearAtlasRepository::new(db);
 
     let mut first = external_draft("8264:2074165", "探路者38L户外背包", &user.id);
+    first.weight_g = Some(980);
+    first.specs = GearSpecs::from([("capacity".to_owned(), "38L".to_owned())]);
     first.validate_and_normalize().expect("valid first draft");
     let created = repo
         .upsert_external_import(&first)
@@ -78,10 +80,20 @@ async fn external_import_upserts_pending_rows_and_skips_approved_rows() {
     );
     assert_eq!(created.item.source_rating_score, Some(8.6));
     assert_eq!(created.item.source_rating_count, Some(7));
+    assert_eq!(created.item.weight_g, Some(980));
+    assert_eq!(
+        created.item.specs.get("capacity").map(String::as_str),
+        Some("38L")
+    );
     assert_eq!(created.item.status.as_str(), "pending");
 
     let mut refreshed = external_draft("8264:2074165", "探路者38L户外背包 v2", &user.id);
     refreshed.official_price_cents = Some(39_900);
+    refreshed.weight_g = Some(1_050);
+    refreshed.specs = GearSpecs::from([
+        ("capacity".to_owned(), "45L".to_owned()),
+        ("recommended_load".to_owned(), "12kg".to_owned()),
+    ]);
     refreshed
         .validate_and_normalize()
         .expect("valid refresh draft");
@@ -93,6 +105,19 @@ async fn external_import_upserts_pending_rows_and_skips_approved_rows() {
     assert_eq!(updated.item.id, created.item.id);
     assert_eq!(updated.item.name, "探路者38L户外背包 v2");
     assert_eq!(updated.item.official_price_cents, Some(39_900));
+    assert_eq!(updated.item.weight_g, Some(1_050));
+    assert_eq!(
+        updated.item.specs.get("capacity").map(String::as_str),
+        Some("45L")
+    );
+    assert_eq!(
+        updated
+            .item
+            .specs
+            .get("recommended_load")
+            .map(String::as_str),
+        Some("12kg")
+    );
     assert_eq!(updated.item.status.as_str(), "pending");
 
     repo.approve(&updated.item.id, &user.id)

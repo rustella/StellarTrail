@@ -406,6 +406,7 @@ pub fn allowed_spec_keys(category: GearCategory) -> &'static [&'static str] {
             "people_count",
             "temperature_or_r_value",
             "filling",
+            "fill_weight",
             "packed_size",
             "waterproof_rating",
         ],
