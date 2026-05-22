@@ -17,6 +17,7 @@ import type {
 
 import { createWebGearApi, type WebGearApi } from "./api";
 import GearAtlasPage from "./GearAtlasPage";
+import { specLabel } from "./gear-atlas-utils";
 import KnotsPage from "./KnotsPage";
 import {
   CATEGORY_OPTIONS,
@@ -1906,7 +1907,7 @@ function AtlasReviewPage({
                     {Object.entries(selected.specs ?? {}).map(
                       ([key, value]) => (
                         <div key={key}>
-                          <dt>{key}</dt>
+                          <dt>{specLabel(selected.category, key)}</dt>
                           <dd>{value}</dd>
                         </div>
                       ),

@@ -695,6 +695,57 @@ describe("App", () => {
     });
   });
 
+  it("shows localized spec names in the admin atlas review detail", async () => {
+    const client = buildClient();
+    vi.mocked(client.listAdminGearAtlasSubmissions).mockResolvedValueOnce({
+      next_cursor: null,
+      items: [
+        buildAtlasSubmission({
+          id: "sleep-atlas",
+          category: "sleep_system",
+          category_label: "睡眠系统",
+          name: "超轻羽绒睡袋",
+          specs: {
+            fill_weight: "700g",
+            filling: "FP700+ 90% 白鹅绒",
+            material: "15D 460T 超细尼龙",
+            size: "M 75*195",
+            temperature_or_r_value: "0~-10度",
+          },
+        }),
+      ],
+    });
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    );
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
+    );
+
+    expect(await screen.findByText("填充重量")).toBeInTheDocument();
+    expect(screen.getByText("填充物")).toBeInTheDocument();
+    expect(screen.getByText("材质")).toBeInTheDocument();
+    expect(screen.getByText("尺寸")).toBeInTheDocument();
+    expect(screen.getByText("温标/R 值")).toBeInTheDocument();
+    expect(screen.queryByText("fill_weight")).not.toBeInTheDocument();
+    expect(screen.queryByText("filling")).not.toBeInTheDocument();
+    expect(screen.queryByText("material")).not.toBeInTheDocument();
+    expect(screen.queryByText("size")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("temperature_or_r_value"),
+    ).not.toBeInTheDocument();
+  });
+
   it("loads additional atlas review submissions when the list is scrolled", async () => {
     const client = buildClient();
     vi.mocked(client.listAdminGearAtlasSubmissions)
