@@ -53,6 +53,7 @@ import type {
   RejectGearAtlasSubmissionRequest,
   SkillCategoriesResponse,
   SkillLocale,
+  UpdateGearAtlasSubmissionRequest,
   UpdateGearRequest,
   WechatLoginRequest,
   WechatLoginResponse,
@@ -274,6 +275,17 @@ export class StellarTrailApiClient {
   async getAdminGearAtlasSubmission(id: string): Promise<GearAtlasSubmission> {
     return this.get(
       `/api/admin/gear-atlas-submissions/${encodeURIComponent(id)}`,
+      true,
+    );
+  }
+
+  async updateAdminGearAtlasSubmission(
+    id: string,
+    request: UpdateGearAtlasSubmissionRequest,
+  ): Promise<GearAtlasSubmission> {
+    return this.patch(
+      `/api/admin/gear-atlas-submissions/${encodeURIComponent(id)}`,
+      request,
       true,
     );
   }

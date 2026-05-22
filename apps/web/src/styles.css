@@ -981,6 +981,29 @@ dd {
   width: 110px;
 }
 
+.atlas-variant-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.atlas-variant-row {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 1.2fr) minmax(120px, 0.8fr) minmax(100px, 0.6fr)
+    auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.atlas-variant-row label {
+  display: grid;
+  gap: 6px;
+}
+
+.inline-actions {
+  margin-top: 12px;
+}
+
 .choice-value {
   display: flex;
   min-height: 44px;
@@ -1190,7 +1213,8 @@ dd {
 
   .stats-grid,
   .admin-feedback-meta,
-  .gear-modal fieldset {
+  .gear-modal fieldset,
+  .atlas-variant-row {
     grid-template-columns: 1fr;
   }
 

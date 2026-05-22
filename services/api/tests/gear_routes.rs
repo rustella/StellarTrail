@@ -568,7 +568,7 @@ async fn tag_color_validation_and_disabled_cache_degrade_cleanly() {
 }
 
 #[tokio::test]
-async fn backpack_specs_split_back_length_and_size() {
+async fn backpack_specs_keep_back_length_and_reject_size_specs() {
     let app = test_app().await;
     let token = login(&app.router, "backpack-spec-user").await;
 
@@ -580,16 +580,16 @@ async fn backpack_specs_split_back_length_and_size() {
         json!({
             "category": "backpack_system",
             "name": "分体背包",
+            "selected_variant_label": "M",
             "specs": {
-                "back_length": "48 cm",
-                "backpack_size": "M"
+                "back_length": "48 cm"
             }
         }),
     )
     .await;
     assert_eq!(backpack_status, StatusCode::CREATED, "{backpack}");
     assert_eq!(backpack["specs"]["back_length"], "48 cm");
-    assert_eq!(backpack["specs"]["backpack_size"], "M");
+    assert_eq!(backpack["selected_variant_label"], "M");
 
     let (old_backpack_status, old_backpack) = send_json(
         &app.router,
@@ -600,7 +600,7 @@ async fn backpack_specs_split_back_length_and_size() {
             "category": "backpack_system",
             "name": "旧字段背包",
             "specs": {
-                "back_length_or_size": "M / 48"
+                "backpack_size": "M"
             }
         }),
     )
@@ -615,7 +615,7 @@ async fn backpack_specs_split_back_length_and_size() {
             .as_array()
             .unwrap()
             .iter()
-            .any(|field| field["field"] == "specs.back_length_or_size")
+            .any(|field| field["field"] == "specs.backpack_size")
     );
 }
 
@@ -645,6 +645,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
             "purchase_location": "京东",
             "status": "maintenance",
             "storage_location": "装备柜 A1",
+            "selected_variant_label": "20000mAh 标准版",
             "specs": {
                 "battery_capacity": "20000 mAh",
                 "rated_energy": "74 Wh"
@@ -670,6 +671,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     assert_eq!(submission["source_type"], "user_gear");
     assert_eq!(submission["source_user_gear_id"], gear_id);
     assert_eq!(submission["official_price_cents"], 69900);
+    assert_eq!(submission["variants"][0]["label"], "20000mAh 标准版");
     assert_eq!(submission["specs"]["battery_capacity"], "20000 mAh");
     assert!(submission.get("purchase_price_cents").is_none());
     assert!(submission.get("purchase_location").is_none());
@@ -859,6 +861,7 @@ async fn gear_atlas_public_routes_expose_external_source_summary_without_interna
         weight_g: None,
         official_price_cents: Some(34_900),
         official_price_currency: Some("CNY".to_owned()),
+        variants: Vec::new(),
         specs: GearSpecs::new(),
         submitted_by_user_id: user_id.clone(),
         source_key: "8264:2074165".to_owned(),
@@ -950,6 +953,30 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
             .iter()
             .any(|field| field["field"] == "specs.battery_capacity")
     );
+    let (invalid_size_status, invalid_size) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gear-atlas-submissions",
+        Some(&token),
+        json!({
+            "category": "clothing_system",
+            "name": "错误尺码衣物",
+            "specs": {"size": "M"}
+        }),
+    )
+    .await;
+    assert_eq!(
+        invalid_size_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{invalid_size}"
+    );
+    assert!(
+        invalid_size["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "specs.size")
+    );
 
     let (create_status, created) = send_json(
         &app.router,
@@ -961,12 +988,14 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
             "name": "手动头灯",
             "brand": "NITECORE",
             "official_price_cents": 19900,
+            "variants": [{"key": "standard", "label": "标准版", "official_price_cents": 19900, "official_price_currency": "CNY"}],
             "specs": {"max_brightness": "400 lm"}
         }),
     )
     .await;
     assert_eq!(create_status, StatusCode::CREATED, "{created}");
     assert_eq!(created["status"], "pending");
+    assert_eq!(created["variants"][0]["label"], "标准版");
 
     let admin_login =
         register_password_user_response(&app.router, "atlas_reviewer", admin_email).await;
@@ -974,6 +1003,29 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
     let admin_user_id = admin_login["user"]["id"].as_str().unwrap();
     grant_admin_role(&app, admin_user_id, admin_user_id).await;
     let submission_id = created["id"].as_str().unwrap();
+    let (update_status, updated) = send_json(
+        &app.router,
+        "PATCH",
+        &format!("/api/admin/gear-atlas-submissions/{submission_id}"),
+        Some(admin_token.as_str()),
+        json!({
+            "category": "lighting_system",
+            "name": "手动头灯",
+            "brand": "NITECORE",
+            "model": null,
+            "description": null,
+            "weight_g": null,
+            "official_price_cents": 19900,
+            "official_price_currency": "CNY",
+            "variants": [{"key": "wide", "label": "宽版", "weight_g": 88}],
+            "specs": {"max_brightness": "400 lm"}
+        }),
+    )
+    .await;
+    assert_eq!(update_status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["variants"][0]["label"], "宽版");
+    assert_eq!(updated["variants"][0]["weight_g"], 88);
+
     let (reject_status, rejected) = send_json(
         &app.router,
         "POST",
@@ -1011,6 +1063,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
         "purchase_location": "京东",
         "status": "available",
         "storage_location": "装备柜 A1",
+        "selected_variant_label": "标准版",
         "specs": {
             "battery_capacity": "20000 mAh",
             "waterproof_rating": "IPX4"
@@ -1034,6 +1087,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     assert_eq!(created["share_status"], "pending");
     assert_eq!(created["official_price_currency"], "CNY");
     assert_eq!(created["purchase_price_currency"], "CNY");
+    assert_eq!(created["selected_variant_label"], "标准版");
     assert_eq!(created["specs"]["battery_capacity"], "20000 mAh");
 
     let (stats_status, stats) =
@@ -1062,6 +1116,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     assert_eq!(list["items"][0]["status_label"], "可用");
     assert_eq!(list["items"][0]["official_price_cents"], 69900);
     assert_eq!(list["items"][0]["purchase_price_currency"], "CNY");
+    assert_eq!(list["items"][0]["selected_variant_label"], "标准版");
 
     let (invalid_status, invalid) = send_json(
         &app.router,

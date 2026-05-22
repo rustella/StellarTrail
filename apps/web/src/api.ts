@@ -38,6 +38,7 @@ import type {
   RejectGearAtlasSubmissionRequest,
   SkillCategoriesResponse,
   SkillLocale,
+  UpdateGearAtlasSubmissionRequest,
   UpdateGearRequest,
   WechatLoginRequest,
   WechatLoginResponse,
@@ -112,6 +113,10 @@ export interface WebGearApi {
     request?: ListGearAtlasSubmissionsRequest,
   ): Promise<ListGearAtlasSubmissionsResponse>;
   getAdminGearAtlasSubmission(id: string): Promise<GearAtlasSubmission>;
+  updateAdminGearAtlasSubmission(
+    id: string,
+    request: UpdateGearAtlasSubmissionRequest,
+  ): Promise<GearAtlasSubmission>;
   approveGearAtlasSubmission(id: string): Promise<GearAtlasSubmission>;
   rejectGearAtlasSubmission(
     id: string,

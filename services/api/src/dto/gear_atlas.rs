@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use stellartrail_domain::{
-    gear::{GearCategory, GearSpecs},
+    gear::{GearCategory, GearSpecs, GearVariants},
     gear_atlas::{
         GearAtlasDraft, GearAtlasItem, GearAtlasSort, GearAtlasSourceType, GearAtlasStatus,
     },
@@ -50,6 +50,8 @@ pub struct CreateGearAtlasSubmissionRequest {
     pub official_price_cents: Option<i64>,
     pub official_price_currency: Option<String>,
     #[serde(default)]
+    pub variants: GearVariants,
+    #[serde(default)]
     pub specs: GearSpecs,
 }
 
@@ -65,6 +67,7 @@ impl CreateGearAtlasSubmissionRequest {
             weight_g: self.weight_g,
             official_price_cents: self.official_price_cents,
             official_price_currency: self.official_price_currency,
+            variants: self.variants,
             specs: self.specs,
             source_type: GearAtlasSourceType::Manual,
             submitted_by_user_id: user_id.to_owned(),
@@ -72,6 +75,9 @@ impl CreateGearAtlasSubmissionRequest {
         }
     }
 }
+
+/// Administrator body for replacing editable public fields on one submission.
+pub type UpdateGearAtlasSubmissionRequest = CreateGearAtlasSubmissionRequest;
 
 /// Administrator reject body.
 #[derive(Debug, Deserialize)]
@@ -93,6 +99,7 @@ pub struct GearAtlasPublicItemResponse {
     pub weight_g: Option<i32>,
     pub official_price_cents: Option<i64>,
     pub official_price_currency: Option<String>,
+    pub variants: GearVariants,
     pub specs: GearSpecs,
     pub approved_at: Option<String>,
     pub source_name: Option<String>,
@@ -123,6 +130,7 @@ impl GearAtlasPublicItemResponse {
             weight_g: item.weight_g,
             official_price_cents: item.official_price_cents,
             official_price_currency: item.official_price_currency.clone(),
+            variants: item.variants.clone(),
             specs: item.specs.clone(),
             approved_at: item.approved_at.clone(),
             source_name: item.source_name.clone(),

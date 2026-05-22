@@ -40,6 +40,7 @@ fn external_draft(
         weight_g: None,
         official_price_cents: Some(34_900),
         official_price_currency: Some("CNY".to_owned()),
+        variants: Vec::new(),
         specs: GearSpecs::new(),
         submitted_by_user_id: submitter_user_id.to_owned(),
         source_key: source_key.to_owned(),

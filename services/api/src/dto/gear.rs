@@ -72,6 +72,9 @@ pub struct CreateGearRequest {
     pub purchase_location: Option<String>,
     pub status: Option<GearStatus>,
     pub storage_location: Option<String>,
+    pub atlas_item_id: Option<String>,
+    pub selected_variant_key: Option<String>,
+    pub selected_variant_label: Option<String>,
     #[serde(default)]
     pub specs: GearSpecs,
     #[serde(default)]
@@ -101,6 +104,9 @@ impl CreateGearRequest {
             purchase_location: self.purchase_location,
             status: self.status.unwrap_or_default(),
             storage_location: self.storage_location,
+            atlas_item_id: self.atlas_item_id,
+            selected_variant_key: self.selected_variant_key,
+            selected_variant_label: self.selected_variant_label,
             specs: self.specs,
             tags: self.tags,
             share_enabled: self.share_enabled,
@@ -128,6 +134,9 @@ pub struct UpdateGearRequest {
     pub purchase_location: Option<String>,
     pub status: Option<GearStatus>,
     pub storage_location: Option<String>,
+    pub atlas_item_id: Option<String>,
+    pub selected_variant_key: Option<String>,
+    pub selected_variant_label: Option<String>,
     pub specs: Option<GearSpecs>,
     pub tags: Option<Vec<String>>,
     pub tag_colors: Option<HashMap<String, String>>,
@@ -163,6 +172,15 @@ impl UpdateGearRequest {
             storage_location: self
                 .storage_location
                 .or_else(|| existing.storage_location.clone()),
+            atlas_item_id: self
+                .atlas_item_id
+                .or_else(|| existing.atlas_item_id.clone()),
+            selected_variant_key: self
+                .selected_variant_key
+                .or_else(|| existing.selected_variant_key.clone()),
+            selected_variant_label: self
+                .selected_variant_label
+                .or_else(|| existing.selected_variant_label.clone()),
             specs: self.specs.unwrap_or_else(|| existing.specs.clone()),
             tags: self.tags.unwrap_or_else(|| existing.tags.clone()),
             share_enabled: self.share_enabled.unwrap_or(existing.share_enabled),
@@ -189,6 +207,9 @@ pub struct GearSummaryResponse {
     pub purchase_price_cents: Option<i64>,
     pub purchase_price_currency: Option<String>,
     pub purchase_date: Option<String>,
+    pub atlas_item_id: Option<String>,
+    pub selected_variant_key: Option<String>,
+    pub selected_variant_label: Option<String>,
     pub specs: GearSpecs,
     pub tags: Vec<String>,
     pub tag_colors: HashMap<String, String>,
@@ -214,6 +235,9 @@ impl From<&GearItem> for GearSummaryResponse {
             purchase_price_cents: item.purchase_price_cents,
             purchase_price_currency: item.purchase_price_currency.clone(),
             purchase_date: item.purchase_date.clone(),
+            atlas_item_id: item.atlas_item_id.clone(),
+            selected_variant_key: item.selected_variant_key.clone(),
+            selected_variant_label: item.selected_variant_label.clone(),
             specs: item.specs.clone(),
             tags: item.tags.clone(),
             tag_colors: HashMap::new(),
@@ -241,6 +265,9 @@ impl GearSummaryResponse {
             purchase_price_cents: item.purchase_price_cents,
             purchase_price_currency: item.purchase_price_currency.clone(),
             purchase_date: item.purchase_date.clone(),
+            atlas_item_id: item.atlas_item_id.clone(),
+            selected_variant_key: item.selected_variant_key.clone(),
+            selected_variant_label: item.selected_variant_label.clone(),
             specs: item.specs.clone(),
             tags: item.tags.clone(),
             tag_colors: tag_colors_for_tags(&item.tags, all_tag_colors),

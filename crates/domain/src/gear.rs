@@ -231,6 +231,18 @@ pub enum GearSort {
 
 pub type GearSpecs = BTreeMap<String, String>;
 
+/// Public size/fit variant for a gear atlas item.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct GearVariant {
+    pub key: String,
+    pub label: String,
+    pub official_price_cents: Option<i64>,
+    pub official_price_currency: Option<String>,
+    pub weight_g: Option<i32>,
+}
+
+pub type GearVariants = Vec<GearVariant>;
+
 /// Complete gear domain object representing one user gear record from the database.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearItem {
@@ -250,6 +262,9 @@ pub struct GearItem {
     pub purchase_location: Option<String>,
     pub status: GearStatus,
     pub storage_location: Option<String>,
+    pub atlas_item_id: Option<String>,
+    pub selected_variant_key: Option<String>,
+    pub selected_variant_label: Option<String>,
     pub specs: GearSpecs,
     pub tags: Vec<String>,
     pub share_enabled: bool,
@@ -277,6 +292,9 @@ pub struct GearDraft {
     pub purchase_location: Option<String>,
     pub status: GearStatus,
     pub storage_location: Option<String>,
+    pub atlas_item_id: Option<String>,
+    pub selected_variant_key: Option<String>,
+    pub selected_variant_label: Option<String>,
     pub specs: GearSpecs,
     pub tags: Vec<String>,
     pub share_enabled: bool,
@@ -306,6 +324,25 @@ impl GearDraft {
             "storage_location",
             &mut errors,
         );
+        self.atlas_item_id =
+            normalize_optional_text(self.atlas_item_id.take(), 128, "atlas_item_id", &mut errors);
+        self.selected_variant_label = normalize_optional_text(
+            self.selected_variant_label.take(),
+            80,
+            "selected_variant_label",
+            &mut errors,
+        );
+        self.selected_variant_key = normalize_optional_text(
+            self.selected_variant_key.take(),
+            80,
+            "selected_variant_key",
+            &mut errors,
+        );
+        if self.selected_variant_label.is_some() && self.selected_variant_key.is_none() {
+            if let Some(label) = self.selected_variant_label.as_deref() {
+                self.selected_variant_key = Some(variant_key_from_label(label, 0));
+            }
+        }
         self.notes = normalize_optional_text(self.notes.take(), 100, "notes", &mut errors);
 
         if let Some(weight_g) = self.weight_g {
@@ -381,11 +418,10 @@ pub fn derive_share_status(share_enabled: bool, previous: GearShareStatus) -> Ge
 
 pub const SUPPORTED_CURRENCIES: [&str; 5] = ["CNY", "USD", "EUR", "JPY", "HKD"];
 
-const LEGACY_SPEC_KEYS: [&str; 7] = [
+const LEGACY_SPEC_KEYS: [&str; 6] = [
     "color",
     "material",
     "capacity",
-    "size",
     "warmth_index",
     "waterproof_index",
     "expiry_or_warranty_date",
@@ -398,7 +434,6 @@ pub fn allowed_spec_keys(category: GearCategory) -> &'static [&'static str] {
             "capacity",
             "recommended_load",
             "back_length",
-            "backpack_size",
             "waterproof_rating",
         ],
         GearCategory::SleepSystem => &[
@@ -417,15 +452,8 @@ pub fn allowed_spec_keys(category: GearCategory) -> &'static [&'static str] {
             "people_count",
             "packed_size",
         ],
-        GearCategory::WalkingSystem => &[
-            "size_or_length",
-            "terrain",
-            "waterproof_rating",
-            "material",
-            "support",
-        ],
+        GearCategory::WalkingSystem => &["terrain", "waterproof_rating", "material", "support"],
         GearCategory::ClothingSystem => &[
-            "size",
             "layer",
             "warmth_rating",
             "waterproof_rating",
@@ -484,6 +512,24 @@ pub fn allowed_spec_keys(category: GearCategory) -> &'static [&'static str] {
 /// Checks whether a spec key is valid for the given category.
 pub fn is_allowed_spec_key(category: GearCategory, key: &str) -> bool {
     allowed_spec_keys(category).contains(&key) || LEGACY_SPEC_KEYS.contains(&key)
+}
+
+/// Builds a stable variant key from a human label.
+pub fn variant_key_from_label(label: &str, index: usize) -> String {
+    let mut key = String::new();
+    for ch in label.trim().chars() {
+        if ch.is_ascii_alphanumeric() {
+            key.push(ch.to_ascii_lowercase());
+        } else if !key.ends_with('-') {
+            key.push('-');
+        }
+    }
+    let key = key.trim_matches('-');
+    if key.is_empty() {
+        format!("variant-{index}")
+    } else {
+        key.chars().take(80).collect()
+    }
 }
 
 fn normalize_price_currency(
@@ -550,6 +596,79 @@ pub fn normalize_specs(
             "must contain at most 32 fields",
         ));
         normalized = normalized.into_iter().take(32).collect();
+    }
+    normalized
+}
+
+/// Normalizes atlas size variants while preserving user-visible labels.
+pub fn normalize_variants(values: GearVariants, errors: &mut Vec<FieldViolation>) -> GearVariants {
+    let mut normalized = GearVariants::new();
+    for (index, mut raw) in values.into_iter().enumerate() {
+        let label = raw.label.trim();
+        if label.is_empty() {
+            continue;
+        }
+        if label.chars().count() > 80 {
+            errors.push(FieldViolation::new(
+                format!("variants.{index}.label"),
+                "must be at most 80 characters",
+            ));
+            continue;
+        }
+        let key = raw.key.trim();
+        let key = if key.is_empty() {
+            variant_key_from_label(label, index)
+        } else {
+            key.to_owned()
+        };
+        if key.chars().count() > 80 {
+            errors.push(FieldViolation::new(
+                format!("variants.{index}.key"),
+                "must be at most 80 characters",
+            ));
+            continue;
+        }
+        if normalized.iter().any(|existing| existing.key == key) {
+            continue;
+        }
+        if let Some(price) = raw.official_price_cents {
+            if price < 0 {
+                errors.push(FieldViolation::new(
+                    format!("variants.{index}.official_price_cents"),
+                    "must be greater than or equal to 0",
+                ));
+                raw.official_price_cents = None;
+            }
+        }
+        raw.official_price_currency = normalize_price_currency(
+            raw.official_price_cents,
+            raw.official_price_currency.take(),
+            &format!("variants.{index}.official_price_currency"),
+            errors,
+        );
+        if let Some(weight_g) = raw.weight_g {
+            if !(0..=1_000_000).contains(&weight_g) {
+                errors.push(FieldViolation::new(
+                    format!("variants.{index}.weight_g"),
+                    "must be between 0 and 1000000",
+                ));
+                raw.weight_g = None;
+            }
+        }
+        normalized.push(GearVariant {
+            key,
+            label: label.to_owned(),
+            official_price_cents: raw.official_price_cents,
+            official_price_currency: raw.official_price_currency,
+            weight_g: raw.weight_g,
+        });
+    }
+    if normalized.len() > 50 {
+        errors.push(FieldViolation::new(
+            "variants",
+            "must contain at most 50 variants",
+        ));
+        normalized.truncate(50);
     }
     normalized
 }
@@ -652,6 +771,9 @@ mod tests {
             purchase_location: Some("京东".to_owned()),
             status: GearStatus::Available,
             storage_location: Some("装备柜".to_owned()),
+            atlas_item_id: None,
+            selected_variant_key: None,
+            selected_variant_label: None,
             specs: GearSpecs::from([
                 ("waterproof_rating".to_owned(), " IPX4 ".to_owned()),
                 ("max_brightness".to_owned(), "450 lm".to_owned()),

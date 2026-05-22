@@ -14,6 +14,7 @@ import type {
   GearCategory,
   GearCurrency,
   GearSpecs,
+  GearVariant,
   ListGearAtlasRequest,
 } from "@stellartrail/shared-types";
 
@@ -21,8 +22,11 @@ import type { WebGearApi } from "./api";
 import {
   combineSpecValue,
   getGearAtlasSpecFieldViews,
+  normalizeVariants,
   normalizeSpecsForCategory,
   specLabel,
+  variantKeyFromLabel,
+  variantSummary,
 } from "./gear-atlas-utils";
 import { CATEGORY_OPTIONS, categoryLabel } from "./gear-options";
 import { formatDate, formatWeight, joinGearName } from "./formatters";
@@ -62,6 +66,7 @@ interface AtlasSubmissionFormState {
   weightG: string;
   officialPrice: string;
   officialPriceCurrency: GearCurrency;
+  variants: GearVariant[];
   specs: GearSpecs;
 }
 
@@ -74,6 +79,7 @@ const emptyAtlasForm: AtlasSubmissionFormState = {
   weightG: "",
   officialPrice: "",
   officialPriceCurrency: "CNY",
+  variants: [],
   specs: {},
 };
 
@@ -527,6 +533,7 @@ function AtlasDetailDrawer({
   onClose(): void;
 }) {
   const specs = Object.entries(item.specs ?? {});
+  const variants = item.variants ?? [];
   return (
     <aside className="detail-drawer atlas-detail-drawer" aria-label="图鉴详情">
       <button
@@ -571,6 +578,21 @@ function AtlasDetailDrawer({
             <dd>{formatDate(item.approved_at)}</dd>
           </div>
         </dl>
+      </section>
+      <section className="atlas-detail-section">
+        <h3>可选尺寸</h3>
+        {variants.length ? (
+          <dl>
+            {variants.map((variant) => (
+              <div key={variant.key}>
+                <dt>{variant.label}</dt>
+                <dd>{variantSummary(variant, formatAtlasPrice)}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p className="muted">暂无可选尺寸。</p>
+        )}
       </section>
       <section className="atlas-detail-section">
         <h3>分类参数</h3>
@@ -642,6 +664,37 @@ function AtlasSubmitModal({
         ...form.specs,
         [key]: combineSpecValue(value, unit),
       },
+    });
+  };
+  const updateVariant = (index: number, patch: Partial<GearVariant>) => {
+    onChange({
+      ...form,
+      variants: form.variants.map((variant, currentIndex) =>
+        currentIndex === index ? { ...variant, ...patch } : variant,
+      ),
+    });
+  };
+  const addVariant = () => {
+    onChange({
+      ...form,
+      variants: [
+        ...form.variants,
+        {
+          key: "",
+          label: "",
+          official_price_cents: null,
+          official_price_currency: form.officialPriceCurrency,
+          weight_g: null,
+        },
+      ],
+    });
+  };
+  const removeVariant = (index: number) => {
+    onChange({
+      ...form,
+      variants: form.variants.filter(
+        (_, currentIndex) => currentIndex !== index,
+      ),
     });
   };
   return (
@@ -722,6 +775,85 @@ function AtlasSubmitModal({
               maxLength={200}
             />
           </label>
+        </fieldset>
+        <fieldset>
+          <legend>可选尺寸</legend>
+          {form.variants.length ? (
+            <div className="atlas-variant-editor">
+              {form.variants.map((variant, index) => (
+                <div
+                  className="atlas-variant-row"
+                  key={`${index}-${variant.key}`}
+                >
+                  <label>
+                    尺寸
+                    <input
+                      value={variant.label}
+                      placeholder="例如 M 75*195"
+                      onChange={(event) =>
+                        updateVariant(index, {
+                          label: event.target.value,
+                          key: variantKeyFromLabel(event.target.value, index),
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    分尺寸官方价
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={priceInputValue(variant.official_price_cents)}
+                      onChange={(event) =>
+                        updateVariant(index, {
+                          official_price_cents: optionalPriceInputCents(
+                            event.target.value,
+                          ),
+                          official_price_currency:
+                            variant.official_price_currency ||
+                            form.officialPriceCurrency,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    重量（g）
+                    <input
+                      type="number"
+                      min="0"
+                      value={variant.weight_g ?? ""}
+                      onChange={(event) =>
+                        updateVariant(index, {
+                          weight_g: event.target.value
+                            ? Number(event.target.value)
+                            : null,
+                        })
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => removeVariant(index)}
+                  >
+                    移除
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">
+              可添加该装备公开可选尺寸，不填写也可以提交。
+            </p>
+          )}
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={addVariant}
+          >
+            添加尺寸
+          </button>
         </fieldset>
         <fieldset>
           <legend>可公开信息</legend>
@@ -849,6 +981,7 @@ function atlasFormToPayload(
     official_price_currency: form.officialPrice.trim()
       ? form.officialPriceCurrency
       : null,
+    variants: normalizeVariants(form.variants),
     specs: normalizeSpecsForCategory(form.category, form.specs),
   };
 }
@@ -942,6 +1075,24 @@ function optionalPriceCents(value: string): number | null {
     throw new Error("官方价格必须是非负数字");
   }
   return Math.round(parsed * 100);
+}
+
+function optionalPriceInputCents(value: string): number | null {
+  const text = value.trim();
+  if (!text) {
+    return null;
+  }
+  const parsed = Number(text);
+  return Number.isFinite(parsed) && parsed >= 0
+    ? Math.round(parsed * 100)
+    : null;
+}
+
+function priceInputValue(cents?: number | null): string {
+  if (cents === undefined || cents === null) {
+    return "";
+  }
+  return (cents / 100).toString();
 }
 
 function errorMessage(err: unknown): string {

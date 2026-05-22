@@ -324,7 +324,7 @@ GET /api/gear-atlas?category=lighting_system&q=headlamp&sort=name_asc&limit=20&c
 GET /api/gear-atlas/:id
 ```
 
-`/api/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不暴露 Markdown mock。`/api/gear-templates` 和 `/api/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。`/api/gear-atlas` 和 `/api/gear-atlas/:id` 返回已审核通过的公共装备图鉴，不包含用户个人购买、位置、标签或备注字段。外部导入来源只暴露 `source_name`、`source_url`、`source_rating_score` 和 `source_rating_count` 等公开审计摘要，不暴露内部去重键、导入批次或授权备注。
+`/api/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不暴露 Markdown mock。`/api/gear-templates` 和 `/api/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。`/api/gear-atlas` 和 `/api/gear-atlas/:id` 返回已审核通过的公共装备图鉴，不包含用户个人购买、位置、标签或备注字段。图鉴公共尺寸使用 `variants` 数组表示，每项包含 `key`、`label`，以及可选 `official_price_cents`、`official_price_currency`、`weight_g`；分类参数 `specs` 不再接受或返回 `size`、`backpack_size`、`size_or_length`。外部导入来源只暴露 `source_name`、`source_url`、`source_rating_score` 和 `source_rating_count` 等公开审计摘要，不暴露内部去重键、导入批次或授权备注。
 
 公共内容语言不使用 query 参数，统一通过请求头：
 
@@ -350,7 +350,7 @@ X-StellarTrail-Locale: en
 
 ### Gear atlas external import POC
 
-`stellartrail-importer` 提供 `import-gear-atlas-cn` POC CLI，用于把人工挑选的 8264 移动装备详情页导入为待审核图鉴条目。该工具只接受显式 URL 或 URL 文件，不自动扫描全站；默认 dry-run 输出解析预览，真实写库必须传 `--write --submitter-user-id <existing-user-id>`。导入器只保存标题、类目、品牌/型号启发式拆分、重量、人民币价格、结构化 `specs`、评分汇总和来源链接；不复制第三方图片、介绍正文、用户点评正文或评测长文。`source_key` 用于幂等刷新同一来源条目，已审核条目不会被后续导入覆盖。
+`stellartrail-importer` 提供 `import-gear-atlas-cn` POC CLI，用于把人工挑选的 8264 移动装备详情页导入为待审核图鉴条目。该工具只接受显式 URL 或 URL 文件，不自动扫描全站；默认 dry-run 输出解析预览，真实写库必须传 `--write --submitter-user-id <existing-user-id>`。导入器只保存标题、类目、品牌/型号启发式拆分、重量、人民币价格、公共尺寸 `variants`、结构化 `specs`、评分汇总和来源链接；不复制第三方图片、介绍正文、用户点评正文或评测长文。`source_key` 用于幂等刷新同一来源条目，已审核条目不会被后续导入覆盖。
 
 ### Admin knot media upload
 
@@ -583,6 +583,9 @@ POST /api/me/gears/import
   "purchase_location": "京东",
   "status": "available",
   "storage_location": "装备柜 A1",
+  "atlas_item_id": null,
+  "selected_variant_key": "standard",
+  "selected_variant_label": "标准版",
   "specs": {
     "battery_capacity": "20000 mAh",
     "rated_energy": "74 Wh"
@@ -598,6 +601,8 @@ POST /api/me/gears/import
 ```
 
 装备表只保存 `tags` 文本数组；`tag_colors` 是用户标签库颜色偏好，只写入 Redis，不写入装备表。装备列表和详情响应会返回当前装备标签对应的 `tag_colors` 映射，客户端刷新后即可按后端最新颜色重新渲染。支持颜色 token：`teal`、`blue`、`violet`、`rose`、`orange`、`amber`、`green`、`slate`。
+
+个人装备可以独立存在，不要求先关联装备图鉴。用户实际选择或手填的尺寸保存在 `selected_variant_label`，可选的稳定 key 保存在 `selected_variant_key`；当装备关联图鉴时，`atlas_item_id` 指向公开图鉴条目，客户端可读取该图鉴条目的 `variants` 作为“可选尺寸”。个人装备 `specs` 继续保存容量、背长、收纳尺寸等参数，但不再接受 `size`、`backpack_size`、`size_or_length`。
 
 删除接口是软删除：`DELETE /api/me/gears/:id` 会进入 `tab=history`；`POST /api/me/gears/:id/restore` 可恢复。
 
