@@ -158,6 +158,33 @@ impl Cache {
         }
     }
 
+    /// Reads the version used in public gear-atlas response cache keys.
+    pub async fn public_gear_atlas_version(&self) -> u64 {
+        let Some(store) = self.store.as_ref() else {
+            return 0;
+        };
+        let key = self.public_gear_atlas_version_key();
+        match store.get(&key).await {
+            Ok(Some(value)) => value.parse::<u64>().unwrap_or(0),
+            Ok(None) => 0,
+            Err(error) => {
+                warn!(key, error = %error, "redis gear-atlas public cache version read failed");
+                0
+            }
+        }
+    }
+
+    /// Increments the public gear-atlas version so old public response keys age out naturally.
+    pub async fn invalidate_public_gear_atlas(&self) {
+        let Some(store) = self.store.as_ref() else {
+            return;
+        };
+        let key = self.public_gear_atlas_version_key();
+        if let Err(error) = store.increment(&key).await {
+            warn!(key, error = %error, "redis gear-atlas public cache invalidation failed");
+        }
+    }
+
     /// Increments a key and applies a TTL on first use. Returns None when the cache is disabled or unavailable.
     pub async fn increment_with_ttl(&self, key: &str, ttl: Duration) -> Option<u64> {
         let store = self.store.as_ref()?;
@@ -353,6 +380,11 @@ impl Cache {
     /// Builds the Redis hash key for user tag color preferences.
     fn gear_tag_colors_key(&self, user_id: &str) -> String {
         format!("{}:gear:{user_id}:tag-colors", self.key_prefix)
+    }
+
+    /// Builds the global public atlas version key shared by list and detail response caches.
+    fn public_gear_atlas_version_key(&self) -> String {
+        format!("{}:gear-atlas:public-response-version", self.key_prefix)
     }
 }
 

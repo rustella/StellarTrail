@@ -6,6 +6,7 @@ import type {
   GearAtlasSubmission,
   GearCategory,
   GearItem,
+  GearOverviewResponse,
   GearSpecKeyRankingsResponse,
   GearStatsResponse,
   GearTagSuggestionsResponse,
@@ -21,6 +22,7 @@ import type {
 } from "./gear-utils";
 import type {
   KnotDetail,
+  KnotFiltersResponse,
   KnotListResponse,
   KnotOfflineManifestResponse,
   ListKnotsRequest,
@@ -64,6 +66,12 @@ const WECHAT_LOGIN_TIMEOUT_MS = 5_000;
 let loginPromise: Promise<string> | null = null;
 let refreshPromise: Promise<string> | null = null;
 let offlineCacheNoticePending = false;
+let cachedApiBaseUrl: string | null = null;
+let cachedAccessToken: string | null | undefined;
+let cachedAccessTokenExpiresAt: string | null | undefined;
+let cachedRefreshToken: string | null | undefined;
+let cachedUser: WechatLoginResponse["user"] | null | undefined;
+const pendingGetRequests = new Map<string, Promise<unknown>>();
 interface ApiRequestOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   data?: unknown;
@@ -278,12 +286,16 @@ export function consumeOfflineCacheNotice(): string {
 }
 
 export function getApiBaseUrl(): string {
+  if (cachedApiBaseUrl) {
+    return cachedApiBaseUrl;
+  }
   const stored = wx.getStorageSync(API_BASE_URL_STORAGE_KEY) as
     | string
     | undefined;
   if (stored) {
     const normalized = normalizeStoredApiBaseUrl(stored);
     if (normalized) {
+      cachedApiBaseUrl = normalized;
       return normalized;
     }
     wx.removeStorageSync(API_BASE_URL_STORAGE_KEY);
@@ -293,10 +305,10 @@ export function getApiBaseUrl(): string {
       apiBaseUrl?: string;
     };
   }>();
-  return (app.globalData?.apiBaseUrl ?? DEFAULT_API_BASE_URL).replace(
-    /\/$/,
-    "",
-  );
+  cachedApiBaseUrl = (
+    app.globalData?.apiBaseUrl ?? DEFAULT_API_BASE_URL
+  ).replace(/\/$/, "");
+  return cachedApiBaseUrl;
 }
 
 export function getAssetsBaseUrl(): string {
@@ -319,7 +331,8 @@ export function resolveAssetUrl(pathOrUrl: string): string {
 }
 
 export function setApiBaseUrl(baseUrl: string): void {
-  wx.setStorageSync(API_BASE_URL_STORAGE_KEY, baseUrl.replace(/\/$/, ""));
+  cachedApiBaseUrl = baseUrl.replace(/\/$/, "");
+  wx.setStorageSync(API_BASE_URL_STORAGE_KEY, cachedApiBaseUrl);
 }
 
 function normalizeStoredApiBaseUrl(baseUrl: string): string | null {
@@ -336,15 +349,18 @@ function normalizeStoredApiBaseUrl(baseUrl: string): string | null {
 }
 
 export function hasAccessToken(): boolean {
-  const cached = wx.getStorageSync(TOKEN_STORAGE_KEY) as string | undefined;
-  return Boolean(cached);
+  return Boolean(readAccessToken());
 }
 
 export function getStoredUser(): WechatLoginResponse["user"] | null {
-  const user = wx.getStorageSync(USER_STORAGE_KEY) as
-    | WechatLoginResponse["user"]
-    | undefined;
-  return user ?? null;
+  if (cachedUser !== undefined) {
+    return cachedUser;
+  }
+  cachedUser =
+    (wx.getStorageSync(USER_STORAGE_KEY) as
+      | WechatLoginResponse["user"]
+      | undefined) ?? null;
+  return cachedUser;
 }
 
 export async function getCurrentUser(): Promise<WechatLoginResponse["user"]> {
@@ -391,11 +407,11 @@ export function createFeedback(
 }
 
 export async function ensureAccessToken(): Promise<string> {
-  const cached = wx.getStorageSync(TOKEN_STORAGE_KEY) as string | undefined;
+  const cached = readAccessToken();
   if (cached && (isOffline() || !shouldRefreshAccessToken())) {
     return cached;
   }
-  if (wx.getStorageSync(REFRESH_TOKEN_STORAGE_KEY)) {
+  if (readRefreshToken()) {
     try {
       return await refreshAccessToken();
     } catch {
@@ -555,6 +571,11 @@ export async function refreshAccessToken(): Promise<string> {
 
 export function clearLoginState(): void {
   clearUserOfflineCaches();
+  cachedAccessToken = null;
+  cachedAccessTokenExpiresAt = null;
+  cachedRefreshToken = null;
+  cachedUser = null;
+  pendingGetRequests.clear();
   wx.removeStorageSync(TOKEN_STORAGE_KEY);
   wx.removeStorageSync(ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY);
   wx.removeStorageSync(REFRESH_TOKEN_STORAGE_KEY);
@@ -637,6 +658,16 @@ export async function getGearSpecKeyRankings(
   );
 }
 
+export async function getGearOverview(request: {
+  tab?: "available" | "history";
+  limit?: number;
+  sort?: string;
+}): Promise<GearOverviewResponse> {
+  return requestJson(`/api/me/gears/overview${queryString(request)}`, {
+    auth: true,
+  });
+}
+
 export async function getGearTagSuggestions(
   limit = 20,
 ): Promise<GearTagSuggestionsResponse> {
@@ -705,6 +736,12 @@ export async function listKnots(
   });
 }
 
+export async function getKnotFilters(
+  locale: SkillLocale = "zh-CN",
+): Promise<KnotFiltersResponse> {
+  return requestJson("/api/skills/knots/filters", { locale });
+}
+
 export async function getKnotDetail(
   id: string,
   locale: SkillLocale = "zh-CN",
@@ -747,6 +784,29 @@ export function getErrorMessage(error: unknown): string {
 }
 
 async function requestJson<T>(
+  path: string,
+  options: ApiRequestOptions = {},
+  didRetryUnauthorized = false,
+): Promise<T> {
+  const method = options.method ?? "GET";
+  if (method === "GET" && !didRetryUnauthorized) {
+    const key = inFlightGetKey(path, options);
+    const pending = pendingGetRequests.get(key) as Promise<T> | undefined;
+    if (pending) {
+      return pending;
+    }
+    const request = requestJsonOnce<T>(path, options, didRetryUnauthorized);
+    pendingGetRequests.set(key, request);
+    return request.finally(() => {
+      if (pendingGetRequests.get(key) === request) {
+        pendingGetRequests.delete(key);
+      }
+    });
+  }
+  return requestJsonOnce(path, options, didRetryUnauthorized);
+}
+
+async function requestJsonOnce<T>(
   path: string,
   options: ApiRequestOptions = {},
   didRetryUnauthorized = false,
@@ -832,6 +892,11 @@ async function requestJson<T>(
   });
 }
 
+function inFlightGetKey(path: string, options: ApiRequestOptions): string {
+  const authScope = options.auth ? (getStoredUser()?.id ?? "auth") : "public";
+  return ["GET", path, options.locale ?? "", authScope].join("|");
+}
+
 function offlineCacheDescriptor(
   path: string,
   options: ApiRequestOptions,
@@ -888,6 +953,10 @@ function isUserCacheablePath(path: string): boolean {
 }
 
 function saveLoginResponse(response: WechatLoginResponse): void {
+  cachedAccessToken = response.access_token;
+  cachedAccessTokenExpiresAt = response.expires_at;
+  cachedRefreshToken = response.refresh_token;
+  cachedUser = response.user;
   wx.setStorageSync(TOKEN_STORAGE_KEY, response.access_token);
   wx.setStorageSync(ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY, response.expires_at);
   wx.setStorageSync(REFRESH_TOKEN_STORAGE_KEY, response.refresh_token);
@@ -899,7 +968,38 @@ function saveLoginResponse(response: WechatLoginResponse): void {
 }
 
 function saveUser(user: WechatLoginResponse["user"]): void {
+  cachedUser = user;
   wx.setStorageSync(USER_STORAGE_KEY, user);
+}
+
+function readAccessToken(): string | undefined {
+  if (cachedAccessToken !== undefined) {
+    return cachedAccessToken ?? undefined;
+  }
+  cachedAccessToken =
+    (wx.getStorageSync(TOKEN_STORAGE_KEY) as string | undefined) ?? null;
+  return cachedAccessToken ?? undefined;
+}
+
+function readRefreshToken(): string | undefined {
+  if (cachedRefreshToken !== undefined) {
+    return cachedRefreshToken ?? undefined;
+  }
+  cachedRefreshToken =
+    (wx.getStorageSync(REFRESH_TOKEN_STORAGE_KEY) as string | undefined) ??
+    null;
+  return cachedRefreshToken ?? undefined;
+}
+
+function readAccessTokenExpiresAt(): string | undefined {
+  if (cachedAccessTokenExpiresAt !== undefined) {
+    return cachedAccessTokenExpiresAt ?? undefined;
+  }
+  cachedAccessTokenExpiresAt =
+    (wx.getStorageSync(ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY) as
+      | string
+      | undefined) ?? null;
+  return cachedAccessTokenExpiresAt ?? undefined;
 }
 
 function normalizeWechatLoginProfile(
@@ -984,9 +1084,7 @@ function normalizePasswordLoginRequest(
 }
 
 async function refreshAccessTokenOnce(): Promise<string> {
-  const refreshToken = wx.getStorageSync(REFRESH_TOKEN_STORAGE_KEY) as
-    | string
-    | undefined;
+  const refreshToken = readRefreshToken();
   if (!refreshToken) {
     throw new Error("登录已过期，请重新登录");
   }
@@ -999,9 +1097,7 @@ async function refreshAccessTokenOnce(): Promise<string> {
 }
 
 function shouldRefreshAccessToken(): boolean {
-  const expiresAt = wx.getStorageSync(ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY) as
-    | string
-    | undefined;
+  const expiresAt = readAccessTokenExpiresAt();
   if (!expiresAt) {
     return false;
   }

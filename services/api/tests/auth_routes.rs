@@ -740,6 +740,15 @@ async fn protected_gear_routes_reject_missing_token() {
 
     assert_eq!(status, StatusCode::UNAUTHORIZED, "{value}");
     assert_eq!(value["code"], "unauthorized");
+
+    let (overview_status, overview_value) =
+        send_empty(&app.router, "GET", "/api/me/gears/overview", None).await;
+    assert_eq!(
+        overview_status,
+        StatusCode::UNAUTHORIZED,
+        "{overview_value}"
+    );
+    assert_eq!(overview_value["code"], "unauthorized");
 }
 
 #[tokio::test]

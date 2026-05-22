@@ -3,11 +3,10 @@ import {
   archiveGear,
   consumeOfflineCacheNotice,
   getErrorMessage,
-  getGearStats,
+  getGearOverview,
   hasAccessToken,
   isOfflineCacheMissError,
   isLoginRequiredError,
-  listGearCategories,
   listGears,
   restoreGear,
 } from "../../utils/api";
@@ -27,7 +26,7 @@ import {
   type GearStatus,
   type GearSummary,
   type GearTab,
-} from "../../utils/gear-utils";
+} from "../../utils/gear-display";
 import {
   getDefaultLoginPrompt,
   hideLoginPrompt,
@@ -65,6 +64,7 @@ const EMPTY_STATS: GearStatsResponse = {
   by_category: [],
   by_status: [],
 };
+let gearListRequestSeq = 0;
 
 Page({
   data: {
@@ -139,22 +139,25 @@ Page({
       return;
     }
 
+    const requestSeq = ++gearListRequestSeq;
     this.setData({ loading: true, error: "" });
     try {
       const tab = this.data.tab as GearTab;
-      const [categoriesResponse, statsResponse, listResponse] =
-        await Promise.all([
-          listGearCategories(tab),
-          getGearStats(tab),
-          listGears(this.buildListRequest(null)),
-        ]);
+      const overview = await getGearOverview({
+        tab,
+        limit: 20,
+        sort: this.data.selectedSort,
+      });
+      if (requestSeq !== gearListRequestSeq) {
+        return;
+      }
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
-        categories: categoryFilterItems(categoriesResponse.items),
-        stats: statsResponse,
-        statCards: buildStatCards(statsResponse),
-        gears: listResponse.items.map(mapGearCard),
-        nextCursor: listResponse.next_cursor ?? null,
+        categories: categoryFilterItems(overview.categories.items),
+        stats: overview.stats,
+        statCards: buildStatCards(overview.stats),
+        gears: overview.list.items.map(mapGearCard),
+        nextCursor: overview.list.next_cursor ?? null,
         emptyText:
           tab === "history"
             ? "历史装备为空，删除后的装备会出现在这里"
@@ -162,6 +165,9 @@ Page({
         ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
+      if (requestSeq !== gearListRequestSeq) {
+        return;
+      }
       if (isLoginRequiredError(error)) {
         this.setData({ isLoggedIn: false, error: "", loading: false });
         showLoginPrompt(this, {
@@ -176,7 +182,9 @@ Page({
       }
       this.setData({ error: getErrorMessage(error) });
     } finally {
-      this.setData({ loading: false });
+      if (requestSeq === gearListRequestSeq) {
+        this.setData({ loading: false });
+      }
     }
   },
 
@@ -190,10 +198,14 @@ Page({
       return;
     }
     this.setData({ loadingMore: true, error: "" });
+    const requestSeq = gearListRequestSeq;
     try {
       const response = await listGears(
         this.buildListRequest(this.data.nextCursor),
       );
+      if (requestSeq !== gearListRequestSeq) {
+        return;
+      }
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         gears: [...this.data.gears, ...response.items.map(mapGearCard)],
@@ -216,6 +228,47 @@ Page({
       this.setData({ error: getErrorMessage(error) });
     } finally {
       this.setData({ loadingMore: false });
+    }
+  },
+
+  async loadFirstPage() {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
+    const requestSeq = ++gearListRequestSeq;
+    this.setData({ loading: true, loadingMore: false, error: "" });
+    try {
+      const response = await listGears(this.buildListRequest(null));
+      if (requestSeq !== gearListRequestSeq) {
+        return;
+      }
+      const offlineNotice = consumeOfflineCacheNotice();
+      this.setData({
+        gears: response.items.map(mapGearCard),
+        nextCursor: response.next_cursor ?? null,
+        ...(offlineNotice ? { offlineNotice } : {}),
+      });
+    } catch (error) {
+      if (requestSeq !== gearListRequestSeq) {
+        return;
+      }
+      if (isLoginRequiredError(error)) {
+        this.setData({ isLoggedIn: false, error: "", loading: false });
+        showLoginPrompt(this, {
+          message: "登录状态已过期，请重新登录后查看自己的装备。",
+          redirectUrl: "/pages/gears/index",
+        });
+        return;
+      }
+      if (isOfflineCacheMissError(error) && this.data.gears.length) {
+        wx.showToast({ title: getErrorMessage(error), icon: "none" });
+        return;
+      }
+      this.setData({ error: getErrorMessage(error), gears: [] as GearCard[] });
+    } finally {
+      if (requestSeq === gearListRequestSeq) {
+        this.setData({ loading: false });
+      }
     }
   },
 
@@ -258,7 +311,7 @@ Page({
     }
     const id = event.currentTarget.dataset.id as "all" | GearCategory;
     this.setData({ selectedCategory: id, nextCursor: null, gears: [] });
-    this.refreshPage();
+    this.loadFirstPage();
   },
 
   onStatusChange(event: any) {
@@ -273,7 +326,7 @@ Page({
       nextCursor: null,
       gears: [],
     });
-    this.refreshPage();
+    this.loadFirstPage();
   },
 
   onSortChange(event: any) {
@@ -288,7 +341,7 @@ Page({
       nextCursor: null,
       gears: [],
     });
-    this.refreshPage();
+    this.loadFirstPage();
   },
 
   onSearchInput(event: any) {
@@ -300,7 +353,7 @@ Page({
       return;
     }
     this.setData({ nextCursor: null, gears: [] });
-    this.refreshPage();
+    this.loadFirstPage();
   },
 
   clearSearch() {
@@ -309,7 +362,7 @@ Page({
       return;
     }
     this.setData({ q: "", nextCursor: null, gears: [] });
-    this.refreshPage();
+    this.loadFirstPage();
   },
 
   goCreate() {

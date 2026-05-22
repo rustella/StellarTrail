@@ -259,6 +259,98 @@ async fn gear_stats_reads_are_cached_and_mutations_invalidate_cache_version() {
 }
 
 #[tokio::test]
+async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
+    let store = InMemoryCacheStore::default();
+    let app = test_app_with_cache(Cache::with_store_for_tests(
+        store.clone(),
+        "test-stellartrail",
+        Duration::from_secs(300),
+    ))
+    .await;
+    let token = login(&app.router, "gear-overview-user").await;
+
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({
+            "category": "lighting_system",
+            "name": "首屏头灯",
+            "weight_g": 92,
+            "purchase_price_cents": 19900
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+
+    let (first_status, first) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(first_status, StatusCode::OK, "{first}");
+    assert_eq!(first["stats"]["current_count"], 1);
+    assert_eq!(first["stats"]["total_value_cents"], 19900);
+    assert_eq!(first["categories"]["items"][0]["id"], "all");
+    assert_eq!(first["list"]["items"][0]["name"], "首屏头灯");
+    let after_first = store.stats();
+    assert!(after_first.set_count >= 1);
+
+    let (second_status, second) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(second_status, StatusCode::OK, "{second}");
+    assert_eq!(second["stats"]["current_count"], 1);
+    let after_second = store.stats();
+    assert!(
+        after_second.hit_count > after_first.hit_count,
+        "second overview read should hit cache: before={after_first:?} after={after_second:?}",
+    );
+
+    let (unsupported_status, unsupported) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/overview?q=headlamp",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(unsupported_status, StatusCode::BAD_REQUEST, "{unsupported}");
+    assert_eq!(unsupported["code"], "unsupported_query_parameter");
+    assert_eq!(unsupported["parameter"], "q");
+
+    let (second_create_status, second_created) = send_json(
+        &app.router,
+        "POST",
+        "/api/me/gears",
+        Some(&token),
+        json!({"category": "lighting_system", "name": "首屏营灯"}),
+    )
+    .await;
+    assert_eq!(
+        second_create_status,
+        StatusCode::CREATED,
+        "{second_created}",
+    );
+
+    let (fresh_status, fresh) = send_empty(
+        &app.router,
+        "GET",
+        "/api/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(fresh_status, StatusCode::OK, "{fresh}");
+    assert_eq!(fresh["stats"]["current_count"], 2);
+}
+
+#[tokio::test]
 async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user() {
     let store = InMemoryCacheStore::default();
     let app = test_app_with_cache(Cache::with_store_for_tests(
@@ -772,7 +864,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     let (english_public_status, english_headers, english_public) = send_empty_with_headers(
         &app.router,
         "GET",
-        "/api/gear-atlas",
+        "/api/gear-atlas?limit=21",
         None,
         &[("X-StellarTrail-Locale", "en")],
     )
@@ -909,6 +1001,110 @@ async fn gear_atlas_public_routes_expose_external_source_summary_without_interna
     assert_eq!(detail_status, StatusCode::OK, "{detail}");
     assert_eq!(detail["source_name"], "8264 户外用品点评");
     assert!(detail.get("source_key").is_none());
+}
+
+#[tokio::test]
+async fn gear_atlas_public_routes_use_response_cache_and_etag() {
+    let store = InMemoryCacheStore::default();
+    let app = test_app_with_cache(Cache::with_store_for_tests(
+        store.clone(),
+        "test-stellartrail",
+        Duration::from_secs(300),
+    ))
+    .await;
+    let login_body = login_response(&app.router, "atlas-cache-importer").await;
+    let user_id = login_body["user"]["id"].as_str().unwrap().to_owned();
+    let repo = GearAtlasRepository::new(app.db.clone());
+    let mut draft = GearAtlasExternalImportDraft {
+        category: GearCategory::ElectronicsSystem,
+        name: "缓存图鉴头灯".to_owned(),
+        brand: Some("NITECORE".to_owned()),
+        model: Some("NU25".to_owned()),
+        description: Some("轻量头灯".to_owned()),
+        weight_g: Some(56),
+        official_price_cents: Some(29_900),
+        official_price_currency: Some("CNY".to_owned()),
+        variants: Vec::new(),
+        specs: GearSpecs::new(),
+        submitted_by_user_id: user_id.clone(),
+        source_key: "test:atlas-cache-headlamp".to_owned(),
+        source_name: "测试来源".to_owned(),
+        source_url: Some("https://example.test/headlamp".to_owned()),
+        source_license_note: Some("test fixture".to_owned()),
+        import_batch_id: Some("batch-cache".to_owned()),
+        source_rating_score: None,
+        source_rating_count: None,
+    };
+    draft
+        .validate_and_normalize()
+        .expect("valid external import");
+    let imported = repo
+        .upsert_external_import(&draft)
+        .await
+        .expect("import atlas source")
+        .item;
+    repo.approve(&imported.id, &user_id)
+        .await
+        .expect("approve import")
+        .expect("approved import");
+
+    let (first_list_status, first_list_headers, first_list) =
+        send_empty_with_headers(&app.router, "GET", "/api/gear-atlas?limit=10", None, &[]).await;
+    assert_eq!(first_list_status, StatusCode::OK, "{first_list}");
+    assert_eq!(first_list["items"][0]["name"], "缓存图鉴头灯");
+    let list_etag = first_list_headers
+        .get(header::ETAG)
+        .expect("list etag")
+        .to_str()
+        .expect("list etag string")
+        .to_owned();
+    let after_first_list = store.stats();
+    assert!(after_first_list.set_count >= 1);
+
+    let (second_list_status, _second_list_headers, second_list) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        "/api/gear-atlas?limit=10",
+        None,
+        &[(header::IF_NONE_MATCH.as_str(), list_etag.as_str())],
+    )
+    .await;
+    assert_eq!(
+        second_list_status,
+        StatusCode::NOT_MODIFIED,
+        "{second_list}"
+    );
+    let after_second_list = store.stats();
+    assert!(after_second_list.hit_count > after_first_list.hit_count);
+
+    let detail_path = format!("/api/gear-atlas/{}", imported.id);
+    let (first_detail_status, first_detail_headers, first_detail) =
+        send_empty_with_headers(&app.router, "GET", &detail_path, None, &[]).await;
+    assert_eq!(first_detail_status, StatusCode::OK, "{first_detail}");
+    assert_eq!(first_detail["name"], "缓存图鉴头灯");
+    let detail_etag = first_detail_headers
+        .get(header::ETAG)
+        .expect("detail etag")
+        .to_str()
+        .expect("detail etag string")
+        .to_owned();
+    let after_first_detail = store.stats();
+
+    let (second_detail_status, _second_detail_headers, second_detail) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        &detail_path,
+        None,
+        &[(header::IF_NONE_MATCH.as_str(), detail_etag.as_str())],
+    )
+    .await;
+    assert_eq!(
+        second_detail_status,
+        StatusCode::NOT_MODIFIED,
+        "{second_detail}"
+    );
+    let after_second_detail = store.stats();
+    assert!(after_second_detail.hit_count > after_first_detail.hit_count);
 }
 
 #[tokio::test]

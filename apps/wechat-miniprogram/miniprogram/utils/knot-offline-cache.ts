@@ -4,7 +4,11 @@ import {
   knotListPath,
   resolveAssetUrl,
 } from "./api";
-import { cacheMediaUrlForOffline, removeCachedMediaUrls } from "./media-cache";
+import {
+  cacheMediaUrlForOffline,
+  isMediaUrlCached,
+  removeCachedMediaUrls,
+} from "./media-cache";
 import {
   listOfflineCaches,
   makeOfflineCacheKey,
@@ -12,7 +16,9 @@ import {
   removeOfflineCacheByKey,
   removeOfflineCachesWhere,
   writeOfflineCache,
+  writeOfflineCaches,
   type OfflineCacheEnvelope,
+  type OfflineCacheDescriptor,
 } from "./offline-cache";
 import type {
   KnotDetail,
@@ -33,6 +39,7 @@ export interface KnotOfflineCacheProgress {
   currentTitle?: string;
   mediaReadyCount?: number;
   mediaTotal?: number;
+  failedMediaCount?: number;
 }
 
 export interface KnotOfflineCacheResult {
@@ -92,6 +99,7 @@ interface CacheAllKnotsForOfflineOptions {
 }
 
 const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_MEDIA_CONCURRENCY = 3;
 const KNOT_OFFLINE_META_PATH = "/api/skills/knots/offline-cache-meta";
 const KNOT_DETAIL_PATH_PREFIX = "/api/skills/knots/detail/";
 const KNOT_LIST_PATH_PREFIX = "/api/skills/knots/list";
@@ -100,7 +108,7 @@ export async function cacheAllKnotsForOffline(
   options: CacheAllKnotsForOfflineOptions = {},
 ): Promise<KnotOfflineCacheResult> {
   const plan = options.plan ?? (await prepareAllKnotsOfflineCache(options));
-  const urls = plan.mediaUrls;
+  const urls = plan.mediaUrls.filter((url) => !isMediaUrlCached(url));
   writeKnotOfflineApiCaches(
     plan.items,
     plan.locale,
@@ -111,32 +119,31 @@ export async function cacheAllKnotsForOffline(
     mediaTotal: plan.mediaTotal,
     estimatedBytes: plan.estimatedBytes,
   });
-  let mediaReadyCount = 0;
+  let mediaReadyCount = plan.mediaUrls.length - urls.length;
   let failedMediaCount = 0;
-  for (let index = 0; index < urls.length; index += 1) {
+  const notify = () =>
     options.onProgress?.({
       phase: "media",
       mediaReadyCount,
-      mediaTotal: urls.length,
+      mediaTotal: plan.mediaUrls.length,
+      failedMediaCount,
     });
+  notify();
+  await runWithConcurrency(urls, DEFAULT_MEDIA_CONCURRENCY, async (url) => {
     try {
-      await cacheMediaUrlForOffline(urls[index]);
+      await cacheMediaUrlForOffline(url);
       mediaReadyCount += 1;
     } catch {
       failedMediaCount += 1;
     }
-  }
-  options.onProgress?.({
-    phase: "media",
-    mediaReadyCount,
-    mediaTotal: urls.length,
+    notify();
   });
 
   return {
     items: plan.items,
     detailCount: plan.detailCount,
     mediaReadyCount,
-    mediaTotal: urls.length,
+    mediaTotal: plan.mediaUrls.length,
     estimatedBytes: plan.estimatedBytes,
     failedDetailCount: plan.failedDetailCount,
     failedMediaCount,
@@ -258,9 +265,12 @@ function writeKnotOfflineApiCaches(
   locale: SkillLocale,
   pageSize: number,
 ): void {
-  items.forEach((item) => {
-    writePublicOfflineCache(knotDetailPath(item.id), locale, item);
-  });
+  writeOfflineCaches(
+    items.map((item) => ({
+      descriptor: publicOfflineCacheDescriptor(knotDetailPath(item.id), locale),
+      data: item,
+    })),
+  );
   writeKnotOfflineListCaches(items, locale, pageSize);
 }
 
@@ -274,17 +284,24 @@ function writeKnotOfflineListCaches(
     writeKnotListCache(locale, effectivePageSize, 0, []);
     return;
   }
+  const entries: Array<{
+    descriptor: OfflineCacheDescriptor;
+    data: KnotListResponse;
+  }> = [];
   for (let offset = 0; offset < items.length; offset += effectivePageSize) {
-    writeKnotListCache(
-      locale,
-      effectivePageSize,
-      offset,
-      items.slice(offset, offset + effectivePageSize).map(toKnotSummary),
-      offset + effectivePageSize < items.length
-        ? offset + effectivePageSize
-        : null,
+    entries.push(
+      knotListCacheEntry(
+        locale,
+        effectivePageSize,
+        offset,
+        items.slice(offset, offset + effectivePageSize).map(toKnotSummary),
+        offset + effectivePageSize < items.length
+          ? offset + effectivePageSize
+          : null,
+      ),
     );
   }
+  writeOfflineCaches(entries);
 }
 
 function writeKnotListCache(
@@ -294,6 +311,17 @@ function writeKnotListCache(
   items: KnotSummary[],
   nextOffset: number | null = null,
 ): void {
+  const entry = knotListCacheEntry(locale, limit, offset, items, nextOffset);
+  writeOfflineCaches([entry]);
+}
+
+function knotListCacheEntry(
+  locale: SkillLocale,
+  limit: number,
+  offset: number,
+  items: KnotSummary[],
+  nextOffset: number | null = null,
+): { descriptor: OfflineCacheDescriptor; data: KnotListResponse } {
   const payload: KnotListResponse = {
     locale,
     items,
@@ -303,7 +331,13 @@ function writeKnotListCache(
       next_offset: nextOffset,
     },
   };
-  writePublicOfflineCache(knotListPath({ offset, limit }), locale, payload);
+  return {
+    descriptor: publicOfflineCacheDescriptor(
+      knotListPath({ offset, limit }),
+      locale,
+    ),
+    data: payload,
+  };
 }
 
 function writePublicOfflineCache<T>(
@@ -311,14 +345,18 @@ function writePublicOfflineCache<T>(
   locale: SkillLocale,
   data: T,
 ): void {
-  writeOfflineCache(
-    {
-      key: makeOfflineCacheKey(path, { locale }),
-      scope: "public",
-      locale,
-    },
-    data,
-  );
+  writeOfflineCache(publicOfflineCacheDescriptor(path, locale), data);
+}
+
+function publicOfflineCacheDescriptor(
+  path: string,
+  locale: SkillLocale,
+): OfflineCacheDescriptor {
+  return {
+    key: makeOfflineCacheKey(path, { locale }),
+    scope: "public",
+    locale,
+  };
 }
 
 function writeKnotOfflineCacheMeta(
@@ -434,6 +472,24 @@ function removeUnreferencedMedia(
   }
   const remainingUrls = new Set(collectItemMediaUrls(remainingItems));
   removeCachedMediaUrls(targetUrls.filter((url) => !remainingUrls.has(url)));
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const item = items[nextIndex];
+        nextIndex += 1;
+        await worker(item);
+      }
+    }),
+  );
 }
 
 function addCachedKnotPreview(

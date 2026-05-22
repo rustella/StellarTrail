@@ -114,6 +114,7 @@
                   class="skill-thumb-image"
                   mode="aspectFit"
                   src="{{item.thumbnailUrl}}"
+                  lazy-load
                 />
                 <view wx:else class="thumb-placeholder">绳结</view>
               </view>
@@ -172,6 +173,7 @@
             class="profile-avatar-preview"
             src="{{wechatAvatarPath}}"
             mode="aspectFill"
+            lazy-load
           />
           <view wx:else class="profile-avatar-placeholder">头像</view>
         </button>

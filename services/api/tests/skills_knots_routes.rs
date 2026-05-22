@@ -539,6 +539,50 @@ async fn public_skills_etag_supports_not_modified_responses() {
 }
 
 #[tokio::test]
+async fn public_knot_list_detail_and_filters_use_response_cache() {
+    let cache_store = InMemoryCacheStore::default();
+    let app = seeded_app_with_uploaded_media_cache(Cache::with_store_for_tests(
+        cache_store.clone(),
+        "test-stellartrail",
+        Duration::from_secs(300),
+    ))
+    .await;
+
+    for path in [
+        "/api/skills/knots/list?offset=0&limit=1",
+        "/api/skills/knots/detail/adjustable-grip-hitch-knot",
+        "/api/skills/knots/filters",
+    ] {
+        let (first_status, _first_headers, _first_body) = json_response(
+            &app.router,
+            Request::builder()
+                .uri(path)
+                .header("X-StellarTrail-Locale", "zh-CN")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(first_status, StatusCode::OK, "{path}");
+        let after_first = cache_store.stats();
+        let (second_status, _second_headers, _second_body) = json_response(
+            &app.router,
+            Request::builder()
+                .uri(path)
+                .header("X-StellarTrail-Locale", "zh-CN")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(second_status, StatusCode::OK, "{path}");
+        let after_second = cache_store.stats();
+        assert!(
+            after_second.hit_count > after_first.hit_count,
+            "{path} should hit public response cache: before={after_first:?} after={after_second:?}",
+        );
+    }
+}
+
+#[tokio::test]
 async fn knots_list_uses_offset_pagination_and_hides_source_slugs() {
     let app = seeded_app().await;
     let (status, _headers, body) = json_response(

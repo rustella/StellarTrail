@@ -6,6 +6,7 @@
         class="settings-avatar-image"
         src="{{accountProfile.avatarUrl}}"
         mode="aspectFill"
+        lazy-load
       />
       <text wx:else>{{accountProfile.avatarInitial}}</text>
     </view>

@@ -216,6 +216,25 @@ pub enum GearTab {
     History,
 }
 
+impl GearTab {
+    /// Returns the stable wire key used by API query parameters and JSON payloads.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Available => "available",
+            Self::History => "history",
+        }
+    }
+
+    /// Parses a stable wire key into a gear tab.
+    pub fn from_key(value: &str) -> Option<Self> {
+        match value {
+            "available" => Some(Self::Available),
+            "history" => Some(Self::History),
+            _ => None,
+        }
+    }
+}
+
 /// Stable enum boundary for `GearSort`, exposed by or reused within this module.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -227,6 +246,33 @@ pub enum GearSort {
     NameAsc,
     WeightDesc,
     PriceDesc,
+}
+
+impl GearSort {
+    /// Returns the stable wire key used by API query parameters and JSON payloads.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::CreatedAtDesc => "created_at_desc",
+            Self::CreatedAtAsc => "created_at_asc",
+            Self::PurchaseDateDesc => "purchase_date_desc",
+            Self::NameAsc => "name_asc",
+            Self::WeightDesc => "weight_desc",
+            Self::PriceDesc => "price_desc",
+        }
+    }
+
+    /// Parses a stable wire key into a gear list sort mode.
+    pub fn from_key(value: &str) -> Option<Self> {
+        match value {
+            "created_at_desc" => Some(Self::CreatedAtDesc),
+            "created_at_asc" => Some(Self::CreatedAtAsc),
+            "purchase_date_desc" => Some(Self::PurchaseDateDesc),
+            "name_asc" => Some(Self::NameAsc),
+            "weight_desc" => Some(Self::WeightDesc),
+            "price_desc" => Some(Self::PriceDesc),
+            _ => None,
+        }
+    }
 }
 
 pub type GearSpecs = BTreeMap<String, String>;

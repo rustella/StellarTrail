@@ -264,6 +264,12 @@ export interface ListGearsResponse {
   next_cursor?: string | null;
 }
 
+export interface GearOverviewResponse {
+  categories: GearCategoriesResponse;
+  stats: GearStatsResponse;
+  list: ListGearsResponse;
+}
+
 export interface GearTemplateCategory {
   id: string;
   name: string;

@@ -1,5 +1,7 @@
 //! Gear inventory routes for the current user, including list, detail, import/export, archive/restore, and statistics endpoints.
 
+use std::collections::HashMap;
+
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
@@ -9,7 +11,7 @@ use axum::{
 };
 use serde_json::json;
 use stellartrail_db::repositories::{GearRepository, ListGearOptions};
-use stellartrail_domain::gear::GearItem;
+use stellartrail_domain::gear::{GearItem, GearSort, GearStats, GearTab};
 
 use crate::{
     dto::gear::{
@@ -30,6 +32,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/me/gears/categories", get(categories))
         .route("/api/me/gears/stats", get(stats))
+        .route("/api/me/gears/overview", get(overview))
         .route("/api/me/gears/spec-key-rankings", get(spec_key_rankings))
         .route("/api/me/gears/tag-suggestions", get(tag_suggestions))
         .route("/api/me/gears/export", get(export_csv))
@@ -40,6 +43,59 @@ pub fn routes() -> Router<AppState> {
             get(get_one).patch(update).delete(archive),
         )
         .route("/api/me/gears/:id/restore", post(restore))
+}
+
+/// Returns the first-screen categories, stats, and list payload in one cached read.
+async fn overview(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Query(query): Query<HashMap<String, String>>,
+) -> Result<Json<crate::dto::gear::GearOverviewResponse>, ApiError> {
+    let (tab, limit, sort) = parse_overview_query(&query)?;
+    let cache_payload = json!({
+        "tab": tab.as_str(),
+        "limit": limit,
+        "sort": sort.as_str(),
+    })
+    .to_string();
+    let cache_key = state
+        .cache()
+        .gear_response_key(&user.id, "overview", &cache_payload)
+        .await;
+    if let Some(key) = cache_key.as_deref() {
+        if let Some(cached) = state
+            .cache()
+            .get_json::<crate::dto::gear::GearOverviewResponse>(key)
+            .await
+        {
+            return Ok(Json(cached));
+        }
+    }
+
+    let repo = GearRepository::new(state.db().clone());
+    let categories = build_categories_response(&repo, &user.id, tab).await?;
+    let stats = repo.stats(&user.id, tab).await?;
+    let list = build_list_response(
+        &state,
+        &repo,
+        &user.id,
+        ListGearOptions {
+            tab,
+            sort,
+            limit,
+            ..ListGearOptions::default()
+        },
+    )
+    .await?;
+    let response = crate::dto::gear::GearOverviewResponse {
+        categories,
+        stats,
+        list,
+    };
+    if let Some(key) = cache_key.as_deref() {
+        state.cache().set_json(key, &response).await;
+    }
+    Ok(Json(response))
 }
 
 /// Runs the `categories` server-side flow while preserving input validation, error propagation, and state invariants.
@@ -60,21 +116,8 @@ async fn categories(
         }
     }
 
-    let counts = GearRepository::new(state.db().clone())
-        .category_counts(&user.id, query.tab)
-        .await?;
-    let total = counts.iter().map(|item| item.count).sum();
-    let mut items = vec![GearCategoryFilterResponse {
-        id: "all".to_owned(),
-        label: "全部装备".to_owned(),
-        count: total,
-    }];
-    items.extend(counts.into_iter().map(|item| GearCategoryFilterResponse {
-        id: item.category.as_str().to_owned(),
-        label: item.label,
-        count: item.count,
-    }));
-    let response = GearCategoriesResponse { items };
+    let repo = GearRepository::new(state.db().clone());
+    let response = build_categories_response(&repo, &user.id, query.tab).await?;
     if let Some(key) = cache_key.as_deref() {
         state.cache().set_json(key, &response).await;
     }
@@ -86,18 +129,14 @@ async fn stats(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Query(query): Query<GearStatsQuery>,
-) -> Result<Json<stellartrail_domain::gear::GearStats>, ApiError> {
+) -> Result<Json<GearStats>, ApiError> {
     let cache_payload = json!({ "tab": query.tab }).to_string();
     let cache_key = state
         .cache()
         .gear_response_key(&user.id, "stats", &cache_payload)
         .await;
     if let Some(key) = cache_key.as_deref() {
-        if let Some(cached) = state
-            .cache()
-            .get_json::<stellartrail_domain::gear::GearStats>(key)
-            .await
-        {
+        if let Some(cached) = state.cache().get_json::<GearStats>(key).await {
             return Ok(Json(cached));
         }
     }
@@ -168,29 +207,21 @@ async fn list(
         }
     }
 
-    let (items, next_cursor) = GearRepository::new(state.db().clone())
-        .list(
-            &user.id,
-            &ListGearOptions {
-                tab: query.tab,
-                category: query.category,
-                status: query.status,
-                q: query.q,
-                sort: query.sort,
-                limit,
-                cursor: query.cursor,
-            },
-        )
-        .await?;
-    let all_tags = collect_tags(&items);
-    let tag_colors = state.cache().gear_tag_colors(&user.id, &all_tags).await;
-    let response = ListGearResponse {
-        items: items
-            .iter()
-            .map(|item| GearSummaryResponse::from_item(item, &tag_colors))
-            .collect(),
-        next_cursor,
-    };
+    let response = build_list_response(
+        &state,
+        &GearRepository::new(state.db().clone()),
+        &user.id,
+        ListGearOptions {
+            tab: query.tab,
+            category: query.category,
+            status: query.status,
+            q: query.q,
+            sort: query.sort,
+            limit,
+            cursor: query.cursor,
+        },
+    )
+    .await?;
     if let Some(key) = cache_key.as_deref() {
         state.cache().set_json(key, &response).await;
     }
@@ -418,6 +449,118 @@ async fn import_json(
         failed_count: errors.len(),
         errors,
     }))
+}
+
+/// Builds the category filter payload shared by standalone and overview endpoints.
+async fn build_categories_response(
+    repo: &GearRepository,
+    user_id: &str,
+    tab: GearTab,
+) -> Result<GearCategoriesResponse, ApiError> {
+    let counts = repo.category_counts(user_id, tab).await?;
+    let total = counts.iter().map(|item| item.count).sum();
+    let mut items = vec![GearCategoryFilterResponse {
+        id: "all".to_owned(),
+        label: "全部装备".to_owned(),
+        count: total,
+    }];
+    items.extend(counts.into_iter().map(|item| GearCategoryFilterResponse {
+        id: item.category.as_str().to_owned(),
+        label: item.label,
+        count: item.count,
+    }));
+    Ok(GearCategoriesResponse { items })
+}
+
+/// Builds a tag-color-enriched list response for gear list and overview reads.
+async fn build_list_response(
+    state: &AppState,
+    repo: &GearRepository,
+    user_id: &str,
+    options: ListGearOptions,
+) -> Result<ListGearResponse, ApiError> {
+    let (items, next_cursor) = repo.list(user_id, &options).await?;
+    let all_tags = collect_tags(&items);
+    let tag_colors = state.cache().gear_tag_colors(user_id, &all_tags).await;
+    Ok(ListGearResponse {
+        items: items
+            .iter()
+            .map(|item| GearSummaryResponse::from_item(item, &tag_colors))
+            .collect(),
+        next_cursor,
+    })
+}
+
+/// Parses the restricted overview query shape and rejects list-filter parameters.
+fn parse_overview_query(
+    query: &HashMap<String, String>,
+) -> Result<(GearTab, u64, GearSort), ApiError> {
+    for key in ["cursor", "q", "category", "status"] {
+        if query.contains_key(key) {
+            return Err(ApiError::unsupported_query_parameter(key));
+        }
+    }
+    for key in query.keys() {
+        if !matches!(key.as_str(), "tab" | "limit" | "sort") {
+            return Err(ApiError::unsupported_query_parameter(key.clone()));
+        }
+    }
+    Ok((
+        parse_gear_tab_query(query.get("tab"))?,
+        parse_u64_query(query.get("limit"), "limit", 20)?,
+        parse_gear_sort_query(query.get("sort"))?,
+    ))
+}
+
+/// Parses the `tab` query value for overview reads.
+fn parse_gear_tab_query(value: Option<&String>) -> Result<GearTab, ApiError> {
+    let Some(value) = normalized_query_value(value) else {
+        return Ok(GearTab::default());
+    };
+    GearTab::from_key(value).ok_or_else(|| {
+        ApiError::invalid_query_parameter(
+            "tab",
+            "query parameter `tab` must be `available` or `history`".to_owned(),
+        )
+    })
+}
+
+/// Parses the `sort` query value for overview reads.
+fn parse_gear_sort_query(value: Option<&String>) -> Result<GearSort, ApiError> {
+    let Some(value) = normalized_query_value(value) else {
+        return Ok(GearSort::default());
+    };
+    GearSort::from_key(value).ok_or_else(|| {
+        ApiError::invalid_query_parameter(
+            "sort",
+            "query parameter `sort` is not supported".to_owned(),
+        )
+    })
+}
+
+/// Parses an optional non-negative integer query value with a default.
+fn parse_u64_query(
+    value: Option<&String>,
+    parameter: &'static str,
+    default: u64,
+) -> Result<u64, ApiError> {
+    let Some(value) = normalized_query_value(value) else {
+        return Ok(default);
+    };
+    value.parse::<u64>().map_err(|_| {
+        ApiError::invalid_query_parameter(
+            parameter,
+            format!("query parameter `{parameter}` must be a non-negative integer"),
+        )
+    })
+}
+
+/// Normalizes empty query values to `None`.
+fn normalized_query_value(value: Option<&String>) -> Option<&str> {
+    value
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
 /// Collects unique tag names from a page of gear items for one Redis color lookup pass.

@@ -76,6 +76,42 @@ export function writeOfflineCache<T>(
   }
 }
 
+export function writeOfflineCaches<T>(
+  entries: Array<{ descriptor: OfflineCacheDescriptor; data: T }>,
+): void {
+  if (!entries.length) {
+    return;
+  }
+  const index = readCacheIndex();
+  let indexChanged = false;
+  entries.forEach(({ descriptor, data }) => {
+    const storageKey = cacheStorageKey(descriptor.key);
+    const envelope: OfflineCacheEnvelope<T> = {
+      version: CACHE_VERSION,
+      key: descriptor.key,
+      scope: descriptor.scope,
+      ...(descriptor.userId ? { userId: descriptor.userId } : {}),
+      ...(descriptor.locale ? { locale: descriptor.locale } : {}),
+      cachedAt: new Date().toISOString(),
+      data,
+    };
+    try {
+      wx.setStorageSync(storageKey, envelope);
+      indexChanged =
+        upsertCacheIndexItem(index, {
+          storageKey,
+          scope: descriptor.scope,
+          ...(descriptor.userId ? { userId: descriptor.userId } : {}),
+        }) || indexChanged;
+    } catch {
+      // Storage quota errors should not block online reads.
+    }
+  });
+  if (indexChanged) {
+    writeCacheIndex(index);
+  }
+}
+
 export function listOfflineCaches<T = unknown>(
   scope?: OfflineCacheScope,
 ): Array<OfflineCacheEnvelope<T>> {
@@ -161,17 +197,27 @@ export function clearUserOfflineCaches(userId?: string): void {
 
 function addCacheIndexItem(item: OfflineCacheIndexItem): void {
   const index = readCacheIndex();
+  if (upsertCacheIndexItem(index, item)) {
+    writeCacheIndex(index);
+  }
+}
+
+function upsertCacheIndexItem(
+  index: OfflineCacheIndexItem[],
+  item: OfflineCacheIndexItem,
+): boolean {
   const existing = index.find(
     (current) => current.storageKey === item.storageKey,
   );
   if (existing) {
+    const changed =
+      existing.scope !== item.scope || existing.userId !== item.userId;
     existing.scope = item.scope;
     existing.userId = item.userId;
-    writeCacheIndex(index);
-    return;
+    return changed;
   }
   index.push(item);
-  writeCacheIndex(index);
+  return true;
 }
 
 function readCacheIndex(): OfflineCacheIndexItem[] {
