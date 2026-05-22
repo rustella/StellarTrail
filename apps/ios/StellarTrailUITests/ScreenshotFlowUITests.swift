@@ -105,6 +105,7 @@ final class ScreenshotFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["今天准备好出发了吗？"].waitForExistence(timeout: 8))
         tapTab("我的", app: app)
         XCTAssertTrue(app.staticTexts["主题"].waitForExistence(timeout: 8))
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "去登录")).count, 1)
         tapVisibleOrScroll("深色", app: app)
 
         tapTab("首页", app: app)
