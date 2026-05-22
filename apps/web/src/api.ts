@@ -97,6 +97,9 @@ export interface WebGearApi {
   createGearAtlasSubmissionFromGear(
     gearId: string,
   ): Promise<GearAtlasSubmission>;
+  listMyGearAtlasSubmissions(
+    request?: Pick<ListGearAtlasSubmissionsRequest, "limit" | "cursor">,
+  ): Promise<ListGearAtlasSubmissionsResponse>;
   getGearStats(tab?: "available" | "history"): Promise<GearStatsResponse>;
   listGears(request?: ListGearsRequest): Promise<ListGearsResponse>;
   getGear(id: string): Promise<GearItem>;
@@ -120,7 +123,7 @@ export interface WebGearApi {
   approveGearAtlasSubmission(id: string): Promise<GearAtlasSubmission>;
   rejectGearAtlasSubmission(
     id: string,
-    request?: RejectGearAtlasSubmissionRequest,
+    request: RejectGearAtlasSubmissionRequest,
   ): Promise<GearAtlasSubmission>;
 }
 

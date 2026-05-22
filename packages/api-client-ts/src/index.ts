@@ -316,7 +316,7 @@ export class StellarTrailApiClient {
 
   async rejectGearAtlasSubmission(
     id: string,
-    request: RejectGearAtlasSubmissionRequest = {},
+    request: RejectGearAtlasSubmissionRequest,
   ): Promise<GearAtlasSubmission> {
     return this.post(
       `/api/admin/gear-atlas-submissions/${encodeURIComponent(id)}/reject`,

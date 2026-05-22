@@ -5,6 +5,7 @@ export interface WebClientConfig {
 
 const DEFAULT_API_BASE_URL = "https://api.example.invalid";
 const DEFAULT_ASSETS_BASE_URL = "https://assets.example.invalid";
+const LOCAL_DEV_API_BASE_URL = "";
 
 export function normalizeBaseUrl(
   value: string | undefined,
@@ -18,10 +19,13 @@ export function normalizeBaseUrl(
 }
 
 export function getWebClientConfig(): WebClientConfig {
+  const apiFallback = import.meta.env.DEV
+    ? LOCAL_DEV_API_BASE_URL
+    : DEFAULT_API_BASE_URL;
   return {
     apiBaseUrl: normalizeBaseUrl(
       import.meta.env.VITE_STELLARTRAIL_API_BASE_URL,
-      DEFAULT_API_BASE_URL,
+      apiFallback,
     ),
     assetsBaseUrl: normalizeBaseUrl(
       import.meta.env.VITE_STELLARTRAIL_ASSETS_BASE_URL,

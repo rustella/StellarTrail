@@ -4,6 +4,8 @@
 //! a much smaller field set than personal gear records so user-specific
 //! purchase, storage, status, and note data cannot leak into public reads.
 
+use std::collections::BTreeSet;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -109,6 +111,8 @@ pub struct GearAtlasItem {
     pub official_price_currency: Option<String>,
     pub variants: GearVariants,
     pub specs: GearSpecs,
+    pub submitted_snapshot: GearAtlasPublicSnapshot,
+    pub review_changes: GearAtlasReviewChanges,
     pub source_type: GearAtlasSourceType,
     pub submitted_by_user_id: String,
     pub source_user_gear_id: Option<String>,
@@ -128,6 +132,66 @@ pub struct GearAtlasItem {
     pub created_at: String,
     pub updated_at: String,
 }
+
+/// Public fields as originally submitted for later review-change summaries.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct GearAtlasPublicSnapshot {
+    pub category: GearCategory,
+    pub name: String,
+    pub brand: Option<String>,
+    pub model: Option<String>,
+    pub description: Option<String>,
+    pub weight_g: Option<i32>,
+    pub official_price_cents: Option<i64>,
+    pub official_price_currency: Option<String>,
+    pub variants: GearVariants,
+    pub specs: GearSpecs,
+}
+
+impl GearAtlasPublicSnapshot {
+    /// Captures the submitted public fields after validation normalization.
+    pub fn from_draft(draft: &GearAtlasDraft) -> Self {
+        Self {
+            category: draft.category,
+            name: draft.name.clone(),
+            brand: draft.brand.clone(),
+            model: draft.model.clone(),
+            description: draft.description.clone(),
+            weight_g: draft.weight_g,
+            official_price_cents: draft.official_price_cents,
+            official_price_currency: draft.official_price_currency.clone(),
+            variants: draft.variants.clone(),
+            specs: draft.specs.clone(),
+        }
+    }
+
+    /// Captures the current persisted public fields.
+    pub fn from_item(item: &GearAtlasItem) -> Self {
+        Self {
+            category: item.category,
+            name: item.name.clone(),
+            brand: item.brand.clone(),
+            model: item.model.clone(),
+            description: item.description.clone(),
+            weight_g: item.weight_g,
+            official_price_cents: item.official_price_cents,
+            official_price_currency: item.official_price_currency.clone(),
+            variants: item.variants.clone(),
+            specs: item.specs.clone(),
+        }
+    }
+}
+
+/// One user-visible field adjustment made during administrator review.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct GearAtlasReviewChange {
+    pub field: String,
+    pub label: String,
+    pub before: Option<String>,
+    pub after: Option<String>,
+}
+
+pub type GearAtlasReviewChanges = Vec<GearAtlasReviewChange>;
 
 /// Writable public atlas draft created from a manual form or a personal gear snapshot.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -351,6 +415,202 @@ fn variant_from_personal_gear(item: &crate::gear::GearItem) -> GearVariants {
         official_price_currency: None,
         weight_g: None,
     }]
+}
+
+/// Builds a compact user-visible summary of public fields changed before approval.
+pub fn review_changes_between(
+    before: &GearAtlasPublicSnapshot,
+    after: &GearAtlasPublicSnapshot,
+) -> GearAtlasReviewChanges {
+    let mut changes = GearAtlasReviewChanges::new();
+    push_change(
+        &mut changes,
+        "category",
+        "分类",
+        Some(before.category.label().to_owned()),
+        Some(after.category.label().to_owned()),
+    );
+    push_change(
+        &mut changes,
+        "name",
+        "名称",
+        Some(before.name.clone()),
+        Some(after.name.clone()),
+    );
+    push_change(
+        &mut changes,
+        "brand",
+        "品牌",
+        before.brand.clone(),
+        after.brand.clone(),
+    );
+    push_change(
+        &mut changes,
+        "model",
+        "型号",
+        before.model.clone(),
+        after.model.clone(),
+    );
+    push_change(
+        &mut changes,
+        "description",
+        "描述",
+        before.description.clone(),
+        after.description.clone(),
+    );
+    push_change(
+        &mut changes,
+        "weight_g",
+        "重量",
+        before.weight_g.map(|value| format!("{value} g")),
+        after.weight_g.map(|value| format!("{value} g")),
+    );
+    push_change(
+        &mut changes,
+        "official_price",
+        "官方价格",
+        price_summary(
+            before.official_price_cents,
+            before.official_price_currency.as_deref(),
+        ),
+        price_summary(
+            after.official_price_cents,
+            after.official_price_currency.as_deref(),
+        ),
+    );
+    push_change(
+        &mut changes,
+        "variants",
+        "可选尺寸",
+        variants_summary(&before.variants),
+        variants_summary(&after.variants),
+    );
+
+    let keys: BTreeSet<&String> = before.specs.keys().chain(after.specs.keys()).collect();
+    for key in keys {
+        push_change(
+            &mut changes,
+            &format!("specs.{key}"),
+            &format!("分类参数 · {}", spec_review_label(key)),
+            before.specs.get(key).cloned(),
+            after.specs.get(key).cloned(),
+        );
+    }
+
+    changes
+}
+
+fn push_change(
+    changes: &mut GearAtlasReviewChanges,
+    field: &str,
+    label: &str,
+    before: Option<String>,
+    after: Option<String>,
+) {
+    if before == after {
+        return;
+    }
+    changes.push(GearAtlasReviewChange {
+        field: field.to_owned(),
+        label: label.to_owned(),
+        before,
+        after,
+    });
+}
+
+fn price_summary(cents: Option<i64>, currency: Option<&str>) -> Option<String> {
+    let cents = cents?;
+    let currency = currency.unwrap_or("CNY");
+    let amount = format!("{:.2}", cents as f64 / 100.0);
+    Some(match currency {
+        "CNY" => format!("¥{amount}"),
+        "USD" => format!("${amount}"),
+        "EUR" => format!("€{amount}"),
+        "JPY" => format!("¥{amount}"),
+        "HKD" => format!("HK${amount}"),
+        other => format!("{other} {amount}"),
+    })
+}
+
+fn variants_summary(variants: &GearVariants) -> Option<String> {
+    if variants.is_empty() {
+        return None;
+    }
+    Some(
+        variants
+            .iter()
+            .map(|variant| {
+                let details = [
+                    price_summary(
+                        variant.official_price_cents,
+                        variant.official_price_currency.as_deref(),
+                    ),
+                    variant.weight_g.map(|value| format!("{value} g")),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+                if details.is_empty() {
+                    variant.label.clone()
+                } else {
+                    format!("{} · {}", variant.label, details.join(" · "))
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("；"),
+    )
+}
+
+fn spec_review_label(key: &str) -> String {
+    match key {
+        "accessories" => "附件",
+        "back_length" => "背长",
+        "battery_capacity" => "电池容量",
+        "battery_type" => "电池类型",
+        "beam_distance" => "照射距离",
+        "breathability_rating" => "透湿指数",
+        "capacity" => "容量",
+        "certification" => "认证标准",
+        "charging_port" => "充电接口",
+        "days" => "适用天数",
+        "expiry_date" => "有效期",
+        "expiry_or_warranty_date" => "有效期/质保期",
+        "fill_weight" => "填充重量",
+        "filling" => "填充物",
+        "fuel_type" => "燃料类型",
+        "kit_size" => "套装规格",
+        "layer" => "适用层级",
+        "length" => "长度",
+        "material" => "材质",
+        "max_brightness" => "最大亮度",
+        "net_content" => "净含量",
+        "output_power" => "输出功率",
+        "packed_size" => "收纳尺寸",
+        "people_count" => "适用人数",
+        "ports" => "接口类型",
+        "power" => "功率",
+        "quantity" => "数量",
+        "rated_energy" => "额定能量",
+        "recommended_load" => "推荐负重",
+        "restock_threshold" => "补货阈值",
+        "retirement_date" => "报废期限",
+        "runtime" => "续航时间",
+        "season" => "适用季节",
+        "specification" => "规格",
+        "storage_condition" => "储存条件",
+        "strength" => "承重/强度",
+        "support" => "缓震/支撑",
+        "temperature_or_r_value" => "温标/R 值",
+        "terrain" => "适用地形",
+        "type" => "类型",
+        "use_case" => "用途",
+        "warmth_rating" => "保暖等级",
+        "waterproof_packaging" => "防水包装",
+        "waterproof_rating" => "防水等级",
+        "working_temperature" => "工作温度",
+        _ => key,
+    }
+    .to_owned()
 }
 
 fn normalize_official_price_currency(

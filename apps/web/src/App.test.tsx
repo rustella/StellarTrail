@@ -68,6 +68,7 @@ function buildAtlasSubmission(
     source_user_gear_id: null,
     status: "pending",
     rejection_reason: null,
+    review_changes: [],
     reviewed_at: null,
     created_at: "2026-01-23T00:00:00Z",
     updated_at: "2026-01-23T00:00:00Z",
@@ -347,6 +348,10 @@ function buildClient(): WebGearApi {
         status: "pending",
       }),
     ),
+    listMyGearAtlasSubmissions: vi.fn().mockResolvedValue({
+      next_cursor: null,
+      items: [],
+    }),
     listAdminFeedback: vi.fn().mockResolvedValue({
       next_cursor: null,
       items: [
@@ -763,17 +768,111 @@ describe("App", () => {
       screen.queryByText("temperature_or_r_value"),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "保存尺寸" }));
+    fireEvent.change(screen.getByDisplayValue("M 75*195"), {
+      target: { value: "M 75*196" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存字段" }));
     await waitFor(() => {
       expect(client.updateAdminGearAtlasSubmission).toHaveBeenCalledWith(
         "sleep-atlas",
         expect.objectContaining({
           variants: expect.arrayContaining([
-            expect.objectContaining({ key: "m-75-195", label: "M 75*195" }),
+            expect.objectContaining({ key: "m-75-196", label: "M 75*196" }),
           ]),
         }),
       );
     });
+  });
+
+  it("requires a rejection reason in the admin atlas review detail", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    );
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "装备图鉴审核" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "拒绝" }));
+
+    expect(client.rejectGearAtlasSubmission).not.toHaveBeenCalled();
+
+    const reasonInput = screen.getByPlaceholderText(
+      "请说明需要用户修改的字段或原因",
+    ) as HTMLTextAreaElement;
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      "value",
+    )?.set;
+    valueSetter?.call(reasonInput, "品牌型号不完整");
+    fireEvent.input(reasonInput);
+    fireEvent.click(screen.getByRole("button", { name: "拒绝" }));
+
+    await waitFor(() => {
+      expect(client.rejectGearAtlasSubmission).toHaveBeenCalledWith("atlas-1", {
+        reason: "品牌型号不完整",
+      });
+    });
+  });
+
+  it("saves dirty admin edits before approving an atlas submission", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    );
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "装备图鉴审核" }),
+    ).toBeInTheDocument();
+    fireEvent.change(
+      await screen.findByDisplayValue("SUMMIT 20000 超薄充电宝"),
+      {
+        target: { value: "SUMMIT 20000 超薄充电宝 修订版" },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "保存并通过" }));
+
+    await waitFor(() => {
+      expect(client.updateAdminGearAtlasSubmission).toHaveBeenCalledWith(
+        "atlas-1",
+        expect.objectContaining({
+          name: "SUMMIT 20000 超薄充电宝 修订版",
+        }),
+      );
+      expect(client.approveGearAtlasSubmission).toHaveBeenCalledWith("atlas-1");
+    });
+    expect(
+      vi.mocked(client.updateAdminGearAtlasSubmission).mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(client.approveGearAtlasSubmission).mock.invocationCallOrder[0],
+    );
   });
 
   it("loads additional atlas review submissions when the list is scrolled", async () => {
@@ -894,9 +993,11 @@ describe("App", () => {
     expect(
       within(adminNavigation).getByRole("button", { name: "反馈信息" }),
     ).toBeInTheDocument();
-    expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
-      status: "pending",
-      limit: 20,
+    await waitFor(() => {
+      expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
+        status: "pending",
+        limit: 20,
+      });
     });
   });
 
@@ -1138,6 +1239,39 @@ describe("App", () => {
       );
     });
     expect(await screen.findByText("已提交图鉴审核")).toBeInTheDocument();
+  });
+
+  it("shows admin atlas review changes in personal gear detail", async () => {
+    const client = buildClient();
+    vi.mocked(client.listMyGearAtlasSubmissions).mockResolvedValueOnce({
+      next_cursor: null,
+      items: [
+        buildAtlasSubmission({
+          id: "atlas-approved",
+          source_user_gear_id: "gear-1",
+          status: "approved",
+          review_changes: [
+            {
+              field: "name",
+              label: "名称",
+              before: "旧名称",
+              after: "新名称",
+            },
+          ],
+        }),
+      ],
+    });
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    await screen.findByRole("heading", { name: "装备管理" });
+    await screen.findByText("NITECORE SUMMIT 20000 超薄充电宝 · SUMMIT 20000");
+    fireEvent.click(screen.getAllByRole("button", { name: "查看" })[0]);
+
+    expect(await screen.findByText("图鉴投稿：已通过")).toBeInTheDocument();
+    expect(
+      screen.getByText("管理员调整：名称 从 旧名称 改为 新名称"),
+    ).toBeInTheDocument();
   });
 
   it("shows atlas variants with the selected personal size when gear is linked", async () => {

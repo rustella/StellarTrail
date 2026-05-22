@@ -1100,6 +1100,12 @@ dd {
   flex: 1;
 }
 
+.atlas-submission-status {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+}
+
 .atlas-review-layout {
   align-items: start;
   display: grid;
@@ -1177,6 +1183,70 @@ dd {
   display: grid;
   gap: 10px;
   margin: 0;
+}
+
+.atlas-review-form {
+  display: grid;
+  gap: 18px;
+}
+
+.atlas-review-fieldset {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--section-border-color);
+  border-radius: 20px;
+}
+
+.atlas-review-fieldset legend {
+  padding: 0 8px;
+  color: var(--text-color);
+  font-weight: 800;
+}
+
+.atlas-review-fieldset label,
+.atlas-review-spec-grid .atlas-spec-input,
+.atlas-reject-reason {
+  display: grid;
+  gap: 8px;
+  color: var(--muted-color);
+  font-weight: 700;
+}
+
+.atlas-review-fieldset input,
+.atlas-review-fieldset select,
+.atlas-review-fieldset textarea,
+.atlas-review-spec-grid input,
+.atlas-review-spec-grid select,
+.atlas-reject-reason textarea {
+  width: 100%;
+  border: 1px solid var(--control-border);
+  border-radius: 14px;
+  padding: 11px 12px;
+  color: var(--text-color);
+  background: var(--control-bg);
+}
+
+.atlas-review-fieldset textarea,
+.atlas-reject-reason textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.atlas-readonly-fields {
+  padding: 12px 0 0;
+}
+
+.atlas-review-spec-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.atlas-reject-reason {
+  margin-top: 18px;
 }
 
 .atlas-public-fields div,
@@ -1291,6 +1361,8 @@ dd {
   .stats-grid,
   .admin-feedback-meta,
   .gear-modal fieldset,
+  .atlas-review-fieldset,
+  .atlas-review-spec-grid,
   .atlas-variant-row {
     grid-template-columns: 1fr;
   }

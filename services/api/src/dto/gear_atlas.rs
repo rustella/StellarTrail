@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use stellartrail_domain::{
     gear::{GearCategory, GearSpecs, GearVariants},
     gear_atlas::{
-        GearAtlasDraft, GearAtlasItem, GearAtlasSort, GearAtlasSourceType, GearAtlasStatus,
+        GearAtlasDraft, GearAtlasItem, GearAtlasReviewChange, GearAtlasSort, GearAtlasSourceType,
+        GearAtlasStatus,
     },
 };
 
@@ -152,8 +153,11 @@ pub struct GearAtlasSubmissionResponse {
     pub source_user_gear_id: Option<String>,
     pub status: GearAtlasStatus,
     pub rejection_reason: Option<String>,
+    pub review_changes: GearAtlasReviewChangesResponse,
     pub reviewed_at: Option<String>,
 }
+
+pub type GearAtlasReviewChangesResponse = Vec<GearAtlasReviewChange>;
 
 impl From<&GearAtlasItem> for GearAtlasSubmissionResponse {
     fn from(item: &GearAtlasItem) -> Self {
@@ -163,6 +167,7 @@ impl From<&GearAtlasItem> for GearAtlasSubmissionResponse {
             source_user_gear_id: item.source_user_gear_id.clone(),
             status: item.status,
             rejection_reason: item.rejection_reason.clone(),
+            review_changes: item.review_changes.clone(),
             reviewed_at: item.reviewed_at.clone(),
         }
     }
