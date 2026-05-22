@@ -804,6 +804,7 @@ function AtlasSubmitModal({
                       type="number"
                       min="0"
                       step="0.01"
+                      placeholder="例如 900.00"
                       value={priceInputValue(variant.official_price_cents)}
                       onChange={(event) =>
                         updateVariant(index, {
@@ -822,6 +823,7 @@ function AtlasSubmitModal({
                     <input
                       type="number"
                       min="0"
+                      placeholder="例如 1000"
                       value={variant.weight_g ?? ""}
                       onChange={(event) =>
                         updateVariant(index, {
@@ -834,7 +836,7 @@ function AtlasSubmitModal({
                   </label>
                   <button
                     type="button"
-                    className="secondary-button"
+                    className="secondary-button variant-remove-button"
                     onClick={() => removeVariant(index)}
                   >
                     移除

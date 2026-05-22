@@ -2029,6 +2029,7 @@ function AtlasReviewPage({
                           尺寸
                           <input
                             value={variant.label}
+                            placeholder="例如 M 75*195"
                             onChange={(event) =>
                               updateVariant(index, {
                                 label: event.target.value,
@@ -2046,6 +2047,7 @@ function AtlasReviewPage({
                             type="number"
                             min="0"
                             step="0.01"
+                            placeholder="例如 900.00"
                             value={fromPriceCents(variant.official_price_cents)}
                             onChange={(event) =>
                               updateVariant(index, {
@@ -2063,6 +2065,7 @@ function AtlasReviewPage({
                           <input
                             type="number"
                             min="0"
+                            placeholder="例如 1000"
                             value={variant.weight_g ?? ""}
                             onChange={(event) =>
                               updateVariant(index, {
@@ -2075,7 +2078,7 @@ function AtlasReviewPage({
                         </label>
                         <button
                           type="button"
-                          className="secondary-button"
+                          className="secondary-button variant-remove-button"
                           onClick={() => removeVariant(index)}
                         >
                           移除

@@ -983,21 +983,98 @@ dd {
 
 .atlas-variant-editor {
   display: grid;
-  gap: 10px;
+  grid-column: 1 / -1;
+  gap: 12px;
+  counter-reset: atlas-variant;
 }
 
 .atlas-variant-row {
+  position: relative;
   display: grid;
   grid-template-columns:
-    minmax(180px, 1.2fr) minmax(120px, 0.8fr) minmax(100px, 0.6fr)
-    auto;
-  gap: 10px;
-  align-items: end;
+    minmax(220px, 1.35fr) minmax(150px, 0.8fr) minmax(130px, 0.65fr)
+    minmax(72px, auto);
+  gap: 14px;
+  align-items: stretch;
+  padding: 14px 14px 14px 52px;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-strong-color), transparent 6%),
+      color-mix(in srgb, var(--soft-control-bg), transparent 48%)
+    ),
+    var(--surface-strong-color);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  counter-increment: atlas-variant;
+}
+
+.atlas-variant-row::before {
+  position: absolute;
+  top: 18px;
+  left: 16px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand-color), transparent 68%);
+  border-radius: 999px;
+  color: var(--brand-color);
+  background: color-mix(in srgb, var(--brand-color), transparent 92%);
+  content: counter(atlas-variant);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .atlas-variant-row label {
   display: grid;
-  gap: 6px;
+  align-content: start;
+  gap: 8px;
+  color: var(--muted-color);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.atlas-variant-row input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--control-border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.atlas-variant-row input::placeholder {
+  color: color-mix(in srgb, var(--muted-color), transparent 38%);
+  font-weight: 500;
+}
+
+.atlas-variant-row input:hover {
+  border-color: color-mix(in srgb, var(--brand-color), transparent 58%);
+}
+
+.atlas-variant-row input:focus {
+  border-color: var(--brand-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-color), transparent 84%);
+}
+
+.atlas-variant-row .variant-remove-button {
+  align-self: end;
+  min-height: 44px;
+  border: 1px solid
+    color-mix(in srgb, var(--status-danger-text), transparent 78%);
+  color: var(--status-danger-text);
+  background: color-mix(in srgb, var(--status-danger-bg), transparent 38%);
+}
+
+.atlas-variant-row .variant-remove-button:hover {
+  border-color: color-mix(in srgb, var(--status-danger-text), transparent 56%);
+  background: var(--status-danger-bg);
 }
 
 .inline-actions {
@@ -1216,6 +1293,19 @@ dd {
   .gear-modal fieldset,
   .atlas-variant-row {
     grid-template-columns: 1fr;
+  }
+
+  .atlas-variant-row {
+    padding: 48px 14px 14px;
+  }
+
+  .atlas-variant-row::before {
+    top: 14px;
+    left: 14px;
+  }
+
+  .atlas-variant-row .variant-remove-button {
+    width: 100%;
   }
 
   .page-header,
