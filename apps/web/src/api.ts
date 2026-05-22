@@ -2,19 +2,24 @@ import { StellarTrailApiClient } from "@stellartrail/api-client";
 
 import { getWebClientConfig } from "./client-config";
 import type {
+  AppLocale,
   CaptchaChallengeRequest,
   CaptchaChallengeResponse,
+  CreateGearAtlasSubmissionRequest,
   CreateGearRequest,
   EmailLoginCodeRequest,
   EmailLoginRequest,
   EmailVerificationCodeRequest,
   EmailVerificationCodeResponse,
   GearCategoriesResponse,
+  GearAtlasPublicItem,
   GearAtlasSubmission,
   GearItem,
   GearStatsResponse,
   ImportGearsRequest,
   ImportGearsResponse,
+  ListGearAtlasRequest,
+  ListGearAtlasResponse,
   ListGearAtlasSubmissionsRequest,
   ListGearAtlasSubmissionsResponse,
   ListAdminFeedbackRequest,
@@ -77,6 +82,20 @@ export interface WebGearApi {
   listGearCategories(
     tab?: "available" | "history",
   ): Promise<GearCategoriesResponse>;
+  listGearAtlas(
+    request?: ListGearAtlasRequest,
+    locale?: AppLocale,
+  ): Promise<ListGearAtlasResponse>;
+  getGearAtlasItem(
+    id: string,
+    locale?: AppLocale,
+  ): Promise<GearAtlasPublicItem>;
+  createGearAtlasSubmission(
+    request: CreateGearAtlasSubmissionRequest,
+  ): Promise<GearAtlasSubmission>;
+  createGearAtlasSubmissionFromGear(
+    gearId: string,
+  ): Promise<GearAtlasSubmission>;
   getGearStats(tab?: "available" | "history"): Promise<GearStatsResponse>;
   listGears(request?: ListGearsRequest): Promise<ListGearsResponse>;
   getGear(id: string): Promise<GearItem>;

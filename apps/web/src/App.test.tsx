@@ -5,7 +5,10 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import type { GearAtlasSubmission } from "@stellartrail/shared-types";
+import type {
+  GearAtlasPublicItem,
+  GearAtlasSubmission,
+} from "@stellartrail/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
@@ -69,6 +72,12 @@ function buildAtlasSubmission(
     updated_at: "2026-01-23T00:00:00Z",
     ...overrides,
   };
+}
+
+function buildAtlasPublicItem(
+  overrides: Partial<GearAtlasPublicItem> = {},
+): GearAtlasPublicItem {
+  return buildAtlasSubmission(overrides);
 }
 
 function buildClient(): WebGearApi {
@@ -286,6 +295,53 @@ function buildClient(): WebGearApi {
       failed_count: 0,
       errors: [],
     }),
+    listGearAtlas: vi.fn().mockResolvedValue({
+      next_cursor: null,
+      items: [
+        buildAtlasPublicItem({
+          id: "atlas-public-1",
+          name: "已收录头灯",
+          brand: "NITECORE",
+          model: "NU25",
+          category: "lighting_system",
+          category_label: "照明系统",
+          source_name: "8264",
+          source_url: "https://example.test/gear",
+          source_rating_score: 4.8,
+          source_rating_count: 12,
+          approved_at: "2026-01-24T00:00:00Z",
+        }),
+      ],
+    }),
+    getGearAtlasItem: vi.fn().mockResolvedValue(
+      buildAtlasPublicItem({
+        id: "atlas-public-1",
+        name: "已收录头灯",
+        brand: "NITECORE",
+        model: "NU25",
+        category: "lighting_system",
+        category_label: "照明系统",
+        source_name: "8264",
+        source_url: "https://example.test/gear",
+        source_rating_score: 4.8,
+        source_rating_count: 12,
+        approved_at: "2026-01-24T00:00:00Z",
+      }),
+    ),
+    createGearAtlasSubmission: vi.fn().mockResolvedValue(
+      buildAtlasSubmission({
+        id: "atlas-submitted",
+        name: "新投稿装备",
+        status: "pending",
+      }),
+    ),
+    createGearAtlasSubmissionFromGear: vi.fn().mockResolvedValue(
+      buildAtlasSubmission({
+        id: "atlas-from-gear",
+        source_user_gear_id: "gear-1",
+        status: "pending",
+      }),
+    ),
     listAdminFeedback: vi.fn().mockResolvedValue({
       next_cursor: null,
       items: [
@@ -484,7 +540,7 @@ describe("App", () => {
 
     expect(
       Array.from(navigation.children).map((item) => item.textContent?.trim()),
-    ).toEqual(["装备库", "户外技能绳结", "路线清单 · 待接入"]);
+    ).toEqual(["装备库", "装备图鉴", "户外技能绳结", "路线清单 · 待接入"]);
     expect(screen.getByRole("button", { name: /户外技能/ })).toHaveAttribute(
       "aria-expanded",
       "true",
@@ -561,6 +617,47 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "装备管理" }),
     ).toBeInTheDocument();
+  });
+
+  it("opens the public gear atlas directly without requiring login", async () => {
+    window.history.replaceState(null, "", "/gear-atlas");
+    const client = buildClient();
+    render(<App client={client} />);
+
+    expect(
+      await screen.findByRole("heading", { name: "装备图鉴" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "本地开发登录" }),
+    ).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /已收录头灯/ }),
+    ).toBeInTheDocument();
+    expect(client.listGearAtlas).toHaveBeenCalledWith(
+      { sort: "approved_at_desc", limit: 20 },
+      "zh-CN",
+    );
+  });
+
+  it("opens the public gear atlas from the signed-in app shell", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "装备图鉴" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "装备图鉴" }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/gear-atlas");
+    expect(client.listGearAtlas).toHaveBeenCalledWith(
+      { sort: "approved_at_desc", limit: 20 },
+      "zh-CN",
+    );
   });
 
   it("opens the gear atlas review queue for administrators", async () => {
@@ -935,6 +1032,26 @@ describe("App", () => {
       );
     });
     expect(client.listGears).toHaveBeenCalledTimes(2);
+  });
+
+  it("submits a personal gear item to the atlas review queue from detail", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    await screen.findByRole("heading", { name: "装备管理" });
+    await screen.findByText("NITECORE SUMMIT 20000 超薄充电宝 · SUMMIT 20000");
+    fireEvent.click(screen.getAllByRole("button", { name: "查看" })[0]);
+
+    expect(await screen.findByLabelText("装备详情")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "投稿到图鉴" }));
+
+    await waitFor(() => {
+      expect(client.createGearAtlasSubmissionFromGear).toHaveBeenCalledWith(
+        "gear-1",
+      );
+    });
+    expect(await screen.findByText("已提交图鉴审核")).toBeInTheDocument();
   });
 
   it("shows the theme switch in the global app shell and persists the preference", async () => {
