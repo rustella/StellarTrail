@@ -535,13 +535,14 @@ Authorization: Bearer <super-admin-token>
 
 ## Cache / performance
 
-服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/me/gears`、`PATCH /api/me/gears/:id`、`DELETE /api/me/gears/:id`、`POST /api/me/gears/:id/restore` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境。装备 specs 字段频次也只保存在 Redis sorted set 中，key 为 `<prefix>:gear:<user_id>:spec-keys:<category>`，member 只保存 spec key，不保存用户填写的具体值。用户标签建议也只保存在 Redis：标签频次 key 为 `<prefix>:gear:<user_id>:tags`，标签颜色偏好 hash key 为 `<prefix>:gear:<user_id>:tag-colors`。
+服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/me/gears`、`PATCH /api/me/gears/:id`、`DELETE /api/me/gears/:id`、`POST /api/me/gears/:id/restore` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。公共读接口（装备图鉴、技能、绳结列表、筛选、详情、离线 manifest）也会缓存最终 JSON 响应和 ETag，Redis 不可用时退回 API 进程内存缓存。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境；公共接口 HTTP 缓存 TTL 由 `public_api.cache_ttl_seconds` 控制。装备 specs 字段频次只保存在 Redis sorted set 中，key 为 `<prefix>:gear:<user_id>:spec-keys:<category>`，member 只保存 spec key，不保存用户填写的具体值。用户标签建议也只保存在 Redis：标签频次 key 为 `<prefix>:gear:<user_id>:tags`，标签颜色偏好 hash key 为 `<prefix>:gear:<user_id>:tag-colors`。
 
 ## Gear inventory
 
 ```http
 GET /api/me/gears/categories?tab=available
 GET /api/me/gears/stats?tab=available
+GET /api/me/gears/overview?tab=available&limit=20&sort=created_at_desc
 GET /api/me/gears/spec-key-rankings?category=electronics_system
 GET /api/me/gears/tag-suggestions?limit=20
 GET /api/me/gears?tab=available&category=electronics_system&status=available&q=nitecore&sort=created_at_desc&limit=20&cursor=0
@@ -605,6 +606,38 @@ POST /api/me/gears/import
 个人装备可以独立存在，不要求先关联装备图鉴。用户实际选择或手填的尺寸保存在 `selected_variant_label`，可选的稳定 key 保存在 `selected_variant_key`；当装备关联图鉴时，`atlas_item_id` 指向公开图鉴条目，客户端可读取该图鉴条目的 `variants` 作为“可选尺寸”。个人装备 `specs` 继续保存容量、背长、收纳尺寸等参数，但不再接受 `size`、`backpack_size`、`size_or_length`。
 
 删除接口是软删除：`DELETE /api/me/gears/:id` 会进入 `tab=history`；`POST /api/me/gears/:id/restore` 可恢复。
+
+### Gear overview
+
+`GET /api/me/gears/overview` 是小程序首屏聚合接口，不是新的装备业务模型。它一次返回装备分类筛选、统计卡片和首屏列表，避免小程序进入首页或装备页时连续请求 `categories`、`stats`、`list` 三个接口。数据仍来自现有装备分类统计、装备统计和装备列表逻辑。
+
+支持参数：
+
+- `tab`: `available` 或 `history`，默认 `available`。
+- `limit`: 首屏列表数量，默认 `20`，仓储层会按列表接口同样规则限制在 `1..100`。
+- `sort`: 首屏列表排序，默认 `created_at_desc`。
+
+不支持 `cursor`、`q`、`category`、`status`。筛选、搜索、状态切换和后续分页仍调用 `GET /api/me/gears`，避免每次筛选都重新计算统计。
+
+```json
+{
+  "categories": {
+    "items": [{ "id": "all", "label": "全部装备", "count": 1 }]
+  },
+  "stats": {
+    "current_count": 1,
+    "archived_count": 0,
+    "total_value_cents": 63900,
+    "total_weight_g": 315,
+    "by_category": [],
+    "by_status": []
+  },
+  "list": {
+    "items": [],
+    "next_cursor": null
+  }
+}
+```
 
 ### Spec key rankings
 

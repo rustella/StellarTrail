@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 function installWxMock(handler, uploadHandler, extraHandlers = {}) {
+  clearCompiledUtilityModules();
   const storage = new Map();
   global.getApp = () => ({
     globalData: {
@@ -540,6 +541,92 @@ test("getGearSpecKeyRankings calls authenticated category endpoint", async () =>
   ]);
 });
 
+test("getGearOverview calls the authenticated first-screen aggregate endpoint", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      method: options.method,
+      authorization: options.header && options.header.authorization,
+    });
+    options.success({
+      statusCode: 200,
+      data: {
+        categories: { items: [{ id: "all", label: "全部装备", count: 1 }] },
+        stats: {
+          current_count: 1,
+          archived_count: 0,
+          total_value_cents: 63900,
+          total_weight_g: 315,
+          by_category: [],
+          by_status: [],
+        },
+        list: {
+          items: [{ id: "gear-1", name: "头灯", tags: [], tag_colors: {} }],
+          next_cursor: null,
+        },
+      },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_user", { id: "u-overview", nickname: "星" });
+  const { getGearOverview } = require("../.tmp-test/utils/api.js");
+
+  const response = await getGearOverview({
+    tab: "available",
+    limit: 2,
+    sort: "created_at_desc",
+  });
+
+  assert.equal(response.stats.current_count, 1);
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.example.test/api/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+      method: "GET",
+      authorization: "Bearer access-old",
+    },
+  ]);
+});
+
+test("identical GET requests share one in-flight wx.request", async () => {
+  let requestCount = 0;
+  const storage = installWxMock((options) => {
+    requestCount += 1;
+    assert.equal(
+      options.url,
+      "https://api.example.test/api/me/gears/overview?tab=available&limit=2",
+    );
+    setTimeout(() => {
+      options.success({
+        statusCode: 200,
+        data: {
+          categories: { items: [] },
+          stats: {
+            current_count: 0,
+            archived_count: 0,
+            total_value_cents: 0,
+            total_weight_g: 0,
+            by_category: [],
+            by_status: [],
+          },
+          list: { items: [], next_cursor: null },
+        },
+      });
+    }, 5);
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_user", { id: "u-dedupe", nickname: "星" });
+  const { getGearOverview } = require("../.tmp-test/utils/api.js");
+
+  const [first, second] = await Promise.all([
+    getGearOverview({ tab: "available", limit: 2 }),
+    getGearOverview({ tab: "available", limit: 2 }),
+  ]);
+
+  assert.equal(requestCount, 1);
+  assert.equal(first, second);
+});
+
 test("getGearTagSuggestions calls authenticated suggestion endpoint", async () => {
   const calls = [];
   const storage = installWxMock((options) => {
@@ -562,6 +649,39 @@ test("getGearTagSuggestions calls authenticated suggestion endpoint", async () =
     {
       url: "https://api.example.test/api/me/gears/tag-suggestions?limit=12",
       authorization: "Bearer access-old",
+    },
+  ]);
+});
+
+test("getKnotFilters calls the public knot filters endpoint with locale", async () => {
+  const calls = [];
+  installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      locale: options.header && options.header["X-StellarTrail-Locale"],
+    });
+    options.success({
+      statusCode: 200,
+      data: {
+        locale: "zh-CN",
+        categories: [{ id: "camping", slug: "camping", title: "露营" }],
+        difficulties: [{ id: "beginner", title: "新手" }],
+      },
+    });
+  });
+  const { getKnotFilters } = require("../.tmp-test/utils/api.js");
+
+  const response = await getKnotFilters("zh-CN");
+
+  assert.deepEqual(response.categories[0], {
+    id: "camping",
+    slug: "camping",
+    title: "露营",
+  });
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.example.test/api/skills/knots/filters",
+      locale: "zh-CN",
     },
   ]);
 });
@@ -881,7 +1001,8 @@ test("clearLoginState removes user-scoped offline caches", async () => {
   assert.equal(hasOfflineCacheStorage(storage), false);
 });
 
-test("media cache returns saved files and ignores missing files", async () => {
+test("media cache returns saved files and memoizes validated file paths", async () => {
+  let getFileInfoCount = 0;
   const storage = installWxMock(
     () => {
       throw new Error("unexpected wx.request call");
@@ -898,6 +1019,7 @@ test("media cache returns saved files and ignores missing files", async () => {
         options.success({ savedFilePath: "wxfile://saved/knot.gif" });
       },
       getFileInfo(options) {
+        getFileInfoCount += 1;
         if (options.filePath === "wxfile://saved/knot.gif") {
           options.success({ size: 128 });
           return;
@@ -917,15 +1039,62 @@ test("media cache returns saved files and ignores missing files", async () => {
     await resolveCachedMediaUrl("https://assets.example.test/knot.gif"),
     "wxfile://saved/knot.gif",
   );
+  assert.equal(
+    await resolveCachedMediaUrl("https://assets.example.test/knot.gif"),
+    "wxfile://saved/knot.gif",
+  );
+  assert.equal(getFileInfoCount, 0);
+  clearCompiledUtilityModules();
+  const {
+    resolveCachedMediaUrl: resolveCachedMediaUrlAfterReload,
+  } = require("../.tmp-test/utils/media-cache.js");
+  assert.equal(
+    await resolveCachedMediaUrlAfterReload(
+      "https://assets.example.test/knot.gif",
+    ),
+    "wxfile://saved/knot.gif",
+  );
+  assert.equal(getFileInfoCount, 1);
+  assert.equal(
+    await resolveCachedMediaUrlAfterReload(
+      "https://assets.example.test/knot.gif",
+    ),
+    "wxfile://saved/knot.gif",
+  );
+  assert.equal(getFileInfoCount, 1);
+});
+
+test("media cache removes stale entries when the saved file is missing", async () => {
+  const storage = installWxMock(
+    () => {
+      throw new Error("unexpected wx.request call");
+    },
+    undefined,
+    {
+      getFileInfo(options) {
+        assert.equal(options.filePath, "wxfile://missing/knot.gif");
+        options.fail({ errMsg: "file missing" });
+      },
+    },
+  );
 
   const cachedKey = [...storage.keys()].find((key) =>
     String(key).startsWith("stellartrail_media_cache_v1:"),
   );
-  storage.set(cachedKey, {
+  const key =
+    cachedKey ??
+    `stellartrail_media_cache_v1:${encodeURIComponent(
+      "https://assets.example.test/knot.gif",
+    )}`;
+  storage.set(key, {
     url: "https://assets.example.test/knot.gif",
     filePath: "wxfile://missing/knot.gif",
     cachedAt: "2026-05-19T00:00:00.000Z",
   });
+  const {
+    resolveCachedMediaUrl,
+  } = require("../.tmp-test/utils/media-cache.js");
+  require("../.tmp-test/utils/network-state.js").initNetworkState();
 
   assert.equal(
     await resolveCachedMediaUrl("https://assets.example.test/knot.gif"),

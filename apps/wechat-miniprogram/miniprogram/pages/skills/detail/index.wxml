@@ -19,6 +19,7 @@
             class="stage-image"
             mode="aspectFit"
             src="{{activeMedia.resolvedUrl}}"
+            lazy-load
           />
           <view wx:else class="stage-placeholder">暂无演示图</view>
         </view>

@@ -1,6 +1,6 @@
 //! Shared helpers for locale-resolved public JSON responses.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, future::Future};
 
 use axum::{
     http::{HeaderMap, HeaderValue, StatusCode, header},
@@ -11,8 +11,38 @@ use sha2::{Digest, Sha256};
 use stellartrail_domain::locale::Locale;
 
 use crate::{
-    error::ApiError, services::public_response_cache::CachedPublicResponse, state::AppState,
+    error::ApiError,
+    services::public_response_cache::{
+        CachedPublicResponse, get_public_response, public_cache_key, set_public_response,
+    },
+    state::AppState,
 };
+
+/// Resolves a localized public JSON response through the shared public response cache.
+pub(crate) async fn cached_localized_json_with<T, F, Fut>(
+    state: &AppState,
+    request_headers: &HeaderMap,
+    locale: Locale,
+    endpoint_class: &str,
+    normalized_input: &str,
+    load: F,
+) -> Result<Response, ApiError>
+where
+    T: Serialize,
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<T, ApiError>>,
+{
+    let key = public_cache_key(endpoint_class, normalized_input);
+    if let Some(cached) = get_public_response(state, &key).await {
+        return cached_localized_json(state, request_headers, locale, cached);
+    }
+
+    let body = load().await?;
+    let cached = set_public_response(state, &key, &body)
+        .await
+        .map_err(ApiError::internal)?;
+    cached_localized_json(state, request_headers, locale, cached)
+}
 
 pub(crate) fn cached_localized_json(
     state: &AppState,

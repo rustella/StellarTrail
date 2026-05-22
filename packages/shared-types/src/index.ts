@@ -423,6 +423,18 @@ export interface ListGearsResponse {
   next_cursor?: string | null;
 }
 
+export interface GearOverviewRequest {
+  tab?: GearTab;
+  limit?: number;
+  sort?: GearSort;
+}
+
+export interface GearOverviewResponse {
+  categories: GearCategoriesResponse;
+  stats: GearStatsResponse;
+  list: ListGearsResponse;
+}
+
 export type GearAtlasStatus = "pending" | "approved" | "rejected";
 
 export type GearAtlasSourceType = "manual" | "user_gear" | "external_import";

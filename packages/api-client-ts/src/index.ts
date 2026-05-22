@@ -22,6 +22,8 @@ import type {
   GearAtlasPublicItem,
   GearAtlasSubmission,
   GearCategory,
+  GearOverviewRequest,
+  GearOverviewResponse,
   GearTemplate,
   GearItem,
   GearSpecKeyRankingsResponse,
@@ -66,6 +68,20 @@ export interface ApiClientOptions {
   accessToken?: string;
   refreshToken?: string;
   onSessionRefresh?: (response: WechatLoginResponse) => void;
+}
+
+export class StellarTrailApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+  readonly body?: unknown;
+
+  constructor(status: number, message: string, code?: string, body?: unknown) {
+    super(message);
+    this.name = "StellarTrailApiError";
+    this.status = status;
+    this.code = code;
+    this.body = body;
+  }
 }
 
 export interface AdminKnotMediaUploadInput {
@@ -450,6 +466,12 @@ export class StellarTrailApiClient {
     return this.get(`/api/me/gears/stats${queryString({ tab })}`, true);
   }
 
+  async getGearOverview(
+    request: GearOverviewRequest = {},
+  ): Promise<GearOverviewResponse> {
+    return this.get(`/api/me/gears/overview${queryString(request)}`, true);
+  }
+
   async getGearSpecKeyRankings(
     category: GearCategory,
   ): Promise<GearSpecKeyRankingsResponse> {
@@ -569,7 +591,7 @@ export class StellarTrailApiClient {
       response = await this.send(path, init, auth, locale);
     }
     if (!response.ok) {
-      throw new Error(`StellarTrail API request failed: ${response.status}`);
+      throw await apiErrorFromResponse(response);
     }
     return response;
   }
@@ -623,6 +645,26 @@ export class StellarTrailApiClient {
   }
 }
 
+async function apiErrorFromResponse(
+  response: Response,
+): Promise<StellarTrailApiError> {
+  let body: unknown;
+  if (response.headers.get("content-type")?.includes("application/json")) {
+    body = await response.json().catch(() => undefined);
+  } else {
+    body = await response.text().catch(() => undefined);
+  }
+
+  const code =
+    isRecord(body) && typeof body.code === "string" ? body.code : undefined;
+  const message =
+    isRecord(body) && typeof body.message === "string"
+      ? body.message
+      : `StellarTrail API request failed: ${response.status}`;
+
+  return new StellarTrailApiError(response.status, message, code, body);
+}
+
 function queryString(params: object): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -632,4 +674,8 @@ function queryString(params: object): string {
   }
   const value = search.toString();
   return value ? `?${value}` : "";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

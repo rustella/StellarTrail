@@ -14,7 +14,7 @@ import {
   getGearCategoryLabel,
   type GearAtlasPublicItem,
   type GearCategory,
-} from "../../utils/gear-utils";
+} from "../../utils/gear-display";
 import {
   isOffline,
   showOfflineWriteBlockedToast,
@@ -42,6 +42,7 @@ const CATEGORY_CHIPS: AtlasCategoryChip[] = [
     label: item.label,
   })),
 ];
+let atlasListRequestSeq = 0;
 
 Page({
   data: {
@@ -77,6 +78,7 @@ Page({
   },
 
   async refreshPage() {
+    const requestSeq = ++atlasListRequestSeq;
     this.setData({
       loading: true,
       loadingMore: false,
@@ -85,6 +87,9 @@ Page({
     });
     try {
       const response = await listGearAtlas(this.buildRequest(null));
+      if (requestSeq !== atlasListRequestSeq) {
+        return;
+      }
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         items: response.items.map(mapAtlasCard),
@@ -92,6 +97,9 @@ Page({
         ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
+      if (requestSeq !== atlasListRequestSeq) {
+        return;
+      }
       if (isOfflineCacheMissError(error) && this.data.items.length) {
         wx.showToast({ title: getErrorMessage(error), icon: "none" });
         return;
@@ -102,7 +110,9 @@ Page({
         items: [],
       });
     } finally {
-      this.setData({ loading: false });
+      if (requestSeq === atlasListRequestSeq) {
+        this.setData({ loading: false });
+      }
     }
   },
 
@@ -111,10 +121,14 @@ Page({
       return;
     }
     this.setData({ loadingMore: true, error: "", errorIsUnavailable: false });
+    const requestSeq = atlasListRequestSeq;
     try {
       const response = await listGearAtlas(
         this.buildRequest(this.data.nextCursor),
       );
+      if (requestSeq !== atlasListRequestSeq) {
+        return;
+      }
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         items: [...this.data.items, ...response.items.map(mapAtlasCard)],
@@ -122,6 +136,9 @@ Page({
         ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
+      if (requestSeq !== atlasListRequestSeq) {
+        return;
+      }
       if (isOfflineCacheMissError(error)) {
         wx.showToast({ title: getErrorMessage(error), icon: "none" });
         return;
@@ -131,7 +148,9 @@ Page({
         errorIsUnavailable: isNotFoundApiError(error),
       });
     } finally {
-      this.setData({ loadingMore: false });
+      if (requestSeq === atlasListRequestSeq) {
+        this.setData({ loadingMore: false });
+      }
     }
   },
 

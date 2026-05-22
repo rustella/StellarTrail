@@ -54,6 +54,15 @@ impl InMemoryPublicResponseCache {
             },
         );
     }
+
+    /// Removes all in-memory fallback entries whose key starts with the given prefix.
+    pub fn remove_prefix(&self, prefix: &str) {
+        let mut inner = self
+            .inner
+            .lock()
+            .expect("public response cache mutex poisoned");
+        inner.retain(|key, _| !key.starts_with(prefix));
+    }
 }
 
 pub async fn get_public_response(state: &AppState, key: &str) -> Option<CachedPublicResponse> {
@@ -89,6 +98,14 @@ pub fn public_cache_key(endpoint_class: &str, normalized_input: &str) -> String 
         "public-response:{endpoint_class}:{}",
         digest(normalized_input)
     )
+}
+
+/// Invalidates public gear-atlas cached responses across Redis keys and the in-process fallback.
+pub async fn invalidate_gear_atlas_public_responses(state: &AppState) {
+    state.cache().invalidate_public_gear_atlas().await;
+    state
+        .public_response_cache()
+        .remove_prefix("public-response:gear-atlas-");
 }
 
 fn etag_for(body: &str) -> String {

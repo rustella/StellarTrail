@@ -11,15 +11,11 @@ use axum::{
 };
 use stellartrail_domain::skill::SkillCategoriesResponse;
 
-use crate::{
-    error::ApiError,
-    services::public_response_cache::{get_public_response, public_cache_key, set_public_response},
-    state::AppState,
-};
+use crate::{error::ApiError, state::AppState};
 
 use super::localization::{
-    cached_localized_json, localized_json, parse_u32_query, reject_all_query_parameters,
-    reject_query_locale, resolve_locale,
+    cached_localized_json_with, parse_u32_query, reject_all_query_parameters, reject_query_locale,
+    resolve_locale,
 };
 
 /// Builds all DB-backed outdoor skill routes.
@@ -45,11 +41,21 @@ async fn skill_categories(
         return Err(ApiError::NotFound);
     }
     let locale = resolve_locale(&headers)?;
-    let items = state
-        .knot_repository()
-        .list_skill_categories(locale)
-        .await?;
-    localized_json(&state, &headers, locale, SkillCategoriesResponse { items })
+    cached_localized_json_with(
+        &state,
+        &headers,
+        locale,
+        "skills-categories",
+        &format!("v1|{}", locale.as_str()),
+        || async {
+            let items = state
+                .knot_repository()
+                .list_skill_categories(locale)
+                .await?;
+            Ok(SkillCategoriesResponse { items })
+        },
+    )
+    .await
 }
 
 async fn knot_list(
@@ -70,11 +76,28 @@ async fn knot_list(
     let category = query.get("category").map(String::as_str);
     let difficulty = query.get("difficulty").map(String::as_str);
     let q = query.get("q").map(String::as_str);
-    let response = state
-        .knot_repository()
-        .list_knots(locale, offset, limit, category, difficulty, q)
-        .await?;
-    localized_json(&state, &headers, locale, response)
+    let normalized_input = format!(
+        "v1|{}|offset={offset}|limit={limit}|category={}|difficulty={}|q={}",
+        locale.as_str(),
+        category.unwrap_or_default(),
+        difficulty.unwrap_or_default(),
+        q.unwrap_or_default()
+    );
+    cached_localized_json_with(
+        &state,
+        &headers,
+        locale,
+        "skills-knots-list",
+        &normalized_input,
+        || async {
+            state
+                .knot_repository()
+                .list_knots(locale, offset, limit, category, difficulty, q)
+                .await
+                .map_err(ApiError::from)
+        },
+    )
+    .await
 }
 
 async fn knot_filters(
@@ -84,8 +107,21 @@ async fn knot_filters(
 ) -> Result<Response, ApiError> {
     reject_query_locale(&query)?;
     let locale = resolve_locale(&headers)?;
-    let response = state.knot_repository().list_knot_filters(locale).await?;
-    localized_json(&state, &headers, locale, response)
+    cached_localized_json_with(
+        &state,
+        &headers,
+        locale,
+        "skills-knots-filters",
+        &format!("v1|{}", locale.as_str()),
+        || async {
+            state
+                .knot_repository()
+                .list_knot_filters(locale)
+                .await
+                .map_err(ApiError::from)
+        },
+    )
+    .await
 }
 
 async fn knot_offline_manifest(
@@ -96,20 +132,21 @@ async fn knot_offline_manifest(
     reject_query_locale(&query)?;
     reject_all_query_parameters(&query)?;
     let locale = resolve_locale(&headers)?;
-    let key = public_cache_key(
+    cached_localized_json_with(
+        &state,
+        &headers,
+        locale,
         "skills-knots-offline-manifest",
         &format!("v1|{}", locale.as_str()),
-    );
-
-    if let Some(cached) = get_public_response(&state, &key).await {
-        return cached_localized_json(&state, &headers, locale, cached);
-    }
-
-    let manifest = state.knot_repository().offline_manifest(locale).await?;
-    let cached = set_public_response(&state, &key, &manifest)
-        .await
-        .map_err(ApiError::internal)?;
-    cached_localized_json(&state, &headers, locale, cached)
+        || async {
+            state
+                .knot_repository()
+                .offline_manifest(locale)
+                .await
+                .map_err(ApiError::from)
+        },
+    )
+    .await
 }
 
 async fn knot_detail(
@@ -120,8 +157,20 @@ async fn knot_detail(
 ) -> Result<Response, ApiError> {
     reject_query_locale(&query)?;
     let locale = resolve_locale(&headers)?;
-    let Some(detail) = state.knot_repository().get_knot_detail(&id, locale).await? else {
-        return Err(ApiError::NotFound);
-    };
-    localized_json(&state, &headers, locale, detail)
+    let normalized_input = format!("v1|{}|id={id}", locale.as_str());
+    cached_localized_json_with(
+        &state,
+        &headers,
+        locale,
+        "skills-knots-detail",
+        &normalized_input,
+        || async {
+            state
+                .knot_repository()
+                .get_knot_detail(&id, locale)
+                .await?
+                .ok_or(ApiError::NotFound)
+        },
+    )
+    .await
 }

@@ -13,6 +13,7 @@ use axum::{
     response::Response,
     routing::{get, post},
 };
+use serde_json::json;
 use stellartrail_db::repositories::{
     GearAtlasRepository, GearRepository, ListGearAtlasAdminOptions, ListGearAtlasOptions,
 };
@@ -31,7 +32,8 @@ use crate::{
     state::AppState,
 };
 
-use super::localization::{localized_json, reject_query_locale, resolve_locale};
+use super::localization::{cached_localized_json_with, reject_query_locale, resolve_locale};
+use crate::services::public_response_cache::invalidate_gear_atlas_public_responses;
 
 /// Builds all gear atlas routes.
 pub fn routes() -> Router<AppState> {
@@ -73,36 +75,53 @@ async fn list_public(
         return Err(ApiError::unsupported_query_parameter("locale"));
     }
     let locale = resolve_locale(&headers)?;
-    let repo = GearAtlasRepository::new(state.db().clone());
-    let (items, next_cursor) = repo
-        .list_public(
-            &ListGearAtlasOptions {
-                category: query.category,
-                q: query.q,
-                sort: query.sort,
-                limit: query.limit.unwrap_or(20),
-                cursor: query.cursor,
-            },
-            locale,
-        )
-        .await?;
-    let mut response_items = Vec::with_capacity(items.len());
-    for item in &items {
-        let category_label = repo.category_label(item.category, locale).await?;
-        response_items.push(GearAtlasPublicItemResponse::from_item_and_category_label(
-            item,
-            category_label,
-        ));
-    }
-    localized_json(
+    let cache_version = state.cache().public_gear_atlas_version().await;
+    let normalized_input = json!({
+        "v": 1,
+        "cache_version": cache_version,
+        "locale": locale.as_str(),
+        "category": query.category.map(|category| category.as_str()),
+        "q": query.q.as_deref(),
+        "sort": query.sort,
+        "limit": query.limit.unwrap_or(20),
+        "cursor": query.cursor.as_deref(),
+    })
+    .to_string();
+    cached_localized_json_with(
         &state,
         &headers,
         locale,
-        ListGearAtlasResponse {
-            items: response_items,
-            next_cursor,
+        "gear-atlas-list",
+        &normalized_input,
+        || async {
+            let repo = GearAtlasRepository::new(state.db().clone());
+            let (items, next_cursor) = repo
+                .list_public(
+                    &ListGearAtlasOptions {
+                        category: query.category,
+                        q: query.q,
+                        sort: query.sort,
+                        limit: query.limit.unwrap_or(20),
+                        cursor: query.cursor,
+                    },
+                    locale,
+                )
+                .await?;
+            let mut response_items = Vec::with_capacity(items.len());
+            for item in &items {
+                let category_label = repo.category_label(item.category, locale).await?;
+                response_items.push(GearAtlasPublicItemResponse::from_item_and_category_label(
+                    item,
+                    category_label,
+                ));
+            }
+            Ok(ListGearAtlasResponse {
+                items: response_items,
+                next_cursor,
+            })
         },
     )
+    .await
 }
 
 async fn get_public(
@@ -113,18 +132,31 @@ async fn get_public(
 ) -> Result<Response, ApiError> {
     reject_query_locale(&query)?;
     let locale = resolve_locale(&headers)?;
-    let repo = GearAtlasRepository::new(state.db().clone());
-    let item = repo
-        .get_public(&id, locale)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-    let category_label = repo.category_label(item.category, locale).await?;
-    localized_json(
+    let cache_version = state.cache().public_gear_atlas_version().await;
+    let normalized_input = format!(
+        "v1|atlas-cache-v{cache_version}|{}|id={id}",
+        locale.as_str()
+    );
+    cached_localized_json_with(
         &state,
         &headers,
         locale,
-        GearAtlasPublicItemResponse::from_item_and_category_label(&item, category_label),
+        "gear-atlas-detail",
+        &normalized_input,
+        || async {
+            let repo = GearAtlasRepository::new(state.db().clone());
+            let item = repo
+                .get_public(&id, locale)
+                .await?
+                .ok_or(ApiError::NotFound)?;
+            let category_label = repo.category_label(item.category, locale).await?;
+            Ok(GearAtlasPublicItemResponse::from_item_and_category_label(
+                &item,
+                category_label,
+            ))
+        },
     )
+    .await
 }
 
 async fn create_manual_submission(
@@ -248,6 +280,7 @@ async fn update_admin_submission(
         .update_submission(&id, &draft)
         .await?
         .ok_or(ApiError::NotFound)?;
+    invalidate_gear_atlas_public_responses(&state).await;
     Ok(Json(GearAtlasSubmissionResponse::from(&item)))
 }
 
@@ -261,6 +294,7 @@ async fn approve_submission(
         .approve(&id, &user.id)
         .await?
         .ok_or(ApiError::NotFound)?;
+    invalidate_gear_atlas_public_responses(&state).await;
     Ok(Json(GearAtlasSubmissionResponse::from(&item)))
 }
 
@@ -276,6 +310,7 @@ async fn reject_submission(
         .reject(&id, &user.id, reason)
         .await?
         .ok_or(ApiError::NotFound)?;
+    invalidate_gear_atlas_public_responses(&state).await;
     Ok(Json(GearAtlasSubmissionResponse::from(&item)))
 }
 

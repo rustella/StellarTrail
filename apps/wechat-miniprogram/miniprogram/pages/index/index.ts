@@ -1,11 +1,10 @@
 import {
   consumeOfflineCacheNotice,
   getErrorMessage,
-  getGearStats,
+  getGearOverview,
   hasAccessToken,
   isOfflineCacheMissError,
   isLoginRequiredError,
-  listGears,
   listKnots,
   loginWithWechat,
   resolveAssetUrl,
@@ -16,7 +15,7 @@ import {
   formatGearWeight,
   type GearStatsResponse,
   type GearSummary,
-} from "../../utils/gear-utils";
+} from "../../utils/gear-display";
 import {
   mapSkillCard,
   type KnotMediaAsset,
@@ -88,6 +87,10 @@ const WECHAT_PROFILE_PROMPT_SEEN_KEY =
   "stellartrail_wechat_profile_prompt_seen";
 const WECHAT_PROFILE_PROMPT_PENDING_KEY =
   "stellartrail_wechat_profile_prompt_pending";
+const HOME_SOFT_REFRESH_MS = 30_000;
+const GEARS_SHOULD_REFRESH_KEY = "stellartrail_gears_should_refresh";
+let lastHomeDashboardLoadedAt = 0;
+let lastHomeDashboardLoginState = INITIAL_LOGGED_IN;
 
 const CHECKLIST_ITEMS: ChecklistItem[] = [
   {
@@ -140,26 +143,41 @@ Page({
 
   onShow() {
     syncPageTheme(this);
-    this.loadHomeDashboard();
+    const shouldRefresh = wx.getStorageSync(GEARS_SHOULD_REFRESH_KEY) === true;
+    if (shouldRefresh) {
+      wx.removeStorageSync(GEARS_SHOULD_REFRESH_KEY);
+    }
+    void this.loadHomeDashboard({ force: shouldRefresh });
     this.showWechatProfilePromptIfNeeded();
   },
 
   onPullDownRefresh() {
-    Promise.all([
-      this.loadFeaturedSkills(),
-      hasAccessToken() ? this.loadGearSummary() : Promise.resolve(),
-    ]).finally(() => wx.stopPullDownRefresh());
+    this.loadHomeDashboard({ force: true }).finally(() =>
+      wx.stopPullDownRefresh(),
+    );
   },
 
-  loadHomeDashboard() {
+  async loadHomeDashboard(options: { force?: boolean } = {}) {
     const isLoggedIn = hasAccessToken();
+    const now = Date.now();
+    if (
+      !options.force &&
+      lastHomeDashboardLoginState === isLoggedIn &&
+      now - lastHomeDashboardLoadedAt < HOME_SOFT_REFRESH_MS &&
+      (this.data.featuredSkills.length || this.data.skillError)
+    ) {
+      return;
+    }
+    lastHomeDashboardLoadedAt = now;
+    lastHomeDashboardLoginState = isLoggedIn;
     this.setData({
       isLoggedIn,
       heroStatusText: isLoggedIn ? "正在同步装备状态" : "未登录也可先浏览",
       offlineNotice: "",
     });
+    const tasks = [this.loadFeaturedSkills()];
     if (isLoggedIn) {
-      this.loadGearSummary();
+      tasks.push(this.loadGearSummary());
     } else {
       this.setData({
         gearLoading: false,
@@ -169,22 +187,24 @@ Page({
         recentGears: [] as HomeGearCard[],
       });
     }
-    this.loadFeaturedSkills();
+    await Promise.all(tasks);
   },
 
   async loadGearSummary() {
     this.setData({ gearLoading: true, gearError: "" });
     try {
-      const [stats, gears] = await Promise.all([
-        getGearStats("available"),
-        listGears({ tab: "available", limit: 2, sort: "created_at_desc" }),
-      ]);
+      const overview = await getGearOverview({
+        tab: "available",
+        limit: 2,
+        sort: "created_at_desc",
+      });
+      const stats = overview.stats;
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         isLoggedIn: true,
         heroStatusText: buildHeroStatusText(stats),
         gearStatCards: buildGearStatCards(stats),
-        recentGears: gears.items.map(mapHomeGearCard),
+        recentGears: overview.list.items.map(mapHomeGearCard),
         gearLoading: false,
         ...(offlineNotice ? { offlineNotice } : {}),
       });

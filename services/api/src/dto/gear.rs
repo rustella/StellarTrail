@@ -4,7 +4,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use stellartrail_domain::gear::{
-    GearCategory, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs, GearStatus, GearTab,
+    GearCategory, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs, GearStats, GearStatus,
+    GearTab,
 };
 
 /// Stable data boundary for `ListGearQuery`, exposed by or reused within this module.
@@ -312,6 +313,14 @@ pub struct GearCategoryFilterResponse {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearCategoriesResponse {
     pub items: Vec<GearCategoryFilterResponse>,
+}
+
+/// First-screen aggregate response for Mini Program gear overview surfaces.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GearOverviewResponse {
+    pub categories: GearCategoriesResponse,
+    pub stats: GearStats,
+    pub list: ListGearResponse,
 }
 
 /// Redis-backed ranking response for spec keys the current user often fills in a category.

@@ -1,6 +1,7 @@
 import {
   consumeOfflineCacheNotice,
   getErrorMessage,
+  getKnotFilters,
   isOfflineCacheMissError,
   listKnots,
   resolveAssetUrl,
@@ -8,6 +9,7 @@ import {
 import {
   mapSkillCard,
   type KnotDetail,
+  type KnotFilterOption,
   type KnotMediaAsset,
   type KnotSummary,
   type SkillCard,
@@ -154,11 +156,17 @@ Page({
     });
     const requestSeq = ++knotListRequestSeq;
     try {
+      const filtersPromise = loadKnotCategoryFilters().catch(() => null);
       const response = await loadKnotsPage(0, searchQuery, selectedCategoryId);
       if (requestSeq !== knotListRequestSeq) {
         return;
       }
       const allKnots = await Promise.all(response.items.map(mapKnotListCard));
+      if (requestSeq !== knotListRequestSeq) {
+        return;
+      }
+      const loadedCategoryFilters = await filtersPromise;
+      const categoryFilters = loadedCategoryFilters ?? buildCategoryFilters(allKnots);
       if (requestSeq !== knotListRequestSeq) {
         return;
       }
@@ -168,6 +176,7 @@ Page({
         selectedCategoryId,
         searchQuery,
         nextOffset,
+        categoryFilters,
       );
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
@@ -182,12 +191,13 @@ Page({
         return;
       }
       if (isOfflineCacheMissError(error) && this.data.allKnots.length) {
-        const listState = buildKnotListState(
-          this.data.allKnots,
-          selectedCategoryId,
-          searchQuery,
-          this.data.nextOffset,
-        );
+      const listState = buildKnotListState(
+        this.data.allKnots,
+        selectedCategoryId,
+        searchQuery,
+        this.data.nextOffset,
+        this.data.categoryFilters,
+      );
         this.setData({
           ...listState,
           searchQuery,
@@ -234,6 +244,7 @@ Page({
         this.data.selectedCategoryId,
         this.data.searchQuery,
         nextPageOffset,
+        this.data.categoryFilters,
       );
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
@@ -253,6 +264,7 @@ Page({
     if (this.data.preparingKnotCache || this.data.cachingKnots) {
       return;
     }
+    const updateCacheProgress = createCacheProgressUpdater(this);
     this.setData({
       preparingKnotCache: true,
       cachingKnots: false,
@@ -263,12 +275,9 @@ Page({
     try {
       const plan = await prepareAllKnotsOfflineCache({
         pageSize: KNOTS_PAGE_SIZE,
-        onProgress: (progress) => {
-          this.setData({
-            cacheProgressText: formatKnotCacheProgress(progress),
-          });
-        },
+        onProgress: updateCacheProgress,
       });
+      updateCacheProgress.flush();
       this.setData({
         cacheProgressText: `已统计 ${plan.items.length} 个绳结，预计约 ${formatBytes(
           plan.estimatedBytes,
@@ -291,18 +300,16 @@ Page({
       const result = await cacheAllKnotsForOffline({
         plan,
         pageSize: KNOTS_PAGE_SIZE,
-        onProgress: (progress) => {
-          this.setData({
-            cacheProgressText: formatKnotCacheProgress(progress),
-          });
-        },
+        onProgress: updateCacheProgress,
       });
+      updateCacheProgress.flush();
       const allKnots = await Promise.all(result.items.map(mapKnotListCard));
       const listState = buildKnotListState(
         allKnots,
         this.data.selectedCategoryId,
         this.data.searchQuery,
         null,
+        this.data.categoryFilters,
       );
       const cacheSummaryText = formatKnotCacheResult(result);
       this.setData({
@@ -325,6 +332,7 @@ Page({
             : "success",
       });
     } catch (error) {
+      updateCacheProgress.flush();
       this.setData({
         preparingKnotCache: false,
         cachingKnots: false,
@@ -389,6 +397,7 @@ Page({
       filterState.selectedCategoryId,
       filterState.searchQuery,
       this.data.nextOffset,
+      this.data.categoryFilters,
     );
     this.setData({
       ...listState,
@@ -444,9 +453,44 @@ function formatKnotCacheProgress(progress: KnotOfflineCacheProgress): string {
       progress.currentTitle ?? "绳结"
     }`;
   }
+  const failedText = progress.failedMediaCount
+    ? `，失败 ${progress.failedMediaCount}`
+    : "";
   return `正在下载媒体 ${progress.mediaReadyCount ?? 0}/${
     progress.mediaTotal ?? 0
-  }`;
+  }${failedText}`;
+}
+
+function createCacheProgressUpdater(page: {
+  setData(data: { cacheProgressText: string }): void;
+}): ((progress: KnotOfflineCacheProgress) => void) & { flush(): void } {
+  let lastAppliedAt = 0;
+  let pendingText = "";
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const apply = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (!pendingText) {
+      return;
+    }
+    lastAppliedAt = Date.now();
+    page.setData({ cacheProgressText: pendingText });
+  };
+  const update = ((progress: KnotOfflineCacheProgress) => {
+    pendingText = formatKnotCacheProgress(progress);
+    const remainingMs = Math.max(0, 200 - (Date.now() - lastAppliedAt));
+    if (remainingMs === 0) {
+      apply();
+      return;
+    }
+    if (!timer) {
+      timer = setTimeout(apply, remainingMs);
+    }
+  }) as ((progress: KnotOfflineCacheProgress) => void) & { flush(): void };
+  update.flush = apply;
+  return update;
 }
 
 function formatKnotCacheResult(result: KnotOfflineCacheResult): string {
@@ -550,6 +594,24 @@ function buildCategoryFilters(knots: KnotListCard[]): KnotCategoryFilter[] {
   );
 }
 
+async function loadKnotCategoryFilters(): Promise<KnotCategoryFilter[]> {
+  const response = await getKnotFilters();
+  return buildCategoryFiltersFromResponse(response.categories);
+}
+
+function buildCategoryFiltersFromResponse(
+  categories: KnotFilterOption[],
+): KnotCategoryFilter[] {
+  const total = categories.reduce((sum, item) => sum + item.count, 0);
+  return [{ id: "all", label: "全部类别", count: total }].concat(
+    categories.map((item) => ({
+      id: item.id || item.slug || item.title,
+      label: item.title,
+      count: item.count,
+    })),
+  );
+}
+
 function validCategoryIndex(filters: KnotCategoryFilter[], selectedCategoryId: string): number {
   const index = filters.findIndex((filter) => filter.id === selectedCategoryId);
   return index >= 0 ? index : 0;
@@ -564,8 +626,11 @@ function buildKnotListState(
   selectedCategoryId: string,
   searchQuery: string,
   nextOffset: number | null,
+  knownCategoryFilters?: KnotCategoryFilter[],
 ) {
-  const categoryFilters = buildCategoryFilters(allKnots);
+  const categoryFilters = knownCategoryFilters?.length
+    ? knownCategoryFilters
+    : buildCategoryFilters(allKnots);
   const selectedCategoryIndex = validCategoryIndex(
     categoryFilters,
     selectedCategoryId,

@@ -28,13 +28,19 @@ interface RemoveSavedFileOptions {
 const MEDIA_CACHE_PREFIX = "stellartrail_media_cache_v1";
 const MEDIA_CACHE_INDEX_KEY = "stellartrail_media_cache_index_v1";
 const pendingDownloads = new Map<string, Promise<void>>();
+const resolvedMediaPathMemo = new Map<string, string>();
 
 export async function resolveCachedMediaUrl(url: string): Promise<string> {
   if (!isHttpUrl(url)) {
     return url;
   }
+  const memoPath = resolvedMediaPathMemo.get(url);
+  if (memoPath) {
+    return memoPath;
+  }
   const cachedPath = await readValidCachedMediaPath(url);
   if (cachedPath) {
+    resolvedMediaPathMemo.set(url, cachedPath);
     return cachedPath;
   }
   if (!isOffline()) {
@@ -113,6 +119,10 @@ export function removeCachedMediaUrl(url: string): boolean {
   return true;
 }
 
+export function isMediaUrlCached(url: string): boolean {
+  return Boolean(readMediaCacheEntry(url));
+}
+
 async function readValidCachedMediaPath(url: string): Promise<string | null> {
   const entry = readMediaCacheEntry(url);
   if (!entry) {
@@ -120,6 +130,7 @@ async function readValidCachedMediaPath(url: string): Promise<string | null> {
   }
   const exists = await savedFileExists(entry.filePath);
   if (exists) {
+    resolvedMediaPathMemo.set(url, entry.filePath);
     return entry.filePath;
   }
   removeMediaCacheEntry(url);
@@ -204,6 +215,7 @@ function readMediaCacheEntry(url: string): MediaCacheEntry | null {
 
 function writeMediaCacheEntry(entry: MediaCacheEntry): void {
   try {
+    resolvedMediaPathMemo.set(entry.url, entry.filePath);
     wx.setStorageSync(mediaStorageKey(entry.url), entry);
     const index = readMediaCacheIndex();
     if (!index.includes(entry.url)) {
@@ -217,6 +229,7 @@ function writeMediaCacheEntry(entry: MediaCacheEntry): void {
 
 function removeMediaCacheEntry(url: string): void {
   try {
+    resolvedMediaPathMemo.delete(url);
     wx.removeStorageSync(mediaStorageKey(url));
     const index = readMediaCacheIndex().filter((item) => item !== url);
     wx.setStorageSync(MEDIA_CACHE_INDEX_KEY, index);
