@@ -213,6 +213,41 @@ describe("GearAtlasPage", () => {
     );
   });
 
+  it("localizes imported sleep system spec names in the public detail", async () => {
+    const api = buildApi();
+    vi.mocked(api.getGearAtlasItem).mockResolvedValueOnce(
+      buildItem({
+        category: "sleep_system",
+        category_label: "睡眠系统",
+        name: "超轻羽绒睡袋",
+        specs: {
+          fill_weight: "700g",
+          filling: "FP700+ 90% 白鹅绒",
+          material: "15D 460T 超细尼龙",
+          size: "M 75*195",
+          temperature_or_r_value: "0~-10度",
+        },
+      }),
+    );
+    render(<GearAtlasPage api={api} session={null} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /测试头灯/ }));
+
+    expect(await screen.findByLabelText("图鉴详情")).toBeInTheDocument();
+    expect(screen.getByText("填充重量")).toBeInTheDocument();
+    expect(screen.getByText("填充物")).toBeInTheDocument();
+    expect(screen.getByText("材质")).toBeInTheDocument();
+    expect(screen.getByText("尺寸")).toBeInTheDocument();
+    expect(screen.getByText("温标/R 值")).toBeInTheDocument();
+    expect(screen.queryByText("fill_weight")).not.toBeInTheDocument();
+    expect(screen.queryByText("filling")).not.toBeInTheDocument();
+    expect(screen.queryByText("material")).not.toBeInTheDocument();
+    expect(screen.queryByText("size")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("temperature_or_r_value"),
+    ).not.toBeInTheDocument();
+  });
+
   it("prompts for login instead of submitting when the user is anonymous", async () => {
     const api = buildApi();
     render(<GearAtlasPage api={api} session={null} />);

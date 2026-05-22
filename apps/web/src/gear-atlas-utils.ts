@@ -77,6 +77,9 @@ export const GEAR_ATLAS_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
       "R",
     ]),
     spec("filling", "填充物", "例如 800FP 羽绒"),
+    spec("fill_weight", "填充重量", "例如 700", "number", ["g", "kg", "oz"]),
+    spec("size", "尺寸", "例如 M 75 x 195"),
+    spec("material", "材质", "例如 15D 尼龙"),
     spec("packed_size", "收纳尺寸", "例如 18 x 30", "text", LENGTH_UNITS),
     spec(
       "waterproof_rating",
@@ -246,11 +249,24 @@ export function normalizeSpecsForCategory(
 }
 
 export function specLabel(category: GearCategory, key: string): string {
-  return (
-    GEAR_ATLAS_SPEC_FIELDS[category]?.find((field) => field.key === key)
-      ?.label ?? key
+  const categoryField = GEAR_ATLAS_SPEC_FIELDS[category]?.find(
+    (field) => field.key === key,
   );
+  if (categoryField) return categoryField.label;
+
+  for (const fields of Object.values(GEAR_ATLAS_SPEC_FIELDS)) {
+    const field = fields.find((item) => item.key === key);
+    if (field) return field.label;
+  }
+
+  return EXTRA_SPEC_LABELS[key] ?? key;
 }
+
+const EXTRA_SPEC_LABELS: Record<string, string> = {
+  fill_weight: "填充重量",
+  material: "材质",
+  size: "尺寸",
+};
 
 function spec(
   key: string,
