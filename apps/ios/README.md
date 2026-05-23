@@ -44,10 +44,10 @@ The screenshot flow writes the page review set into `STELLARTRAIL_SCREENSHOT_DIR
 
 ## Runtime notes
 
-The iOS client defaults to the production endpoints:
+The checked-in iOS client defaults to placeholder endpoints:
 
 - API base URL: `https://api.example.invalid`
 - Image asset / CORS asset origin: `https://assets.example.invalid`
-- Production builds probe `api.example.invalid`, `api-alt1.example.invalid`, then `api-alt2.example.invalid` via `/healthz` before the first API request. The first healthy domain family is used for both API and asset URLs; local debug endpoints skip this probing.
+- Production builds inject real domain candidates through the Git-ignored `ClientConfig.plist`. Before the first API request the client probes the configured candidates via `/healthz`; the first healthy domain family is used for both API and asset URLs. Builds without configured candidates do not run production domain probing.
 
-Copy `StellarTrail/Resources/ClientConfig.example.plist` to the Git-ignored `StellarTrail/Resources/ClientConfig.plist` when a build needs different endpoints. Users can still change the local connection address from the Profile page in debug builds.
+Copy `StellarTrail/Resources/ClientConfig.example.plist` to the Git-ignored `StellarTrail/Resources/ClientConfig.plist` when a build needs different endpoints. Add `DOMAIN_CANDIDATES` entries with `ID`, `API_BASE_URL`, and `ASSETS_BASE_URL` in that ignored plist for production probing. Users can still change the local connection address from the Profile page in debug builds.

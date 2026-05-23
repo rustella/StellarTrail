@@ -133,7 +133,7 @@ curl http://127.0.0.1:8080/api/v1/meta
 
 ### 4. 配置客户端访问地址
 
-各客户端默认使用正式地址：
+仓库中的客户端默认使用占位地址：
 
 - API 地址：`https://api.example.invalid`
 - 图片资源 / 允许跨域资源域名：`https://assets.example.invalid`
@@ -148,7 +148,7 @@ curl http://127.0.0.1:8080/api/v1/meta
 | iOS        | `apps/ios/StellarTrail/Resources/ClientConfig.example.plist`      | `apps/ios/StellarTrail/Resources/ClientConfig.plist`      |
 | macOS      | `apps/macos/StellarTrailMac/Resources/ClientConfig.example.plist` | `apps/macos/StellarTrailMac/Resources/ClientConfig.plist` |
 
-Web 可通过 `VITE_STELLARTRAIL_API_BASE_URL` 和 `VITE_STELLARTRAIL_ASSETS_BASE_URL` 覆盖；本地 Vite 开发默认使用同源 `/api/v1`，并通过 `VITE_STELLARTRAIL_API_PROXY_TARGET` 代理到正式或本地 API，避免浏览器 CORS 拦截。Android 会在 Gradle 构建时读取 `config.properties` 并写入 `BuildConfig`；iOS/macOS 会优先读取应用 Bundle 内的 `ClientConfig.plist`，缺失时回退到默认正式地址。
+Web 可通过 `VITE_STELLARTRAIL_API_BASE_URL` 和 `VITE_STELLARTRAIL_ASSETS_BASE_URL` 覆盖；本地 Vite 开发默认使用同源 `/api/v1`，并通过 `VITE_STELLARTRAIL_API_PROXY_TARGET` 代理到真实或本地 API，避免浏览器 CORS 拦截。Android 会在 Gradle 构建时读取 `config.properties` 并写入 `BuildConfig`；iOS/macOS 会优先读取应用 Bundle 内的 `ClientConfig.plist`，缺失时回退到占位地址且不执行生产域名探测。
 
 当前已实现服务能力：
 

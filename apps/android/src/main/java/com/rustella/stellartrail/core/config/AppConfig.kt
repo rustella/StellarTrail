@@ -10,6 +10,13 @@ import kotlinx.coroutines.flow.asStateFlow
 data class AppConfig(
     val baseUrl: String = sanitizeBaseUrl(BuildConfig.DEFAULT_API_BASE_URL),
     val assetsBaseUrl: String = sanitizeBaseUrl(BuildConfig.DEFAULT_ASSETS_BASE_URL),
+    val domainCandidates: List<AppDomainCandidate> = parseDomainCandidates(BuildConfig.DEFAULT_DOMAIN_CANDIDATES),
+)
+
+data class AppDomainCandidate(
+    val id: String,
+    val apiBaseUrl: String,
+    val assetsBaseUrl: String,
 )
 
 interface AppConfigStore {
@@ -60,3 +67,15 @@ class InMemoryAppConfigStore(initial: AppConfig = AppConfig()) : AppConfigStore 
 }
 
 fun sanitizeBaseUrl(baseUrl: String): String = baseUrl.trim().trimEnd('/')
+
+fun parseDomainCandidates(value: String): List<AppDomainCandidate> =
+    value.split(';')
+        .mapNotNull { rawCandidate ->
+            val parts = rawCandidate.split('|')
+            if (parts.size != 3) return@mapNotNull null
+            val id = parts[0].trim()
+            val apiBaseUrl = sanitizeBaseUrl(parts[1])
+            val assetsBaseUrl = sanitizeBaseUrl(parts[2])
+            if (id.isEmpty() || apiBaseUrl.isEmpty() || assetsBaseUrl.isEmpty()) return@mapNotNull null
+            AppDomainCandidate(id = id, apiBaseUrl = apiBaseUrl, assetsBaseUrl = assetsBaseUrl)
+        }

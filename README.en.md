@@ -132,7 +132,7 @@ Knot media is uploaded through MinIO/S3-compatible object storage. Public read A
 
 ### 4. Configure client endpoints
 
-All clients default to the production endpoints:
+Checked-in clients default to placeholder endpoints:
 
 - API base URL: `https://api.example.invalid`
 - Image asset / CORS asset origin: `https://assets.example.invalid`
@@ -147,7 +147,7 @@ Real client config files stay local or in the build environment and are ignored 
 | iOS                 | `apps/ios/StellarTrail/Resources/ClientConfig.example.plist`      | `apps/ios/StellarTrail/Resources/ClientConfig.plist`      |
 | macOS               | `apps/macos/StellarTrailMac/Resources/ClientConfig.example.plist` | `apps/macos/StellarTrailMac/Resources/ClientConfig.plist` |
 
-Web reads `VITE_STELLARTRAIL_API_BASE_URL` and `VITE_STELLARTRAIL_ASSETS_BASE_URL`; local Vite development uses same-origin `/api/v1` by default and proxies it through `VITE_STELLARTRAIL_API_PROXY_TARGET` to the production or local API to avoid browser CORS failures. Android reads `config.properties` during the Gradle build and writes `BuildConfig`; iOS/macOS first read `ClientConfig.plist` from the app bundle and fall back to the production defaults when it is absent.
+Web reads `VITE_STELLARTRAIL_API_BASE_URL` and `VITE_STELLARTRAIL_ASSETS_BASE_URL`; local Vite development uses same-origin `/api/v1` by default and proxies it through `VITE_STELLARTRAIL_API_PROXY_TARGET` to the real or local API to avoid browser CORS failures. Android reads `config.properties` during the Gradle build and writes `BuildConfig`; iOS/macOS first read `ClientConfig.plist` from the app bundle and fall back to placeholder endpoints without production domain probing when it is absent.
 
 Currently implemented service capabilities:
 

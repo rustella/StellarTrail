@@ -8,9 +8,9 @@ StellarTrail Android 是原生 Kotlin + Jetpack Compose 客户端，复用仓库
 
 - JDK 21
 - Android SDK 36 / Build Tools 36.0.0
-- 默认 API 地址：`https://api.example.invalid`
-- 默认图片资源 / CORS 资源域名：`https://assets.example.invalid`
-- 生产环境会在首次 API 请求前按顺序探测 `api.example.invalid`、`api-alt1.example.invalid`、`api-alt2.example.invalid` 的 `/healthz`，首个可用域名族会同时决定 API 和资源域名；本地调试地址会跳过探测。
+- 仓库默认 API 占位地址：`https://api.example.invalid`
+- 仓库默认图片资源 / CORS 资源占位域名：`https://assets.example.invalid`
+- 生产构建通过 Git 忽略的 `config.properties` 注入真实候选域名；首次 API 请求前会按配置顺序探测 `/healthz`，首个可用域名族会同时决定 API 和资源域名。本地调试地址会跳过探测。
 
 构建时会读取 Git 忽略的 `config.properties`，缺失时回退到 `config.example.properties`。本地联调可复制示例文件并把 API 地址改为 `http://10.0.2.2:8080`，模拟器即可访问宿主机服务。真机联调时也可在 Profile 页面临时修改 API Base URL。
 

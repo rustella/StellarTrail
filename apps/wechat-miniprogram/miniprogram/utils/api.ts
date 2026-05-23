@@ -67,11 +67,6 @@ const HEALTH_PATH = "/healthz";
 const API_REQUEST_TIMEOUT_MS = 15_000;
 const API_DOMAIN_HEALTH_TIMEOUT_MS = 3_000;
 const WECHAT_LOGIN_TIMEOUT_MS = 5_000;
-const KNOWN_ASSETS_HOSTS = new Set([
-  "assets.example.invalid",
-  "assets-alt1.example.invalid",
-  "assets-alt2.example.invalid",
-]);
 
 let loginPromise: Promise<string> | null = null;
 let refreshPromise: Promise<string> | null = null;
@@ -389,7 +384,7 @@ function normalizeKnownAssetUrl(url: string): string {
 }
 
 function isKnownAssetsHost(hostname: string): boolean {
-  if (KNOWN_ASSETS_HOSTS.has(hostname)) {
+  if (parseUrlParts(getAssetsBaseUrl())?.hostname === hostname) {
     return true;
   }
   return getDomainCandidates().some((candidate) => {

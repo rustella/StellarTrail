@@ -13,9 +13,9 @@ Linux can validate YAML, plist, JSON, and text-level migration checks only. Xcod
 
 ## Runtime config
 
-The macOS client shares the Apple runtime config loader with iOS. It defaults to:
+The macOS client shares the Apple runtime config loader with iOS. The checked-in default is a placeholder config:
 
 - API base URL: `https://api.example.invalid`
 - Image asset / CORS asset origin: `https://assets.example.invalid`
 
-Copy `StellarTrailMac/Resources/ClientConfig.example.plist` to the Git-ignored `StellarTrailMac/Resources/ClientConfig.plist` when a build needs different endpoints.
+Copy `StellarTrailMac/Resources/ClientConfig.example.plist` to the Git-ignored `StellarTrailMac/Resources/ClientConfig.plist` when a build needs real endpoints or production domain candidates. Candidate entries use `ID`, `API_BASE_URL`, and `ASSETS_BASE_URL`.

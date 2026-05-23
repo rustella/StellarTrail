@@ -2,6 +2,7 @@ package com.rustella.stellartrail.core.network
 
 import android.util.Log
 import com.rustella.stellartrail.core.config.AppConfig
+import com.rustella.stellartrail.core.config.AppDomainCandidate
 import com.rustella.stellartrail.domain.auth.LoginResponse
 import com.rustella.stellartrail.domain.auth.RefreshTokenRequest
 import com.rustella.stellartrail.domain.skills.SkillLocale
@@ -177,7 +178,7 @@ class ApiClient(
 
     private suspend fun ensureProductionDomainSelected() {
         val current = configProvider()
-        if (!shouldProbeProductionDomains(current.baseUrl)) {
+        if (!shouldProbeProductionDomains(current.baseUrl, current.domainCandidates)) {
             selectedDomainConfig = null
             domainProbeCompletedForBaseUrl = current.baseUrl
             return
@@ -185,26 +186,28 @@ class ApiClient(
         if (domainProbeCompletedForBaseUrl == current.baseUrl) return
         domainProbeMutex.withLock {
             val latest = configProvider()
-            if (!shouldProbeProductionDomains(latest.baseUrl)) {
+            if (!shouldProbeProductionDomains(latest.baseUrl, latest.domainCandidates)) {
                 selectedDomainConfig = null
                 domainProbeCompletedForBaseUrl = latest.baseUrl
                 return
             }
             if (domainProbeCompletedForBaseUrl == latest.baseUrl) return
-            for (candidate in PRODUCTION_DOMAIN_CANDIDATES) {
+            for (candidate in latest.domainCandidates) {
                 if (probeHealthz(candidate.apiBaseUrl)) {
                     selectedDomainConfig = AppConfig(
                         baseUrl = candidate.apiBaseUrl,
                         assetsBaseUrl = candidate.assetsBaseUrl,
+                        domainCandidates = latest.domainCandidates,
                     )
                     domainProbeCompletedForBaseUrl = latest.baseUrl
                     return
                 }
             }
-            val fallback = PRODUCTION_DOMAIN_CANDIDATES.first()
+            val fallback = latest.domainCandidates.first()
             selectedDomainConfig = AppConfig(
                 baseUrl = fallback.apiBaseUrl,
                 assetsBaseUrl = fallback.assetsBaseUrl,
+                domainCandidates = latest.domainCandidates,
             )
             domainProbeCompletedForBaseUrl = latest.baseUrl
         }
@@ -222,17 +225,18 @@ class ApiClient(
         return response.status.isSuccess()
     }
 
-    private fun shouldProbeProductionDomains(apiBaseUrl: String): Boolean =
-        PRODUCTION_DOMAIN_CANDIDATES.any { it.apiBaseUrl == sanitizeComparableBaseUrl(apiBaseUrl) }
+    private fun shouldProbeProductionDomains(apiBaseUrl: String, candidates: List<AppDomainCandidate>): Boolean =
+        candidates.any { it.apiBaseUrl == sanitizeComparableBaseUrl(apiBaseUrl) }
 
     private fun normalizeKnownAssetUrl(url: String): String {
         val parsed = runCatching { URI(url) }.getOrNull() ?: return url
         val host = parsed.host?.lowercase() ?: return url
-        if (!KNOWN_ASSETS_HOSTS.contains(host)) return url
+        val activeConfig = activeConfig()
+        if (!activeConfig.isKnownAssetsHost(host)) return url
         val rawPath = parsed.rawPath.orEmpty()
         val rawQuery = parsed.rawQuery?.let { "?$it" }.orEmpty()
         val rawFragment = parsed.rawFragment?.let { "#$it" }.orEmpty()
-        return activeConfig().assetsBaseUrl.trimEnd('/') + rawPath + rawQuery + rawFragment
+        return activeConfig.assetsBaseUrl.trimEnd('/') + rawPath + rawQuery + rawFragment
     }
 
     @PublishedApi
@@ -294,31 +298,15 @@ internal const val HEALTH_PATH = "/healthz"
 
 private const val API_DOMAIN_HEALTH_TIMEOUT_MS = 3_000L
 
-private data class ProductionDomainCandidate(
-    val apiBaseUrl: String,
-    val assetsBaseUrl: String,
-)
-
-private val PRODUCTION_DOMAIN_CANDIDATES = listOf(
-    ProductionDomainCandidate(
-        apiBaseUrl = "https://api.example.invalid",
-        assetsBaseUrl = "https://assets.example.invalid",
-    ),
-    ProductionDomainCandidate(
-        apiBaseUrl = "https://api-alt1.example.invalid",
-        assetsBaseUrl = "https://assets-alt1.example.invalid",
-    ),
-    ProductionDomainCandidate(
-        apiBaseUrl = "https://api-alt2.example.invalid",
-        assetsBaseUrl = "https://assets-alt2.example.invalid",
-    ),
-)
-
-private val KNOWN_ASSETS_HOSTS = PRODUCTION_DOMAIN_CANDIDATES
-    .mapNotNull { runCatching { URI(it.assetsBaseUrl).host?.lowercase() }.getOrNull() }
-    .toSet()
-
 private fun sanitizeComparableBaseUrl(baseUrl: String): String = baseUrl.trim().trimEnd('/')
+
+private fun AppConfig.isKnownAssetsHost(host: String): Boolean {
+    val currentAssetsHost = runCatching { URI(assetsBaseUrl).host?.lowercase() }.getOrNull()
+    if (currentAssetsHost == host) return true
+    return domainCandidates.any { candidate ->
+        runCatching { URI(candidate.assetsBaseUrl).host?.lowercase() }.getOrNull() == host
+    }
+}
 
 @PublishedApi
 internal fun versionedApiPath(path: String): String {

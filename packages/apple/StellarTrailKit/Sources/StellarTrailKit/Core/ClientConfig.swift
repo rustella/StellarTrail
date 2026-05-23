@@ -3,34 +3,22 @@ import Foundation
 struct ClientConfig: Equatable {
     let apiBaseURLString: String
     let assetsBaseURLString: String
+    let domainCandidates: [ClientDomainCandidate]
+
+    init(
+        apiBaseURLString: String,
+        assetsBaseURLString: String,
+        domainCandidates: [ClientDomainCandidate] = []
+    ) {
+        self.apiBaseURLString = apiBaseURLString
+        self.assetsBaseURLString = assetsBaseURLString
+        self.domainCandidates = domainCandidates
+    }
 
     static let production = ClientConfig(
         apiBaseURLString: "https://api.example.invalid",
         assetsBaseURLString: "https://assets.example.invalid"
     )
-
-    static let productionDomainCandidates = [
-        ClientConfig(
-            apiBaseURLString: "https://api.example.invalid",
-            assetsBaseURLString: "https://assets.example.invalid"
-        ),
-        ClientConfig(
-            apiBaseURLString: "https://api-alt1.example.invalid",
-            assetsBaseURLString: "https://assets-alt1.example.invalid"
-        ),
-        ClientConfig(
-            apiBaseURLString: "https://api-alt2.example.invalid",
-            assetsBaseURLString: "https://assets-alt2.example.invalid"
-        )
-    ]
-
-    static let knownAssetsHosts = Set(
-        productionDomainCandidates.compactMap {
-            URL(string: $0.assetsBaseURLString)?.host?.lowercased()
-        }
-    )
-
-    private static let legacyMisspelledAPIBaseURLString = "https://api.example.invalid"
 
     static func load(from bundle: Bundle = .main) -> ClientConfig {
         guard let url = bundle.url(forResource: "ClientConfig", withExtension: "plist"),
@@ -40,16 +28,13 @@ struct ClientConfig: Equatable {
         }
         return ClientConfig(
             apiBaseURLString: sanitizeAPIBaseURL(raw.apiBaseURLString, fallback: production.apiBaseURLString),
-            assetsBaseURLString: sanitizeBaseURL(raw.assetsBaseURLString, fallback: production.assetsBaseURLString)
+            assetsBaseURLString: sanitizeBaseURL(raw.assetsBaseURLString, fallback: production.assetsBaseURLString),
+            domainCandidates: normalizeDomainCandidates(raw.domainCandidates)
         )
     }
 
     static func sanitizeAPIBaseURL(_ value: String?, fallback: String) -> String {
-        let sanitized = sanitizeBaseURL(value, fallback: fallback)
-        if sanitized == legacyMisspelledAPIBaseURLString {
-            return production.apiBaseURLString
-        }
-        return sanitized
+        sanitizeBaseURL(value, fallback: fallback)
     }
 
     static func sanitizeBaseURL(_ value: String?, fallback: String) -> String {
@@ -58,13 +43,49 @@ struct ClientConfig: Equatable {
         }
         return String(trimmed.dropTrailingSlashes())
     }
+
+    private static func normalizeDomainCandidates(_ candidates: [RawClientDomainCandidate]?) -> [ClientDomainCandidate] {
+        candidates?.compactMap { candidate in
+            let id = candidate.id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let apiBaseURLString = sanitizeBaseURL(candidate.apiBaseURLString, fallback: "")
+            let assetsBaseURLString = sanitizeBaseURL(candidate.assetsBaseURLString, fallback: "")
+            guard !id.isEmpty, !apiBaseURLString.isEmpty, !assetsBaseURLString.isEmpty else {
+                return nil
+            }
+            return ClientDomainCandidate(
+                id: id,
+                apiBaseURLString: apiBaseURLString,
+                assetsBaseURLString: assetsBaseURLString
+            )
+        } ?? []
+    }
+}
+
+struct ClientDomainCandidate: Equatable {
+    let id: String
+    let apiBaseURLString: String
+    let assetsBaseURLString: String
 }
 
 private struct RawClientConfig: Decodable {
     let apiBaseURLString: String?
     let assetsBaseURLString: String?
+    let domainCandidates: [RawClientDomainCandidate]?
 
     enum CodingKeys: String, CodingKey {
+        case apiBaseURLString = "API_BASE_URL"
+        case assetsBaseURLString = "ASSETS_BASE_URL"
+        case domainCandidates = "DOMAIN_CANDIDATES"
+    }
+}
+
+private struct RawClientDomainCandidate: Decodable {
+    let id: String?
+    let apiBaseURLString: String?
+    let assetsBaseURLString: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "ID"
         case apiBaseURLString = "API_BASE_URL"
         case assetsBaseURLString = "ASSETS_BASE_URL"
     }

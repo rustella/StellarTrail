@@ -48,9 +48,9 @@ final class APIClient {
     private let settingsStore: AppSettingsStore
     private let sessionStore: SessionStore
     private let session: URLSession
-    private var selectedDomainConfig: ClientConfig?
+    private var selectedDomainConfig: ClientDomainCandidate?
     private var domainProbeCompletedForBaseURLString: String?
-    private var domainProbeTask: Task<ClientConfig, Never>?
+    private var domainProbeTask: Task<ClientDomainCandidate?, Never>?
 
     init(settingsStore: AppSettingsStore, sessionStore: SessionStore, session: URLSession = .shared) {
         self.settingsStore = settingsStore
@@ -201,38 +201,47 @@ final class APIClient {
             settingsStore.baseURLString,
             fallback: ClientConfig.production.apiBaseURLString
         )
-        guard shouldProbeProductionDomains(currentBaseURLString) else {
+        let candidates = settingsStore.domainCandidates
+        guard shouldProbeProductionDomains(currentBaseURLString, candidates: candidates) else {
             selectedDomainConfig = nil
             domainProbeCompletedForBaseURLString = settingsStore.baseURLString
             domainProbeTask = nil
             return
         }
         if domainProbeCompletedForBaseURLString == settingsStore.baseURLString { return }
-        let task: Task<ClientConfig, Never>
+        let task: Task<ClientDomainCandidate?, Never>
         if let existingTask = domainProbeTask {
             task = existingTask
         } else {
             let session = session
             task = Task {
-                await Self.probeProductionDomains(session: session)
+                await Self.probeProductionDomains(candidates: candidates, session: session)
             }
             domainProbeTask = task
         }
-        let selected = await task.value
-        if shouldProbeProductionDomains(settingsStore.baseURLString) {
+        guard let selected = await task.value else {
+            selectedDomainConfig = nil
+            domainProbeCompletedForBaseURLString = settingsStore.baseURLString
+            domainProbeTask = nil
+            return
+        }
+        if shouldProbeProductionDomains(settingsStore.baseURLString, candidates: settingsStore.domainCandidates) {
             selectedDomainConfig = selected
             domainProbeCompletedForBaseURLString = settingsStore.baseURLString
         }
         domainProbeTask = nil
     }
 
-    nonisolated private static func probeProductionDomains(session: URLSession) async -> ClientConfig {
-        for candidate in ClientConfig.productionDomainCandidates {
+    nonisolated private static func probeProductionDomains(
+        candidates: [ClientDomainCandidate],
+        session: URLSession
+    ) async -> ClientDomainCandidate? {
+        for candidate in candidates {
             if await probeHealthz(apiBaseURLString: candidate.apiBaseURLString, session: session) {
                 return candidate
             }
         }
-        return ClientConfig.productionDomainCandidates[0]
+        return candidates.first
     }
 
     nonisolated private static func probeHealthz(apiBaseURLString: String, session: URLSession) async -> Bool {
@@ -250,13 +259,21 @@ final class APIClient {
         }
     }
 
-    private func shouldProbeProductionDomains(_ apiBaseURLString: String) -> Bool {
-        ClientConfig.productionDomainCandidates.contains { $0.apiBaseURLString == ClientConfig.sanitizeAPIBaseURL(apiBaseURLString, fallback: ClientConfig.production.apiBaseURLString) }
+    private func shouldProbeProductionDomains(
+        _ apiBaseURLString: String,
+        candidates: [ClientDomainCandidate]
+    ) -> Bool {
+        candidates.contains {
+            $0.apiBaseURLString == ClientConfig.sanitizeAPIBaseURL(
+                apiBaseURLString,
+                fallback: ClientConfig.production.apiBaseURLString
+            )
+        }
     }
 
     private func normalizedKnownAssetURL(_ url: URL) -> URL {
         guard let host = url.host?.lowercased(),
-              ClientConfig.knownAssetsHosts.contains(host),
+              isKnownAssetsHost(host),
               var components = URLComponents(url: activeAssetsBaseURL, resolvingAgainstBaseURL: false) else {
             return url
         }
@@ -264,6 +281,15 @@ final class APIClient {
         components.query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.query
         components.fragment = URLComponents(url: url, resolvingAgainstBaseURL: false)?.fragment
         return components.url ?? url
+    }
+
+    private func isKnownAssetsHost(_ host: String) -> Bool {
+        if activeAssetsBaseURL.host?.lowercased() == host {
+            return true
+        }
+        return settingsStore.domainCandidates.contains {
+            URL(string: $0.assetsBaseURLString)?.host?.lowercased() == host
+        }
     }
 
     private func refreshSession() async throws {
