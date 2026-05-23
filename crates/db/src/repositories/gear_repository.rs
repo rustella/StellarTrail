@@ -93,6 +93,23 @@ impl GearRepository {
         row.map(|row| map_gear(&row)).transpose()
     }
 
+    /// Reads one gear record for packing-list history, including archived or soft-deleted items.
+    pub async fn get_any_for_user(
+        &self,
+        user_id: &str,
+        id: &str,
+    ) -> Result<Option<GearItem>, DbErr> {
+        let row = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                gear_select_sql("WHERE user_id = ? AND id = ?"),
+                vec![user_id.to_owned().into(), id.to_owned().into()],
+            ))
+            .await?;
+        row.map(|row| map_gear(&row)).transpose()
+    }
+
     /// Runs the `replace` server-side flow while preserving input validation, error propagation, and state invariants.
     pub async fn replace(
         &self,

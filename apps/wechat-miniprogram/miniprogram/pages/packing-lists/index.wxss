@@ -1,0 +1,173 @@
+.packing-page {
+  min-height: 100vh;
+  padding: 28rpx 28rpx 64rpx;
+  background: var(--page-bg);
+  box-sizing: border-box;
+}
+
+.hero-card,
+.state-card,
+.packing-card {
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.hero-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 32rpx;
+  background: var(--hero-surface-gradient);
+  color: var(--text-color);
+}
+
+.eyebrow {
+  color: var(--accent-color);
+  font-size: 22rpx;
+  letter-spacing: 2rpx;
+}
+
+.hero-title {
+  margin-top: 12rpx;
+  color: var(--text-color);
+  font-size: 44rpx;
+  font-weight: 800;
+}
+
+.hero-subtitle {
+  margin-top: 12rpx;
+  color: var(--muted-color);
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+.primary-action,
+.state-card button,
+.card-actions button {
+  margin: 0;
+  padding: 0 28rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 72rpx;
+}
+
+.primary-action.wide {
+  width: 100%;
+  margin-top: 24rpx;
+}
+
+.offline-notice {
+  margin-top: 18rpx;
+  padding: 18rpx 22rpx;
+  border-radius: var(--card-inner-radius);
+  color: var(--notice-text);
+  background: var(--notice-bg);
+  font-size: 24rpx;
+}
+
+.state-card,
+.packing-card {
+  margin-top: 24rpx;
+  padding: 28rpx;
+}
+
+.state-title {
+  color: var(--text-color);
+  font-size: 32rpx;
+  font-weight: 800;
+}
+
+.state-desc {
+  margin-top: 10rpx;
+  color: var(--muted-color);
+  font-size: 25rpx;
+  line-height: 1.55;
+}
+
+.state-card button {
+  margin-top: 24rpx;
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.packing-name {
+  color: var(--text-color);
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.packing-meta {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+}
+
+.progress-pill {
+  flex: 0 0 auto;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 24rpx;
+}
+
+.metric {
+  min-width: 0;
+  padding: 18rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.metric-value {
+  overflow-wrap: anywhere;
+  color: var(--text-color);
+  font-size: 27rpx;
+  font-weight: 800;
+}
+
+.metric-label {
+  margin-top: 6rpx;
+  color: var(--muted-color);
+  font-size: 22rpx;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20rpx;
+}
+
+.card-actions button {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.load-more {
+  padding: 28rpx 0;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  text-align: center;
+}
+
+.load-more.muted {
+  color: var(--muted-color);
+}

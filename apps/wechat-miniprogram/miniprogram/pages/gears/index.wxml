@@ -33,6 +33,19 @@
     <view class="atlas-entry-cta">去浏览 ›</view>
   </view>
 
+  <view class="atlas-entry-card packing-entry-card" bindtap="goPackingLists">
+    <view class="atlas-entry-main">
+      <view class="atlas-entry-icon packing-entry-icon" aria-hidden="true">
+        <view class="packing-check">✓</view>
+      </view>
+      <view class="atlas-entry-copy">
+        <view class="atlas-entry-title">打包清单</view>
+        <view class="atlas-entry-desc">按路线挑选并勾选出发装备</view>
+      </view>
+    </view>
+    <view class="atlas-entry-cta">去准备 ›</view>
+  </view>
+
   <block wx:if="{{!isLoggedIn}}">
     <view class="guest-card">
       <view class="guest-icon">🎒</view>

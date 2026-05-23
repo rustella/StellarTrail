@@ -388,6 +388,10 @@ Page({
     wx.navigateTo({ url: "/pages/gear-atlas/index" });
   },
 
+  goPackingLists() {
+    wx.navigateTo({ url: "/pages/packing-lists/index" });
+  },
+
   goLogin() {
     wx.navigateTo({ url: loginPageUrl("/pages/gears/index") });
   },

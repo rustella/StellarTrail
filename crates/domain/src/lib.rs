@@ -5,6 +5,7 @@ pub mod deletion;
 pub mod feedback;
 pub mod gear;
 pub mod gear_atlas;
+pub mod gear_packing;
 pub mod gear_template;
 pub mod locale;
 pub mod pagination;

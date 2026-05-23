@@ -565,6 +565,115 @@ GET /api/v1/me/gears/export?tab=available&format=csv
 POST /api/v1/me/gears/import
 ```
 
+## Gear packing lists
+
+打包清单是用户私有的出发前准备清单，用于按路线/目的地和徒步时长挑选本人已有装备，并在出发前逐项勾选已打包。第一版不依赖路线模块，不做自动推荐；`duration_label` 是自由文本，例如 `一日`、`两天一夜`。所有接口都需要 Bearer Token。
+
+```http
+GET /api/v1/me/packing-lists?limit=20&cursor=0
+POST /api/v1/me/packing-lists
+GET /api/v1/me/packing-lists/:id
+PATCH /api/v1/me/packing-lists/:id
+DELETE /api/v1/me/packing-lists/:id
+POST /api/v1/me/packing-lists/:id/items
+PATCH /api/v1/me/packing-lists/:id/items/:item_id
+DELETE /api/v1/me/packing-lists/:id/items/:item_id
+```
+
+创建/更新清单：
+
+```json
+{
+  "name": "一日武功山",
+  "route_name": "武功山",
+  "duration_label": "一日"
+}
+```
+
+清单列表返回每份清单的件数、已打包数和总重量：
+
+```json
+{
+  "items": [
+    {
+      "id": "packing-list-id",
+      "name": "一日武功山",
+      "route_name": "武功山",
+      "duration_label": "一日",
+      "item_count": 2,
+      "packed_count": 1,
+      "total_weight_g": 890,
+      "created_at": "2026-05-24T00:00:00Z",
+      "updated_at": "2026-05-24T00:00:00Z"
+    }
+  ],
+  "next_cursor": null
+}
+```
+
+批量加入装备：
+
+```json
+{
+  "gear_ids": ["gear-id-1", "gear-id-2"]
+}
+```
+
+同一装备重复加入同一清单保持幂等。只能加入当前用户自己的、未归档、未软删除装备；若提交其它用户、已归档、已软删除或不存在的装备 ID，返回 `422 validation_failed`。已加入清单的装备之后若被归档或软删除，清单详情仍保留该条目，并在条目上返回 `unavailable=true` 与 `unavailable_reason=archived|deleted`。
+
+清单详情：
+
+```json
+{
+  "id": "packing-list-id",
+  "name": "一日武功山",
+  "route_name": "武功山",
+  "duration_label": "一日",
+  "stats": {
+    "item_count": 2,
+    "packed_count": 1,
+    "total_weight_g": 890
+  },
+  "items": [
+    {
+      "id": "packing-item-id",
+      "gear_id": "gear-id-1",
+      "packed": true,
+      "unavailable": false,
+      "unavailable_reason": null,
+      "gear": {
+        "id": "gear-id-1",
+        "category": "backpack_system",
+        "category_label": "背负系统",
+        "name": "轻量小包",
+        "brand": null,
+        "model": null,
+        "status": "available",
+        "status_label": "可用",
+        "weight_g": 800,
+        "tags": [],
+        "tag_colors": {},
+        "is_deleted": false,
+        "created_at": "2026-05-24T00:00:00Z",
+        "updated_at": "2026-05-24T00:00:00Z"
+      },
+      "created_at": "2026-05-24T00:00:00Z",
+      "updated_at": "2026-05-24T00:00:00Z"
+    }
+  ],
+  "created_at": "2026-05-24T00:00:00Z",
+  "updated_at": "2026-05-24T00:00:00Z"
+}
+```
+
+勾选/取消勾选：
+
+```json
+{
+  "packed": true
+}
+```
+
 ### Create gear
 
 最低必填字段：

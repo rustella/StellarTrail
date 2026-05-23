@@ -284,6 +284,56 @@ export interface GearOverviewResponse {
   list: ListGearsResponse;
 }
 
+export interface GearPackingListStats {
+  item_count: number;
+  packed_count: number;
+  total_weight_g: number;
+}
+
+export interface GearPackingListSummary extends GearPackingListStats {
+  id: string;
+  name: string;
+  route_name?: string | null;
+  duration_label?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListGearPackingListsResponse {
+  items: GearPackingListSummary[];
+  next_cursor?: string | null;
+}
+
+export interface CreateGearPackingListRequest {
+  name: string;
+  route_name?: string | null;
+  duration_label?: string | null;
+}
+
+export type UpdateGearPackingListRequest = CreateGearPackingListRequest;
+
+export interface GearPackingListItem {
+  id: string;
+  gear_id: string;
+  packed: boolean;
+  unavailable: boolean;
+  unavailable_reason?: "archived" | "deleted" | string | null;
+  gear: GearSummary;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GearPackingListDetail {
+  id: string;
+  name: string;
+  route_name?: string | null;
+  duration_label?: string | null;
+  stats: GearPackingListStats;
+  items: GearPackingListItem[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface GearTemplateCategory {
   id: string;
   name: string;
@@ -919,6 +969,20 @@ export function formatDateText(value?: string | null): string {
     return "未记录";
   }
   return value.slice(0, 10);
+}
+
+export function formatPackingProgress(stats: GearPackingListStats): string {
+  return `${stats.packed_count}/${stats.item_count}`;
+}
+
+export function formatPackingMeta(
+  routeName?: string | null,
+  durationLabel?: string | null,
+): string {
+  const parts = [routeName, durationLabel]
+    .map((item) => item?.trim())
+    .filter(Boolean);
+  return parts.length ? parts.join(" · ") : "未填写路线和时长";
 }
 
 export function getGearCategoryLabel(value: GearCategory): string {
