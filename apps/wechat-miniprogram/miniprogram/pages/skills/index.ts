@@ -94,9 +94,34 @@ Page({
 
   onShow() {
     syncPageTheme(this);
+    this.ensureSkillsPageReady();
+  },
+
+  onTabItemTap() {
+    this.showSkillCatalog();
+    wx.pageScrollTo({ scrollTop: 0, duration: 0 });
+  },
+
+  ensureSkillsPageReady() {
     if (wx.getStorageSync(KNOT_CACHE_ENTRY_KEY) === true) {
       wx.removeStorageSync(KNOT_CACHE_ENTRY_KEY);
       this.openKnotsFromEntry();
+      return;
+    }
+    if (this.data.mode === "catalog") {
+      if (!this.data.skillCategories.length) {
+        this.setData({ skillCategories: SKILL_CATEGORIES });
+      }
+      return;
+    }
+    if (
+      this.data.mode === "knots" &&
+      !this.data.allKnots.length &&
+      !this.data.knots.length &&
+      !this.data.loading &&
+      !this.data.error
+    ) {
+      this.loadKnots();
     }
   },
 
@@ -132,7 +157,13 @@ Page({
 
   showSkillCatalog() {
     wx.setNavigationBarTitle({ title: "户外技能" });
-    this.setData({ mode: "catalog", error: "", loading: false });
+    this.setData({
+      mode: "catalog",
+      error: "",
+      offlineNotice: "",
+      loading: false,
+      loadingMore: false,
+    });
   },
 
   async loadKnots(

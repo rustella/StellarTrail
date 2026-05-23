@@ -393,6 +393,17 @@ test("skills knot list offers search and category-only filtering", () => {
     /const allKnots = await Promise\.all\(response\.items\.map\(mapKnotListCard\)\);[\s\S]*requestSeq !== knotListRequestSeq/,
   );
   assert.match(ts, /onReachBottom\(\)/);
+  assert.match(ts, /onTabItemTap\(\)/);
+  assert.match(ts, /ensureSkillsPageReady\(\)/);
+  assert.match(ts, /wx\.pageScrollTo\(\{ scrollTop: 0, duration: 0 \}\)/);
+  assert.match(
+    ts,
+    /wx\.getStorageSync\(KNOT_CACHE_ENTRY_KEY\) === true[\s\S]*this\.openKnotsFromEntry\(\);[\s\S]*return;/,
+  );
+  assert.match(
+    ts,
+    /mode: "catalog"[\s\S]*offlineNotice: ""[\s\S]*loadingMore: false/,
+  );
   assert.match(ts, /loadMoreKnots/);
   assert.match(ts, /preparingKnotCache/);
   assert.match(ts, /prepareAllKnotsOfflineCache/);
