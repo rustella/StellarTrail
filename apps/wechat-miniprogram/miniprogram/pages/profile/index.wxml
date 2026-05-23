@@ -1,4 +1,4 @@
-<view class="container {{themeClass}}">
+<view class="profile-page container {{themeClass}}">
   <view class="card account-card">
     <view class="account-main">
       <button
@@ -44,21 +44,17 @@
   </view>
 
   <view class="card settings-card">
-    <view class="settings-card-title">设置与帮助</view>
-    <view class="settings-row">
-      <view class="settings-icon">月</view>
-      <view class="settings-copy">
-        <view class="settings-title">黑夜模式</view>
-        <view class="settings-desc">夜间浏览切换为暗色界面。</view>
-      </view>
+    <view class="settings-card-header">
+      <view class="settings-card-title">设置与帮助</view>
       <button
-        class="theme-toggle"
+        class="theme-toggle {{isDarkTheme ? 'is-dark' : 'is-light'}}"
         aria-pressed="{{isDarkTheme}}"
         aria-label="{{themeToggleAriaLabel}}"
         bindtap="toggleTheme"
       >
-        <text class="theme-toggle-icon">{{themeToggleIcon}}</text
-        >{{themeToggleText}}
+        <text class="theme-toggle-option theme-toggle-sun">☀</text>
+        <text class="theme-toggle-option theme-toggle-moon">☾</text>
+        <view class="theme-toggle-thumb"></view>
       </button>
     </view>
     <view class="settings-row" bindtap="openCachedKnotsModal">
@@ -199,6 +195,50 @@
           disabled="{{feedbackLoading}}"
           bindinput="onFeedbackInput"
         />
+        <view class="profile-feedback-images">
+          <view class="profile-feedback-images-head">
+            <text>图片附件</text>
+            <text>{{feedbackImageLimitText}}</text>
+          </view>
+          <view class="profile-feedback-image-grid">
+            <view
+              wx:for="{{feedbackImages}}"
+              wx:key="id"
+              class="profile-feedback-image-card"
+              data-index="{{index}}"
+              bindtap="previewFeedbackImage"
+            >
+              <image
+                class="profile-feedback-image"
+                src="{{item.path}}"
+                mode="aspectFill"
+                lazy-load="{{true}}"
+              />
+              <view
+                wx:if="{{item.sizeText}}"
+                class="profile-feedback-image-size"
+                >{{item.sizeText}}</view
+              >
+              <button
+                class="profile-feedback-image-remove"
+                data-index="{{index}}"
+                disabled="{{feedbackLoading}}"
+                catchtap="removeFeedbackImage"
+              >
+                ×
+              </button>
+            </view>
+            <button
+              wx:if="{{feedbackCanAddImage}}"
+              class="profile-feedback-image-add"
+              disabled="{{feedbackLoading}}"
+              bindtap="chooseFeedbackImages"
+            >
+              <text class="profile-feedback-image-add-icon">+</text>
+              <text>添加图片</text>
+            </button>
+          </view>
+        </view>
         <input
           class="profile-name-input"
           type="text"

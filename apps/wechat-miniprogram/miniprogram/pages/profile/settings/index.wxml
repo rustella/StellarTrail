@@ -1,4 +1,4 @@
-<view class="container {{themeClass}}">
+<view class="profile-settings-page container {{themeClass}}">
   <view class="card settings-hero">
     <view class="settings-avatar">
       <image

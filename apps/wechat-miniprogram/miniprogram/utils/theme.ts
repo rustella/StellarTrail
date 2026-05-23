@@ -4,8 +4,6 @@ export interface ThemeViewData {
   theme: ThemeMode;
   themeClass: string;
   isDarkTheme: boolean;
-  themeToggleIcon: string;
-  themeToggleText: string;
   themeToggleAriaLabel: string;
 }
 
@@ -31,8 +29,6 @@ export function getThemeViewData(theme = loadThemePreference()): ThemeViewData {
     theme,
     themeClass: isDarkTheme ? "theme-dark" : "theme-light",
     isDarkTheme,
-    themeToggleIcon: isDarkTheme ? "☀️" : "🌙",
-    themeToggleText: isDarkTheme ? "白天模式" : "黑夜模式",
     themeToggleAriaLabel: isDarkTheme ? "切换到白天模式" : "切换到黑夜模式",
   };
 }
@@ -105,8 +101,6 @@ function hasSameThemeViewData(
     current?.theme === next.theme &&
     current.themeClass === next.themeClass &&
     current.isDarkTheme === next.isDarkTheme &&
-    current.themeToggleIcon === next.themeToggleIcon &&
-    current.themeToggleText === next.themeToggleText &&
     current.themeToggleAriaLabel === next.themeToggleAriaLabel
   );
 }

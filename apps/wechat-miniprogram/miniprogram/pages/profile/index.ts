@@ -8,6 +8,7 @@ import {
   hasAccessToken,
   isLoginRequiredError,
   isNotFoundApiError,
+  uploadFeedbackImage,
   uploadWechatAvatar,
 } from "../../utils/api-profile";
 import { buildAccountProfile } from "../../utils/account-profile";
@@ -35,6 +36,7 @@ const KNOT_CACHE_ENTRY_KEY = "stellartrail_open_knots_cache";
 const PROFILE_SOFT_REFRESH_MS = 60_000;
 let lastProfileRefreshAt = 0;
 let lastProfileRefreshUserId = "";
+const MAX_FEEDBACK_IMAGE_COUNT = 6;
 
 const FEEDBACK_CATEGORY_OPTIONS: Array<{
   value: FeedbackCategory;
@@ -46,6 +48,12 @@ const FEEDBACK_CATEGORY_OPTIONS: Array<{
   { value: "other", label: "其他" },
 ];
 
+interface FeedbackImageItem {
+  id: string;
+  path: string;
+  sizeText: string;
+}
+
 Page({
   data: {
     title: "我的寻径星野",
@@ -55,6 +63,9 @@ Page({
     feedbackCategoryIndex: 0,
     feedbackContent: "",
     feedbackContact: "",
+    feedbackImages: [] as FeedbackImageItem[],
+    feedbackImageLimitText: `最多 ${MAX_FEEDBACK_IMAGE_COUNT} 张`,
+    feedbackCanAddImage: true,
     feedbackModalVisible: false,
     feedbackLoading: false,
     feedbackError: "",
@@ -310,6 +321,8 @@ Page({
       feedbackCategoryIndex: 0,
       feedbackContent: "",
       feedbackContact: email,
+      feedbackImages: [],
+      feedbackCanAddImage: true,
       feedbackError: "",
     });
   },
@@ -322,6 +335,8 @@ Page({
       feedbackModalVisible: false,
       feedbackContent: "",
       feedbackContact: "",
+      feedbackImages: [],
+      feedbackCanAddImage: true,
       feedbackError: "",
     });
   },
@@ -342,6 +357,123 @@ Page({
     this.setData({ [field]: (event as any).detail.value, feedbackError: "" });
   },
 
+  chooseFeedbackImages() {
+    if (this.data.feedbackLoading) {
+      return;
+    }
+    const remaining =
+      MAX_FEEDBACK_IMAGE_COUNT - this.data.feedbackImages.length;
+    if (remaining <= 0) {
+      wx.showToast({
+        title: `最多添加 ${MAX_FEEDBACK_IMAGE_COUNT} 张`,
+        icon: "none",
+      });
+      return;
+    }
+    const chooseMedia = (wx as any).chooseMedia as
+      | ((options: {
+          count: number;
+          mediaType: string[];
+          sourceType: string[];
+          success(result: {
+            tempFiles?: Array<{ tempFilePath?: string; size?: number }>;
+          }): void;
+          fail(error: { errMsg?: string }): void;
+        }) => void)
+      | undefined;
+    if (chooseMedia) {
+      chooseMedia({
+        count: remaining,
+        mediaType: ["image"],
+        sourceType: ["album", "camera"],
+        success: (result) => {
+          this.appendFeedbackImages(
+            (result.tempFiles || [])
+              .map((file) => ({
+                path: file.tempFilePath || "",
+                size: file.size,
+              }))
+              .filter((file) => Boolean(file.path)),
+          );
+        },
+        fail: (error) => this.handleFeedbackImageChooseFail(error),
+      });
+      return;
+    }
+
+    wx.chooseImage({
+      count: remaining,
+      sizeType: ["compressed"],
+      sourceType: ["album", "camera"],
+      success: (result) => {
+        this.appendFeedbackImages(
+          result.tempFilePaths.map((path, index) => ({
+            path,
+            size: result.tempFiles?.[index]?.size,
+          })),
+        );
+      },
+      fail: (error) => this.handleFeedbackImageChooseFail(error),
+    });
+  },
+
+  appendFeedbackImages(files: Array<{ path: string; size?: number }>) {
+    if (!files.length) {
+      return;
+    }
+    const remaining =
+      MAX_FEEDBACK_IMAGE_COUNT - this.data.feedbackImages.length;
+    const appended = files.slice(0, remaining).map((file) => ({
+      id: `feedback-image-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      path: file.path,
+      sizeText: formatFileSize(file.size),
+    }));
+    const nextImages = [...this.data.feedbackImages, ...appended];
+    this.setData({
+      feedbackImages: nextImages,
+      feedbackCanAddImage: nextImages.length < MAX_FEEDBACK_IMAGE_COUNT,
+      feedbackError: "",
+    });
+  },
+
+  handleFeedbackImageChooseFail(error: { errMsg?: string }) {
+    const message = error.errMsg || "";
+    if (message.includes("cancel")) {
+      return;
+    }
+    this.setData({ feedbackError: "图片选择失败，请稍后再试" });
+  },
+
+  previewFeedbackImage(event: WechatMiniprogram.BaseEvent) {
+    const index = Number(event.currentTarget.dataset.index || 0);
+    const urls = this.data.feedbackImages.map((image) => image.path);
+    if (!urls.length) {
+      return;
+    }
+    wx.previewImage({
+      current: urls[index] || urls[0],
+      urls,
+    });
+  },
+
+  removeFeedbackImage(event: WechatMiniprogram.BaseEvent) {
+    if (this.data.feedbackLoading) {
+      return;
+    }
+    const index = Number(event.currentTarget.dataset.index);
+    if (!Number.isFinite(index) || index < 0) {
+      return;
+    }
+    const nextImages = this.data.feedbackImages.filter(
+      (_image, currentIndex) => currentIndex !== index,
+    );
+    this.setData({
+      feedbackImages: nextImages,
+      feedbackCanAddImage: nextImages.length < MAX_FEEDBACK_IMAGE_COUNT,
+      feedbackError: "",
+    });
+  },
+
   async submitFeedback() {
     if (this.data.feedbackLoading) {
       return;
@@ -360,6 +492,7 @@ Page({
       "suggestion";
     this.setData({ feedbackLoading: true, feedbackError: "" });
     try {
+      const imageIds = await this.uploadFeedbackImages();
       await createFeedback({
         category,
         content,
@@ -368,12 +501,14 @@ Page({
         client_platform: "wechat_miniprogram",
         client_version: miniProgramVersion(),
         device_model: deviceModel(),
-        image_ids: [],
+        image_ids: imageIds,
       });
       this.setData({
         feedbackModalVisible: false,
         feedbackContent: "",
         feedbackContact: "",
+        feedbackImages: [],
+        feedbackCanAddImage: true,
         feedbackError: "",
       });
       wx.showToast({ title: "反馈已提交", icon: "success" });
@@ -386,6 +521,21 @@ Page({
     } finally {
       this.setData({ feedbackLoading: false });
     }
+  },
+
+  async uploadFeedbackImages(): Promise<string[]> {
+    const images = this.data.feedbackImages;
+    if (!images.length) {
+      return [];
+    }
+    this.setData({ feedbackError: "正在上传图片..." });
+    const imageIds: string[] = [];
+    for (const image of images) {
+      const uploaded = await uploadFeedbackImage(image.path);
+      imageIds.push(uploaded.id);
+    }
+    this.setData({ feedbackError: "" });
+    return imageIds;
   },
 
   openAboutModal() {
@@ -407,6 +557,8 @@ Page({
       feedbackModalVisible: false,
       feedbackContent: "",
       feedbackContact: "",
+      feedbackImages: [],
+      feedbackCanAddImage: true,
       feedbackError: "",
       accountError: "",
     });
@@ -437,6 +589,16 @@ function currentPagePath(): string {
   const pages = getCurrentPages();
   const current = pages[pages.length - 1];
   return current?.route ? `/${current.route}` : "/pages/profile/index";
+}
+
+function formatFileSize(size?: number): string {
+  if (!Number.isFinite(size) || !size || size <= 0) {
+    return "";
+  }
+  if (size >= 1024 * 1024) {
+    return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  }
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
 }
 
 function miniProgramVersion(): string {
