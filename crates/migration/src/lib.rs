@@ -7,6 +7,7 @@
 
 use sea_orm_migration::prelude::*;
 
+mod create_client_versions;
 mod m20260516_000001_create_users_sessions;
 mod m20260516_000002_create_user_gear_items;
 mod m20260516_000003_add_password_auth;
@@ -68,6 +69,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260523_000001_add_gear_atlas_review_snapshots::Migration),
             Box::new(m20260523_000002_remove_knot_difficulty::Migration),
             Box::new(m20260523_000003_add_upload_images_user_purpose_index::Migration),
+            Box::new(create_client_versions::Migration),
         ]
     }
 }

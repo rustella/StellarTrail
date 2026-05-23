@@ -3,6 +3,7 @@
 pub mod admin;
 pub mod api_usage;
 pub mod auth;
+pub mod client_version;
 pub mod feedback;
 pub mod gear;
 pub mod gear_atlas;

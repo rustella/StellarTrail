@@ -4,6 +4,7 @@ mod admin_api_usage;
 mod admin_knots;
 mod admin_roles;
 mod auth;
+mod client_versions;
 mod content;
 mod feedback;
 mod gear_atlas;
@@ -71,6 +72,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(admin_api_usage::routes())
         .merge(admin_knots::routes())
         .merge(admin_roles::routes())
+        .merge(client_versions::routes())
         .merge(content::routes())
         .merge(skills::routes())
         .merge(gear_atlas::routes())

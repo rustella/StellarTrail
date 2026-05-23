@@ -8,6 +8,47 @@ export interface MetaResponse {
   database_kind: "sqlite" | "postgres" | "mysql";
 }
 
+export type ClientKey =
+  | "wechat_miniprogram"
+  | "web"
+  | "android"
+  | "ios"
+  | "macos";
+
+export type ClientVersionStatus = "draft" | "published";
+
+export interface ClientVersion {
+  id: string;
+  client_key: ClientKey;
+  version: string;
+  title: string;
+  release_notes: string[];
+  status: ClientVersionStatus;
+  published_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListClientVersionsRequest {
+  client_key?: ClientKey;
+  status?: ClientVersionStatus;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListClientVersionsResponse {
+  items: ClientVersion[];
+  next_cursor?: string | null;
+}
+
+export interface ClientVersionRequest {
+  client_key: ClientKey;
+  version: string;
+  title: string;
+  release_notes: string[];
+  status: ClientVersionStatus;
+}
+
 export interface ContentListResponse<T> {
   items: T[];
 }
