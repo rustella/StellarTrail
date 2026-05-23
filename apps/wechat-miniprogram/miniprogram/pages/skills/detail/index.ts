@@ -4,7 +4,7 @@ import {
   getKnotDetail,
   isOfflineCacheMissError,
   resolveAssetUrl,
-} from "../../../utils/api";
+} from "../../../utils/api-skills";
 import {
   type KnotDetail,
   type KnotMediaAsset,

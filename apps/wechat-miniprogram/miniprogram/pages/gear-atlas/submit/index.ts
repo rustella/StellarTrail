@@ -4,7 +4,7 @@ import {
   getErrorMessage,
   hasAccessToken,
   isLoginRequiredError,
-} from "../../../utils/api";
+} from "../../../utils/api-atlas";
 import {
   buildGearAtlasPayload,
   combineSpecValue,
@@ -18,7 +18,7 @@ import {
   type GearCurrency,
   type GearFormData,
   type GearWeightUnit,
-} from "../../../utils/gear-utils";
+} from "../../../utils/gear-form";
 import {
   getDefaultLoginPrompt,
   hideLoginPrompt,

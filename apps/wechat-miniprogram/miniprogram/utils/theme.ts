@@ -12,9 +12,7 @@ export interface ThemeViewData {
 const THEME_STORAGE_KEY = "stellartrail.wechat.theme";
 
 interface ThemePage {
-  data?: {
-    theme?: ThemeMode;
-  };
+  data?: Partial<ThemeViewData>;
   setData(data: Partial<ThemeViewData>): void;
 }
 
@@ -45,7 +43,10 @@ export function syncPageTheme(
 ): ThemeMode {
   syncGlobalTheme(theme);
   applyThemeToSystem(theme);
-  page.setData(getThemeViewData(theme));
+  const viewData = getThemeViewData(theme);
+  if (!hasSameThemeViewData(page.data, viewData)) {
+    page.setData(viewData);
+  }
   return theme;
 }
 
@@ -94,6 +95,20 @@ export function applyThemeToSystem(theme: ThemeMode): void {
 
 function normalizeTheme(value: unknown): ThemeMode {
   return value === "dark" ? "dark" : "light";
+}
+
+function hasSameThemeViewData(
+  current: ThemePage["data"],
+  next: ThemeViewData,
+): boolean {
+  return (
+    current?.theme === next.theme &&
+    current.themeClass === next.themeClass &&
+    current.isDarkTheme === next.isDarkTheme &&
+    current.themeToggleIcon === next.themeToggleIcon &&
+    current.themeToggleText === next.themeToggleText &&
+    current.themeToggleAriaLabel === next.themeToggleAriaLabel
+  );
 }
 
 function syncGlobalTheme(theme: ThemeMode): void {

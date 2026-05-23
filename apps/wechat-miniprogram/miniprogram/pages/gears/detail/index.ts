@@ -10,7 +10,7 @@ import {
   listMyGearAtlasSubmissions,
   restoreGear,
   submitGearToAtlas,
-} from "../../../utils/api";
+} from "../../../utils/api-gears";
 import {
   createGearTagViews,
   formatDateText,

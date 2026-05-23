@@ -4,11 +4,12 @@ import {
   type FeedbackCategory,
   getCurrentUser,
   getErrorMessage,
+  getStoredUser,
   hasAccessToken,
   isLoginRequiredError,
   isNotFoundApiError,
   uploadWechatAvatar,
-} from "../../utils/api";
+} from "../../utils/api-profile";
 import { buildAccountProfile } from "../../utils/account-profile";
 import { loginPageUrl } from "../../utils/auth-prompt";
 import {
@@ -28,8 +29,12 @@ import {
   type CachedKnotPreview,
   type KnotOfflineCacheInventory,
 } from "../../utils/knot-offline-cache";
+import { consumeProfileShouldRefresh } from "../../utils/profile-refresh";
 
 const KNOT_CACHE_ENTRY_KEY = "stellartrail_open_knots_cache";
+const PROFILE_SOFT_REFRESH_MS = 60_000;
+let lastProfileRefreshAt = 0;
+let lastProfileRefreshUserId = "";
 
 const FEEDBACK_CATEGORY_OPTIONS: Array<{
   value: FeedbackCategory;
@@ -68,21 +73,35 @@ Page({
 
   onShow() {
     syncPageTheme(this);
-    void this.refreshAccountState();
+    void this.refreshAccountState({
+      force: consumeProfileShouldRefresh(),
+    });
   },
 
-  async refreshAccountState() {
+  async refreshAccountState(options: { force?: boolean } = {}) {
     const loggedIn = hasAccessToken();
+    const userId = getStoredUser()?.id ?? "";
     this.setData({
       loggedIn,
       accountProfile: buildAccountProfile(loggedIn),
       accountError: "",
     });
     if (!loggedIn) {
+      lastProfileRefreshAt = 0;
+      lastProfileRefreshUserId = "";
+      return;
+    }
+    if (
+      !options.force &&
+      lastProfileRefreshUserId === userId &&
+      Date.now() - lastProfileRefreshAt < PROFILE_SOFT_REFRESH_MS
+    ) {
       return;
     }
     try {
       await getCurrentUser();
+      lastProfileRefreshAt = Date.now();
+      lastProfileRefreshUserId = getStoredUser()?.id ?? userId;
       this.setData({
         loggedIn: hasAccessToken(),
         accountProfile: buildAccountProfile(true),
@@ -127,11 +146,7 @@ Page({
     this.setData({ avatarLoading: true, accountError: "" });
     try {
       await uploadWechatAvatar(filePath);
-      this.setData({
-        loggedIn: hasAccessToken(),
-        accountProfile: buildAccountProfile(true),
-        accountError: "",
-      });
+      await this.refreshAccountState({ force: true });
       wx.showToast({ title: "头像已更新", icon: "success" });
     } catch (error) {
       if (isLoginRequiredError(error)) {
@@ -395,6 +410,8 @@ Page({
       feedbackError: "",
       accountError: "",
     });
+    lastProfileRefreshAt = 0;
+    lastProfileRefreshUserId = "";
     wx.showToast({ title: "请重新登录", icon: "none" });
   },
 });

@@ -6,7 +6,7 @@ import {
 } from "./api";
 import {
   cacheMediaUrlForOffline,
-  isMediaUrlCached,
+  filterUncachedMediaUrls,
   removeCachedMediaUrls,
 } from "./media-cache";
 import {
@@ -106,7 +106,7 @@ export async function cacheAllKnotsForOffline(
   options: CacheAllKnotsForOfflineOptions = {},
 ): Promise<KnotOfflineCacheResult> {
   const plan = options.plan ?? (await prepareAllKnotsOfflineCache(options));
-  const urls = plan.mediaUrls.filter((url) => !isMediaUrlCached(url));
+  const urls = filterUncachedMediaUrls(plan.mediaUrls);
   writeKnotOfflineApiCaches(
     plan.items,
     plan.locale,

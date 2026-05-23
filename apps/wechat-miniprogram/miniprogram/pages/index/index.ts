@@ -1,15 +1,17 @@
+import { getGearOverview } from "../../utils/api-gears";
 import {
   consumeOfflineCacheNotice,
-  getErrorMessage,
-  getGearOverview,
-  hasAccessToken,
   isOfflineCacheMissError,
-  isLoginRequiredError,
   listKnots,
-  loginWithWechat,
   resolveAssetUrl,
-  uploadWechatAvatar,
-} from "../../utils/api";
+} from "../../utils/api-skills";
+import {
+  getErrorMessage,
+  hasAccessToken,
+  isLoginRequiredError,
+  loginWithWechat,
+} from "../../utils/api-auth";
+import { uploadWechatAvatar } from "../../utils/api-profile";
 import {
   formatGearPrice,
   formatGearWeight,

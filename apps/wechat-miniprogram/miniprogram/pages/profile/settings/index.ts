@@ -4,11 +4,13 @@ import {
   getErrorMessage,
   hasAccessToken,
   isLoginRequiredError,
+  sendBindEmailCode,
+} from "../../../utils/api-profile";
+import {
   loginWithWechat,
   resetPassword,
-  sendBindEmailCode,
   sendPasswordResetCode,
-} from "../../../utils/api";
+} from "../../../utils/api-auth";
 import { buildAccountProfile } from "../../../utils/account-profile";
 import { loginPageUrl } from "../../../utils/auth-prompt";
 import { getThemeViewData, syncPageTheme } from "../../../utils/theme";
@@ -16,6 +18,7 @@ import {
   isOffline,
   showOfflineWriteBlockedToast,
 } from "../../../utils/network-state";
+import { markProfileShouldRefresh } from "../../../utils/profile-refresh";
 
 Page({
   data: {
@@ -150,6 +153,7 @@ Page({
         nicknameReviewBlocked: false,
         accountError: "",
       });
+      markProfileShouldRefresh();
       wx.showToast({ title: "名称已更新", icon: "success" });
     } catch (error) {
       this.handleAuthError(error);
@@ -264,6 +268,7 @@ Page({
         emailBindingNotice: "",
         accountError: "",
       });
+      markProfileShouldRefresh();
       wx.showToast({
         title: hadEmail ? "邮箱已更新" : "邮箱已绑定",
         icon: "success",
@@ -393,6 +398,7 @@ Page({
         passwordNotice: "",
         passwordError: "",
       });
+      markProfileShouldRefresh();
       wx.showToast({ title: "密码已更新", icon: "success" });
     } catch (error) {
       this.setData({ passwordError: getErrorMessage(error) });

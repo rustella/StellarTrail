@@ -4,7 +4,7 @@ import {
   getErrorMessage,
   getGearAtlasItem,
   isOfflineCacheMissError,
-} from "../../../utils/api";
+} from "../../../utils/api-atlas";
 import {
   formatDateText,
   formatGearPrice,

@@ -3,7 +3,10 @@ import {
   loadThemePreference,
   type ThemeMode,
 } from "./utils/theme";
-import { loadClientConfig } from "./utils/client-config";
+import {
+  loadClientConfig,
+  type ClientDomainCandidate,
+} from "./utils/client-config";
 import { initNetworkState } from "./utils/network-state";
 
 App<IAppOption>({
@@ -13,6 +16,7 @@ App<IAppOption>({
     const clientConfig = loadClientConfig();
     this.globalData.apiBaseUrl = clientConfig.apiBaseUrl;
     this.globalData.assetsBaseUrl = clientConfig.assetsBaseUrl;
+    this.globalData.domainCandidates = clientConfig.domainCandidates;
     this.globalData.theme = theme;
     applyThemeToSystem(theme);
   },
@@ -20,6 +24,7 @@ App<IAppOption>({
   globalData: {
     apiBaseUrl: "https://api.example.invalid",
     assetsBaseUrl: "https://assets.example.invalid",
+    domainCandidates: [],
     theme: "light",
   },
 });
@@ -28,6 +33,7 @@ interface IAppOption {
   globalData: {
     apiBaseUrl: string;
     assetsBaseUrl: string;
+    domainCandidates: ClientDomainCandidate[];
     theme: ThemeMode;
   };
 }

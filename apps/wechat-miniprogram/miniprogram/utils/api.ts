@@ -29,6 +29,7 @@ import type {
   ListSkillsResponse,
   SkillLocale,
 } from "./skill-utils";
+import type { ClientDomainCandidate } from "./client-config";
 import {
   clearUserOfflineCaches,
   makeOfflineCacheKey,
@@ -58,17 +59,27 @@ const REFRESH_TOKEN_EXPIRES_AT_STORAGE_KEY =
   "stellartrail_refresh_token_expires_at";
 const USER_STORAGE_KEY = "stellartrail_user";
 const API_BASE_URL_STORAGE_KEY = "stellartrail_api_base_url";
+const ASSETS_BASE_URL_STORAGE_KEY = "stellartrail_assets_base_url";
 const DEFAULT_API_BASE_URL = "https://api.example.invalid";
 const DEFAULT_ASSETS_BASE_URL = "https://assets.example.invalid";
 const API_PREFIX = "/api/v1";
 const HEALTH_PATH = "/healthz";
 const API_REQUEST_TIMEOUT_MS = 15_000;
+const API_DOMAIN_HEALTH_TIMEOUT_MS = 3_000;
 const WECHAT_LOGIN_TIMEOUT_MS = 5_000;
+const KNOWN_ASSETS_HOSTS = new Set([
+  "assets.example.invalid",
+  "assets-alt1.example.invalid",
+  "assets-alt2.example.invalid",
+]);
 
 let loginPromise: Promise<string> | null = null;
 let refreshPromise: Promise<string> | null = null;
+let domainProbePromise: Promise<void> | null = null;
+let domainProbeCompleted = false;
 let offlineCacheNoticePending = false;
 let cachedApiBaseUrl: string | null = null;
+let cachedAssetsBaseUrl: string | null = null;
 let cachedAccessToken: string | null | undefined;
 let cachedAccessTokenExpiresAt: string | null | undefined;
 let cachedRefreshToken: string | null | undefined;
@@ -314,30 +325,49 @@ export function getApiBaseUrl(): string {
 }
 
 export function getAssetsBaseUrl(): string {
+  if (cachedAssetsBaseUrl) {
+    return cachedAssetsBaseUrl;
+  }
+  const stored = wx.getStorageSync(ASSETS_BASE_URL_STORAGE_KEY) as
+    | string
+    | undefined;
+  if (stored) {
+    const normalized = normalizeStoredBaseUrl(stored);
+    if (normalized) {
+      cachedAssetsBaseUrl = normalized;
+      return normalized;
+    }
+    wx.removeStorageSync(ASSETS_BASE_URL_STORAGE_KEY);
+  }
   const app = getApp<{
     globalData?: {
       assetsBaseUrl?: string;
     };
   }>();
-  return (app.globalData?.assetsBaseUrl ?? DEFAULT_ASSETS_BASE_URL).replace(
-    /\/$/,
-    "",
-  );
+  cachedAssetsBaseUrl = (
+    app.globalData?.assetsBaseUrl ?? DEFAULT_ASSETS_BASE_URL
+  ).replace(/\/$/, "");
+  return cachedAssetsBaseUrl;
 }
 
 export function resolveAssetUrl(pathOrUrl: string): string {
   if (/^https?:\/\//i.test(pathOrUrl)) {
-    return pathOrUrl;
+    return normalizeKnownAssetUrl(pathOrUrl);
   }
   return `${getAssetsBaseUrl()}/${pathOrUrl.replace(/^\/+/, "")}`;
 }
 
 export function setApiBaseUrl(baseUrl: string): void {
   cachedApiBaseUrl = baseUrl.replace(/\/$/, "");
+  domainProbeCompleted = true;
   wx.setStorageSync(API_BASE_URL_STORAGE_KEY, cachedApiBaseUrl);
 }
 
 function normalizeStoredApiBaseUrl(baseUrl: string): string | null {
+  return normalizeStoredBaseUrl(baseUrl);
+}
+
+function normalizeStoredBaseUrl(baseUrl: string): string | null {
   const normalized = baseUrl.trim().replace(/\/$/, "");
   const match = normalized.match(/^https?:\/\/([^/:?#]+)(?::\d+)?(?:[/?#]|$)/i);
   if (!match) {
@@ -350,18 +380,48 @@ function normalizeStoredApiBaseUrl(baseUrl: string): string | null {
   return normalized;
 }
 
+function normalizeKnownAssetUrl(url: string): string {
+  const parsed = parseUrlParts(url);
+  if (!parsed || !isKnownAssetsHost(parsed.hostname)) {
+    return url;
+  }
+  return `${getAssetsBaseUrl()}${parsed.path}`;
+}
+
+function isKnownAssetsHost(hostname: string): boolean {
+  if (KNOWN_ASSETS_HOSTS.has(hostname)) {
+    return true;
+  }
+  return getDomainCandidates().some((candidate) => {
+    const parsed = parseUrlParts(candidate.assetsBaseUrl);
+    return parsed?.hostname === hostname;
+  });
+}
+
+function parseUrlParts(url: string): { hostname: string; path: string } | null {
+  const match = url.match(/^https?:\/\/([^/:?#]+)(?::\d+)?([/?#].*)?$/i);
+  if (!match) {
+    return null;
+  }
+  return {
+    hostname: match[1].toLowerCase(),
+    path: match[2] || "",
+  };
+}
+
 export function hasAccessToken(): boolean {
   return Boolean(readAccessToken());
 }
 
 export function getStoredUser(): WechatLoginResponse["user"] | null {
   if (cachedUser !== undefined) {
-    return cachedUser;
+    return cachedUser ? normalizeUserAssets(cachedUser) : cachedUser;
   }
-  cachedUser =
+  const stored =
     (wx.getStorageSync(USER_STORAGE_KEY) as
       | WechatLoginResponse["user"]
       | undefined) ?? null;
+  cachedUser = stored ? normalizeUserAssets(stored) : null;
   return cachedUser;
 }
 
@@ -849,10 +909,11 @@ async function requestJsonOnce<T>(
   if (token) {
     header.authorization = `Bearer ${token}`;
   }
+  const apiBaseUrl = await getApiBaseUrlForRequest(requestPath);
 
   return new Promise<T>((resolve, reject) => {
     wx.request({
-      url: `${getApiBaseUrl()}${requestPath}`,
+      url: `${apiBaseUrl}${requestPath}`,
       method: method as any,
       data: options.data as any,
       header,
@@ -919,6 +980,103 @@ function inFlightGetKey(path: string, options: ApiRequestOptions): string {
   return ["GET", path, options.locale ?? "", authScope].join("|");
 }
 
+async function getApiBaseUrlForRequest(path: string): Promise<string> {
+  if (path !== HEALTH_PATH) {
+    await ensureProductionDomainSelected();
+  }
+  return getApiBaseUrl();
+}
+
+async function ensureProductionDomainSelected(): Promise<void> {
+  if (domainProbeCompleted || isOffline()) {
+    return;
+  }
+  const candidates = getDomainCandidates();
+  if (candidates.length === 0) {
+    domainProbeCompleted = true;
+    return;
+  }
+  if (!domainProbePromise) {
+    domainProbePromise = probeProductionDomains(candidates).finally(() => {
+      domainProbePromise = null;
+    });
+  }
+  await domainProbePromise;
+}
+
+async function probeProductionDomains(
+  candidates: ClientDomainCandidate[],
+): Promise<void> {
+  for (const candidate of candidates) {
+    const apiBaseUrl = normalizeStoredBaseUrl(candidate.apiBaseUrl);
+    const assetsBaseUrl = normalizeStoredBaseUrl(candidate.assetsBaseUrl);
+    if (!apiBaseUrl || !assetsBaseUrl) {
+      continue;
+    }
+    const healthy = await probeHealthz(apiBaseUrl);
+    if (healthy) {
+      setSelectedClientBaseUrls(apiBaseUrl, assetsBaseUrl);
+      domainProbeCompleted = true;
+      return;
+    }
+  }
+  const fallback = candidates[0];
+  setSelectedClientBaseUrls(
+    normalizeStoredBaseUrl(fallback.apiBaseUrl) ?? DEFAULT_API_BASE_URL,
+    normalizeStoredBaseUrl(fallback.assetsBaseUrl) ?? DEFAULT_ASSETS_BASE_URL,
+  );
+  domainProbeCompleted = true;
+}
+
+function probeHealthz(apiBaseUrl: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    wx.request({
+      url: `${apiBaseUrl}${HEALTH_PATH}`,
+      method: "GET" as any,
+      timeout: API_DOMAIN_HEALTH_TIMEOUT_MS,
+      success: (response) => {
+        resolve(response.statusCode >= 200 && response.statusCode < 300);
+      },
+      fail: () => {
+        resolve(false);
+      },
+    });
+  });
+}
+
+function getDomainCandidates(): ClientDomainCandidate[] {
+  const app = getApp<{
+    globalData?: {
+      domainCandidates?: ClientDomainCandidate[];
+    };
+  }>();
+  const candidates = app.globalData?.domainCandidates;
+  if (!Array.isArray(candidates)) {
+    return [];
+  }
+  return candidates;
+}
+
+function setSelectedClientBaseUrls(
+  apiBaseUrl: string,
+  assetsBaseUrl: string,
+): void {
+  cachedApiBaseUrl = apiBaseUrl.replace(/\/$/, "");
+  cachedAssetsBaseUrl = assetsBaseUrl.replace(/\/$/, "");
+  const app = getApp<{
+    globalData?: {
+      apiBaseUrl?: string;
+      assetsBaseUrl?: string;
+    };
+  }>();
+  if (app.globalData) {
+    app.globalData.apiBaseUrl = cachedApiBaseUrl;
+    app.globalData.assetsBaseUrl = cachedAssetsBaseUrl;
+  }
+  wx.setStorageSync(API_BASE_URL_STORAGE_KEY, cachedApiBaseUrl);
+  wx.setStorageSync(ASSETS_BASE_URL_STORAGE_KEY, cachedAssetsBaseUrl);
+}
+
 function versionedApiPath(path: string): string {
   if (path === HEALTH_PATH || path.startsWith(`${API_PREFIX}/`)) {
     return path;
@@ -983,10 +1141,11 @@ function isUserCacheablePath(path: string): boolean {
 }
 
 function saveLoginResponse(response: WechatLoginResponse): void {
+  const user = normalizeUserAssets(response.user);
   cachedAccessToken = response.access_token;
   cachedAccessTokenExpiresAt = response.expires_at;
   cachedRefreshToken = response.refresh_token;
-  cachedUser = response.user;
+  cachedUser = user;
   wx.setStorageSync(TOKEN_STORAGE_KEY, response.access_token);
   wx.setStorageSync(ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY, response.expires_at);
   wx.setStorageSync(REFRESH_TOKEN_STORAGE_KEY, response.refresh_token);
@@ -994,12 +1153,25 @@ function saveLoginResponse(response: WechatLoginResponse): void {
     REFRESH_TOKEN_EXPIRES_AT_STORAGE_KEY,
     response.refresh_expires_at,
   );
-  wx.setStorageSync(USER_STORAGE_KEY, response.user);
+  wx.setStorageSync(USER_STORAGE_KEY, user);
 }
 
 function saveUser(user: WechatLoginResponse["user"]): void {
-  cachedUser = user;
-  wx.setStorageSync(USER_STORAGE_KEY, user);
+  const normalized = normalizeUserAssets(user);
+  cachedUser = normalized;
+  wx.setStorageSync(USER_STORAGE_KEY, normalized);
+}
+
+function normalizeUserAssets(
+  user: WechatLoginResponse["user"],
+): WechatLoginResponse["user"] {
+  if (!user.avatar_url) {
+    return user;
+  }
+  return {
+    ...user,
+    avatar_url: normalizeKnownAssetUrl(user.avatar_url),
+  };
 }
 
 function readAccessToken(): string | undefined {
@@ -1057,13 +1229,15 @@ function normalizeOptionalString(value?: string | null): string | undefined {
   return trimmed || undefined;
 }
 
-function uploadWechatAvatarOnce(
+async function uploadWechatAvatarOnce(
   filePath: string,
   token: string,
 ): Promise<ProfileUserResponse> {
+  const requestPath = versionedApiPath("/me/profile/avatar");
+  const apiBaseUrl = await getApiBaseUrlForRequest(requestPath);
   return new Promise((resolve, reject) => {
     wx.uploadFile({
-      url: `${getApiBaseUrl()}${versionedApiPath("/me/profile/avatar")}`,
+      url: `${apiBaseUrl}${requestPath}`,
       filePath,
       name: "file",
       header: {
