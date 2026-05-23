@@ -3,10 +3,10 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use time::{Date, OffsetDateTime, format_description::well_known::Iso8601};
+use time::{format_description::well_known::Iso8601, Date, OffsetDateTime};
 
 use crate::validation::{
-    FieldViolation, ValidationError, normalize_optional_text, normalize_required_text,
+    normalize_optional_text, normalize_required_text, FieldViolation, ValidationError,
 };
 
 /// Stable enum boundary for `GearCategory`, exposed by or reused within this module.
@@ -311,6 +311,7 @@ pub struct GearItem {
     pub atlas_item_id: Option<String>,
     pub selected_variant_key: Option<String>,
     pub selected_variant_label: Option<String>,
+    pub quantity: i32,
     pub specs: GearSpecs,
     pub tags: Vec<String>,
     pub share_enabled: bool,
@@ -342,6 +343,7 @@ pub struct GearDraft {
     pub atlas_item_id: Option<String>,
     pub selected_variant_key: Option<String>,
     pub selected_variant_label: Option<String>,
+    pub quantity: i32,
     pub specs: GearSpecs,
     pub tags: Vec<String>,
     pub share_enabled: bool,
@@ -390,7 +392,14 @@ impl GearDraft {
                 self.selected_variant_key = Some(variant_key_from_label(label, 0));
             }
         }
-        self.notes = normalize_optional_text(self.notes.take(), 100, "notes", &mut errors);
+        self.notes = normalize_optional_text(self.notes.take(), 1000, "notes", &mut errors);
+
+        if !(1..=9_999).contains(&self.quantity) {
+            errors.push(FieldViolation::new(
+                "quantity",
+                "must be between 1 and 9999",
+            ));
+        }
 
         if let Some(weight_g) = self.weight_g {
             if !(0..=1_000_000).contains(&weight_g) {
@@ -548,7 +557,6 @@ pub fn allowed_spec_keys(category: GearCategory) -> &'static [&'static str] {
         GearCategory::Consumable => &[
             "type",
             "net_content",
-            "quantity",
             "expiry_date",
             "storage_condition",
             "restock_threshold",
@@ -821,6 +829,7 @@ mod tests {
             atlas_item_id: None,
             selected_variant_key: None,
             selected_variant_label: None,
+            quantity: 1,
             specs: GearSpecs::from([
                 ("waterproof_rating".to_owned(), " IPX4 ".to_owned()),
                 ("max_brightness".to_owned(), "450 lm".to_owned()),
@@ -876,6 +885,7 @@ mod tests {
         draft.name = "  ".to_owned();
         draft.description = Some("太".repeat(101));
         draft.weight_g = Some(-1);
+        draft.quantity = 0;
         draft.official_price_cents = Some(-1);
         draft.purchase_price_cents = Some(-1);
         draft.purchase_price_currency = Some("GBP".to_owned());
@@ -890,6 +900,7 @@ mod tests {
         assert!(fields.contains(&"name".to_owned()));
         assert!(fields.contains(&"description".to_owned()));
         assert!(fields.contains(&"weight_g".to_owned()));
+        assert!(fields.contains(&"quantity".to_owned()));
         assert!(fields.contains(&"official_price_cents".to_owned()));
         assert!(fields.contains(&"purchase_price_cents".to_owned()));
         assert!(fields.contains(&"purchase_price_currency".to_owned()));

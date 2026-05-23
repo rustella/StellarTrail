@@ -2,7 +2,7 @@
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, QueryResult};
 use stellartrail_domain::{
-    gear::{GearItem, now_rfc3339},
+    gear::{now_rfc3339, GearItem},
     gear_packing::{
         GearPackingList, GearPackingListDetail, GearPackingListDraft, GearPackingListItem,
         GearPackingListStats, GearPackingListSummary,
@@ -10,7 +10,7 @@ use stellartrail_domain::{
 };
 use uuid::Uuid;
 
-use super::{GearRepository, statement};
+use super::{statement, GearRepository};
 
 /// Pagination options for packing-list index reads.
 #[derive(Clone, Debug)]
@@ -129,7 +129,7 @@ impl GearPackingRepository {
             .db
             .query_all(statement(
                 self.db.get_database_backend(),
-                "SELECT id, packing_list_id, user_id, gear_id, packed, created_at, updated_at \
+                "SELECT id, packing_list_id, user_id, gear_id, planned_quantity, packed_quantity, packed, created_at, updated_at \
                  FROM gear_packing_list_items \
                  WHERE user_id = ? AND packing_list_id = ? \
                  ORDER BY created_at ASC, id ASC",
@@ -228,8 +228,8 @@ impl GearPackingRepository {
                 .execute(statement(
                     self.db.get_database_backend(),
                     "INSERT INTO gear_packing_list_items \
-                     (id, packing_list_id, user_id, gear_id, packed, created_at, updated_at) \
-                     VALUES (?, ?, ?, ?, FALSE, ?, ?)",
+                     (id, packing_list_id, user_id, gear_id, planned_quantity, packed_quantity, packed, created_at, updated_at) \
+                     VALUES (?, ?, ?, ?, 1, 0, FALSE, ?, ?)",
                     vec![
                         id.into(),
                         list_id.to_owned().into(),
@@ -248,26 +248,53 @@ impl GearPackingRepository {
         })
     }
 
-    /// Updates packed state for one packing-list item.
-    pub async fn update_item_packed(
+    /// Updates planned and packed quantities for one packing-list item.
+    pub async fn update_item_quantities(
         &self,
         user_id: &str,
         list_id: &str,
         item_id: &str,
-        packed: bool,
+        planned_quantity: Option<i32>,
+        packed_quantity: Option<i32>,
+        packed: Option<bool>,
     ) -> Result<Option<GearPackingListDetail>, DbErr> {
         if self.summary(user_id, list_id).await?.is_none() {
             return Ok(None);
         }
+        let Some(current) = self.item(user_id, list_id, item_id).await? else {
+            return Ok(None);
+        };
+        let stock_quantity = self
+            .gear_for_item(user_id, &current.gear_id)
+            .await?
+            .map(|gear| gear.quantity.max(1))
+            .unwrap_or(1);
+        let planned_quantity = planned_quantity
+            .unwrap_or(current.planned_quantity)
+            .clamp(1, stock_quantity);
+        let packed_quantity = if let Some(value) = packed_quantity {
+            value.clamp(0, planned_quantity)
+        } else if let Some(packed) = packed {
+            if packed {
+                planned_quantity
+            } else {
+                0
+            }
+        } else {
+            current.packed_quantity.clamp(0, planned_quantity)
+        };
+        let packed = packed_quantity >= planned_quantity;
         let now = now_rfc3339();
         let result = self
             .db
             .execute(statement(
                 self.db.get_database_backend(),
                 "UPDATE gear_packing_list_items \
-                 SET packed = ?, updated_at = ? \
+                 SET planned_quantity = ?, packed_quantity = ?, packed = ?, updated_at = ? \
                  WHERE user_id = ? AND packing_list_id = ? AND id = ?",
                 vec![
+                    planned_quantity.into(),
+                    packed_quantity.into(),
                     packed.into(),
                     now.into(),
                     user_id.to_owned().into(),
@@ -398,7 +425,7 @@ impl GearPackingRepository {
             .db
             .query_one(statement(
                 self.db.get_database_backend(),
-                "SELECT id, packing_list_id, user_id, gear_id, packed, created_at, updated_at \
+                "SELECT id, packing_list_id, user_id, gear_id, planned_quantity, packed_quantity, packed, created_at, updated_at \
                  FROM gear_packing_list_items \
                  WHERE user_id = ? AND packing_list_id = ? AND id = ? LIMIT 1",
                 vec![
@@ -432,9 +459,9 @@ impl GearPackingRepository {
 fn packing_list_summary_select_sql() -> &'static str {
     "SELECT l.id, l.user_id, l.name, l.route_name, l.duration_label, l.is_deleted, \
             l.created_at, l.updated_at, \
-            CAST(COUNT(i.id) AS BIGINT) AS item_count, \
-            CAST(COALESCE(SUM(CASE WHEN i.packed THEN 1 ELSE 0 END), 0) AS BIGINT) AS packed_count, \
-            CAST(COALESCE(SUM(COALESCE(g.weight_g, 0)), 0) AS BIGINT) AS total_weight_g \
+            CAST(COALESCE(SUM(CASE WHEN i.id IS NULL THEN 0 ELSE i.planned_quantity END), 0) AS BIGINT) AS item_count, \
+            CAST(COALESCE(SUM(COALESCE(i.packed_quantity, 0)), 0) AS BIGINT) AS packed_count, \
+            CAST(COALESCE(SUM(COALESCE(g.weight_g, 0) * COALESCE(i.planned_quantity, 0)), 0) AS BIGINT) AS total_weight_g \
      FROM gear_packing_lists l \
      LEFT JOIN gear_packing_list_items i ON i.packing_list_id = l.id AND i.user_id = l.user_id \
      LEFT JOIN user_gear_items g ON g.id = i.gear_id AND g.user_id = i.user_id"
@@ -466,6 +493,8 @@ fn map_packing_list_item(row: &QueryResult) -> Result<GearPackingListItem, DbErr
         packing_list_id: row.try_get("", "packing_list_id")?,
         user_id: row.try_get("", "user_id")?,
         gear_id: row.try_get("", "gear_id")?,
+        planned_quantity: row.try_get("", "planned_quantity")?,
+        packed_quantity: row.try_get("", "packed_quantity")?,
         packed: row.try_get("", "packed")?,
         created_at: row.try_get("", "created_at")?,
         updated_at: row.try_get("", "updated_at")?,
@@ -517,6 +546,7 @@ mod tests {
             atlas_item_id: None,
             selected_variant_key: None,
             selected_variant_label: None,
+            quantity: 1,
             specs: GearSpecs::new(),
             tags: Vec::new(),
             share_enabled: false,
@@ -539,10 +569,9 @@ mod tests {
             .await
             .unwrap();
         let gear_repo = GearRepository::new(db.clone());
-        let backpack = gear_repo
-            .create(&user.id, &gear_draft("轻量背包", 800))
-            .await
-            .unwrap();
+        let mut backpack_draft = gear_draft("轻量背包", 800);
+        backpack_draft.quantity = 2;
+        let backpack = gear_repo.create(&user.id, &backpack_draft).await.unwrap();
         let headlamp = gear_repo
             .create(&user.id, &gear_draft("头灯", 90))
             .await
@@ -589,11 +618,20 @@ mod tests {
 
         let first_item_id = detail.items[0].id.clone();
         let checked = repo
-            .update_item_packed(&user.id, &created.list.id, &first_item_id, true)
+            .update_item_quantities(
+                &user.id,
+                &created.list.id,
+                &first_item_id,
+                Some(2),
+                Some(1),
+                None,
+            )
             .await
             .unwrap()
             .unwrap();
         assert_eq!(checked.stats.packed_count, 1);
+        assert_eq!(checked.stats.item_count, 3);
+        assert_eq!(checked.stats.total_weight_g, 1690);
 
         let (lists, next_cursor) = repo
             .list(&user.id, &ListGearPackingListsOptions::default())
@@ -614,12 +652,11 @@ mod tests {
         assert_eq!(removed.stats.item_count, 1);
 
         assert!(repo.soft_delete(&user.id, &created.list.id).await.unwrap());
-        assert!(
-            repo.detail(&user.id, &created.list.id)
-                .await
-                .unwrap()
-                .is_none()
-        );
+        assert!(repo
+            .detail(&user.id, &created.list.id)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]

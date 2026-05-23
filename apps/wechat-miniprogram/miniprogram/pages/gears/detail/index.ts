@@ -15,6 +15,7 @@ import {
 import {
   createGearTagViews,
   formatDateText,
+  formatGearQuantity,
   formatGearPrice,
   formatGearWeight,
   getGearAtlasStatusLabel,
@@ -65,6 +66,7 @@ Page({
       "投稿只复制可公开信息，不包含购入价、购买渠道、存放位置和备注。",
     submittingAtlas: false,
     weightText: "未记录",
+    quantityText: "x1",
     priceText: "未记录",
     tagViews: [] as GearTagView[],
     groups: [] as DetailGroup[],
@@ -172,9 +174,9 @@ Page({
       return;
     }
     wx.showModal({
-      title: "移入历史装备？",
-      content: "移入历史后不会出现在可用装备列表，可随时恢复。",
-      confirmText: "移入历史",
+      title: "归档装备？",
+      content: "归档后不会出现在可用装备列表，可随时恢复。",
+      confirmText: "归档",
       confirmColor: "#dc2626",
       success: async (result) => {
         if (!result.confirm) {
@@ -360,6 +362,7 @@ function buildDetailData(
     statusTone: getStatusTone(item.status),
     ...buildAtlasSubmissionData(submission),
     weightText: formatGearWeight(item.weight_g),
+    quantityText: formatGearQuantity(item.quantity),
     priceText: formatGearPrice(
       item.purchase_price_cents,
       item.purchase_price_currency,
@@ -422,6 +425,7 @@ function buildGroups(item: GearItem): DetailGroup[] {
       items: [
         { label: "分类", value: getGearCategoryLabel(item.category) },
         { label: "状态", value: getGearStatusLabel(item.status) },
+        { label: "数量", value: formatGearQuantity(item.quantity) },
         { label: "品牌", value: valueOrUnset(item.brand) },
         { label: "型号", value: valueOrUnset(item.model) },
         { label: "描述", value: valueOrUnset(item.description) },

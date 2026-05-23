@@ -3,11 +3,11 @@
 use std::collections::HashMap;
 
 use axum::{
-    Json, Router,
     extract::{Path, Query, State},
-    http::{StatusCode, header},
+    http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
+    Json, Router,
 };
 use serde_json::json;
 use stellartrail_db::repositories::{GearRepository, ListGearOptions};
@@ -373,6 +373,7 @@ async fn export_csv(
             "brand",
             "model",
             "description",
+            "quantity",
             "weight_g",
             "official_price_cents",
             "official_price_currency",
@@ -397,6 +398,7 @@ async fn export_csv(
                 item.brand.unwrap_or_default(),
                 item.model.unwrap_or_default(),
                 item.description.unwrap_or_default(),
+                item.quantity.to_string(),
                 item.weight_g.map(|v| v.to_string()).unwrap_or_default(),
                 item.official_price_cents
                     .map(|v| v.to_string())

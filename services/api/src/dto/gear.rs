@@ -81,6 +81,7 @@ pub struct CreateGearRequest {
     pub atlas_item_id: Option<String>,
     pub selected_variant_key: Option<String>,
     pub selected_variant_label: Option<String>,
+    pub quantity: Option<i32>,
     #[serde(default)]
     pub specs: GearSpecs,
     #[serde(default)]
@@ -95,6 +96,7 @@ pub struct CreateGearRequest {
 impl CreateGearRequest {
     /// Runs the `into draft` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn into_draft(self) -> GearDraft {
+        let (quantity, specs) = extract_request_quantity(self.quantity, self.specs);
         GearDraft {
             category: self.category,
             name: self.name,
@@ -113,7 +115,8 @@ impl CreateGearRequest {
             atlas_item_id: self.atlas_item_id,
             selected_variant_key: self.selected_variant_key,
             selected_variant_label: self.selected_variant_label,
-            specs: self.specs,
+            quantity: quantity.unwrap_or(1),
+            specs,
             tags: self.tags,
             share_enabled: self.share_enabled,
             share_status: GearShareStatus::NotShared,
@@ -143,6 +146,7 @@ pub struct UpdateGearRequest {
     pub atlas_item_id: Option<String>,
     pub selected_variant_key: Option<String>,
     pub selected_variant_label: Option<String>,
+    pub quantity: Option<i32>,
     pub specs: Option<GearSpecs>,
     pub tags: Option<Vec<String>>,
     pub tag_colors: Option<HashMap<String, String>>,
@@ -153,45 +157,88 @@ pub struct UpdateGearRequest {
 impl UpdateGearRequest {
     /// Runs the `merge into` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn merge_into(self, existing: &GearItem) -> GearDraft {
+        let (
+            category,
+            name,
+            brand,
+            model,
+            description,
+            weight_g,
+            official_price_cents,
+            official_price_currency,
+            purchase_date,
+            purchase_price_cents,
+            purchase_price_currency,
+            purchase_location,
+            status,
+            storage_location,
+            atlas_item_id,
+            selected_variant_key,
+            selected_variant_label,
+            quantity,
+            specs,
+            tags,
+            share_enabled,
+            notes,
+        ) = (
+            self.category,
+            self.name,
+            self.brand,
+            self.model,
+            self.description,
+            self.weight_g,
+            self.official_price_cents,
+            self.official_price_currency,
+            self.purchase_date,
+            self.purchase_price_cents,
+            self.purchase_price_currency,
+            self.purchase_location,
+            self.status,
+            self.storage_location,
+            self.atlas_item_id,
+            self.selected_variant_key,
+            self.selected_variant_label,
+            self.quantity,
+            self.specs,
+            self.tags,
+            self.share_enabled,
+            self.notes,
+        );
+        let (quantity, specs) = match specs {
+            Some(specs) => {
+                let (quantity, specs) = extract_request_quantity(quantity, specs);
+                (quantity, Some(specs))
+            }
+            None => (quantity, None),
+        };
         GearDraft {
-            category: self.category.unwrap_or(existing.category),
-            name: self.name.unwrap_or_else(|| existing.name.clone()),
-            brand: self.brand.or_else(|| existing.brand.clone()),
-            model: self.model.or_else(|| existing.model.clone()),
-            description: self.description.or_else(|| existing.description.clone()),
-            weight_g: self.weight_g.or(existing.weight_g),
-            official_price_cents: self.official_price_cents.or(existing.official_price_cents),
-            official_price_currency: self
-                .official_price_currency
+            category: category.unwrap_or(existing.category),
+            name: name.unwrap_or_else(|| existing.name.clone()),
+            brand: brand.or_else(|| existing.brand.clone()),
+            model: model.or_else(|| existing.model.clone()),
+            description: description.or_else(|| existing.description.clone()),
+            weight_g: weight_g.or(existing.weight_g),
+            official_price_cents: official_price_cents.or(existing.official_price_cents),
+            official_price_currency: official_price_currency
                 .or_else(|| existing.official_price_currency.clone()),
-            purchase_date: self
-                .purchase_date
-                .or_else(|| existing.purchase_date.clone()),
-            purchase_price_cents: self.purchase_price_cents.or(existing.purchase_price_cents),
-            purchase_price_currency: self
-                .purchase_price_currency
+            purchase_date: purchase_date.or_else(|| existing.purchase_date.clone()),
+            purchase_price_cents: purchase_price_cents.or(existing.purchase_price_cents),
+            purchase_price_currency: purchase_price_currency
                 .or_else(|| existing.purchase_price_currency.clone()),
-            purchase_location: self
-                .purchase_location
-                .or_else(|| existing.purchase_location.clone()),
-            status: self.status.unwrap_or(existing.status),
-            storage_location: self
-                .storage_location
-                .or_else(|| existing.storage_location.clone()),
-            atlas_item_id: self
-                .atlas_item_id
-                .or_else(|| existing.atlas_item_id.clone()),
-            selected_variant_key: self
-                .selected_variant_key
+            purchase_location: purchase_location.or_else(|| existing.purchase_location.clone()),
+            status: status.unwrap_or(existing.status),
+            storage_location: storage_location.or_else(|| existing.storage_location.clone()),
+            atlas_item_id: atlas_item_id.or_else(|| existing.atlas_item_id.clone()),
+            selected_variant_key: selected_variant_key
                 .or_else(|| existing.selected_variant_key.clone()),
-            selected_variant_label: self
-                .selected_variant_label
+            selected_variant_label: selected_variant_label
                 .or_else(|| existing.selected_variant_label.clone()),
-            specs: self.specs.unwrap_or_else(|| existing.specs.clone()),
-            tags: self.tags.unwrap_or_else(|| existing.tags.clone()),
-            share_enabled: self.share_enabled.unwrap_or(existing.share_enabled),
+            quantity: quantity.unwrap_or(existing.quantity),
+            specs: specs.unwrap_or_else(|| existing.specs.clone()),
+            tags: tags.unwrap_or_else(|| existing.tags.clone()),
+            share_enabled: share_enabled.unwrap_or(existing.share_enabled),
             share_status: existing.share_status,
-            notes: self.notes.or_else(|| existing.notes.clone()),
+            notes: notes.or_else(|| existing.notes.clone()),
         }
     }
 }
@@ -216,6 +263,7 @@ pub struct GearSummaryResponse {
     pub atlas_item_id: Option<String>,
     pub selected_variant_key: Option<String>,
     pub selected_variant_label: Option<String>,
+    pub quantity: i32,
     pub specs: GearSpecs,
     pub tags: Vec<String>,
     pub tag_colors: HashMap<String, String>,
@@ -245,6 +293,7 @@ impl From<&GearItem> for GearSummaryResponse {
             atlas_item_id: item.atlas_item_id.clone(),
             selected_variant_key: item.selected_variant_key.clone(),
             selected_variant_label: item.selected_variant_label.clone(),
+            quantity: item.quantity,
             specs: item.specs.clone(),
             tags: item.tags.clone(),
             tag_colors: HashMap::new(),
@@ -276,6 +325,7 @@ impl GearSummaryResponse {
             atlas_item_id: item.atlas_item_id.clone(),
             selected_variant_key: item.selected_variant_key.clone(),
             selected_variant_label: item.selected_variant_label.clone(),
+            quantity: item.quantity,
             specs: item.specs.clone(),
             tags: item.tags.clone(),
             tag_colors: tag_colors_for_tags(&item.tags, all_tag_colors),
@@ -374,6 +424,17 @@ pub struct ImportGearError {
     pub row: usize,
     pub field: String,
     pub message: String,
+}
+
+/// Pulls legacy `specs.quantity` into the top-level ownership quantity field.
+fn extract_request_quantity(
+    quantity: Option<i32>,
+    mut specs: GearSpecs,
+) -> (Option<i32>, GearSpecs) {
+    let legacy_quantity = specs
+        .remove("quantity")
+        .and_then(|value| value.trim().parse::<i32>().ok());
+    (quantity.or(legacy_quantity), specs)
 }
 
 /// Filters a user tag-color map down to tags present on the gear item.

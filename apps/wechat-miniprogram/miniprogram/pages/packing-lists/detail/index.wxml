@@ -74,6 +74,27 @@
                   <text>{{gearItem.priceText}}</text>
                   <text>{{gearItem.statusText}}</text>
                 </view>
+                <view class="quantity-controls">
+                  <button
+                    class="quantity-button"
+                    disabled="{{!gearItem.canDecreasePlanned}}"
+                    data-id="{{gearItem.id}}"
+                    catchtap="decreasePlanned"
+                  >
+                    -
+                  </button>
+                  <text>{{gearItem.plannedText}}</text>
+                  <button
+                    class="quantity-button"
+                    disabled="{{!gearItem.canIncreasePlanned}}"
+                    data-id="{{gearItem.id}}"
+                    catchtap="increasePlanned"
+                  >
+                    +
+                  </button>
+                  <text>{{gearItem.packedText}}</text>
+                  <text>库存 {{gearItem.quantityText}}</text>
+                </view>
                 <view wx:if="{{gearItem.unavailable}}" class="unavailable-text"
                   >{{gearItem.unavailableText}}</view
                 >

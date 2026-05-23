@@ -399,12 +399,30 @@
   background: var(--soft-control-bg);
 }
 
-.gear-name {
+.gear-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
   margin-top: 20rpx;
+  min-width: 0;
+}
+
+.gear-name {
+  min-width: 0;
   color: var(--text-color);
   font-size: 32rpx;
   font-weight: 800;
   line-height: 1.4;
+}
+
+.quantity-badge {
+  flex: 0 0 auto;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 22rpx;
+  font-weight: 900;
 }
 
 .gear-meta {

@@ -875,13 +875,20 @@ export async function addGearPackingItems(
 export async function updateGearPackingItem(
   id: string,
   itemId: string,
-  packed: boolean,
+  update:
+    | boolean
+    | {
+        packed?: boolean;
+        planned_quantity?: number | null;
+        packed_quantity?: number | null;
+      },
 ): Promise<GearPackingListDetail> {
+  const data = typeof update === "boolean" ? { packed: update } : update;
   return requestJson(
     `/api/v1/me/packing-lists/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`,
     {
       method: "PATCH",
-      data: { packed },
+      data,
       auth: true,
     },
   );

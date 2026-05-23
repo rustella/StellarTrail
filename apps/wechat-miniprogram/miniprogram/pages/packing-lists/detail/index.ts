@@ -11,6 +11,7 @@ import {
 } from "../../../utils/api-gears";
 import {
   formatGearPrice,
+  formatGearQuantity,
   formatGearWeight,
   formatPackingMeta,
   formatPackingProgress,
@@ -38,6 +39,11 @@ interface PackingItemView extends GearPackingListItem {
   priceText: string;
   statusText: string;
   brandModelText: string;
+  quantityText: string;
+  plannedText: string;
+  packedText: string;
+  canDecreasePlanned: boolean;
+  canIncreasePlanned: boolean;
   unavailableText: string;
 }
 
@@ -177,6 +183,53 @@ Page({
     }
   },
 
+  decreasePlanned(event: WechatMiniprogram.BaseEvent) {
+    this.changePlannedQuantity(event, -1);
+  },
+
+  increasePlanned(event: WechatMiniprogram.BaseEvent) {
+    this.changePlannedQuantity(event, 1);
+  },
+
+  async changePlannedQuantity(
+    event: WechatMiniprogram.BaseEvent,
+    delta: number,
+  ) {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
+    const itemId = event.currentTarget.dataset.id as string;
+    const current = this.data.detail?.items.find((item) => item.id === itemId);
+    if (!current) {
+      return;
+    }
+    const stockQuantity = Math.max(1, current.gear.quantity ?? 1);
+    const nextQuantity = Math.max(
+      1,
+      Math.min(stockQuantity, current.planned_quantity + delta),
+    );
+    if (nextQuantity === current.planned_quantity) {
+      return;
+    }
+    try {
+      const detail = await updateGearPackingItem(this.data.id, itemId, {
+        planned_quantity: nextQuantity,
+      });
+      wx.setStorageSync("stellartrail_packing_lists_should_refresh", true);
+      this.setData(buildDetailData(detail));
+    } catch (error) {
+      if (isLoginRequiredError(error)) {
+        showLoginPrompt(this, {
+          message: "登录状态已过期，请重新登录后调整数量。",
+          redirectUrl: `/pages/packing-lists/detail/index?id=${encodeURIComponent(this.data.id)}`,
+        });
+        return;
+      }
+      wx.showToast({ title: getErrorMessage(error), icon: "none" });
+    }
+  },
+
   async removeItem(event: WechatMiniprogram.BaseEvent) {
     if (isOffline()) {
       showOfflineWriteBlockedToast();
@@ -276,6 +329,7 @@ function mapItemView(item: GearPackingListItem): PackingItemView {
   const brandModel = [item.gear.brand, item.gear.model]
     .filter(Boolean)
     .join(" · ");
+  const stockQuantity = Math.max(1, item.gear.quantity ?? 1);
   return {
     ...item,
     categoryText:
@@ -285,6 +339,11 @@ function mapItemView(item: GearPackingListItem): PackingItemView {
       item.gear.purchase_price_cents,
       item.gear.purchase_price_currency,
     ),
+    quantityText: formatGearQuantity(stockQuantity),
+    plannedText: `计划 ${item.planned_quantity}`,
+    packedText: `已装 ${item.packed_quantity}`,
+    canDecreasePlanned: item.planned_quantity > 1,
+    canIncreasePlanned: item.planned_quantity < stockQuantity,
     statusText:
       item.unavailable_reason === "archived"
         ? "已归档"

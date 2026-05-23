@@ -9,6 +9,7 @@ import {
 } from "../../../utils/api-gears";
 import {
   formatGearPrice,
+  formatGearQuantity,
   formatGearWeight,
   GEAR_CATEGORY_OPTIONS,
   GEAR_SORT_OPTIONS,
@@ -43,6 +44,8 @@ interface GearSelectCard extends GearSummary {
   statusText: string;
   weightText: string;
   priceText: string;
+  quantityText: string;
+  showQuantityBadge: boolean;
   brandModelText: string;
 }
 
@@ -303,6 +306,8 @@ function mapGearCard(item: GearSummary, selectedIds: string[]): GearSelectCard {
     categoryText: item.category_label || getGearCategoryLabel(item.category),
     statusText: item.status_label || getGearStatusLabel(item.status),
     weightText: formatGearWeight(item.weight_g),
+    quantityText: formatGearQuantity(item.quantity),
+    showQuantityBadge: (item.quantity ?? 1) > 1,
     priceText: formatGearPrice(
       item.purchase_price_cents,
       item.purchase_price_currency,

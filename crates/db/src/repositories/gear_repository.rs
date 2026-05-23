@@ -8,8 +8,8 @@ use super::statement;
 use stellartrail_domain::{
     deletion::DeletedFilter,
     gear::{
-        GearCategory, GearCategoryCount, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs,
-        GearStats, GearStatus, GearStatusCount, GearTab, now_rfc3339,
+        now_rfc3339, GearCategory, GearCategoryCount, GearDraft, GearItem, GearShareStatus,
+        GearSort, GearSpecs, GearStats, GearStatus, GearStatusCount, GearTab,
     },
 };
 use uuid::Uuid;
@@ -57,6 +57,10 @@ impl GearRepository {
 
     /// Creates the current resource and triggers follow-up state maintenance when needed.
     pub async fn create(&self, user_id: &str, draft: &GearDraft) -> Result<GearItem, DbErr> {
+        if let Some(existing) = self.find_merge_candidate(user_id, draft).await? {
+            return self.merge_into_existing(user_id, &existing, draft).await;
+        }
+
         let id = Uuid::new_v4().to_string();
         let now = now_rfc3339();
         let tags_json =
@@ -70,8 +74,8 @@ impl GearRepository {
                     official_price_cents, official_price_currency, purchase_date, purchase_price_cents,
                     purchase_price_currency, purchase_location, status, storage_location,
                     atlas_item_id, selected_variant_key, selected_variant_label, specs_json,
-                    tags_json, share_enabled, share_status, notes, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+                    quantity, tags_json, share_enabled, share_status, notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
                 gear_values(&id, user_id, draft, &specs_json, &tags_json, &now, &now),
             ))
             .await?;
@@ -91,6 +95,70 @@ impl GearRepository {
             ))
             .await?;
         row.map(|row| map_gear(&row)).transpose()
+    }
+
+    async fn find_merge_candidate(
+        &self,
+        user_id: &str,
+        draft: &GearDraft,
+    ) -> Result<Option<GearItem>, DbErr> {
+        let rows = self
+            .db
+            .query_all(statement(
+                self.db.get_database_backend(),
+                format!(
+                    "{} WHERE user_id = ? AND category = ? AND archived_at IS NULL AND is_deleted = FALSE \
+                     ORDER BY created_at ASC, id ASC",
+                    gear_select_columns()
+                ),
+                vec![
+                    user_id.to_owned().into(),
+                    draft.category.as_str().to_owned().into(),
+                ],
+            ))
+            .await?;
+        for row in rows {
+            let item = map_gear(&row)?;
+            if same_gear_identity(draft, &item) {
+                return Ok(Some(item));
+            }
+        }
+        Ok(None)
+    }
+
+    async fn merge_into_existing(
+        &self,
+        user_id: &str,
+        existing: &GearItem,
+        draft: &GearDraft,
+    ) -> Result<GearItem, DbErr> {
+        let now = now_rfc3339();
+        let quantity = (existing.quantity + draft.quantity).min(9_999);
+        let specs = merge_specs(&existing.specs, &draft.specs);
+        let specs_json = json_string(&specs)?;
+        let tags = merge_tags(&existing.tags, &draft.tags);
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|err| DbErr::Custom(err.to_string()))?;
+        let notes = merged_notes(existing, draft);
+        self.db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "UPDATE user_gear_items SET quantity = ?, specs_json = ?, tags_json = ?, notes = ?, updated_at = ? \
+                 WHERE user_id = ? AND id = ? AND is_deleted = FALSE",
+                vec![
+                    quantity.into(),
+                    specs_json.into(),
+                    tags_json.into(),
+                    notes.into(),
+                    now.into(),
+                    user_id.to_owned().into(),
+                    existing.id.clone().into(),
+                ],
+            ))
+            .await?;
+        self.get(user_id, &existing.id)
+            .await?
+            .ok_or_else(|| DbErr::Custom("merged gear not found".to_owned()))
     }
 
     /// Reads one gear record for packing-list history, including archived or soft-deleted items.
@@ -140,6 +208,7 @@ impl GearRepository {
             draft.selected_variant_key.clone().into(),
             draft.selected_variant_label.clone().into(),
             specs_json.into(),
+            draft.quantity.into(),
             tags_json.into(),
             draft.share_enabled.into(),
             draft.share_status.as_str().to_owned().into(),
@@ -157,7 +226,7 @@ impl GearRepository {
                     official_price_cents = ?, official_price_currency = ?, purchase_date = ?,
                     purchase_price_cents = ?, purchase_price_currency = ?, purchase_location = ?,
                     status = ?, storage_location = ?, atlas_item_id = ?, selected_variant_key = ?,
-                    selected_variant_label = ?, specs_json = ?, tags_json = ?, share_enabled = ?,
+                    selected_variant_label = ?, specs_json = ?, quantity = ?, tags_json = ?, share_enabled = ?,
                     share_status = ?, notes = ?, updated_at = ?
                    WHERE user_id = ? AND id = ? AND is_deleted = FALSE"#,
                 values,
@@ -302,7 +371,7 @@ impl GearRepository {
             .db
             .query_all(statement(
                 self.db.get_database_backend(),
-                format!("SELECT category, COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY category"),
+                format!("SELECT category, CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY category"),
                 vec![user_id.to_owned().into()],
             ))
             .await?;
@@ -332,9 +401,9 @@ impl GearRepository {
             .query_one(statement(
                 self.db.get_database_backend(),
                 format!(
-                    "SELECT COUNT(*) AS count, \
-                     CAST(COALESCE(SUM(CASE WHEN purchase_price_currency = 'CNY' THEN purchase_price_cents ELSE 0 END), 0) AS BIGINT) AS total_value_cents, \
-                     CAST(COALESCE(SUM(weight_g), 0) AS BIGINT) AS total_weight_g \
+                    "SELECT CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count, \
+                     CAST(COALESCE(SUM(CASE WHEN purchase_price_currency = 'CNY' THEN COALESCE(purchase_price_cents, 0) * quantity ELSE 0 END), 0) AS BIGINT) AS total_value_cents, \
+                     CAST(COALESCE(SUM(COALESCE(weight_g, 0) * quantity), 0) AS BIGINT) AS total_weight_g \
                      FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause}"
                 ),
                 vec![user_id.to_owned().into()],
@@ -345,7 +414,7 @@ impl GearRepository {
             .db
             .query_one(statement(
                 self.db.get_database_backend(),
-                "SELECT COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND archived_at IS NOT NULL",
+                "SELECT CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND archived_at IS NOT NULL",
                 vec![user_id.to_owned().into()],
             ))
             .await?
@@ -374,7 +443,7 @@ impl GearRepository {
             .db
             .query_all(statement(
                 self.db.get_database_backend(),
-                format!("SELECT status, COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY status"),
+                format!("SELECT status, CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY status"),
                 vec![user_id.to_owned().into()],
             ))
             .await?;
@@ -428,6 +497,7 @@ fn gear_values(
         draft.selected_variant_key.clone().into(),
         draft.selected_variant_label.clone().into(),
         specs_json.to_owned().into(),
+        draft.quantity.into(),
         tags_json.to_owned().into(),
         draft.share_enabled.into(),
         draft.share_status.as_str().to_owned().into(),
@@ -448,7 +518,7 @@ fn gear_select_columns() -> &'static str {
         weight_g, official_price_cents, official_price_currency,
         purchase_date, purchase_price_cents, purchase_price_currency,
         purchase_location, status, storage_location, atlas_item_id, selected_variant_key,
-        selected_variant_label, tags_json,
+        selected_variant_label, quantity, tags_json,
         specs_json, share_enabled, share_status, notes, archived_at, is_deleted, created_at, updated_at
        FROM user_gear_items"#
 }
@@ -544,6 +614,7 @@ fn map_gear(row: &sea_orm::QueryResult) -> Result<GearItem, DbErr> {
         atlas_item_id: row.try_get("", "atlas_item_id")?,
         selected_variant_key: row.try_get("", "selected_variant_key")?,
         selected_variant_label: row.try_get("", "selected_variant_label")?,
+        quantity: row.try_get("", "quantity")?,
         specs,
         tags,
         share_enabled: row.try_get("", "share_enabled")?,
@@ -555,6 +626,233 @@ fn map_gear(row: &sea_orm::QueryResult) -> Result<GearItem, DbErr> {
         created_at: row.try_get("", "created_at")?,
         updated_at: row.try_get("", "updated_at")?,
     })
+}
+
+const MERGE_SPEC_KEYS: &[&str] = &[
+    "capacity",
+    "net_content",
+    "battery_capacity",
+    "rated_energy",
+    "output_power",
+    "ports",
+    "packed_size",
+    "specification",
+    "length",
+    "people_count",
+    "type",
+];
+
+fn same_gear_identity(draft: &GearDraft, item: &GearItem) -> bool {
+    if draft.category != item.category {
+        return false;
+    }
+    if same_non_empty(
+        draft.atlas_item_id.as_deref(),
+        item.atlas_item_id.as_deref(),
+    ) {
+        return !variant_conflicts(
+            draft.selected_variant_key.as_deref(),
+            draft.selected_variant_label.as_deref(),
+            item.selected_variant_key.as_deref(),
+            item.selected_variant_label.as_deref(),
+        );
+    }
+    if normalize_identity_text(Some(&draft.name)) != normalize_identity_text(Some(&item.name)) {
+        return false;
+    }
+    if text_conflicts(draft.brand.as_deref(), item.brand.as_deref())
+        || text_conflicts(draft.model.as_deref(), item.model.as_deref())
+        || variant_conflicts(
+            draft.selected_variant_key.as_deref(),
+            draft.selected_variant_label.as_deref(),
+            item.selected_variant_key.as_deref(),
+            item.selected_variant_label.as_deref(),
+        )
+        || specs_conflict(&draft.specs, &item.specs)
+    {
+        return false;
+    }
+
+    same_non_empty(draft.model.as_deref(), item.model.as_deref())
+        || same_non_empty(draft.brand.as_deref(), item.brand.as_deref())
+        || variants_match(
+            draft.selected_variant_key.as_deref(),
+            draft.selected_variant_label.as_deref(),
+            item.selected_variant_key.as_deref(),
+            item.selected_variant_label.as_deref(),
+        )
+        || specs_overlap(&draft.specs, &item.specs)
+        || (normalize_identity_text(draft.brand.as_deref()).is_empty()
+            && normalize_identity_text(item.brand.as_deref()).is_empty()
+            && normalize_identity_text(draft.model.as_deref()).is_empty()
+            && normalize_identity_text(item.model.as_deref()).is_empty())
+}
+
+fn merge_specs(existing: &GearSpecs, incoming: &GearSpecs) -> GearSpecs {
+    let mut merged = existing.clone();
+    for (key, value) in incoming {
+        if !merged.contains_key(key) {
+            merged.insert(key.clone(), value.clone());
+        }
+    }
+    merged
+}
+
+fn merge_tags(existing: &[String], incoming: &[String]) -> Vec<String> {
+    let mut merged = existing.to_vec();
+    for tag in incoming {
+        if merged.len() >= 20 {
+            break;
+        }
+        if !merged.iter().any(|existing| existing == tag) {
+            merged.push(tag.clone());
+        }
+    }
+    merged
+}
+
+fn merged_notes(existing: &GearItem, incoming: &GearDraft) -> Option<String> {
+    let mut extra = Vec::new();
+    push_note_diff(
+        &mut extra,
+        "购买日期",
+        incoming.purchase_date.as_deref(),
+        existing.purchase_date.as_deref(),
+    );
+    push_note_diff(
+        &mut extra,
+        "购买渠道",
+        incoming.purchase_location.as_deref(),
+        existing.purchase_location.as_deref(),
+    );
+    push_note_diff(
+        &mut extra,
+        "存放位置",
+        incoming.storage_location.as_deref(),
+        existing.storage_location.as_deref(),
+    );
+    push_note_diff(
+        &mut extra,
+        "购入价",
+        incoming
+            .purchase_price_cents
+            .map(|value| value.to_string())
+            .as_deref(),
+        existing
+            .purchase_price_cents
+            .map(|value| value.to_string())
+            .as_deref(),
+    );
+    if incoming.status != existing.status {
+        extra.push(format!("状态：{}", incoming.status.label()));
+    }
+    push_note_diff(
+        &mut extra,
+        "备注",
+        incoming.notes.as_deref(),
+        existing.notes.as_deref(),
+    );
+    if extra.is_empty() {
+        return existing.notes.clone();
+    }
+    let addition = format!("合并新增记录信息：{}", extra.join("；"));
+    let merged = match existing
+        .notes
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(notes) => format!("{notes}\n{addition}"),
+        None => addition,
+    };
+    Some(truncate_chars(&merged, 1000))
+}
+
+fn push_note_diff(
+    output: &mut Vec<String>,
+    label: &str,
+    incoming: Option<&str>,
+    existing: Option<&str>,
+) {
+    let Some(value) = incoming.map(str::trim).filter(|value| !value.is_empty()) else {
+        return;
+    };
+    if normalize_identity_text(Some(value)) != normalize_identity_text(existing) {
+        output.push(format!("{label}：{value}"));
+    }
+}
+
+fn same_non_empty(left: Option<&str>, right: Option<&str>) -> bool {
+    let left = normalize_identity_text(left);
+    let right = normalize_identity_text(right);
+    !left.is_empty() && left == right
+}
+
+fn text_conflicts(left: Option<&str>, right: Option<&str>) -> bool {
+    let left = normalize_identity_text(left);
+    let right = normalize_identity_text(right);
+    !left.is_empty() && !right.is_empty() && left != right
+}
+
+fn variant_conflicts(
+    left_key: Option<&str>,
+    left_label: Option<&str>,
+    right_key: Option<&str>,
+    right_label: Option<&str>,
+) -> bool {
+    let left = normalized_variant_identity(left_key, left_label);
+    let right = normalized_variant_identity(right_key, right_label);
+    !left.is_empty() && !right.is_empty() && left != right
+}
+
+fn variants_match(
+    left_key: Option<&str>,
+    left_label: Option<&str>,
+    right_key: Option<&str>,
+    right_label: Option<&str>,
+) -> bool {
+    let left = normalized_variant_identity(left_key, left_label);
+    let right = normalized_variant_identity(right_key, right_label);
+    !left.is_empty() && left == right
+}
+
+fn normalized_variant_identity(key: Option<&str>, label: Option<&str>) -> String {
+    let key = normalize_identity_text(key);
+    if key.is_empty() {
+        normalize_identity_text(label)
+    } else {
+        key
+    }
+}
+
+fn specs_conflict(left: &GearSpecs, right: &GearSpecs) -> bool {
+    MERGE_SPEC_KEYS.iter().any(|key| {
+        let left = normalize_identity_text(left.get(*key).map(String::as_str));
+        let right = normalize_identity_text(right.get(*key).map(String::as_str));
+        !left.is_empty() && !right.is_empty() && left != right
+    })
+}
+
+fn specs_overlap(left: &GearSpecs, right: &GearSpecs) -> bool {
+    MERGE_SPEC_KEYS.iter().any(|key| {
+        let left = normalize_identity_text(left.get(*key).map(String::as_str));
+        let right = normalize_identity_text(right.get(*key).map(String::as_str));
+        !left.is_empty() && left == right
+    })
+}
+
+fn normalize_identity_text(value: Option<&str>) -> String {
+    value
+        .unwrap_or_default()
+        .trim()
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn truncate_chars(value: &str, limit: usize) -> String {
+    value.chars().take(limit).collect()
 }
 
 #[cfg(test)]
@@ -585,6 +883,7 @@ mod tests {
             atlas_item_id: None,
             selected_variant_key: None,
             selected_variant_label: None,
+            quantity: 1,
             specs: GearSpecs::from([("battery_capacity".to_owned(), "20000 mAh".to_owned())]),
             tags: vec!["电子".to_owned()],
             share_enabled: false,
@@ -686,5 +985,47 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(history.len(), 1);
+    }
+
+    /// Verifies duplicate personal gear rows become one quantity-aware inventory row.
+    #[tokio::test]
+    async fn gear_repository_merges_same_item_and_counts_quantity() {
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        Migrator::up(&db, None).await.unwrap();
+        let user = AuthRepository::new(db.clone())
+            .upsert_mock_user("mock:gear-quantity-user", Some("数量用户".to_owned()), None)
+            .await
+            .unwrap();
+        let repo = GearRepository::new(db.clone());
+        let user_id = user.id.as_str();
+        let first = repo
+            .create(
+                user_id,
+                &draft("NITECORE充电宝", GearCategory::ElectronicsSystem),
+            )
+            .await
+            .unwrap();
+        let mut second_draft = draft("NITECORE充电宝", GearCategory::ElectronicsSystem);
+        second_draft.quantity = 2;
+        second_draft.tags.push("备用".to_owned());
+        second_draft.purchase_location = Some("天猫".to_owned());
+        let second = repo.create(user_id, &second_draft).await.unwrap();
+
+        assert_eq!(second.id, first.id);
+        assert_eq!(second.quantity, 3);
+        assert_eq!(second.tags, vec!["电子", "备用"]);
+        assert!(second
+            .notes
+            .as_deref()
+            .is_some_and(|notes| notes.contains("天猫")));
+        let (items, _) = repo
+            .list(user_id, &ListGearOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(items.len(), 1);
+        let stats = repo.stats(user_id, GearTab::Available).await.unwrap();
+        assert_eq!(stats.current_count, 3);
+        assert_eq!(stats.total_weight_g, 945);
+        assert_eq!(stats.total_value_cents, 191700);
     }
 }

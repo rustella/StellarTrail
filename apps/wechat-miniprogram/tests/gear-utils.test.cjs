@@ -7,6 +7,7 @@ const {
   createGearTagSuggestionViews,
   createGearTagViews,
   formatGearPrice,
+  formatGearQuantity,
   formatGearWeight,
   GEAR_SPEC_FIELDS,
   GEAR_TAG_COLOR_OPTIONS,
@@ -31,6 +32,11 @@ test("formatGearPrice formats cents as Chinese Yuan", () => {
   assert.equal(formatGearPrice(63950), "¥639.50");
   assert.equal(formatGearPrice(1299, "USD"), "USD 12.99");
   assert.equal(formatGearPrice(1200, "JPY"), "JPY 1200");
+});
+
+test("formatGearQuantity formats stock badges", () => {
+  assert.equal(formatGearQuantity(null), "x1");
+  assert.equal(formatGearQuantity(2), "x2");
 });
 
 test("parseTagsInput accepts comma, Chinese comma and semicolon separators", () => {
@@ -58,6 +64,7 @@ test("buildGearPayload trims text and converts UI inputs to API units", () => {
       brand: " NITECORE奈特科尔 ",
       model: "",
       description: " 冬季徒步备用电源 ",
+      quantityText: "2",
       weightText: "0.315",
       purchaseDate: "2026-01-22",
       officialPriceText: "699",
@@ -86,6 +93,7 @@ test("buildGearPayload trims text and converts UI inputs to API units", () => {
       brand: "NITECORE奈特科尔",
       model: null,
       description: "冬季徒步备用电源",
+      quantity: 2,
       weight_g: 315,
       purchase_date: "2026-01-22",
       official_price_cents: 69900,
@@ -256,6 +264,10 @@ test("gear form unit options are ordered by common outdoor usage", () => {
     "L",
     "oz",
   ]);
+  assert.equal(
+    GEAR_SPEC_FIELDS.consumable.some((field) => field.key === "quantity"),
+    false,
+  );
   assert.deepEqual(GEAR_SPEC_FIELDS.walking_system[0].units, [
     "cm",
     "EU",
@@ -335,5 +347,15 @@ test("buildGearPayload rejects missing names and invalid numbers", () => {
         purchasePriceText: "-1",
       }),
     /价格不能为负数/,
+  );
+  assert.throws(
+    () =>
+      buildGearPayload({
+        category: "electronics_system",
+        name: "头灯",
+        status: "available",
+        quantityText: "0",
+      }),
+    /数量必须在 1 到 9999 之间/,
   );
 });
