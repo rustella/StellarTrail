@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StellarTrailApiError } from "@stellartrail/api-client";
 import type {
   AdminFeedbackItem,
+  ClientKey,
+  ClientVersion,
+  ClientVersionRequest,
+  ClientVersionStatus,
   CreateGearRequest,
   GearAtlasPublicItem,
   GearCategory,
@@ -67,8 +71,10 @@ type ActivePage =
   | "gearAtlas"
   | "atlasReview"
   | "adminFeedback"
+  | "clientVersions"
   | "knots";
 type FeedbackStatusFilter = "" | "open";
+type ClientVersionStatusFilter = "" | ClientVersionStatus;
 
 interface PasswordLoginState {
   account: string;
@@ -88,6 +94,15 @@ interface RegisterFormState {
 interface EmailCodeLoginState {
   email: string;
   emailVerificationCode: string;
+}
+
+interface ClientVersionFormState {
+  id: string | null;
+  clientKey: ClientKey;
+  version: string;
+  title: string;
+  releaseNotesText: string;
+  status: ClientVersionStatus;
 }
 
 interface PasswordResetFormState {
@@ -188,6 +203,31 @@ const emptyForm: GearFormState = {
 const THEME_STORAGE_KEY = "stellartrail.web.theme";
 const ATLAS_REVIEW_PAGE_SIZE = 20;
 
+const CLIENT_VERSION_CLIENT_OPTIONS: Array<{ id: ClientKey; label: string }> = [
+  { id: "wechat_miniprogram", label: "微信小程序" },
+  { id: "web", label: "Web App" },
+  { id: "android", label: "Android" },
+  { id: "ios", label: "iOS" },
+  { id: "macos", label: "macOS" },
+];
+
+const CLIENT_VERSION_STATUS_OPTIONS: Array<{
+  id: ClientVersionStatus;
+  label: string;
+}> = [
+  { id: "draft", label: "草稿" },
+  { id: "published", label: "已发布" },
+];
+
+const emptyClientVersionForm: ClientVersionFormState = {
+  id: null,
+  clientKey: "wechat_miniprogram",
+  version: "",
+  title: "",
+  releaseNotesText: "",
+  status: "draft",
+};
+
 const emptyPasswordLogin: PasswordLoginState = {
   account: "",
   password: "",
@@ -282,6 +322,20 @@ export default function App({ client }: AppProps) {
   const [adminFeedback, setAdminFeedback] = useState<AdminFeedbackItem[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [clientVersionClientKey, setClientVersionClientKey] =
+    useState<ClientKey>("wechat_miniprogram");
+  const [clientVersionStatus, setClientVersionStatus] =
+    useState<ClientVersionStatusFilter>("");
+  const [adminClientVersions, setAdminClientVersions] = useState<
+    ClientVersion[]
+  >([]);
+  const [clientVersionsLoading, setClientVersionsLoading] = useState(false);
+  const [clientVersionsError, setClientVersionsError] = useState<string | null>(
+    null,
+  );
+  const [clientVersionForm, setClientVersionForm] =
+    useState<ClientVersionFormState>(emptyClientVersionForm);
+  const [clientVersionSubmitting, setClientVersionSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dashboardRequestRef = useRef(0);
   const atlasRequestRef = useRef(0);
@@ -476,6 +530,31 @@ export default function App({ client }: AppProps) {
   useEffect(() => {
     void loadAdminFeedback();
   }, [loadAdminFeedback]);
+
+  const loadAdminClientVersions = useCallback(async () => {
+    if (!session || activePage !== "clientVersions") {
+      return;
+    }
+    setClientVersionsLoading(true);
+    setClientVersionsError(null);
+    try {
+      const response = await api.listAdminClientVersions({
+        client_key: clientVersionClientKey,
+        status: clientVersionStatus || undefined,
+        limit: 50,
+      });
+      setAdminClientVersions(response.items);
+    } catch (err) {
+      setAdminClientVersions([]);
+      setClientVersionsError(errorMessage(err));
+    } finally {
+      setClientVersionsLoading(false);
+    }
+  }, [activePage, api, clientVersionClientKey, clientVersionStatus, session]);
+
+  useEffect(() => {
+    void loadAdminClientVersions();
+  }, [loadAdminClientVersions]);
 
   function resetDashboardState() {
     dashboardRequestRef.current += 1;
@@ -794,6 +873,47 @@ export default function App({ client }: AppProps) {
       setError(errorMessage(err));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function startNewClientVersion() {
+    setClientVersionForm({
+      ...emptyClientVersionForm,
+      clientKey: clientVersionClientKey,
+    });
+  }
+
+  function editClientVersion(item: ClientVersion) {
+    setClientVersionForm({
+      id: item.id,
+      clientKey: item.client_key,
+      version: item.version,
+      title: item.title,
+      releaseNotesText: item.release_notes.join("\n"),
+      status: item.status,
+    });
+  }
+
+  function cancelClientVersionEdit() {
+    startNewClientVersion();
+  }
+
+  async function saveClientVersion() {
+    setClientVersionSubmitting(true);
+    setClientVersionsError(null);
+    try {
+      const request = clientVersionRequestFromForm(clientVersionForm);
+      if (clientVersionForm.id) {
+        await api.updateAdminClientVersion(clientVersionForm.id, request);
+      } else {
+        await api.createAdminClientVersion(request);
+      }
+      startNewClientVersion();
+      await loadAdminClientVersions();
+    } catch (err) {
+      setClientVersionsError(errorMessage(err));
+    } finally {
+      setClientVersionSubmitting(false);
     }
   }
 
@@ -1484,7 +1604,9 @@ export default function App({ client }: AppProps) {
           <div
             className="nav-group"
             data-active-parent={
-              activePage === "atlasReview" || activePage === "adminFeedback"
+              activePage === "atlasReview" ||
+              activePage === "adminFeedback" ||
+              activePage === "clientVersions"
                 ? "true"
                 : undefined
             }
@@ -1527,6 +1649,20 @@ export default function App({ client }: AppProps) {
                   onClick={() => navigateToPage("adminFeedback")}
                 >
                   反馈信息
+                </button>
+                <button
+                  type="button"
+                  className={
+                    activePage === "clientVersions"
+                      ? "nav-child active"
+                      : "nav-child"
+                  }
+                  aria-current={
+                    activePage === "clientVersions" ? "page" : undefined
+                  }
+                  onClick={() => navigateToPage("clientVersions")}
+                >
+                  版本信息
                 </button>
               </div>
             ) : null}
@@ -1782,6 +1918,31 @@ export default function App({ client }: AppProps) {
             error={feedbackError}
             onStatusChange={setFeedbackStatus}
             onRefresh={() => void loadAdminFeedback()}
+          />
+        </main>
+      ) : activePage === "clientVersions" ? (
+        <main className="dashboard" id="client-versions">
+          <ClientVersionsAdminPage
+            items={adminClientVersions}
+            clientKey={clientVersionClientKey}
+            status={clientVersionStatus}
+            form={clientVersionForm}
+            loading={clientVersionsLoading}
+            submitting={clientVersionSubmitting}
+            error={clientVersionsError}
+            onClientKeyChange={(nextClientKey) => {
+              setClientVersionClientKey(nextClientKey);
+              setClientVersionForm((current) =>
+                current.id ? current : { ...current, clientKey: nextClientKey },
+              );
+            }}
+            onStatusChange={setClientVersionStatus}
+            onFormChange={setClientVersionForm}
+            onCreate={startNewClientVersion}
+            onEdit={editClientVersion}
+            onCancel={cancelClientVersionEdit}
+            onSave={() => void saveClientVersion()}
+            onRefresh={() => void loadAdminClientVersions()}
           />
         </main>
       ) : (
@@ -2609,6 +2770,247 @@ function AdminFeedbackPage({
           </article>
         ))}
       </section>
+    </section>
+  );
+}
+
+function ClientVersionsAdminPage({
+  items,
+  clientKey,
+  status,
+  form,
+  loading,
+  submitting,
+  error,
+  onClientKeyChange,
+  onStatusChange,
+  onFormChange,
+  onCreate,
+  onEdit,
+  onCancel,
+  onSave,
+  onRefresh,
+}: {
+  items: ClientVersion[];
+  clientKey: ClientKey;
+  status: ClientVersionStatusFilter;
+  form: ClientVersionFormState;
+  loading: boolean;
+  submitting: boolean;
+  error: string | null;
+  onClientKeyChange(clientKey: ClientKey): void;
+  onStatusChange(status: ClientVersionStatusFilter): void;
+  onFormChange(form: ClientVersionFormState): void;
+  onCreate(): void;
+  onEdit(item: ClientVersion): void;
+  onCancel(): void;
+  onSave(): void;
+  onRefresh(): void;
+}) {
+  return (
+    <section className="client-versions-page">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">Admin Releases</p>
+          <h1>版本信息</h1>
+          <p className="muted">
+            维护各客户端对用户公开展示的版本号和更新说明。
+          </p>
+        </div>
+        <div className="toolbar">
+          <select
+            aria-label="客户端筛选"
+            value={clientKey}
+            onChange={(event) =>
+              onClientKeyChange(event.target.value as ClientKey)
+            }
+          >
+            {CLIENT_VERSION_CLIENT_OPTIONS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="版本状态筛选"
+            value={status}
+            onChange={(event) =>
+              onStatusChange(event.target.value as ClientVersionStatusFilter)
+            }
+          >
+            <option value="">全部状态</option>
+            {CLIENT_VERSION_STATUS_OPTIONS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onRefresh}
+            disabled={loading}
+          >
+            刷新
+          </button>
+          <button type="button" className="primary-button" onClick={onCreate}>
+            新增版本
+          </button>
+        </div>
+      </header>
+
+      {error ? (
+        <div className="notice" role="status">
+          {error.includes("403") ? "当前账号没有版本维护权限。" : error}
+        </div>
+      ) : null}
+
+      <div className="client-versions-layout">
+        <section className="content-card client-version-form-card">
+          <h2>{form.id ? "编辑版本" : "新增版本"}</h2>
+          <div className="client-version-form">
+            <label>
+              客户端
+              <select
+                value={form.clientKey}
+                onChange={(event) =>
+                  onFormChange({
+                    ...form,
+                    clientKey: event.target.value as ClientKey,
+                  })
+                }
+              >
+                {CLIENT_VERSION_CLIENT_OPTIONS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              版本号
+              <input
+                value={form.version}
+                placeholder="例如 0.1.0"
+                onChange={(event) =>
+                  onFormChange({ ...form, version: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              状态
+              <select
+                value={form.status}
+                onChange={(event) =>
+                  onFormChange({
+                    ...form,
+                    status: event.target.value as ClientVersionStatus,
+                  })
+                }
+              >
+                {CLIENT_VERSION_STATUS_OPTIONS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="full-width">
+              标题
+              <input
+                value={form.title}
+                placeholder="例如 0.1.0 初始版本"
+                onChange={(event) =>
+                  onFormChange({ ...form, title: event.target.value })
+                }
+              />
+            </label>
+            <label className="full-width">
+              更新说明
+              <textarea
+                value={form.releaseNotesText}
+                placeholder="每行一条更新内容"
+                onChange={(event) =>
+                  onFormChange({
+                    ...form,
+                    releaseNotesText: event.target.value,
+                  })
+                }
+              />
+            </label>
+          </div>
+          <div className="actions">
+            <button
+              type="button"
+              className="primary-button"
+              onClick={onSave}
+              disabled={submitting}
+            >
+              {submitting ? "保存中..." : form.id ? "保存版本" : "创建版本"}
+            </button>
+            {form.id ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={onCancel}
+                disabled={submitting}
+              >
+                取消编辑
+              </button>
+            ) : null}
+          </div>
+        </section>
+
+        <section
+          className="content-card client-version-list"
+          aria-busy={loading}
+        >
+          {loading ? <p className="muted">正在加载版本...</p> : null}
+          {!loading && items.length === 0 ? (
+            <div className="empty-state compact">
+              <h2>暂无版本</h2>
+              <p>当前筛选条件下还没有客户端版本。</p>
+            </div>
+          ) : null}
+          {items.map((item) => (
+            <article className="client-version-card" key={item.id}>
+              <div className="client-version-card-head">
+                <div>
+                  <span className="category-text">
+                    {clientKeyLabel(item.client_key)}
+                  </span>
+                  <h2>{item.title}</h2>
+                  <p className="muted">
+                    {item.version} ·{" "}
+                    {item.published_at
+                      ? `发布于 ${formatDate(item.published_at)}`
+                      : "未发布"}
+                  </p>
+                </div>
+                <span
+                  className={`status-pill status-client-version-${item.status}`}
+                >
+                  {clientVersionStatusLabel(item.status)}
+                </span>
+              </div>
+              <ul className="client-version-notes">
+                {item.release_notes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+              <div className="actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => onEdit(item)}
+                >
+                  编辑
+                </button>
+              </div>
+            </article>
+          ))}
+        </section>
+      </div>
     </section>
   );
 }
@@ -3543,6 +3945,35 @@ function feedbackStatusLabel(status: string): string {
   return labels[status] ?? status;
 }
 
+function clientKeyLabel(clientKey: ClientKey): string {
+  return (
+    CLIENT_VERSION_CLIENT_OPTIONS.find((item) => item.id === clientKey)
+      ?.label ?? clientKey
+  );
+}
+
+function clientVersionStatusLabel(status: ClientVersionStatus): string {
+  if (status === "published") {
+    return "已发布";
+  }
+  return "草稿";
+}
+
+function clientVersionRequestFromForm(
+  form: ClientVersionFormState,
+): ClientVersionRequest {
+  return {
+    client_key: form.clientKey,
+    version: form.version.trim(),
+    title: form.title.trim(),
+    release_notes: form.releaseNotesText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean),
+    status: form.status,
+  };
+}
+
 function feedbackUserName(user: AdminFeedbackItem["user"]): string {
   return (
     user.nickname ??
@@ -3562,6 +3993,12 @@ function activePageFromPath(pathname: string): ActivePage {
   ) {
     return "adminFeedback";
   }
+  if (
+    pathname === "/admin/client-versions" ||
+    pathname.startsWith("/admin/client-versions/")
+  ) {
+    return "clientVersions";
+  }
   if (pathname === "/admin" || pathname.startsWith("/admin/")) {
     return "atlasReview";
   }
@@ -3577,6 +4014,9 @@ function pathForActivePage(page: ActivePage): string {
   }
   if (page === "adminFeedback") {
     return "/admin/feedback";
+  }
+  if (page === "clientVersions") {
+    return "/admin/client-versions";
   }
   if (page === "atlasReview") {
     return "/admin";
@@ -3596,7 +4036,11 @@ function gearAtlasDetailIdFromPath(pathname: string): string | null {
 }
 
 function isAdminPage(page: ActivePage): boolean {
-  return page === "atlasReview" || page === "adminFeedback";
+  return (
+    page === "atlasReview" ||
+    page === "adminFeedback" ||
+    page === "clientVersions"
+  );
 }
 
 function loadThemePreference(): ThemeMode {

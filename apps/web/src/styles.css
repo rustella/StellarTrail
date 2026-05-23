@@ -1340,6 +1340,91 @@ dd {
   background: var(--status-warning-bg);
 }
 
+.client-versions-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.75fr) minmax(0, 1.25fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.client-version-form-card h2 {
+  margin: 0 0 16px;
+}
+
+.client-version-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.client-version-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted-color);
+  font-weight: 700;
+}
+
+.client-version-form input,
+.client-version-form select,
+.client-version-form textarea {
+  width: 100%;
+  border: 1px solid var(--control-border);
+  border-radius: 14px;
+  padding: 11px 12px;
+  color: var(--text-color);
+  background: var(--control-bg);
+}
+
+.client-version-form textarea {
+  min-height: 150px;
+  resize: vertical;
+}
+
+.client-version-list {
+  display: grid;
+  gap: 14px;
+}
+
+.client-version-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--control-bg);
+}
+
+.client-version-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.client-version-card-head h2 {
+  margin: 6px 0;
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.client-version-notes {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--heading-muted-color);
+}
+
+.status-client-version-draft {
+  color: var(--status-warning-text);
+  background: var(--status-warning-bg);
+}
+
+.status-client-version-published {
+  color: var(--status-success-text);
+  background: var(--status-success-bg);
+}
+
 @media (max-width: 1100px) {
   body {
     min-width: 0;
@@ -1349,7 +1434,8 @@ dd {
     grid-template-columns: 1fr;
   }
 
-  .atlas-review-layout {
+  .atlas-review-layout,
+  .client-versions-layout {
     grid-template-columns: 1fr;
   }
 
@@ -1360,6 +1446,7 @@ dd {
 
   .stats-grid,
   .admin-feedback-meta,
+  .client-version-form,
   .gear-modal fieldset,
   .atlas-review-fieldset,
   .atlas-review-spec-grid,
