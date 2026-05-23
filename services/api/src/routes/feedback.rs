@@ -6,7 +6,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
 };
 use stellartrail_db::repositories::FeedbackRepository;
 
@@ -25,6 +25,8 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/me/feedback", post(create_feedback))
         .route("/admin/feedback", get(list_admin_feedback))
+        .route("/admin/feedback/:id", delete(delete_admin_feedback))
+        .route("/admin/feedback/:id/restore", post(restore_admin_feedback))
         .route(
             "/admin/feedback-images/:id",
             get(download_admin_feedback_image),
@@ -39,6 +41,40 @@ async fn create_feedback(
 ) -> Result<(StatusCode, Json<FeedbackResponse>), ApiError> {
     let response = feedback_service::create_feedback(&state, &user.id, payload).await?;
     Ok((StatusCode::CREATED, Json(response)))
+}
+
+/// Soft-deletes a feedback row from administrator dashboards.
+async fn delete_admin_feedback(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    admin_service::ensure_admin(&state, &user).await?;
+    let deleted = FeedbackRepository::new(state.db().clone())
+        .soft_delete(&id)
+        .await?;
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound)
+    }
+}
+
+/// Restores a feedback row previously hidden by administrator soft-delete.
+async fn restore_admin_feedback(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    admin_service::ensure_admin(&state, &user).await?;
+    let restored = FeedbackRepository::new(state.db().clone())
+        .restore_deleted(&id)
+        .await?;
+    if restored {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound)
+    }
 }
 
 /// Lists user feedback for administrators.

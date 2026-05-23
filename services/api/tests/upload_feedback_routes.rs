@@ -5,6 +5,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
+use sea_orm::{ConnectionTrait, Statement};
 use serde_json::{Value, json};
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
@@ -225,6 +226,17 @@ async fn seed_upload_records(
         };
         repo.create(user_id, &draft).await.unwrap();
     }
+}
+
+async fn soft_delete_uploads_for_user(app: &TestApp, user_id: &str, purpose: &str) {
+    app.db
+        .execute(Statement::from_sql_and_values(
+            app.db.get_database_backend(),
+            "UPDATE upload_images SET is_deleted = TRUE WHERE user_id = ? AND purpose = ?",
+            vec![user_id.to_owned().into(), purpose.to_owned().into()],
+        ))
+        .await
+        .expect("soft delete upload records");
 }
 
 async fn grant_admin_role(app: &TestApp, suffix: &str) -> String {
@@ -636,6 +648,38 @@ async fn upload_allows_final_feedback_image_before_count_quota_then_rejects_next
 }
 
 #[tokio::test]
+async fn upload_quotas_ignore_soft_deleted_feedback_images() {
+    let app = test_app_with_upload_config(UploadConfig {
+        max_image_bytes: 8_000_000,
+        rate_limit_window_seconds: 3600,
+        max_images_per_window: 30,
+        max_total_images_per_user: 1,
+        max_total_bytes_per_user: PNG_1X1.len() as u64,
+    })
+    .await;
+    let (token, user_id) = register_password_user_with_id(&app, "deleted_quota").await;
+    seed_upload_records(&app, &user_id, "feedback", 1, PNG_1X1.len() as i64).await;
+    soft_delete_uploads_for_user(&app, &user_id, "feedback").await;
+
+    let (status, value) = upload_image(
+        &app.router,
+        Some(&token),
+        "replacement.png",
+        "image/png",
+        PNG_1X1,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CREATED, "{value}");
+    let usage = UploadImageRepository::new(app.db.clone())
+        .usage_for_user(&user_id, "feedback")
+        .await
+        .unwrap();
+    assert_eq!(usage.count, 1);
+    assert_eq!(usage.total_size_bytes, PNG_1X1.len() as i64);
+}
+
+#[tokio::test]
 async fn upload_rejects_feedback_image_when_total_byte_quota_would_be_exceeded() {
     let max_total_bytes = PNG_1X1.len() as u64 + 10;
     let app = test_app_with_upload_config(UploadConfig {
@@ -812,7 +856,7 @@ async fn authenticated_user_can_submit_feedback_with_uploaded_images() {
 #[tokio::test]
 async fn admin_can_list_feedback_and_download_attached_images() {
     let app = test_app(30).await;
-    let user_token = register_password_user(&app.router, "admin_feedback_user").await;
+    let (user_token, user_id) = register_password_user_with_id(&app, "admin_feedback_user").await;
     let (upload_status, upload) = upload_image(
         &app.router,
         Some(&user_token),
@@ -842,6 +886,8 @@ async fn admin_can_list_feedback_and_download_attached_images() {
     )
     .await;
     assert_eq!(submit_status, StatusCode::CREATED, "{submitted}");
+    let feedback_id = submitted["id"].as_str().unwrap();
+    assert_eq!(submitted["is_deleted"], false);
 
     let (missing_status, missing) =
         send_empty_json(&app.router, "GET", "/api/v1/admin/feedback", None).await;
@@ -869,11 +915,13 @@ async fn admin_can_list_feedback_and_download_attached_images() {
     assert_eq!(list["items"][0]["category"], "bug");
     assert_eq!(list["items"][0]["content"], "装备详情页图片没有显示");
     assert_eq!(list["items"][0]["contact"], "feedback@example.test");
+    assert_eq!(list["items"][0]["is_deleted"], false);
     assert_eq!(
         list["items"][0]["user"]["username"],
         "upload_admin_feedback_user"
     );
     assert_eq!(list["items"][0]["images"][0]["id"], image_id);
+    assert_eq!(list["items"][0]["images"][0]["is_deleted"], false);
     assert_eq!(
         list["items"][0]["images"][0]["download_url"],
         format!("/api/v1/admin/feedback-images/{image_id}")
@@ -888,6 +936,64 @@ async fn admin_can_list_feedback_and_download_attached_images() {
     .await;
     assert_eq!(image_status, StatusCode::OK);
     assert_eq!(image_bytes, PNG_1X1);
+
+    let (delete_status, delete_value) = send_empty_json(
+        &app.router,
+        "DELETE",
+        &format!("/api/v1/admin/feedback/{feedback_id}"),
+        Some(&admin_token),
+    )
+    .await;
+    assert_eq!(delete_status, StatusCode::NO_CONTENT, "{delete_value}");
+
+    let (active_status, active_list) = send_empty_json(
+        &app.router,
+        "GET",
+        "/api/v1/admin/feedback?status=open",
+        Some(&admin_token),
+    )
+    .await;
+    assert_eq!(active_status, StatusCode::OK, "{active_list}");
+    assert_eq!(active_list["items"].as_array().unwrap().len(), 0);
+
+    let (deleted_status, deleted_list) = send_empty_json(
+        &app.router,
+        "GET",
+        "/api/v1/admin/feedback?deleted=deleted",
+        Some(&admin_token),
+    )
+    .await;
+    assert_eq!(deleted_status, StatusCode::OK, "{deleted_list}");
+    assert_eq!(deleted_list["items"].as_array().unwrap().len(), 1);
+    assert_eq!(deleted_list["items"][0]["is_deleted"], true);
+
+    let (deleted_image_status, _deleted_image_bytes) = send_empty(
+        &app.router,
+        "GET",
+        &format!("/api/v1/admin/feedback-images/{image_id}"),
+        Some(&admin_token),
+    )
+    .await;
+    assert_eq!(deleted_image_status, StatusCode::NOT_FOUND);
+
+    let (restore_status, restore_value) = send_empty_json(
+        &app.router,
+        "POST",
+        &format!("/api/v1/admin/feedback/{feedback_id}/restore"),
+        Some(&admin_token),
+    )
+    .await;
+    assert_eq!(restore_status, StatusCode::NO_CONTENT, "{restore_value}");
+
+    soft_delete_uploads_for_user(&app, &user_id, "feedback").await;
+    let (deleted_upload_image_status, _deleted_upload_image_bytes) = send_empty(
+        &app.router,
+        "GET",
+        &format!("/api/v1/admin/feedback-images/{image_id}"),
+        Some(&admin_token),
+    )
+    .await;
+    assert_eq!(deleted_upload_image_status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

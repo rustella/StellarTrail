@@ -190,6 +190,8 @@ GET /api/v1/me/gears/spec-key-rankings
 GET /api/v1/me/gears/tag-suggestions
 GET|POST /api/v1/me/gears
 GET|PATCH|DELETE /api/v1/me/gears/:id
+POST /api/v1/me/gears/:id/delete
+POST /api/v1/me/gears/:id/undelete
 POST /api/v1/me/gears/:id/restore
 GET /api/v1/me/gears/export
 POST /api/v1/me/gears/import
@@ -202,10 +204,13 @@ GET /api/v1/admin/api-usage
 POST|DELETE /api/v1/admin/admins
 PUT /api/v1/admin/skills/knots/:knot_id/media/:asset_id
 GET /api/v1/admin/gear-atlas-submissions
-GET|PATCH /api/v1/admin/gear-atlas-submissions/:id
+GET|PATCH|DELETE /api/v1/admin/gear-atlas-submissions/:id
+POST /api/v1/admin/gear-atlas-submissions/:id/restore
 POST /api/v1/admin/gear-atlas-submissions/:id/approve
 POST /api/v1/admin/gear-atlas-submissions/:id/reject
 GET /api/v1/admin/feedback
+DELETE /api/v1/admin/feedback/:id
+POST /api/v1/admin/feedback/:id/restore
 GET /api/v1/admin/feedback-images/:id
 ```
 

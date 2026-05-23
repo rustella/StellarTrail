@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use stellartrail_domain::{
+    deletion::DeletedFilter,
     gear::{GearCategory, GearSpecs, GearVariants},
     gear_atlas::{
         GearAtlasDraft, GearAtlasItem, GearAtlasReviewChange, GearAtlasSort, GearAtlasSourceType,
@@ -33,6 +34,8 @@ pub struct ListMyGearAtlasSubmissionsQuery {
 pub struct ListAdminGearAtlasSubmissionsQuery {
     pub status: Option<GearAtlasStatus>,
     pub category: Option<GearCategory>,
+    #[serde(default)]
+    pub deleted: DeletedFilter,
     pub q: Option<String>,
     pub limit: Option<u64>,
     pub cursor: Option<String>,
@@ -107,6 +110,7 @@ pub struct GearAtlasPublicItemResponse {
     pub source_url: Option<String>,
     pub source_rating_score: Option<f64>,
     pub source_rating_count: Option<i32>,
+    pub is_deleted: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -138,6 +142,7 @@ impl GearAtlasPublicItemResponse {
             source_url: item.source_url.clone(),
             source_rating_score: item.source_rating_score,
             source_rating_count: item.source_rating_count,
+            is_deleted: item.is_deleted,
             created_at: item.created_at.clone(),
             updated_at: item.updated_at.clone(),
         }

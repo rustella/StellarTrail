@@ -1,11 +1,16 @@
 use sea_orm_migration::prelude::MigratorTrait;
 use stellartrail_db::{
     DatabaseConfig, connect_database,
-    repositories::{AuthRepository, GearAtlasExternalImportAction, GearAtlasRepository},
+    repositories::{
+        AuthRepository, GearAtlasExternalImportAction, GearAtlasRepository,
+        ListGearAtlasAdminOptions, ListGearAtlasOptions,
+    },
 };
 use stellartrail_domain::{
+    deletion::DeletedFilter,
     gear::{GearCategory, GearSpecs},
-    gear_atlas::GearAtlasExternalImportDraft,
+    gear_atlas::{GearAtlasExternalImportDraft, GearAtlasStatus},
+    locale::Locale,
 };
 use stellartrail_migration::Migrator;
 
@@ -140,4 +145,49 @@ async fn external_import_upserts_pending_rows_and_skips_approved_rows() {
     assert_eq!(skipped.item.id, created.item.id);
     assert_eq!(skipped.item.name, "探路者38L户外背包 v2");
     assert_eq!(skipped.item.status.as_str(), "approved");
+
+    assert!(
+        repo.soft_delete(&created.item.id)
+            .await
+            .expect("delete atlas")
+    );
+    let (public_items, _) = repo
+        .list_public(&ListGearAtlasOptions::default(), Locale::ZhCn)
+        .await
+        .expect("list public");
+    assert!(public_items.iter().all(|item| item.id != created.item.id));
+    let (deleted_items, _) = repo
+        .list_admin(&ListGearAtlasAdminOptions {
+            status: Some(GearAtlasStatus::Approved),
+            deleted: DeletedFilter::Deleted,
+            ..Default::default()
+        })
+        .await
+        .expect("list deleted admin");
+    assert_eq!(deleted_items.len(), 1);
+    assert!(deleted_items[0].is_deleted);
+
+    let restored_by_import = repo
+        .upsert_external_import(&after_approval)
+        .await
+        .expect("restore deleted import");
+    assert_eq!(
+        restored_by_import.action,
+        GearAtlasExternalImportAction::Updated
+    );
+    assert_eq!(restored_by_import.item.id, created.item.id);
+    assert_eq!(restored_by_import.item.name, "不应覆盖已审核条目");
+    assert_eq!(restored_by_import.item.status.as_str(), "pending");
+    assert!(!restored_by_import.item.is_deleted);
+    assert!(
+        repo.soft_delete(&created.item.id)
+            .await
+            .expect("delete pending")
+    );
+    let restored = repo
+        .restore_deleted(&created.item.id)
+        .await
+        .expect("restore atlas")
+        .expect("restored item");
+    assert!(!restored.is_deleted);
 }

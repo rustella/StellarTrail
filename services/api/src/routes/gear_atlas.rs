@@ -51,7 +51,13 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/gear-atlas-submissions", get(list_admin_submissions))
         .route(
             "/admin/gear-atlas-submissions/:id",
-            get(get_admin_submission).patch(update_admin_submission),
+            get(get_admin_submission)
+                .patch(update_admin_submission)
+                .delete(delete_admin_submission),
+        )
+        .route(
+            "/admin/gear-atlas-submissions/:id/restore",
+            post(restore_admin_submission),
         )
         .route(
             "/admin/gear-atlas-submissions/:id/approve",
@@ -231,6 +237,7 @@ async fn list_admin_submissions(
         .list_admin(&ListGearAtlasAdminOptions {
             status: query.status,
             category: query.category,
+            deleted: query.deleted,
             q: query.q,
             limit: query.limit.unwrap_or(20),
             cursor: query.cursor,
@@ -243,6 +250,37 @@ async fn list_admin_submissions(
             .collect(),
         next_cursor,
     }))
+}
+
+async fn delete_admin_submission(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    admin_service::ensure_admin(&state, &user).await?;
+    let deleted = GearAtlasRepository::new(state.db().clone())
+        .soft_delete(&id)
+        .await?;
+    if deleted {
+        invalidate_gear_atlas_public_responses(&state).await;
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound)
+    }
+}
+
+async fn restore_admin_submission(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(id): Path<String>,
+) -> Result<Json<GearAtlasSubmissionResponse>, ApiError> {
+    admin_service::ensure_admin(&state, &user).await?;
+    let item = GearAtlasRepository::new(state.db().clone())
+        .restore_deleted(&id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    invalidate_gear_atlas_public_responses(&state).await;
+    Ok(Json(GearAtlasSubmissionResponse::from(&item)))
 }
 
 async fn get_admin_submission(

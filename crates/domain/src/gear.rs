@@ -317,6 +317,7 @@ pub struct GearItem {
     pub share_status: GearShareStatus,
     pub notes: Option<String>,
     pub archived_at: Option<String>,
+    pub is_deleted: bool,
     pub created_at: String,
     pub updated_at: String,
 }

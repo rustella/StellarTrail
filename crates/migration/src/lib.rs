@@ -30,6 +30,7 @@ mod m20260522_000001_add_gear_variants;
 mod m20260523_000001_add_gear_atlas_review_snapshots;
 mod m20260523_000002_remove_knot_difficulty;
 mod m20260523_000003_add_upload_images_user_purpose_index;
+mod m20260523_000004_add_soft_delete_flags;
 
 /// Concrete SeaORM migrator used by the API server and test suites.
 ///
@@ -70,6 +71,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260523_000002_remove_knot_difficulty::Migration),
             Box::new(m20260523_000003_add_upload_images_user_purpose_index::Migration),
             Box::new(create_client_versions::Migration),
+            Box::new(m20260523_000004_add_soft_delete_flags::Migration),
         ]
     }
 }

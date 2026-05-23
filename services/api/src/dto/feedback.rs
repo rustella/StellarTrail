@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use stellartrail_db::repositories::{
     AdminFeedbackRecord, FeedbackAuthorRecord, FeedbackRecord, ListAdminFeedbackOptions,
 };
-use stellartrail_domain::feedback::{FeedbackDraft, validate_feedback_draft};
+use stellartrail_domain::{
+    deletion::DeletedFilter,
+    feedback::{FeedbackDraft, validate_feedback_draft},
+};
 
 use crate::dto::upload::UploadImageResponse;
 
@@ -26,6 +29,8 @@ pub struct CreateFeedbackRequest {
 #[derive(Clone, Debug, Deserialize)]
 pub struct ListAdminFeedbackQuery {
     pub status: Option<String>,
+    #[serde(default)]
+    pub deleted: DeletedFilter,
     pub limit: Option<u64>,
     pub cursor: Option<String>,
 }
@@ -38,6 +43,7 @@ impl ListAdminFeedbackQuery {
                 .status
                 .map(|value| value.trim().to_owned())
                 .filter(|value| !value.is_empty()),
+            deleted: self.deleted,
             limit: self.limit.unwrap_or(50),
             cursor: self.cursor,
         }
@@ -76,6 +82,7 @@ pub struct FeedbackResponse {
     pub device_model: Option<String>,
     pub status: String,
     pub images: Vec<UploadImageResponse>,
+    pub is_deleted: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -104,6 +111,7 @@ pub struct AdminFeedbackResponse {
     pub device_model: Option<String>,
     pub status: String,
     pub images: Vec<UploadImageResponse>,
+    pub is_deleted: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -133,6 +141,7 @@ impl From<&FeedbackRecord> for FeedbackResponse {
                 .iter()
                 .map(UploadImageResponse::from)
                 .collect(),
+            is_deleted: record.is_deleted,
             created_at: record.created_at.clone(),
             updated_at: record.updated_at.clone(),
         }
@@ -177,6 +186,7 @@ impl From<&AdminFeedbackRecord> for AdminFeedbackResponse {
                     )
                 })
                 .collect(),
+            is_deleted: feedback.is_deleted,
             created_at: feedback.created_at.clone(),
             updated_at: feedback.updated_at.clone(),
         }

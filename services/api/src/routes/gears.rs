@@ -39,6 +39,8 @@ pub fn routes() -> Router<AppState> {
         .route("/me/gears/import", post(import_json))
         .route("/me/gears", get(list).post(create))
         .route("/me/gears/:id", get(get_one).patch(update).delete(archive))
+        .route("/me/gears/:id/delete", post(soft_delete))
+        .route("/me/gears/:id/undelete", post(undelete))
         .route("/me/gears/:id/restore", post(restore))
 }
 
@@ -188,6 +190,7 @@ async fn list(
         "tab": query.tab,
         "category": query.category,
         "status": query.status,
+        "deleted": query.deleted,
         "q": query.q.as_deref(),
         "sort": query.sort,
         "limit": limit,
@@ -212,6 +215,7 @@ async fn list(
             tab: query.tab,
             category: query.category,
             status: query.status,
+            deleted: query.deleted,
             q: query.q,
             sort: query.sort,
             limit,
@@ -223,6 +227,38 @@ async fn list(
         state.cache().set_json(key, &response).await;
     }
     Ok(Json(response))
+}
+
+/// Soft-deletes a gear item while preserving archive state for future undelete.
+async fn soft_delete(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let deleted = GearRepository::new(state.db().clone())
+        .soft_delete(&user.id, &id)
+        .await?;
+    if deleted {
+        state.cache().invalidate_user_gear(&user.id).await;
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound)
+    }
+}
+
+/// Restores a soft-deleted gear item without changing whether it belongs in history.
+async fn undelete(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(id): Path<String>,
+) -> Result<Json<GearItemResponse>, ApiError> {
+    let item = GearRepository::new(state.db().clone())
+        .undelete(&user.id, &id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let tag_colors = state.cache().gear_tag_colors(&user.id, &item.tags).await;
+    state.cache().invalidate_user_gear(&user.id).await;
+    Ok(Json(GearItemResponse::from_item(item, &tag_colors)))
 }
 
 /// Creates the current resource and triggers follow-up state maintenance when needed.

@@ -129,6 +129,7 @@ pub struct GearAtlasItem {
     pub imported_at: Option<String>,
     pub source_rating_score: Option<f64>,
     pub source_rating_count: Option<i32>,
+    pub is_deleted: bool,
     pub created_at: String,
     pub updated_at: String,
 }

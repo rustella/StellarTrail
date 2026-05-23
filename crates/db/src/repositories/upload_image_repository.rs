@@ -34,6 +34,7 @@ pub struct UploadImageRecord {
     pub size_bytes: i64,
     pub sha256: String,
     pub etag: Option<String>,
+    pub is_deleted: bool,
     pub created_at: String,
 }
 
@@ -102,7 +103,7 @@ impl UploadImageRepository {
             .db
             .query_one(statement(
                 self.db.get_database_backend(),
-                upload_select_sql("WHERE user_id = ? AND id = ?"),
+                upload_select_sql("WHERE user_id = ? AND id = ? AND is_deleted = FALSE"),
                 vec![user_id.to_owned().into(), id.to_owned().into()],
             ))
             .await?;
@@ -128,7 +129,7 @@ impl UploadImageRepository {
                 .query_all(statement(
                     self.db.get_database_backend(),
                     format!(
-                        "{} WHERE user_id = ? AND id IN ({placeholders})",
+                        "{} WHERE user_id = ? AND is_deleted = FALSE AND id IN ({placeholders})",
                         upload_select_columns()
                     ),
                     values,
@@ -154,7 +155,7 @@ impl UploadImageRepository {
             .db
             .query_one(statement(
                 self.db.get_database_backend(),
-                "SELECT COUNT(*) AS count FROM upload_images WHERE user_id = ? AND purpose = ? AND created_at >= ?",
+                "SELECT COUNT(*) AS count FROM upload_images WHERE user_id = ? AND purpose = ? AND is_deleted = FALSE AND created_at >= ?",
                 vec![
                     user_id.to_owned().into(),
                     purpose.to_owned().into(),
@@ -178,7 +179,7 @@ impl UploadImageRepository {
             .db
             .query_one(statement(
                 self.db.get_database_backend(),
-                "SELECT COUNT(*) AS count, COALESCE(SUM(size_bytes), 0) AS total_size_bytes FROM upload_images WHERE user_id = ? AND purpose = ?",
+                "SELECT COUNT(*) AS count, COALESCE(SUM(size_bytes), 0) AS total_size_bytes FROM upload_images WHERE user_id = ? AND purpose = ? AND is_deleted = FALSE",
                 vec![user_id.to_owned().into(), purpose.to_owned().into()],
             ))
             .await?;
@@ -201,7 +202,7 @@ fn upload_select_sql(where_clause: &str) -> String {
 
 fn upload_select_columns() -> &'static str {
     r#"SELECT id, user_id, purpose, original_filename, bucket, object_key, image_type,
-        content_type, size_bytes, sha256, etag, created_at
+        content_type, size_bytes, sha256, etag, is_deleted, created_at
        FROM upload_images"#
 }
 
@@ -218,6 +219,7 @@ fn map_upload_image(row: &sea_orm::QueryResult) -> Result<UploadImageRecord, DbE
         size_bytes: row.try_get("", "size_bytes")?,
         sha256: row.try_get("", "sha256")?,
         etag: row.try_get("", "etag")?,
+        is_deleted: row.try_get("", "is_deleted")?,
         created_at: row.try_get("", "created_at")?,
     })
 }
