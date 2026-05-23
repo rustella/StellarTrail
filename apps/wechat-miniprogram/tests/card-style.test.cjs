@@ -390,7 +390,7 @@ test("skills knot list offers search and category-only filtering", () => {
   assert.match(ts, /searchQuery,\s*nextOffset:\s*null,\s*loadingMore:\s*false/);
   assert.match(
     ts,
-    /const allKnots = await Promise\.all\(response\.items\.map\(mapKnotListCard\)\);[\s\S]*requestSeq !== knotListRequestSeq/,
+    /const favoriteIds = await favoriteIdsPromise;[\s\S]*response\.items\.map\(\(item\) => mapKnotListCard\(item, favoriteIds\)\)/,
   );
   assert.match(ts, /onReachBottom\(\)/);
   assert.match(ts, /onTabItemTap\(\)/);
@@ -427,4 +427,41 @@ test("skills knot list offers search and category-only filtering", () => {
   assert.match(ts, /steps/);
   assert.match(ts, /category\.slug/);
   assert.match(ts, /type\.slug/);
+});
+
+test("skills pages expose favorite list and star controls", () => {
+  const indexWxml = read("pages/skills/index.wxml");
+  const indexWxss = read("pages/skills/index.wxss");
+  const indexTs = read("pages/skills/index.ts");
+  const detailWxml = read("pages/skills/detail/index.wxml");
+  const detailWxss = read("pages/skills/detail/index.wxss");
+  const detailTs = read("pages/skills/detail/index.ts");
+
+  assert.match(indexWxml, /收藏清单/);
+  assert.match(indexWxml, /bindtap="openFavoriteSkills"/);
+  assert.match(indexWxml, /bindchange="onFavoriteFilterChange"/);
+  assert.match(indexWxml, /range="{{favoriteFilterLabels}}"/);
+  assert.match(indexWxml, /class="favorite-button/);
+  assert.match(indexWxml, /catchtap="toggleFavorite"/);
+  assert.match(indexWxml, /loginPrompt\.visible/);
+  assert.match(indexTs, /listFavoriteSkills/);
+  assert.match(indexTs, /favoriteKnot/);
+  assert.match(indexTs, /unfavoriteKnot/);
+  assert.match(indexTs, /requireLoginForAction/);
+  assert.match(indexTs, /showOfflineWriteBlockedToast/);
+
+  const favoriteEntry = selectorBlock(indexWxss, ".favorite-entry-card");
+  assert.match(favoriteEntry, /border-radius:\s*var\(--card-radius\)/);
+  assert.match(favoriteEntry, /background:\s*var\(--surface-color\)/);
+  const favoriteButton = selectorBlock(indexWxss, ".favorite-button");
+  assert.match(favoriteButton, /border-radius:\s*999rpx/);
+
+  assert.match(detailWxml, /class="favorite-detail-button/);
+  assert.match(detailWxml, /bindtap="toggleFavorite"/);
+  assert.match(detailWxml, /loginPrompt\.visible/);
+  assert.match(detailTs, /getFavoriteKnotStatus/);
+  assert.match(detailTs, /favoriteKnot/);
+  assert.match(detailTs, /unfavoriteKnot/);
+  const detailButton = selectorBlock(detailWxss, ".favorite-detail-button");
+  assert.match(detailButton, /border-radius:\s*999rpx/);
 });

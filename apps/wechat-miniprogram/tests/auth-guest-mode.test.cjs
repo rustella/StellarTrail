@@ -50,6 +50,7 @@ global.wx = {
 
 const {
   ensureAccessToken,
+  listFavoriteSkills,
   getKnotDetail,
   isLoginRequiredError,
   listKnots,
@@ -92,6 +93,23 @@ test("public knot list and detail requests stay unauthenticated for guest users"
     assert.equal(request.header.authorization, undefined);
     assert.equal(request.header["X-StellarTrail-Locale"], "zh-CN");
   }
+});
+
+test("favorite skills request requires login without silently calling wx.login", async () => {
+  loginCalled = false;
+  requests = [];
+
+  await assert.rejects(
+    () => listFavoriteSkills({ skill_category: "knots" }),
+    (error) => {
+      assert.equal(isLoginRequiredError(error), true);
+      assert.equal(error.message, "登录后继续");
+      return true;
+    },
+  );
+
+  assert.equal(loginCalled, false);
+  assert.deepEqual(requests, []);
 });
 
 test("login prompt encodes the current page as login redirect", () => {

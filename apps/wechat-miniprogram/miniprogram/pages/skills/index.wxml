@@ -14,12 +14,18 @@
     <button class="retry-button" bindtap="loadKnots">重试</button>
   </view>
 
-  <view wx:elif="{{checkingKnotDisclaimer}}" class="state-card"
-    >正在确认绳结免责声明...</view
-  >
 
   <block wx:else>
     <view wx:if="{{mode === 'catalog'}}" class="skill-category-list">
+      <view class="favorite-entry-card" bindtap="openFavoriteSkills">
+        <view class="favorite-entry-icon">★</view>
+        <view class="favorite-entry-copy">
+          <view class="favorite-entry-title">收藏清单</view>
+          <view class="favorite-entry-desc">快速找到已经收藏的户外技能</view>
+        </view>
+        <view class="favorite-entry-cta">查看 ›</view>
+      </view>
+
       <block wx:for="{{skillCategories}}" wx:key="id">
         <view class="skill-category-card" data-id="{{item.id}}" bindtap="openSkillCategory">
           <view class="category-icon">{{item.icon}}</view>
@@ -33,7 +39,7 @@
       </block>
     </view>
 
-    <block wx:else>
+    <block wx:elif="{{mode === 'knots'}}">
       <view class="list-header">
         <view>
           <view class="list-eyebrow">绳结技能</view>
@@ -118,6 +124,14 @@
               <view class="skill-title">{{item.title}}</view>
               <view class="skill-summary">{{item.summary}}</view>
             </view>
+            <button
+              class="favorite-button {{item.isFavorited ? 'active' : ''}}"
+              data-id="{{item.id}}"
+              loading="{{item.favoriteLoading}}"
+              catchtap="toggleFavorite"
+            >
+              {{item.isFavorited ? '★' : '☆'}}
+            </button>
           </view>
         </block>
       </view>
@@ -134,7 +148,80 @@
         >没有更多绳结了</view
       >
     </block>
+
+    <block wx:else>
+      <view class="list-header">
+        <view>
+          <view class="list-eyebrow">我的收藏</view>
+          <view class="list-title">收藏清单</view>
+        </view>
+        <view class="list-actions">
+          <button class="ghost-button" bindtap="showSkillCatalog">返回</button>
+        </view>
+      </view>
+
+      <view class="knot-filter-card favorite-filter-card">
+        <view class="knot-filter-row">
+          <picker
+            class="category-filter-picker"
+            value="{{selectedFavoriteFilterIndex}}"
+            range="{{favoriteFilterLabels}}"
+            bindchange="onFavoriteFilterChange"
+          >
+            <view class="category-filter-pill">
+              <text class="filter-label">技能</text>
+              <text>{{favoriteFilterLabels[selectedFavoriteFilterIndex]}}</text>
+            </view>
+          </picker>
+        </view>
+      </view>
+
+      <view wx:if="{{loading}}" class="state-card">正在加载收藏清单...</view>
+
+      <view wx:elif="{{favoriteKnots.length}}" class="skill-list">
+        <block wx:for="{{favoriteKnots}}" wx:key="id">
+          <view class="skill-card" data-id="{{item.id}}" bindtap="goDetail">
+            <view class="skill-thumb">
+              <image
+                wx:if="{{item.hasThumbnail}}"
+                class="skill-thumb-image"
+                mode="aspectFit"
+                src="{{item.thumbnailUrl}}"
+                lazy-load
+              />
+              <view wx:else class="thumb-placeholder">绳结</view>
+            </view>
+            <view class="skill-content">
+              <view class="skill-tags">
+                <text class="skill-tag">{{item.categoryText}}</text>
+              </view>
+              <view class="skill-title">{{item.title}}</view>
+              <view class="skill-summary">{{item.summary}}</view>
+            </view>
+            <button
+              class="favorite-button {{item.isFavorited ? 'active' : ''}}"
+              data-id="{{item.id}}"
+              loading="{{item.favoriteLoading}}"
+              catchtap="toggleFavorite"
+            >
+              {{item.isFavorited ? '★' : '☆'}}
+            </button>
+          </view>
+        </block>
+      </view>
+
+      <view wx:else class="state-card empty">
+        <view class="empty-title">还没有收藏技能</view>
+        <view class="empty-subtitle">在绳结列表或详情页点星标，就会出现在这里。</view>
+      </view>
+
+      <view wx:if="{{loadingMore}}" class="load-more">继续加载...</view>
+      <view wx:elif="{{favoriteKnots.length && !favoriteNextOffset}}" class="load-more muted"
+        >没有更多收藏了</view
+      >
+    </block>
   </block>
+
   <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
     <view class="login-prompt-card">
       <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
@@ -147,33 +234,4 @@
     </view>
   </view>
 
-  <view wx:if="{{knotDisclaimerVisible}}" class="disclaimer-mask">
-    <view class="disclaimer-card">
-      <view class="disclaimer-title">{{knotDisclaimerTitle}}</view>
-      <view class="disclaimer-version">版本 {{knotDisclaimerVersion}}</view>
-      <scroll-view scroll-y class="disclaimer-content">
-        <text>{{knotDisclaimerContent}}</text>
-      </scroll-view>
-      <view wx:if="{{knotDisclaimerError}}" class="disclaimer-error"
-        >{{knotDisclaimerError}}</view
-      >
-      <view class="disclaimer-actions">
-        <button
-          class="disclaimer-secondary"
-          disabled="{{acceptingKnotDisclaimer}}"
-          bindtap="rejectKnotDisclaimer"
-        >
-          拒绝并退出
-        </button>
-        <button
-          class="disclaimer-primary"
-          loading="{{acceptingKnotDisclaimer}}"
-          disabled="{{acceptingKnotDisclaimer}}"
-          bindtap="acceptKnotDisclaimer"
-        >
-          我已阅读并同意
-        </button>
-      </view>
-    </view>
-  </view>
 </view>

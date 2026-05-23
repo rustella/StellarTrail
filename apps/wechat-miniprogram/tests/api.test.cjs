@@ -862,93 +862,6 @@ test("authenticated requests refresh once on 401 and retry with the new access t
   assert.equal(storage.get("stellartrail_refresh_token"), "refresh-new");
 });
 
-test("knot disclaimer reads and writes authenticated acceptance", async () => {
-  const calls = [];
-  const storage = installWxMock((options) => {
-    calls.push({
-      url: options.url,
-      method: options.method,
-      authorization: options.header && options.header.authorization,
-      data: options.data,
-    });
-    if (options.url.endsWith("/api/v1/me/skills/knots/disclaimer")) {
-      options.success({
-        statusCode: 200,
-        data: {
-          key: "knot_tutorial_disclaimer",
-          version: "v1",
-          title: "绳结教程免责声明",
-          content: "仅供参考",
-          accepted: false,
-          accepted_at: null,
-        },
-      });
-      return;
-    }
-    if (
-      options.url.endsWith(
-        "/api/v1/me/skills/knots/disclaimer/acceptance",
-      )
-    ) {
-      options.success({
-        statusCode: 200,
-        data: {
-          key: "knot_tutorial_disclaimer",
-          version: "v1",
-          title: "绳结教程免责声明",
-          content: "仅供参考",
-          accepted: true,
-          accepted_at: "2026-05-24T00:00:00Z",
-        },
-      });
-      return;
-    }
-    options.success({ statusCode: 404, data: { message: "not found" } });
-  });
-  storage.set("stellartrail_access_token", "access-old");
-  storage.set("stellartrail_user", { id: "u1" });
-  const {
-    acceptKnotDisclaimer,
-    getKnotDisclaimer,
-  } = require("../.tmp-test/utils/api.js");
-
-  const disclaimer = await getKnotDisclaimer();
-  const accepted = await acceptKnotDisclaimer({
-    client_platform: "wechat_miniprogram",
-    client_version: "dev",
-    device_model: "iPhone",
-  });
-
-  assert.equal(disclaimer.accepted, false);
-  assert.equal(accepted.accepted, true);
-  assert.deepEqual(
-    calls.map((call) => ({
-      path: call.url.replace("https://api.example.test", ""),
-      method: call.method,
-      authorization: call.authorization,
-      data: call.data,
-    })),
-    [
-      {
-        path: "/api/v1/me/skills/knots/disclaimer",
-        method: "GET",
-        authorization: "Bearer access-old",
-        data: undefined,
-      },
-      {
-        path: "/api/v1/me/skills/knots/disclaimer/acceptance",
-        method: "POST",
-        authorization: "Bearer access-old",
-        data: {
-          client_platform: "wechat_miniprogram",
-          client_version: "dev",
-          device_model: "iPhone",
-        },
-      },
-    ],
-  );
-});
-
 test("getGearSpecKeyRankings calls authenticated category endpoint", async () => {
   const calls = [];
   const storage = installWxMock((options) => {
@@ -1262,6 +1175,105 @@ test("roadmap API utilities call public and authenticated endpoints", async () =
       path: "/api/v1/me/roadmap/smart-packing-template/subscription",
       method: "DELETE",
       authorization: "Bearer access-old",
+    },
+  ]);
+});
+
+test("favorite skill helpers call authenticated favorites endpoints", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      method: options.method,
+      authorization: options.header && options.header.authorization,
+      locale: options.header && options.header["X-StellarTrail-Locale"],
+    });
+    if (options.url.includes("/api/v1/me/skills/favorites?")) {
+      options.success({
+        statusCode: 200,
+        data: {
+          locale: "zh-CN",
+          filters: [
+            { id: "all", title: "全部收藏", count: 1 },
+            { id: "knots", title: "绳结", count: 1 },
+          ],
+          items: [
+            {
+              skill_category: "knots",
+              favorited_at: "2026-05-24T00:00:00Z",
+              knot: {
+                id: "bowline",
+                slug: "bowline",
+                title: "布林结",
+                summary: "固定绳圈",
+                categories: [],
+                types: [],
+                media: [],
+                href: "/api/v1/skills/knots/detail/bowline",
+              },
+            },
+          ],
+          page: { limit: 20, offset: 0, next_offset: null },
+        },
+      });
+      return;
+    }
+    options.success({
+      statusCode: 200,
+      data: {
+        skill_category: "knots",
+        knot_id: "bowline",
+        is_favorited: options.method !== "DELETE",
+        favorited_at:
+          options.method === "DELETE" ? null : "2026-05-24T00:00:00Z",
+      },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-favorite");
+  const {
+    favoriteKnot,
+    getFavoriteKnotStatus,
+    listFavoriteSkills,
+    unfavoriteKnot,
+  } = require("../.tmp-test/utils/api.js");
+
+  const list = await listFavoriteSkills({
+    skill_category: "knots",
+    offset: 0,
+    limit: 20,
+  });
+  const status = await getFavoriteKnotStatus("bowline");
+  const favorited = await favoriteKnot("bowline");
+  const unfavorited = await unfavoriteKnot("bowline");
+
+  assert.equal(list.items[0].knot.id, "bowline");
+  assert.equal(status.is_favorited, true);
+  assert.equal(favorited.is_favorited, true);
+  assert.equal(unfavorited.is_favorited, false);
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.example.test/api/v1/me/skills/favorites?skill_category=knots&offset=0&limit=20",
+      method: "GET",
+      authorization: "Bearer access-favorite",
+      locale: "zh-CN",
+    },
+    {
+      url: "https://api.example.test/api/v1/me/skills/favorites/knots/bowline",
+      method: "GET",
+      authorization: "Bearer access-favorite",
+      locale: undefined,
+    },
+    {
+      url: "https://api.example.test/api/v1/me/skills/favorites/knots/bowline",
+      method: "PUT",
+      authorization: "Bearer access-favorite",
+      locale: undefined,
+    },
+    {
+      url: "https://api.example.test/api/v1/me/skills/favorites/knots/bowline",
+      method: "DELETE",
+      authorization: "Bearer access-favorite",
+      locale: undefined,
     },
   ]);
 });

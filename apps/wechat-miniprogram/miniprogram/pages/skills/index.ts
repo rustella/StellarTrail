@@ -1,16 +1,19 @@
 import {
-  acceptKnotDisclaimer as submitKnotDisclaimerAcceptance,
   consumeOfflineCacheNotice,
+  favoriteKnot,
   getErrorMessage,
-  getKnotDisclaimer,
   getKnotFilters,
   hasAccessToken,
   isOfflineCacheMissError,
+  listFavoriteSkills,
   listKnots,
   resolveAssetUrl,
+  unfavoriteKnot,
 } from "../../utils/api-skills";
 import {
   mapSkillCard,
+  type FavoriteSkillCategory,
+  type FavoriteSkillFilterOption,
   type KnotDetail,
   type KnotFilterOption,
   type KnotMediaAsset,
@@ -35,7 +38,7 @@ import {
 } from "../../utils/auth-prompt";
 import { isOffline, showOfflineWriteBlockedToast } from "../../utils/network-state";
 
-type SkillsMode = "catalog" | "knots";
+type SkillsMode = "catalog" | "knots" | "favorites";
 
 interface SkillCategoryCard {
   id: "knots";
@@ -52,6 +55,9 @@ interface KnotListCard extends SkillCard {
   categoryIds: string[];
   categoryTitles: string[];
   searchText: string;
+  isFavorited: boolean;
+  favoriteLoading: boolean;
+  favoritedAt: string;
 }
 
 interface KnotCategoryFilter {
@@ -61,9 +67,16 @@ interface KnotCategoryFilter {
 }
 
 const KNOTS_PAGE_SIZE = 10;
+const FAVORITE_SKILLS_PAGE_SIZE = 20;
 const KNOT_CACHE_ENTRY_KEY = "stellartrail_open_knots_cache";
 let knotSearchTimer: ReturnType<typeof setTimeout> | null = null;
 let knotListRequestSeq = 0;
+let favoriteListRequestSeq = 0;
+
+const DEFAULT_FAVORITE_FILTERS: FavoriteSkillFilterOption[] = [
+  { id: "all", title: "全部收藏", count: 0 },
+  { id: "knots", title: "绳结", count: 0 },
+];
 
 const SKILL_CATEGORIES: SkillCategoryCard[] = [
   {
@@ -83,6 +96,12 @@ Page({
     skillCategories: SKILL_CATEGORIES,
     allKnots: [] as KnotListCard[],
     knots: [] as KnotListCard[],
+    favoriteKnots: [] as KnotListCard[],
+    favoriteFilters: DEFAULT_FAVORITE_FILTERS,
+    favoriteFilterLabels: favoriteFilterLabels(DEFAULT_FAVORITE_FILTERS),
+    selectedFavoriteFilter: "all" as FavoriteSkillCategory,
+    selectedFavoriteFilterIndex: 0,
+    favoriteNextOffset: null as number | null,
     categoryFilters: [{ id: "all", label: "全部类别", count: 0 }] as KnotCategoryFilter[],
     categoryFilterLabels: ["全部类别"] as string[],
     selectedCategoryId: "all",
@@ -100,13 +119,6 @@ Page({
     error: "",
     offlineNotice: "",
     loginPrompt: getDefaultLoginPrompt(),
-    checkingKnotDisclaimer: false,
-    knotDisclaimerVisible: false,
-    knotDisclaimerTitle: "",
-    knotDisclaimerContent: "",
-    knotDisclaimerVersion: "",
-    knotDisclaimerError: "",
-    acceptingKnotDisclaimer: false,
     ...getThemeViewData(),
   },
 
@@ -121,10 +133,6 @@ Page({
   },
 
   ensureSkillsPageReady() {
-    if (this.data.mode === "knots" && !hasAccessToken()) {
-      this.showSkillCatalog();
-      return;
-    }
     if (wx.getStorageSync(KNOT_CACHE_ENTRY_KEY) === true) {
       wx.removeStorageSync(KNOT_CACHE_ENTRY_KEY);
       this.openKnotsFromEntry();
@@ -144,6 +152,15 @@ Page({
       !this.data.error
     ) {
       this.loadKnots();
+      return;
+    }
+    if (
+      this.data.mode === "favorites" &&
+      !this.data.favoriteKnots.length &&
+      !this.data.loading &&
+      !this.data.error
+    ) {
+      this.loadFavoriteSkills();
     }
   },
 
@@ -152,12 +169,20 @@ Page({
       this.loadKnots().finally(() => wx.stopPullDownRefresh());
       return;
     }
+    if (this.data.mode === "favorites") {
+      this.loadFavoriteSkills().finally(() => wx.stopPullDownRefresh());
+      return;
+    }
     wx.stopPullDownRefresh();
   },
 
   onReachBottom() {
     if (this.data.mode === "knots") {
       this.loadMoreKnots();
+      return;
+    }
+    if (this.data.mode === "favorites") {
+      this.loadMoreFavoriteSkills();
     }
   },
 
@@ -169,120 +194,31 @@ Page({
     this.openKnotsFromEntry();
   },
 
-  async openKnotsFromEntry() {
-    if (
-      !requireLoginForAction(this, {
-        message: "登录并同意绳结教程免责声明后，可以查看绳结列表。",
-        redirectUrl: "/pages/skills/index",
-      })
-    ) {
-      return;
-    }
-    this.setData({
-      checkingKnotDisclaimer: true,
-      knotDisclaimerError: "",
-      error: "",
-      offlineNotice: "",
-    });
-    try {
-      const disclaimer = await getKnotDisclaimer();
-      if (disclaimer.accepted) {
-        this.enterKnotsList();
-        return;
-      }
-      this.setData({
-        checkingKnotDisclaimer: false,
-        knotDisclaimerVisible: true,
-        knotDisclaimerTitle: disclaimer.title,
-        knotDisclaimerContent: disclaimer.content,
-        knotDisclaimerVersion: disclaimer.version,
-      });
-    } catch (error) {
-      this.setData({ checkingKnotDisclaimer: false });
-      if (!hasAccessToken()) {
-        requireLoginForAction(this, {
-          message: "登录并同意绳结教程免责声明后，可以查看绳结列表。",
-          redirectUrl: "/pages/skills/index",
-        });
-        return;
-      }
-      wx.showToast({ title: getErrorMessage(error), icon: "none" });
-    }
-  },
-
-  enterKnotsList() {
+  openKnotsFromEntry() {
     wx.setNavigationBarTitle({ title: "绳结" });
-    this.setData({
-      mode: "knots",
-      error: "",
-      offlineNotice: "",
-      checkingKnotDisclaimer: false,
-      knotDisclaimerVisible: false,
-      knotDisclaimerError: "",
-      acceptingKnotDisclaimer: false,
-    });
+    this.setData({ mode: "knots", error: "", offlineNotice: "" });
     if (!this.data.allKnots.length) {
       this.loadKnots();
     }
   },
 
-  rejectKnotDisclaimer() {
-    this.setData({
-      knotDisclaimerVisible: false,
-      knotDisclaimerError: "",
-      acceptingKnotDisclaimer: false,
-      checkingKnotDisclaimer: false,
-    });
-    this.showSkillCatalog();
-  },
-
-  async acceptKnotDisclaimer() {
-    if (this.data.acceptingKnotDisclaimer) {
+  openFavoriteSkills() {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以同步收藏技能，并在收藏清单里快速找到。",
+        redirectUrl: "/pages/skills/index",
+      })
+    ) {
       return;
     }
-    if (isOffline()) {
-      showOfflineWriteBlockedToast();
-      return;
-    }
+    wx.setNavigationBarTitle({ title: "收藏技能" });
     this.setData({
-      acceptingKnotDisclaimer: true,
-      knotDisclaimerError: "",
+      mode: "favorites",
+      error: "",
+      offlineNotice: "",
+      loadingMore: false,
     });
-    try {
-      const response = await submitKnotDisclaimerAcceptance({
-        client_platform: "wechat_miniprogram",
-        client_version: miniProgramVersion(),
-        device_model: deviceModel(),
-      });
-      if (!response.accepted) {
-        this.setData({
-          acceptingKnotDisclaimer: false,
-          knotDisclaimerError: "同意状态未保存，请稍后重试。",
-        });
-        return;
-      }
-      this.enterKnotsList();
-    } catch (error) {
-      this.setData({
-        acceptingKnotDisclaimer: false,
-        knotDisclaimerError: getErrorMessage(error),
-      });
-      if (!hasAccessToken()) {
-        this.setData({ knotDisclaimerVisible: false });
-        requireLoginForAction(this, {
-          message: "登录状态已过期，请重新登录后查看绳结列表。",
-          redirectUrl: "/pages/skills/index",
-        });
-      }
-    }
-  },
-
-  loginPromptClose() {
-    hideLoginPrompt(this);
-  },
-
-  loginPromptGoLogin() {
-    openLoginPageFromPrompt(this);
+    this.loadFavoriteSkills();
   },
 
   showSkillCatalog() {
@@ -293,11 +229,7 @@ Page({
       offlineNotice: "",
       loading: false,
       loadingMore: false,
-      checkingKnotDisclaimer: false,
-      knotDisclaimerVisible: false,
-      knotDisclaimerError: "",
-      acceptingKnotDisclaimer: false,
-    });
+            });
   },
 
   async loadKnots(
@@ -323,11 +255,15 @@ Page({
     const requestSeq = ++knotListRequestSeq;
     try {
       const filtersPromise = loadKnotCategoryFilters().catch(() => null);
+      const favoriteIdsPromise = loadFavoriteKnotIdSet().catch(() => null);
       const response = await loadKnotsPage(0, searchQuery, selectedCategoryId);
       if (requestSeq !== knotListRequestSeq) {
         return;
       }
-      const allKnots = await Promise.all(response.items.map(mapKnotListCard));
+      const favoriteIds = await favoriteIdsPromise;
+      const allKnots = await Promise.all(
+        response.items.map((item) => mapKnotListCard(item, favoriteIds)),
+      );
       if (requestSeq !== knotListRequestSeq) {
         return;
       }
@@ -357,13 +293,13 @@ Page({
         return;
       }
       if (isOfflineCacheMissError(error) && this.data.allKnots.length) {
-      const listState = buildKnotListState(
-        this.data.allKnots,
-        selectedCategoryId,
-        searchQuery,
-        this.data.nextOffset,
-        this.data.categoryFilters,
-      );
+        const listState = buildKnotListState(
+          this.data.allKnots,
+          selectedCategoryId,
+          searchQuery,
+          this.data.nextOffset,
+          this.data.categoryFilters,
+        );
         this.setData({
           ...listState,
           searchQuery,
@@ -391,6 +327,7 @@ Page({
     this.setData({ loadingMore: true, error: "" });
     const requestSeq = knotListRequestSeq;
     try {
+      const favoriteIdsPromise = loadFavoriteKnotIdSet().catch(() => null);
       const response = await loadKnotsPage(
         nextOffset,
         this.data.searchQuery,
@@ -399,7 +336,10 @@ Page({
       if (requestSeq !== knotListRequestSeq) {
         return;
       }
-      const nextKnots = await Promise.all(response.items.map(mapKnotListCard));
+      const favoriteIds = await favoriteIdsPromise;
+      const nextKnots = await Promise.all(
+        response.items.map((item) => mapKnotListCard(item, favoriteIds)),
+      );
       if (requestSeq !== knotListRequestSeq) {
         return;
       }
@@ -428,6 +368,111 @@ Page({
         ...withoutKnotItems(listState),
         nextOffset: nextPageOffset,
         ...(offlineNotice ? { offlineNotice } : {}),
+      });
+    } catch (error) {
+      wx.showToast({ title: getErrorMessage(error), icon: "none" });
+    } finally {
+      this.setData({ loadingMore: false });
+    }
+  },
+
+  async loadFavoriteSkills(
+    filterState: {
+      selectedFavoriteFilter?: FavoriteSkillCategory;
+      selectedFavoriteFilterIndex?: number;
+    } = {},
+  ) {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以查看收藏技能清单。",
+        redirectUrl: "/pages/skills/index",
+      })
+    ) {
+      return;
+    }
+    const selectedFavoriteFilter =
+      filterState.selectedFavoriteFilter ?? this.data.selectedFavoriteFilter;
+    const selectedFavoriteFilterIndex =
+      filterState.selectedFavoriteFilterIndex ??
+      this.data.selectedFavoriteFilterIndex;
+    const requestSeq = ++favoriteListRequestSeq;
+    this.setData({
+      loading: true,
+      loadingMore: false,
+      error: "",
+      selectedFavoriteFilter,
+      selectedFavoriteFilterIndex,
+    });
+    try {
+      const response = await loadFavoriteSkillsPage(0, selectedFavoriteFilter);
+      if (requestSeq !== favoriteListRequestSeq) {
+        return;
+      }
+      const favoriteKnots = await Promise.all(
+        response.items.map((item) =>
+          mapKnotListCard(item.knot, new Set([item.knot.id]), item.favorited_at),
+        ),
+      );
+      if (requestSeq !== favoriteListRequestSeq) {
+        return;
+      }
+      const filters = normalizeFavoriteFilters(response.filters);
+      const offlineNotice = consumeOfflineCacheNotice();
+      this.setData({
+        favoriteKnots,
+        favoriteFilters: filters,
+        favoriteFilterLabels: favoriteFilterLabels(filters),
+        favoriteNextOffset: response.page.next_offset ?? null,
+        loading: false,
+        ...(offlineNotice ? { offlineNotice } : {}),
+      });
+    } catch (error) {
+      if (requestSeq !== favoriteListRequestSeq) {
+        return;
+      }
+      this.setData({
+        error: getErrorMessage(error),
+        loading: false,
+        loadingMore: false,
+        favoriteKnots: [] as KnotListCard[],
+        favoriteNextOffset: null,
+      });
+    }
+  },
+
+  async loadMoreFavoriteSkills() {
+    const nextOffset = this.data.favoriteNextOffset;
+    if (nextOffset == null || this.data.loadingMore || this.data.loading) {
+      return;
+    }
+    this.setData({ loadingMore: true, error: "" });
+    const requestSeq = favoriteListRequestSeq;
+    try {
+      const response = await loadFavoriteSkillsPage(
+        nextOffset,
+        this.data.selectedFavoriteFilter,
+      );
+      if (requestSeq !== favoriteListRequestSeq) {
+        return;
+      }
+      const nextKnots = await Promise.all(
+        response.items.map((item) =>
+          mapKnotListCard(item.knot, new Set([item.knot.id]), item.favorited_at),
+        ),
+      );
+      if (requestSeq !== favoriteListRequestSeq) {
+        return;
+      }
+      const filters = normalizeFavoriteFilters(response.filters);
+      this.setData({
+        ...indexedAppendData(
+          "favoriteKnots",
+          this.data.favoriteKnots.length,
+          nextKnots,
+        ),
+        favoriteFilters: filters,
+        favoriteFilterLabels: favoriteFilterLabels(filters),
+        favoriteNextOffset: response.page.next_offset ?? null,
       });
     } catch (error) {
       wx.showToast({ title: getErrorMessage(error), icon: "none" });
@@ -485,7 +530,12 @@ Page({
         nextOffset: null,
         cacheProgressText: "正在整理离线绳结列表 0/" + result.items.length,
       });
-      const allKnots = await mapKnotListCardsInBatches(this, result.items);
+      const favoriteIds = await loadFavoriteKnotIdSet().catch(() => null);
+      const allKnots = await mapKnotListCardsInBatches(
+        this,
+        result.items,
+        favoriteIds,
+      );
       const listState = buildKnotListState(
         allKnots,
         this.data.selectedCategoryId,
@@ -549,6 +599,16 @@ Page({
     });
   },
 
+  onFavoriteFilterChange(event: any) {
+    const selectedFavoriteFilterIndex = Number(event.detail.value || 0);
+    const selectedFavoriteFilter =
+      this.data.favoriteFilters[selectedFavoriteFilterIndex]?.id ?? "all";
+    this.loadFavoriteSkills({
+      selectedFavoriteFilter,
+      selectedFavoriteFilterIndex,
+    });
+  },
+
   clearKnotFilters() {
     if (knotSearchTimer) {
       clearTimeout(knotSearchTimer);
@@ -566,6 +626,103 @@ Page({
     if (id) {
       wx.navigateTo({ url: `/pages/skills/detail/index?id=${encodeURIComponent(id)}` });
     }
+  },
+
+  async toggleFavorite(event: WechatMiniprogram.BaseEvent) {
+    const id = event.currentTarget.dataset.id as string | undefined;
+    if (!id) {
+      return;
+    }
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以收藏技能，并在收藏清单里快速找到。",
+        redirectUrl: "/pages/skills/index",
+      })
+    ) {
+      return;
+    }
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
+    const current = findKnotCard(this, id);
+    const previousFavorited = Boolean(current?.isFavorited);
+    const nextFavorited = !previousFavorited;
+    this.setKnotFavoriteState(id, previousFavorited, true);
+    try {
+      const status = nextFavorited
+        ? await favoriteKnot(id)
+        : await unfavoriteKnot(id);
+      this.setKnotFavoriteState(
+        id,
+        status.is_favorited,
+        false,
+        status.favorited_at ?? "",
+      );
+      if (this.data.mode === "favorites" && !status.is_favorited) {
+        this.removeFavoriteKnot(id);
+      }
+    } catch (error) {
+      this.setKnotFavoriteState(
+        id,
+        previousFavorited,
+        false,
+        current?.favoritedAt ?? "",
+      );
+      wx.showToast({ title: getErrorMessage(error), icon: "none" });
+    }
+  },
+
+  setKnotFavoriteState(
+    id: string,
+    isFavorited: boolean,
+    favoriteLoading: boolean,
+    favoritedAt = "",
+  ) {
+    this.setData({
+      allKnots: updateKnotFavoriteCards(
+        this.data.allKnots,
+        id,
+        isFavorited,
+        favoriteLoading,
+        favoritedAt,
+      ),
+      knots: updateKnotFavoriteCards(
+        this.data.knots,
+        id,
+        isFavorited,
+        favoriteLoading,
+        favoritedAt,
+      ),
+      favoriteKnots: updateKnotFavoriteCards(
+        this.data.favoriteKnots,
+        id,
+        isFavorited,
+        favoriteLoading,
+        favoritedAt,
+      ),
+    });
+  },
+
+  removeFavoriteKnot(id: string) {
+    const favoriteKnots = this.data.favoriteKnots.filter((item) => item.id !== id);
+    const favoriteFilters = this.data.favoriteFilters.map((filter) => ({
+      ...filter,
+      count: Math.max(0, filter.count - 1),
+    }));
+    this.setData({
+      favoriteKnots,
+      favoriteFilters,
+      favoriteFilterLabels: favoriteFilterLabels(favoriteFilters),
+    });
+  },
+
+  loginPromptClose() {
+    hideLoginPrompt(this);
+  },
+
+  loginPromptGoLogin() {
+    openLoginPageFromPrompt(this);
   },
 
   applyFilters(filterState: {
@@ -601,6 +758,49 @@ function loadKnotsPage(
         ? selectedCategoryId
         : undefined,
   });
+}
+
+function loadFavoriteSkillsPage(
+  offset: number,
+  selectedFavoriteFilter: FavoriteSkillCategory,
+) {
+  return listFavoriteSkills({
+    offset,
+    limit: FAVORITE_SKILLS_PAGE_SIZE,
+    skill_category: selectedFavoriteFilter,
+  });
+}
+
+async function loadFavoriteKnotIdSet(): Promise<Set<string> | null> {
+  if (!hasAccessToken()) {
+    return null;
+  }
+  const ids = new Set<string>();
+  let offset = 0;
+  while (true) {
+    const response = await listFavoriteSkills({
+      skill_category: "knots",
+      offset,
+      limit: 100,
+    });
+    response.items.forEach((item) => ids.add(item.knot.id));
+    if (response.page.next_offset == null) {
+      break;
+    }
+    offset = response.page.next_offset;
+  }
+  return ids;
+}
+
+function normalizeFavoriteFilters(
+  filters: FavoriteSkillFilterOption[],
+): FavoriteSkillFilterOption[] {
+  const byId = new Map(filters.map((item) => [item.id, item]));
+  return DEFAULT_FAVORITE_FILTERS.map((fallback) => byId.get(fallback.id) ?? fallback);
+}
+
+function favoriteFilterLabels(filters: FavoriteSkillFilterOption[]): string[] {
+  return filters.map((item) => `${item.title} ${item.count}`);
 }
 
 function normalizeOptionalFilter(value: string): string | undefined {
@@ -711,6 +911,8 @@ function appendUniqueKnots(
 
 async function mapKnotListCard(
   item: KnotSummary | KnotDetail,
+  favoriteIds: Set<string> | null = null,
+  favoritedAt = "",
 ): Promise<KnotListCard> {
   const thumbnail = findThumbnail(item.media);
   const thumbnailUrl = thumbnail
@@ -742,7 +944,46 @@ async function mapKnotListCard(
     categoryIds,
     categoryTitles,
     searchText: buildKnotSearchText(searchParts),
+    isFavorited: favoriteIds?.has(item.id) ?? false,
+    favoriteLoading: false,
+    favoritedAt,
   };
+}
+
+function findKnotCard(
+  page: {
+    data: {
+      allKnots: KnotListCard[];
+      knots: KnotListCard[];
+      favoriteKnots: KnotListCard[];
+    };
+  },
+  id: string,
+): KnotListCard | undefined {
+  return (
+    page.data.knots.find((item) => item.id === id) ??
+    page.data.allKnots.find((item) => item.id === id) ??
+    page.data.favoriteKnots.find((item) => item.id === id)
+  );
+}
+
+function updateKnotFavoriteCards(
+  cards: KnotListCard[],
+  id: string,
+  isFavorited: boolean,
+  favoriteLoading: boolean,
+  favoritedAt: string,
+): KnotListCard[] {
+  return cards.map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          isFavorited,
+          favoriteLoading,
+          favoritedAt,
+        }
+      : item,
+  );
 }
 
 function findThumbnail(media: KnotMediaAsset[]): KnotMediaAsset | undefined {
@@ -901,6 +1142,7 @@ async function mapKnotListCardsInBatches(
     setData(data: Record<string, unknown>): void;
   },
   items: KnotDetail[],
+  favoriteIds: Set<string> | null = null,
 ): Promise<KnotListCard[]> {
   const batchSize = 24;
   const allCards: KnotListCard[] = [];
@@ -908,7 +1150,9 @@ async function mapKnotListCardsInBatches(
   let visibleStartIndex = page.data.knots.length;
   for (let offset = 0; offset < items.length; offset += batchSize) {
     const batch = items.slice(offset, offset + batchSize);
-    const cards = await Promise.all(batch.map(mapKnotListCard));
+    const cards = await Promise.all(
+      batch.map((item) => mapKnotListCard(item, favoriteIds)),
+    );
     const visibleCards = filterKnots(
       cards,
       page.data.selectedCategoryId,
@@ -928,25 +1172,4 @@ async function mapKnotListCardsInBatches(
     await delayNextTick();
   }
   return allCards;
-}
-
-function miniProgramVersion(): string {
-  const info = safeAccountInfo();
-  return info?.miniProgram?.version || "dev";
-}
-
-function safeAccountInfo(): WechatMiniprogram.AccountInfo | undefined {
-  try {
-    return wx.getAccountInfoSync();
-  } catch {
-    return undefined;
-  }
-}
-
-function deviceModel(): string | null {
-  try {
-    return wx.getSystemInfoSync().model || null;
-  } catch {
-    return null;
-  }
 }

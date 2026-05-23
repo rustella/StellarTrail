@@ -25,12 +25,13 @@ import type {
   WechatLoginResponse,
 } from "./gear-utils";
 import type {
-  AcceptKnotDisclaimerRequest,
+  FavoriteKnotStatusResponse,
   KnotDetail,
-  KnotDisclaimerResponse,
   KnotFiltersResponse,
   KnotListResponse,
   KnotOfflineManifestResponse,
+  ListFavoriteSkillsRequest,
+  ListFavoriteSkillsResponse,
   ListKnotsRequest,
   ListSkillsResponse,
   SkillLocale,
@@ -1050,21 +1051,41 @@ export async function getKnotOfflineManifest(
   });
 }
 
-export async function getKnotDisclaimer(): Promise<KnotDisclaimerResponse> {
-  return requestJson("/api/v1/me/skills/knots/disclaimer", {
+export async function listFavoriteSkills(
+  request: ListFavoriteSkillsRequest = {},
+  locale: SkillLocale = "zh-CN",
+): Promise<ListFavoriteSkillsResponse> {
+  return requestJson(`/api/v1/me/skills/favorites${queryString(request)}`, {
     auth: true,
+    locale,
   });
 }
 
-export async function acceptKnotDisclaimer(
-  request: AcceptKnotDisclaimerRequest = {},
-): Promise<KnotDisclaimerResponse> {
-  return requestJson("/api/v1/me/skills/knots/disclaimer/acceptance", {
-    method: "POST",
-    auth: true,
-    cache: false,
-    data: request,
-  });
+export async function getFavoriteKnotStatus(
+  id: string,
+): Promise<FavoriteKnotStatusResponse> {
+  return requestJson(
+    `/api/v1/me/skills/favorites/knots/${encodeURIComponent(id)}`,
+    { auth: true, cache: false },
+  );
+}
+
+export async function favoriteKnot(
+  id: string,
+): Promise<FavoriteKnotStatusResponse> {
+  return requestJson(
+    `/api/v1/me/skills/favorites/knots/${encodeURIComponent(id)}`,
+    { method: "PUT", auth: true, cache: false },
+  );
+}
+
+export async function unfavoriteKnot(
+  id: string,
+): Promise<FavoriteKnotStatusResponse> {
+  return requestJson(
+    `/api/v1/me/skills/favorites/knots/${encodeURIComponent(id)}`,
+    { method: "DELETE", auth: true, cache: false },
+  );
 }
 
 export async function listClientVersions(
@@ -1446,11 +1467,13 @@ function isUserCacheablePath(path: string): boolean {
     path === "/api/v1/me/packing-lists" ||
     path.startsWith("/api/v1/me/packing-lists?") ||
     path.startsWith("/api/v1/me/packing-lists/") ||
-    path === "/api/v1/me/skills/knots/disclaimer" ||
     path === "/api/v1/me/roadmap" ||
     path.startsWith("/api/v1/me/roadmap?") ||
     path === "/api/v1/me/gear-atlas-submissions" ||
-    path.startsWith("/api/v1/me/gear-atlas-submissions?")
+    path.startsWith("/api/v1/me/gear-atlas-submissions?") ||
+    path === "/api/v1/me/skills/favorites" ||
+    path.startsWith("/api/v1/me/skills/favorites?") ||
+    path.startsWith("/api/v1/me/skills/favorites/knots/")
   );
 }
 
