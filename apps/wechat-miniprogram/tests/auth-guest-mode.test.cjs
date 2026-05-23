@@ -29,7 +29,6 @@ global.wx = {
           id: "bowline-knot",
           title: "布林结",
           summary: "固定绳圈",
-          difficulty: "beginner",
           categories: [],
           types: [],
           media: [],

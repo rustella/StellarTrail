@@ -680,7 +680,6 @@ test("getKnotFilters calls the public knot filters endpoint with locale", async 
       data: {
         locale: "zh-CN",
         categories: [{ id: "camping", slug: "camping", title: "露营" }],
-        difficulties: [{ id: "beginner", title: "新手" }],
       },
     });
   });
@@ -1138,7 +1137,6 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
                 slug: "bowline",
                 title: "布林结",
                 summary: "固定绳圈",
-                difficulty: "beginner",
                 categories: [
                   {
                     id: "camping",
@@ -1266,20 +1264,17 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
       id: item.id,
       title: item.title,
       categoryText: item.categoryText,
-      difficultyText: item.difficultyText,
     })),
     [
       {
         id: "bowline",
         title: "布林结",
         categoryText: "露营",
-        difficultyText: "新手",
       },
       {
         id: "clove",
         title: "丁香结",
         categoryText: "绳结",
-        difficultyText: "未分级",
       },
     ],
   );

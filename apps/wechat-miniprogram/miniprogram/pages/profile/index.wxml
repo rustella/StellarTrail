@@ -144,7 +144,6 @@
           </view>
           <view class="cached-knot-meta">
             <text class="cached-knot-tag">{{item.categoryText}}</text>
-            <text class="cached-knot-tag muted">{{item.difficultyText}}</text>
             <button
               class="cached-knot-delete"
               data-id="{{item.id}}"

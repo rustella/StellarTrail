@@ -121,9 +121,6 @@
               <view class="skill-content">
                 <view class="skill-tags">
                   <text class="skill-tag">{{item.categoryText}}</text>
-                  <text class="skill-tag {{item.difficultyTone}}"
-                    >{{item.difficultyText}}</text
-                  >
                 </view>
                 <view class="skill-title">{{item.title}}</view>
                 <view class="skill-summary">{{item.summary}}</view>

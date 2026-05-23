@@ -359,7 +359,7 @@ private let gearAtlasItemPayload = #"{"id":"atlas-1","category":"lighting_system
 
 private let gearAtlasSubmissionPayload = #"{"id":"submission-1","category":"lighting_system","category_label":"照明系统","name":"头灯","brand":"Nitecore","model":"NU25","description":"公开字段","weight_g":86,"official_price_cents":19900,"official_price_currency":"CNY","specs":{"max_brightness":"450 lm"},"approved_at":null,"created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-01T10:00:00Z","source_type":"manual","source_user_gear_id":null,"status":"pending","rejection_reason":null,"reviewed_at":null}"#
 
-private let knotDetailPayload = #"{"id":"bowline","slug":"bowline","title":"称人结","summary":"常用固定绳结","difficulty":"basic","categories":[],"types":[],"media":[],"href":null,"description":"适合快速形成固定绳圈。","steps":["绕圈","穿入","收紧"],"locale":"zh-CN"}"#
+private let knotDetailPayload = #"{"id":"bowline","slug":"bowline","title":"称人结","summary":"常用固定绳结","categories":[],"types":[],"media":[],"href":null,"description":"适合快速形成固定绳圈。","steps":["绕圈","穿入","收紧"],"locale":"zh-CN"}"#
 
 private let profilePayload = #"{"user":{"id":"user-fixture","username":"trail_alice","email":"alice@example.com","nickname":"星野 Alice","avatar_url":"https://assets.example.invalid/avatars/alice.jpg"}}"#
 

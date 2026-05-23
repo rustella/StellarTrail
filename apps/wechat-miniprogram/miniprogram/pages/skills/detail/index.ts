@@ -6,8 +6,6 @@ import {
   resolveAssetUrl,
 } from "../../../utils/api";
 import {
-  getSkillDifficultyLabel,
-  getSkillDifficultyTone,
   type KnotDetail,
   type KnotMediaAsset,
 } from "../../../utils/skill-utils";
@@ -26,8 +24,6 @@ Page({
     id: "",
     detail: null as KnotDetail | null,
     detailTags: [] as string[],
-    difficultyText: "常用",
-    difficultyTone: "success",
     media: [] as MediaView[],
     activeMediaIndex: 0,
     activeMedia: null as MediaView | null,
@@ -74,8 +70,6 @@ Page({
       this.setData({
         detail,
         detailTags: detailTags(detail),
-        difficultyText: detail.difficulty ? getSkillDifficultyLabel(detail.difficulty) : "常用",
-        difficultyTone: getSkillDifficultyTone(detail.difficulty),
         media,
         activeMediaIndex,
         activeMedia,

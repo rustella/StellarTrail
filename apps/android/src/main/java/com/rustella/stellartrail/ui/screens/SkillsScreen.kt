@@ -125,7 +125,6 @@ private fun KnotCard(knot: KnotSummary, onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Badge(knot.categories.firstOrNull()?.title ?: "绳结", tone = BadgeTone.Info)
-                    Badge(knot.difficulty ?: "入门", tone = BadgeTone.Warning)
                 }
                 Text(knot.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
                 Text(knot.summary, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)

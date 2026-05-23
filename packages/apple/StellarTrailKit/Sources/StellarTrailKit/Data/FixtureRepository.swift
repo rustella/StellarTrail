@@ -275,13 +275,13 @@ enum FixtureData {
     ]
 
     static let knots: [KnotSummary] = [
-        KnotSummary(id: "bowline", slug: "bowline", title: "单套结", summary: "可靠固定绳圈，适合临时连接。", difficulty: "入门", categories: [KnotTaxonomyItem(id: "rescue", slug: "rescue", title: "救援")], types: [KnotTaxonomyItem(id: "loop", slug: "loop", title: "绳圈")], media: mediaAssets, href: "/api/v1/skills/knots/detail/bowline"),
-        KnotSummary(id: "clove-hitch", slug: "clove-hitch", title: "丁香结", summary: "快速固定在柱体上，方便调整。", difficulty: "入门", categories: [KnotTaxonomyItem(id: "camp", slug: "camp", title: "营地")], types: [], media: mediaAssets, href: "/api/v1/skills/knots/detail/clove-hitch")
+        KnotSummary(id: "bowline", slug: "bowline", title: "单套结", summary: "可靠固定绳圈，适合临时连接。", categories: [KnotTaxonomyItem(id: "rescue", slug: "rescue", title: "救援")], types: [KnotTaxonomyItem(id: "loop", slug: "loop", title: "绳圈")], media: mediaAssets, href: "/api/v1/skills/knots/detail/bowline"),
+        KnotSummary(id: "clove-hitch", slug: "clove-hitch", title: "丁香结", summary: "快速固定在柱体上，方便调整。", categories: [KnotTaxonomyItem(id: "camp", slug: "camp", title: "营地")], types: [], media: mediaAssets, href: "/api/v1/skills/knots/detail/clove-hitch")
     ]
 
     static let knotDetails: [String: KnotDetail] = [
-        "bowline": KnotDetail(id: "bowline", slug: "bowline", title: "单套结", summary: "可靠固定绳圈，适合临时连接。", difficulty: "入门", categories: [KnotTaxonomyItem(id: "rescue", slug: "rescue", title: "救援")], types: [KnotTaxonomyItem(id: "loop", slug: "loop", title: "绳圈")], media: mediaAssets, href: "/api/v1/skills/knots/detail/bowline", description: "单套结受力后仍相对容易解开，是户外常用基础绳结。", steps: ["在主绳上绕出一个小圈。", "将绳头从小圈下方穿出。", "绕过主绳后再回到小圈。", "整理绳股并逐步收紧。"], locale: "zh-CN"),
-        "clove-hitch": KnotDetail(id: "clove-hitch", slug: "clove-hitch", title: "丁香结", summary: "快速固定在柱体上，方便调整。", difficulty: "入门", categories: [KnotTaxonomyItem(id: "camp", slug: "camp", title: "营地")], types: [], media: mediaAssets, href: "/api/v1/skills/knots/detail/clove-hitch", description: "适合临时固定营绳或整理物品。", steps: ["绕柱体一圈。", "再交叉绕第二圈。", "将绳头压入交叉处并拉紧。"], locale: "zh-CN")
+        "bowline": KnotDetail(id: "bowline", slug: "bowline", title: "单套结", summary: "可靠固定绳圈，适合临时连接。", categories: [KnotTaxonomyItem(id: "rescue", slug: "rescue", title: "救援")], types: [KnotTaxonomyItem(id: "loop", slug: "loop", title: "绳圈")], media: mediaAssets, href: "/api/v1/skills/knots/detail/bowline", description: "单套结受力后仍相对容易解开，是户外常用基础绳结。", steps: ["在主绳上绕出一个小圈。", "将绳头从小圈下方穿出。", "绕过主绳后再回到小圈。", "整理绳股并逐步收紧。"], locale: "zh-CN"),
+        "clove-hitch": KnotDetail(id: "clove-hitch", slug: "clove-hitch", title: "丁香结", summary: "快速固定在柱体上，方便调整。", categories: [KnotTaxonomyItem(id: "camp", slug: "camp", title: "营地")], types: [], media: mediaAssets, href: "/api/v1/skills/knots/detail/clove-hitch", description: "适合临时固定营绳或整理物品。", steps: ["绕柱体一圈。", "再交叉绕第二圈。", "将绳头压入交叉处并拉紧。"], locale: "zh-CN")
     ]
 
     static let gearItems: [GearItem] = [

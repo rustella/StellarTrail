@@ -16,7 +16,6 @@ const KNOTS_PAGE_SIZE = 24;
 const EMPTY_KNOT_FILTERS: KnotFiltersResponse = {
   locale: KNOTS_LOCALE,
   categories: [],
-  difficulties: [],
 };
 
 type KnotsApi = Pick<
@@ -214,7 +213,7 @@ export default function KnotsPage({ api }: KnotsPageProps) {
         <div className="knots-summary-card" aria-label="绳结概览">
           <span>{categorySummary?.title ?? "绳结"}</span>
           <strong>{totalText}</strong>
-          <small>含用途分类、难度和步骤演示</small>
+          <small>含用途分类、类型和步骤演示</small>
         </div>
       </header>
 
@@ -348,7 +347,6 @@ function KnotCard({
         )}
         <span className="knot-card-body">
           <span className="knot-card-meta">
-            <span>{difficultyLabel(item.difficulty)}</span>
             {item.categories[0] ? (
               <span>{item.categories[0].title}</span>
             ) : null}
@@ -407,7 +405,6 @@ function KnotDetailDrawer({
       <p className="eyebrow">绳结练习</p>
       <h2>{item.title}</h2>
       <div className="knot-card-meta">
-        <span>{difficultyLabel(item.difficulty)}</span>
         {item.categories.map((category) => (
           <span key={category.id}>{category.title}</span>
         ))}
@@ -533,21 +530,4 @@ function mediaKind(asset: KnotMediaAsset): "image" | "video" {
   return asset.mime_type.startsWith("video/") || asset.id.endsWith("_mp4")
     ? "video"
     : "image";
-}
-
-function difficultyLabel(value?: string | null): string {
-  switch (value) {
-    case "leisure":
-      return "入门";
-    case "beginner":
-      return "新手";
-    case "intermediate":
-      return "进阶";
-    case "advanced":
-      return "熟练";
-    case "technical":
-      return "技术";
-    default:
-      return "常用";
-  }
 }

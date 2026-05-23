@@ -119,7 +119,7 @@ final class DomainDecodingTests: XCTestCase {
     func testKnotListUsesOffsetPagination() throws {
         let json = """
         {
-          "items":[{"id":"bowline","title":"单套结","summary":"可靠绳圈","difficulty":"入门","categories":[{"id":"rescue","title":"救援"}],"types":[],"media_count":6}],
+          "items":[{"id":"bowline","title":"单套结","summary":"可靠绳圈","categories":[{"id":"rescue","title":"救援"}],"types":[],"media_count":6}],
           "next_offset":20
         }
         """.data(using: .utf8)!

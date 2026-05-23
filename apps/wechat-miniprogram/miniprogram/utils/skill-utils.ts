@@ -43,7 +43,6 @@ export interface KnotSummary {
   slug: string;
   title: string;
   summary: string;
-  difficulty?: string | null;
   categories: KnotTaxonomyItem[];
   types: KnotTaxonomyItem[];
   media: KnotMediaAsset[];
@@ -70,7 +69,6 @@ export interface KnotFilterOption {
 export interface KnotFiltersResponse {
   locale: SkillLocale;
   categories: KnotFilterOption[];
-  difficulties: KnotFilterOption[];
 }
 
 export interface KnotOfflineManifestResponse {
@@ -92,7 +90,6 @@ export interface ListKnotsRequest {
   offset?: number;
   limit?: number;
   category?: string;
-  difficulty?: string;
   q?: string;
 }
 
@@ -100,34 +97,7 @@ export interface SkillCard {
   id: string;
   title: string;
   categoryText: string;
-  difficultyText: string;
-  difficultyTone: string;
   summary: string;
-}
-
-const SKILL_DIFFICULTY_LABELS: Record<string, string> = {
-  leisure: "入门",
-  beginner: "新手",
-  intermediate: "进阶",
-  advanced: "高阶",
-  technical: "技术",
-};
-
-export function getSkillDifficultyLabel(value?: string | null): string {
-  if (!value) {
-    return "未分级";
-  }
-  return SKILL_DIFFICULTY_LABELS[value] ?? value;
-}
-
-export function getSkillDifficultyTone(value?: string | null): string {
-  if (value === "leisure" || value === "beginner" || !value) {
-    return "success";
-  }
-  if (value === "intermediate") {
-    return "warning";
-  }
-  return "danger";
 }
 
 export function mapSkillCard(
@@ -138,14 +108,6 @@ export function mapSkillCard(
     id: item.id,
     title: item.title,
     categoryText: isKnot ? (item.categories[0]?.title ?? "绳结") : "户外技能",
-    difficultyText: isKnot
-      ? getSkillDifficultyLabel(item.difficulty)
-      : `${item.item_count} 个内容`,
-    difficultyTone: isKnot
-      ? getSkillDifficultyTone(item.difficulty)
-      : item.item_count > 0
-        ? "success"
-        : "warning",
     summary: item.summary,
   };
 }

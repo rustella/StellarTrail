@@ -73,7 +73,6 @@ export interface KnotSummary {
   slug: string;
   title: string;
   summary: string;
-  difficulty?: string | null;
   categories: KnotTaxonomyItem[];
   types: KnotTaxonomyItem[];
   media: KnotMediaAsset[];
@@ -90,7 +89,6 @@ export interface KnotFilterOption {
 export interface KnotFiltersResponse {
   locale: SkillLocale;
   categories: KnotFilterOption[];
-  difficulties: KnotFilterOption[];
 }
 
 export interface KnotListResponse {
@@ -118,7 +116,6 @@ export interface ListKnotsRequest {
   offset?: number;
   limit?: number;
   category?: string;
-  difficulty?: string;
   q?: string;
 }
 

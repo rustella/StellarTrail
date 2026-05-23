@@ -184,7 +184,6 @@ private struct MacKnotRow: View {
                         .font(.headline.weight(.heavy))
                         .lineLimit(1)
                     Spacer(minLength: 8)
-                    TrailBadge(text: difficultyLabel(knot.difficulty), tone: .info)
                 }
                 Text(knot.summary)
                     .font(.subheadline)
@@ -368,7 +367,6 @@ private struct MacKnotHeroViewer: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        TrailBadge(text: difficultyLabel(knot.difficulty), tone: .info)
                     }
                     TrailTagRow(tags: Array((knot.categories.map(\.title) + knot.types.map(\.title)).prefix(6)))
                     if let activeAsset {
@@ -546,17 +544,5 @@ private struct MacAVPlayerView: NSViewRepresentable {
 
     func updateNSView(_ nsView: AVPlayerView, context: Context) {
         nsView.player = player
-    }
-}
-
-private func difficultyLabel(_ value: String?) -> String {
-    switch value {
-    case "leisure": return "入门"
-    case "beginner": return "新手"
-    case "intermediate": return "进阶"
-    case "advanced": return "熟练"
-    case "technical": return "技术"
-    case let value?: return value
-    case nil: return "常用"
     }
 }

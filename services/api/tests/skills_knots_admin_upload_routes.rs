@@ -44,7 +44,6 @@ fn sample_knot() -> KnotSeed {
         source_url: Some("https://knots3d.com/knots/en_us/adjustable-grip-hitch-knot".to_owned()),
         source_slug_en: "adjustable-grip-hitch-knot".to_owned(),
         source_slug_zh: Some("ke-tiao-jie-sheng-jie".to_owned()),
-        difficulty: Some("beginner".to_owned()),
         localizations: vec![KnotLocalizationSeed {
             locale: Locale::En,
             slug: "adjustable-grip-hitch-knot".to_owned(),

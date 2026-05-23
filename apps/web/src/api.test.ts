@@ -192,7 +192,6 @@ describe("StellarTrailApiClient public knot requests", () => {
         offset: 0,
         limit: 24,
         category: "camping-knots",
-        difficulty: "beginner",
         q: "风绳",
       },
       "zh-CN",
@@ -204,7 +203,6 @@ describe("StellarTrailApiClient public knot requests", () => {
     expect(url.searchParams.get("offset")).toBe("0");
     expect(url.searchParams.get("limit")).toBe("24");
     expect(url.searchParams.get("category")).toBe("camping-knots");
-    expect(url.searchParams.get("difficulty")).toBe("beginner");
     expect(url.searchParams.get("q")).toBe("风绳");
     expect(requests[0].headers.get("X-StellarTrail-Locale")).toBe("zh-CN");
     expect(requests[0].headers.get("authorization")).toBeNull();
@@ -222,7 +220,6 @@ describe("StellarTrailApiClient public knot requests", () => {
           JSON.stringify({
             locale: "zh-CN",
             categories: [],
-            difficulties: [],
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
@@ -258,7 +255,6 @@ describe("StellarTrailApiClient public knot requests", () => {
             summary: "调节绳索上的张力。",
             description: null,
             steps: [],
-            difficulty: null,
             categories: [],
             types: [],
             media: [],

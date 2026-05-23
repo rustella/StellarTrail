@@ -66,7 +66,6 @@ pub fn parse_knots3d_metadata(raw: &str) -> anyhow::Result<Vec<KnotSeed>> {
             source_url: english_url,
             source_slug_en: english_slug.clone(),
             source_slug_zh: zh_slug,
-            difficulty: None,
             localizations: vec![
                 KnotLocalizationSeed {
                     locale: Locale::En,

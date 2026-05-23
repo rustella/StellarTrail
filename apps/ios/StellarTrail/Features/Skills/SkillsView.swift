@@ -135,7 +135,7 @@ private struct KnotCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        TrailBadge(text: knot.difficulty ?? "绳结", tone: .info)
+                        TrailBadge(text: knot.categories.first?.title ?? "绳结", tone: .info)
                         Spacer()
                         TrailBadge(text: "查看步骤", tone: .brand)
                     }
@@ -172,7 +172,7 @@ private struct KnotDetailSheet: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     TrailHeroCard(
-                        eyebrow: knot.difficulty ?? "绳结",
+                        eyebrow: knot.categories.first?.title ?? "绳结",
                         title: knot.title,
                         subtitle: knot.description ?? knot.summary,
                         chips: ["步骤 \(knot.steps.count)", "素材 \(knot.mediaCount)"]
