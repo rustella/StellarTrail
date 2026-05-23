@@ -29,9 +29,9 @@ services:
     labels:
       traefik.enable: "true"
       traefik.docker.network: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
-      traefik.http.routers.api.rule: Host(`api.example.invalid`)
+      traefik.http.routers.api.rule: Host(`api.example.invalid`) || Host(`api-alt1.example.invalid`) || Host(`api-alt2.example.invalid`)
       traefik.http.routers.api.entrypoints: websecure
-      traefik.http.routers.api.tls.certresolver: letsencrypt
+      traefik.http.routers.api.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
       # Keep API CORS preflight owned by the Rust service; the shared file middleware may
       # define proxy-level CORS rules that override browser preflight responses.
       traefik.http.routers.api.middlewares: api-security-headers
@@ -114,9 +114,9 @@ services:
     labels:
       traefik.enable: "true"
       traefik.docker.network: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
-      traefik.http.routers.assets.rule: Host(`assets.example.invalid`)
+      traefik.http.routers.assets.rule: Host(`assets.example.invalid`) || Host(`assets-alt1.example.invalid`) || Host(`assets-alt2.example.invalid`)
       traefik.http.routers.assets.entrypoints: websecure
-      traefik.http.routers.assets.tls.certresolver: letsencrypt
+      traefik.http.routers.assets.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
       traefik.http.routers.assets.middlewares: assets-security-headers
       traefik.http.middlewares.assets-security-headers.headers.browserXssFilter: "true"
       traefik.http.middlewares.assets-security-headers.headers.contentTypeNosniff: "true"

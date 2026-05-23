@@ -72,6 +72,10 @@ public_api:
 cors:
   allowed_origins:
     - https://app.example.invalid
+    - https://app-alt1.example.invalid
+    - https://app-alt2.example.invalid
     - https://site.example.invalid
+    - https://site-alt1.example.invalid
+    - https://site-alt2.example.invalid
     - https://www.example.invalid
   allow_credentials: true

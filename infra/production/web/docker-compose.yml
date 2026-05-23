@@ -12,9 +12,9 @@ services:
     labels:
       traefik.enable: "true"
       traefik.docker.network: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
-      traefik.http.routers.web.rule: Host(`app.example.invalid`)
+      traefik.http.routers.web.rule: Host(`app.example.invalid`) || Host(`app-alt1.example.invalid`) || Host(`app-alt2.example.invalid`)
       traefik.http.routers.web.entrypoints: websecure
-      traefik.http.routers.web.tls.certresolver: letsencrypt
+      traefik.http.routers.web.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
       traefik.http.routers.web.middlewares: security-headers@file
       traefik.http.services.web.loadbalancer.server.port: "80"
 
