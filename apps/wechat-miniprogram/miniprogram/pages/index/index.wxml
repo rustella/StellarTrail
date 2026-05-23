@@ -2,7 +2,9 @@
   <view class="hero-card">
     <view class="hero-eyebrow">寻径星野</view>
     <view class="hero-title">今天准备好出发了吗？</view>
-    <view class="hero-subtitle">先核对装备状态，再补一项户外技能。</view>
+    <view class="hero-subtitle"
+      >出发前准备充分，留意天气变化，注意户外安全。</view
+    >
     <view class="hero-status-row">
       <view class="hero-status-pill">
         <text class="hero-status-dot"></text>

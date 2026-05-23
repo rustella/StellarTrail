@@ -97,10 +97,11 @@
 
 .hero-subtitle {
   margin-top: 16rpx;
-  max-width: 520rpx;
+  max-width: 100%;
   color: #475569;
   font-size: 27rpx;
   line-height: 1.55;
+  white-space: nowrap;
 }
 
 .hero-status-row {

@@ -2,6 +2,10 @@
   padding-top: 40rpx;
 }
 
+.profile-page.theme-dark {
+  background: var(--body-gradient);
+}
+
 .account-card {
   display: flex;
   align-items: center;
@@ -144,6 +148,13 @@
   box-shadow: var(--shadow-soft);
 }
 
+.settings-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+}
+
 .settings-card-title {
   color: var(--text-color);
   font-size: 30rpx;
@@ -281,6 +292,100 @@
 
 .profile-feedback-textarea + .profile-name-input {
   margin-top: 18rpx;
+}
+
+.profile-feedback-images {
+  margin-top: 18rpx;
+}
+
+.profile-feedback-images + .profile-name-input {
+  margin-top: 18rpx;
+}
+
+.profile-feedback-images-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14rpx;
+  color: var(--muted-color);
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.profile-feedback-image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+}
+
+.profile-feedback-image-card,
+.profile-feedback-image-add {
+  position: relative;
+  width: 100%;
+  height: 128rpx;
+  margin: 0;
+  padding: 0;
+  border: 1rpx solid var(--control-border);
+  border-radius: 18rpx;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.profile-feedback-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.profile-feedback-image-size {
+  position: absolute;
+  left: 8rpx;
+  bottom: 8rpx;
+  padding: 2rpx 8rpx;
+  border-radius: 999rpx;
+  color: #ffffff;
+  background: rgba(15, 23, 42, 0.64);
+  font-size: 18rpx;
+  font-weight: 800;
+}
+
+.profile-feedback-image-remove {
+  position: absolute;
+  top: 6rpx;
+  right: 6rpx;
+  width: 38rpx;
+  height: 38rpx;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  color: #ffffff;
+  background: rgba(15, 23, 42, 0.72);
+  font-size: 28rpx;
+  font-weight: 900;
+  line-height: 34rpx;
+}
+
+.profile-feedback-image-remove::after,
+.profile-feedback-image-add::after {
+  border: 0;
+}
+
+.profile-feedback-image-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6rpx;
+  color: var(--accent-color);
+  background: var(--control-bg);
+  font-size: 22rpx;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.profile-feedback-image-add-icon {
+  font-size: 34rpx;
+  line-height: 1;
 }
 
 .profile-name-input {

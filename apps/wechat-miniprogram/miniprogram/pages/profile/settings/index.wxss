@@ -2,6 +2,10 @@
   padding-top: 40rpx;
 }
 
+.profile-settings-page.theme-dark {
+  background: var(--body-gradient);
+}
+
 .settings-hero {
   display: flex;
   align-items: center;

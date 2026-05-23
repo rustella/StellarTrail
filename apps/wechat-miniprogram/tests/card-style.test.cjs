@@ -219,6 +219,59 @@ test("primary page cards share homepage surface tokens", () => {
   }
 });
 
+test("profile pages expose page-local dark backgrounds", () => {
+  const cases = [
+    ["pages/profile/index.wxml", "pages/profile/index.wxss", "profile-page"],
+    [
+      "pages/profile/settings/index.wxml",
+      "pages/profile/settings/index.wxss",
+      "profile-settings-page",
+    ],
+  ];
+  for (const [wxmlFile, wxssFile, pageClass] of cases) {
+    const wxml = read(wxmlFile);
+    const wxss = read(wxssFile);
+    assert.match(wxml, new RegExp(`class="${pageClass} container`));
+    const block = selectorBlock(wxss, `.${pageClass}.theme-dark`);
+    assert.match(block, /background:\s*var\(--body-gradient\)/);
+  }
+});
+
+test("profile theme toggle uses a sun and moon slider", () => {
+  const wxml = read("pages/profile/index.wxml");
+  const wxss = read("app.wxss");
+  const profileWxss = read("pages/profile/index.wxss");
+  const headerIndex = wxml.indexOf('class="settings-card-header"');
+  const toggleIndex = wxml.indexOf('class="theme-toggle {{isDarkTheme');
+  const firstRowIndex = wxml.indexOf('class="settings-row"');
+
+  assert.notEqual(headerIndex, -1);
+  assert.ok(toggleIndex > headerIndex);
+  assert.ok(toggleIndex < firstRowIndex);
+  assert.match(wxml, /class="theme-toggle \{\{isDarkTheme/);
+  assert.match(wxml, /theme-toggle-sun">☀<\/text>/);
+  assert.match(wxml, /theme-toggle-moon">☾<\/text>/);
+  assert.match(wxml, /class="theme-toggle-thumb"/);
+  assert.doesNotMatch(wxml, /黑夜模式/);
+  assert.doesNotMatch(wxml, /夜间浏览切换为暗色界面/);
+  assert.doesNotMatch(wxml, /themeToggleText/);
+
+  const header = selectorBlock(profileWxss, ".settings-card-header");
+  assert.match(header, /justify-content:\s*space-between/);
+
+  const toggle = selectorBlock(wxss, ".theme-toggle");
+  assert.match(toggle, /width:\s*136rpx/);
+  assert.match(toggle, /border-radius:\s*999rpx/);
+  const thumb = selectorBlock(wxss, ".theme-toggle-thumb");
+  assert.match(thumb, /position:\s*absolute/);
+  assert.match(thumb, /border-radius:\s*999rpx/);
+  const darkThumb = selectorBlock(
+    wxss,
+    ".theme-toggle.is-dark .theme-toggle-thumb",
+  );
+  assert.match(darkThumb, /transform:\s*translateX\(68rpx\)/);
+});
+
 test("inner cards and panels use homepage inner surface tokens", () => {
   const cases = [
     ["pages/index/index.wxss", [".stat-card", ".skill-card"]],

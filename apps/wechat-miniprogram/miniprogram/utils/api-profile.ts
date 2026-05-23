@@ -8,6 +8,7 @@ export {
   hasAccessToken,
   isLoginRequiredError,
   isNotFoundApiError,
+  uploadFeedbackImage,
   sendBindEmailCode,
   uploadWechatAvatar,
   type BindEmailCodeRequest,
@@ -15,4 +16,5 @@ export {
   type CreateFeedbackRequest,
   type FeedbackCategory,
   type FeedbackResponse,
+  type UploadImageResponse,
 } from "./api";

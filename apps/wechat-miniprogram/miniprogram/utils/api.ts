@@ -177,6 +177,18 @@ export interface FeedbackResponse {
   updated_at: string;
 }
 
+export interface UploadImageResponse {
+  id: string;
+  purpose: string;
+  original_filename: string;
+  image_type: string;
+  content_type: string;
+  size_bytes: number;
+  sha256: string;
+  download_url: string;
+  created_at: string;
+}
+
 export interface RegisterRequest {
   username: string;
   email: string;
@@ -464,6 +476,24 @@ export function createFeedback(
     auth: true,
     data: request,
   });
+}
+
+export async function uploadFeedbackImage(
+  filePath: string,
+): Promise<UploadImageResponse> {
+  if (isOffline()) {
+    throw new OfflineWriteBlockedError();
+  }
+  const token = await ensureAccessToken();
+  try {
+    return await uploadFeedbackImageOnce(filePath, token);
+  } catch (error) {
+    if (isApiResponseError(error) && error.statusCode === 401) {
+      const refreshedToken = await refreshAccessToken();
+      return uploadFeedbackImageOnce(filePath, refreshedToken);
+    }
+    throw error;
+  }
 }
 
 export async function ensureAccessToken(): Promise<string> {
@@ -1248,6 +1278,38 @@ async function uploadWechatAvatarOnce(
       },
       fail: (error) => {
         reject(new Error(error.errMsg || "头像上传失败，请稍后再试"));
+      },
+    });
+  });
+}
+
+async function uploadFeedbackImageOnce(
+  filePath: string,
+  token: string,
+): Promise<UploadImageResponse> {
+  const requestPath = versionedApiPath("/me/uploads");
+  const apiBaseUrl = await getApiBaseUrlForRequest(requestPath);
+  return new Promise((resolve, reject) => {
+    wx.uploadFile({
+      url: `${apiBaseUrl}${requestPath}`,
+      filePath,
+      name: "file",
+      formData: {
+        purpose: "feedback",
+      },
+      header: {
+        authorization: `Bearer ${token}`,
+      },
+      success: (response) => {
+        const data = parseUploadResponseData(response.data);
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          resolve(data as UploadImageResponse);
+          return;
+        }
+        reject(new ApiResponseError(response.statusCode, data));
+      },
+      fail: (error) => {
+        reject(new Error(error.errMsg || "图片上传失败，请稍后再试"));
       },
     });
   });

@@ -447,10 +447,7 @@ test("production domain probe is shared by concurrent GET requests", async () =>
       },
     },
   );
-  const {
-    getKnotFilters,
-    listSkills,
-  } = require("../.tmp-test/utils/api.js");
+  const { getKnotFilters, listSkills } = require("../.tmp-test/utils/api.js");
 
   const requests = Promise.all([listSkills(), getKnotFilters()]);
   await Promise.resolve();
@@ -459,8 +456,7 @@ test("production domain probe is shared by concurrent GET requests", async () =>
   await assert.doesNotReject(requests);
 
   assert.equal(
-    calls.filter((url) => url === "https://api.example.invalid/healthz")
-      .length,
+    calls.filter((url) => url === "https://api.example.invalid/healthz").length,
     1,
   );
 });
@@ -524,6 +520,80 @@ test("uploadWechatAvatar uploads with bearer token and stores returned user", as
     nickname: "小程序用户",
     avatar_url: "https://assets.example.test/avatar.png",
   });
+});
+
+test("uploadFeedbackImage uploads an authenticated feedback attachment", async () => {
+  const storage = installWxMock(
+    () => {
+      throw new Error("unexpected wx.request call");
+    },
+    (options) => {
+      assert.equal(options.url, "https://api.example.test/api/v1/me/uploads");
+      assert.equal(options.filePath, "/tmp/feedback.png");
+      assert.equal(options.name, "file");
+      assert.equal(options.formData.purpose, "feedback");
+      assert.equal(options.header.authorization, "Bearer access-old");
+      options.success({
+        statusCode: 201,
+        data: JSON.stringify({
+          id: "upload-1",
+          purpose: "feedback",
+          original_filename: "feedback.png",
+          image_type: "png",
+          content_type: "image/png",
+          size_bytes: 1234,
+          sha256: "abc123",
+          download_url: "/api/v1/me/uploads/upload-1",
+          created_at: "2026-05-20T00:00:00Z",
+        }),
+      });
+    },
+  );
+  storage.set("stellartrail_access_token", "access-old");
+  const { uploadFeedbackImage } = require("../.tmp-test/utils/api.js");
+
+  const upload = await uploadFeedbackImage("/tmp/feedback.png");
+
+  assert.equal(upload.id, "upload-1");
+  assert.equal(upload.purpose, "feedback");
+  assert.equal(upload.download_url, "/api/v1/me/uploads/upload-1");
+});
+
+test("uploadFeedbackImage exposes readable quota validation errors", async () => {
+  const storage = installWxMock(
+    () => {
+      throw new Error("unexpected wx.request call");
+    },
+    (options) => {
+      assert.equal(options.url, "https://api.example.test/api/v1/me/uploads");
+      options.success({
+        statusCode: 422,
+        data: {
+          code: "validation_failed",
+          message: "request validation failed",
+          fields: [
+            {
+              field: "image_quota",
+              message: "反馈图片已达到 100 张上限",
+            },
+          ],
+        },
+      });
+    },
+  );
+  storage.set("stellartrail_access_token", "access-old");
+  const {
+    getErrorMessage,
+    uploadFeedbackImage,
+  } = require("../.tmp-test/utils/api.js");
+
+  await assert.rejects(
+    () => uploadFeedbackImage("/tmp/feedback.png"),
+    (error) => {
+      assert.equal(getErrorMessage(error), "反馈图片已达到 100 张上限");
+      return true;
+    },
+  );
 });
 
 test("getCurrentUser refreshes stored profile from backend", async () => {
@@ -667,7 +737,7 @@ test("createFeedback posts authenticated user feedback", async () => {
     client_platform: "wechat_miniprogram",
     client_version: "dev",
     device_model: "iPhone",
-    image_ids: [],
+    image_ids: ["upload-1"],
   });
 
   assert.equal(feedback.id, "feedback-1");
@@ -683,7 +753,7 @@ test("createFeedback posts authenticated user feedback", async () => {
         client_platform: "wechat_miniprogram",
         client_version: "dev",
         device_model: "iPhone",
-        image_ids: [],
+        image_ids: ["upload-1"],
       },
       authorization: "Bearer access-old",
     },
@@ -1389,7 +1459,9 @@ test("opportunistic media cache queues downloads with concurrency and dedupe", a
         downloads.push(options);
       },
       saveFile(options) {
-        options.success({ savedFilePath: `wxfile://saved/${downloads.length}` });
+        options.success({
+          savedFilePath: `wxfile://saved/${downloads.length}`,
+        });
       },
       getFileInfo(options) {
         options.fail({ errMsg: "missing" });
