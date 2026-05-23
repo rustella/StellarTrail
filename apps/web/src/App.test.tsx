@@ -1442,6 +1442,7 @@ describe("App", () => {
       id: "gear-1",
       user_id: "u1",
       category: "sleep_system",
+      quantity: 1,
       name: "超轻羽绒睡袋",
       brand: "BLACKICE",
       model: "G700",
