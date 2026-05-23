@@ -24,8 +24,8 @@ struct ListResponse<T> {
 /// Builds DB-backed public content routes that remain in scope for the initial MVP.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/gear-templates", get(list_gear_templates))
-        .route("/api/gear-templates/:id", get(get_gear_template))
+        .route("/gear-templates", get(list_gear_templates))
+        .route("/gear-templates/:id", get(get_gear_template))
 }
 
 /// Lists active DB-backed gear templates.

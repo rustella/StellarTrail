@@ -22,7 +22,7 @@ global.wx = {
   redirectTo: (options) => options.success && options.success({}),
   request: (options) => {
     requests.push(options);
-    if (options.url.includes("/api/skills/knots/detail/")) {
+    if (options.url.includes("/api/v1/skills/knots/detail/")) {
       options.success({
         statusCode: 200,
         data: {
@@ -83,11 +83,11 @@ test("public knot list and detail requests stay unauthenticated for guest users"
   assert.equal(requests.length, 2);
   assert.equal(
     requests[0].url,
-    "https://api.example.test/api/skills/knots/list?offset=0&limit=2",
+    "https://api.example.test/api/v1/skills/knots/list?offset=0&limit=2",
   );
   assert.equal(
     requests[1].url,
-    "https://api.example.test/api/skills/knots/detail/bowline%20knot",
+    "https://api.example.test/api/v1/skills/knots/detail/bowline%20knot",
   );
   for (const request of requests) {
     assert.equal(request.header.authorization, undefined);
@@ -102,14 +102,21 @@ test("login prompt encodes the current page as login redirect", () => {
   );
 });
 
-
 test("navigation helper rejects external redirects and switches tab pages", () => {
   const calls = [];
-  global.wx.switchTab = (options) => calls.push({ type: "switchTab", url: options.url });
-  global.wx.redirectTo = (options) => calls.push({ type: "redirectTo", url: options.url });
-  const { decodeRedirect, navigateToRedirect } = require("../.tmp-test/utils/navigation.js");
+  global.wx.switchTab = (options) =>
+    calls.push({ type: "switchTab", url: options.url });
+  global.wx.redirectTo = (options) =>
+    calls.push({ type: "redirectTo", url: options.url });
+  const {
+    decodeRedirect,
+    navigateToRedirect,
+  } = require("../.tmp-test/utils/navigation.js");
 
-  assert.equal(decodeRedirect(encodeURIComponent("https://example.com")), "/pages/profile/index");
+  assert.equal(
+    decodeRedirect(encodeURIComponent("https://example.com")),
+    "/pages/profile/index",
+  );
   assert.equal(
     decodeRedirect(encodeURIComponent("/pages/gears/detail/index?id=g1")),
     "/pages/gears/detail/index?id=g1",

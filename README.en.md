@@ -125,10 +125,10 @@ Use these endpoints for local smoke testing:
 
 ```bash
 curl http://127.0.0.1:8080/healthz
-curl http://127.0.0.1:8080/api/meta
+curl http://127.0.0.1:8080/api/v1/meta
 ```
 
-Knot media is uploaded through MinIO/S3-compatible object storage. Public read APIs return only DB-backed media URLs and no longer derive knot media paths from `/assets/*`. The API now keeps one shared `minio` connection configuration, while feedback images and knot media use separate business buckets through `object_storage.bucket` and `knots_media_storage.bucket`. Administrator permission is stored in the database `admin_roles` table: an existing, non-deleted `stellarisw` user is seeded as `super_admin` by migration, and `super_admin` users can grant or revoke regular `admin` users through `/api/admin/admins`. Both `admin` and `super_admin` can call Knot media upload, Gear Atlas review, feedback review, and `GET /api/admin/api-usage`. Usage reporting is asynchronous and stores only matched route templates plus aggregate counts; it does not store query strings, request bodies, Authorization headers, tokens, cookies, IP addresses, or User-Agent values.
+Knot media is uploaded through MinIO/S3-compatible object storage. Public read APIs return only DB-backed media URLs and no longer derive knot media paths from `/assets/*`. The API now keeps one shared `minio` connection configuration, while feedback images and knot media use separate business buckets through `object_storage.bucket` and `knots_media_storage.bucket`. Administrator permission is stored in the database `admin_roles` table: an existing, non-deleted `stellarisw` user is seeded as `super_admin` by migration, and `super_admin` users can grant or revoke regular `admin` users through `/api/v1/admin/admins`. Both `admin` and `super_admin` can call Knot media upload, Gear Atlas review, feedback review, and `GET /api/v1/admin/api-usage`. Usage reporting is asynchronous and stores only matched route templates plus aggregate counts; it does not store query strings, request bodies, Authorization headers, tokens, cookies, IP addresses, or User-Agent values.
 
 ### 4. Configure client endpoints
 
@@ -147,65 +147,65 @@ Real client config files stay local or in the build environment and are ignored 
 | iOS                 | `apps/ios/StellarTrail/Resources/ClientConfig.example.plist`      | `apps/ios/StellarTrail/Resources/ClientConfig.plist`      |
 | macOS               | `apps/macos/StellarTrailMac/Resources/ClientConfig.example.plist` | `apps/macos/StellarTrailMac/Resources/ClientConfig.plist` |
 
-Web reads `VITE_STELLARTRAIL_API_BASE_URL` and `VITE_STELLARTRAIL_ASSETS_BASE_URL`; local Vite development uses same-origin `/api` by default and proxies it through `VITE_STELLARTRAIL_API_PROXY_TARGET` to the production or local API to avoid browser CORS failures. Android reads `config.properties` during the Gradle build and writes `BuildConfig`; iOS/macOS first read `ClientConfig.plist` from the app bundle and fall back to the production defaults when it is absent.
+Web reads `VITE_STELLARTRAIL_API_BASE_URL` and `VITE_STELLARTRAIL_ASSETS_BASE_URL`; local Vite development uses same-origin `/api/v1` by default and proxies it through `VITE_STELLARTRAIL_API_PROXY_TARGET` to the production or local API to avoid browser CORS failures. Android reads `config.properties` during the Gradle build and writes `BuildConfig`; iOS/macOS first read `ClientConfig.plist` from the app bundle and fall back to the production defaults when it is absent.
 
 Currently implemented service capabilities:
 
 ```http
 GET /healthz
-GET /api/meta
+GET /api/v1/meta
 
-POST /api/auth/wechat-login
-POST /api/auth/email-verification-code
-POST /api/auth/email-login-code
-POST /api/auth/email-login
-POST /api/auth/password-reset-code
-POST /api/auth/password-reset
-POST /api/auth/register
-POST /api/auth/login
-POST /api/auth/refresh
-POST /api/auth/captcha
-POST /api/me/email-binding-code
-POST /api/me/email-binding
-GET /api/me/profile
-PUT|POST /api/me/profile/avatar
+POST /api/v1/auth/wechat-login
+POST /api/v1/auth/email-verification-code
+POST /api/v1/auth/email-login-code
+POST /api/v1/auth/email-login
+POST /api/v1/auth/password-reset-code
+POST /api/v1/auth/password-reset
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+POST /api/v1/auth/refresh
+POST /api/v1/auth/captcha
+POST /api/v1/me/email-binding-code
+POST /api/v1/me/email-binding
+GET /api/v1/me/profile
+PUT|POST /api/v1/me/profile/avatar
 
-GET /api/skills
-GET /api/skills/knots/list
-GET /api/skills/knots/filters
-GET /api/skills/knots/offline-manifest
-GET /api/skills/knots/detail/:id
-GET /api/gear-templates
-GET /api/gear-templates/:id
+GET /api/v1/skills
+GET /api/v1/skills/knots/list
+GET /api/v1/skills/knots/filters
+GET /api/v1/skills/knots/offline-manifest
+GET /api/v1/skills/knots/detail/:id
+GET /api/v1/gear-templates
+GET /api/v1/gear-templates/:id
 
-GET /api/gear-atlas
-GET /api/gear-atlas/:id
-GET|POST /api/me/gear-atlas-submissions
-POST /api/me/gears/:id/atlas-submission
+GET /api/v1/gear-atlas
+GET /api/v1/gear-atlas/:id
+GET|POST /api/v1/me/gear-atlas-submissions
+POST /api/v1/me/gears/:id/atlas-submission
 
-GET /api/me/gears/categories
-GET /api/me/gears/stats
-GET /api/me/gears/spec-key-rankings
-GET /api/me/gears/tag-suggestions
-GET|POST /api/me/gears
-GET|PATCH|DELETE /api/me/gears/:id
-POST /api/me/gears/:id/restore
-GET /api/me/gears/export
-POST /api/me/gears/import
+GET /api/v1/me/gears/categories
+GET /api/v1/me/gears/stats
+GET /api/v1/me/gears/spec-key-rankings
+GET /api/v1/me/gears/tag-suggestions
+GET|POST /api/v1/me/gears
+GET|PATCH|DELETE /api/v1/me/gears/:id
+POST /api/v1/me/gears/:id/restore
+GET /api/v1/me/gears/export
+POST /api/v1/me/gears/import
 
-POST /api/me/uploads
-GET /api/me/uploads/:id
-POST /api/me/feedback
+POST /api/v1/me/uploads
+GET /api/v1/me/uploads/:id
+POST /api/v1/me/feedback
 
-GET /api/admin/api-usage
-POST|DELETE /api/admin/admins
-PUT /api/admin/skills/knots/:knot_id/media/:asset_id
-GET /api/admin/gear-atlas-submissions
-GET|PATCH /api/admin/gear-atlas-submissions/:id
-POST /api/admin/gear-atlas-submissions/:id/approve
-POST /api/admin/gear-atlas-submissions/:id/reject
-GET /api/admin/feedback
-GET /api/admin/feedback-images/:id
+GET /api/v1/admin/api-usage
+POST|DELETE /api/v1/admin/admins
+PUT /api/v1/admin/skills/knots/:knot_id/media/:asset_id
+GET /api/v1/admin/gear-atlas-submissions
+GET|PATCH /api/v1/admin/gear-atlas-submissions/:id
+POST /api/v1/admin/gear-atlas-submissions/:id/approve
+POST /api/v1/admin/gear-atlas-submissions/:id/reject
+GET /api/v1/admin/feedback
+GET /api/v1/admin/feedback-images/:id
 ```
 
 ### 5. Start PostgreSQL + Redis + API with Docker Compose

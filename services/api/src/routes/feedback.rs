@@ -23,10 +23,10 @@ use crate::{
 /// Feedback route group.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/me/feedback", post(create_feedback))
-        .route("/api/admin/feedback", get(list_admin_feedback))
+        .route("/me/feedback", post(create_feedback))
+        .route("/admin/feedback", get(list_admin_feedback))
         .route(
-            "/api/admin/feedback-images/:id",
+            "/admin/feedback-images/:id",
             get(download_admin_feedback_image),
         )
 }

@@ -21,14 +21,11 @@ use super::localization::{
 /// Builds all DB-backed outdoor skill routes.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/skills", get(skill_categories))
-        .route("/api/skills/knots/list", get(knot_list))
-        .route("/api/skills/knots/filters", get(knot_filters))
-        .route(
-            "/api/skills/knots/offline-manifest",
-            get(knot_offline_manifest),
-        )
-        .route("/api/skills/knots/detail/:id", get(knot_detail))
+        .route("/skills", get(skill_categories))
+        .route("/skills/knots/list", get(knot_list))
+        .route("/skills/knots/filters", get(knot_filters))
+        .route("/skills/knots/offline-manifest", get(knot_offline_manifest))
+        .route("/skills/knots/detail/:id", get(knot_detail))
 }
 
 async fn skill_categories(

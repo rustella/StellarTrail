@@ -21,7 +21,7 @@ use crate::{
 
 /// Builds administrator role-management routes.
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/api/admin/admins", post(grant_admin).delete(revoke_admin))
+    Router::new().route("/admin/admins", post(grant_admin).delete(revoke_admin))
 }
 
 async fn grant_admin(

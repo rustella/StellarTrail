@@ -31,6 +31,25 @@ use crate::{
     api_usage, config::CorsConfig, error::ApiError, services::rate_limit_service, state::AppState,
 };
 
+/// Versioned prefix for every business API route.
+pub const API_PREFIX: &str = "/api/v1";
+
+/// Versioned prefix with a trailing separator for route-template matching.
+pub const API_PREFIX_WITH_SLASH: &str = "/api/v1/";
+
+/// Versioned captcha endpoint returned in authentication error envelopes.
+pub const CAPTCHA_ENDPOINT: &str = "/api/v1/auth/captcha";
+
+/// Builds a versioned API path for response payloads that expose relative links.
+pub fn api_path(path: impl AsRef<str>) -> String {
+    let path = path.as_ref();
+    if path.starts_with('/') {
+        format!("{API_PREFIX}{path}")
+    } else {
+        format!("{API_PREFIX}/{path}")
+    }
+}
+
 /// Combines all business routes, health checks, and the 404 fallback.
 pub fn build_router(state: AppState) -> Router {
     let body_limit = state
@@ -46,9 +65,8 @@ pub fn build_router(state: AppState) -> Router {
         state.clone(),
         rate_limit_service::enforce_global_rate_limit,
     );
-    Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/api/meta", get(meta::meta))
+    let api_router = Router::new()
+        .route("/meta", get(meta::meta))
         .merge(auth::routes())
         .merge(admin_api_usage::routes())
         .merge(admin_knots::routes())
@@ -59,7 +77,10 @@ pub fn build_router(state: AppState) -> Router {
         .merge(gears::routes())
         .merge(profile::routes())
         .merge(uploads::routes())
-        .merge(feedback::routes())
+        .merge(feedback::routes());
+    Router::new()
+        .route("/healthz", get(health::healthz))
+        .nest(API_PREFIX, api_router)
         .fallback(not_found)
         .layer(DefaultBodyLimit::max(body_limit))
         .layer(rate_limit_layer)

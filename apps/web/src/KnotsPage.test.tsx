@@ -27,7 +27,7 @@ const knotSummary = {
       license_note: null,
     },
   ],
-  href: "/api/skills/knots/detail/adjustable-grip-hitch-knot",
+  href: "/api/v1/skills/knots/detail/adjustable-grip-hitch-knot",
 };
 
 const secondKnotSummary = {
@@ -42,7 +42,7 @@ const secondKnotSummary = {
   ],
   types: [{ id: "loop-knots", slug: "sheng-quan", title: "绳圈" }],
   media: [],
-  href: "/api/skills/knots/detail/bowline-knot",
+  href: "/api/v1/skills/knots/detail/bowline-knot",
 };
 
 const knotDetail = {
@@ -162,7 +162,7 @@ function buildKnotsApi(): KnotsApi {
           title: "绳结",
           summary: "户外、露营、钓鱼、航海等场景常用绳结技能。",
           item_count: 1,
-          href: "/api/skills/knots/list",
+          href: "/api/v1/skills/knots/list",
         },
       ],
     }),

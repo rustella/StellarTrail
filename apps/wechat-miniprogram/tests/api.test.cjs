@@ -93,7 +93,10 @@ test("loginWithWechat persists access and refresh tokens", async () => {
       method: options.method,
       data: options.data,
     });
-    assert.equal(options.url, "https://api.example.test/api/auth/wechat-login");
+    assert.equal(
+      options.url,
+      "https://api.example.test/api/v1/auth/wechat-login",
+    );
     options.success({
       statusCode: 200,
       data: loginResponse("access-new", "refresh-new"),
@@ -135,7 +138,10 @@ test("loginWithWechat sends provided profile without default nickname", async ()
 
 test("loginWithWechat reports request timeout instead of hanging", async () => {
   installWxMock((options) => {
-    assert.equal(options.url, "https://api.example.test/api/auth/wechat-login");
+    assert.equal(
+      options.url,
+      "https://api.example.test/api/v1/auth/wechat-login",
+    );
     assert.equal(options.timeout, 15000);
     options.fail({ errMsg: "request:fail timeout" });
   });
@@ -158,7 +164,10 @@ test("loginWithWechat can retry after a transient request failure", async () => 
   let callCount = 0;
   installWxMock((options) => {
     callCount += 1;
-    assert.equal(options.url, "https://api.example.test/api/auth/wechat-login");
+    assert.equal(
+      options.url,
+      "https://api.example.test/api/v1/auth/wechat-login",
+    );
     if (callCount === 1) {
       options.fail({ errMsg: "request:fail timeout" });
       return;
@@ -192,7 +201,10 @@ test("loginWithWechat can retry after a transient request failure", async () => 
 
 test("stored offline state is not treated as current before system confirmation", async () => {
   const storage = installWxMock((options) => {
-    assert.equal(options.url, "https://api.example.test/api/auth/wechat-login");
+    assert.equal(
+      options.url,
+      "https://api.example.test/api/v1/auth/wechat-login",
+    );
     options.success({
       statusCode: 200,
       data: loginResponse("access-stale", "refresh-stale"),
@@ -214,7 +226,10 @@ test("stored offline state is not treated as current before system confirmation"
 
 test("stale local API base URL is ignored for login requests", async () => {
   const storage = installWxMock((options) => {
-    assert.equal(options.url, "https://api.example.test/api/auth/wechat-login");
+    assert.equal(
+      options.url,
+      "https://api.example.test/api/v1/auth/wechat-login",
+    );
     options.success({
       statusCode: 200,
       data: loginResponse("access-clean-url", "refresh-clean-url"),
@@ -263,7 +278,7 @@ test("uploadWechatAvatar uploads with bearer token and stores returned user", as
     (options) => {
       assert.equal(
         options.url,
-        "https://api.example.test/api/me/profile/avatar",
+        "https://api.example.test/api/v1/me/profile/avatar",
       );
       assert.equal(options.filePath, "/tmp/avatar.png");
       assert.equal(options.name, "file");
@@ -295,7 +310,7 @@ test("uploadWechatAvatar uploads with bearer token and stores returned user", as
 
 test("getCurrentUser refreshes stored profile from backend", async () => {
   const storage = installWxMock((options) => {
-    assert.equal(options.url, "https://api.example.test/api/me/profile");
+    assert.equal(options.url, "https://api.example.test/api/v1/me/profile");
     assert.equal(options.method, "GET");
     assert.equal(options.header.authorization, "Bearer access-old");
     options.success({
@@ -332,7 +347,7 @@ test("email binding sends authenticated code and stores bound email", async () =
       data: options.data,
       authorization: options.header && options.header.authorization,
     });
-    if (options.url.endsWith("/api/me/email-binding-code")) {
+    if (options.url.endsWith("/api/v1/me/email-binding-code")) {
       options.success({
         statusCode: 200,
         data: {
@@ -342,7 +357,7 @@ test("email binding sends authenticated code and stores bound email", async () =
       });
       return;
     }
-    if (options.url.endsWith("/api/me/email-binding")) {
+    if (options.url.endsWith("/api/v1/me/email-binding")) {
       options.success({
         statusCode: 200,
         data: {
@@ -379,13 +394,13 @@ test("email binding sends authenticated code and stores bound email", async () =
   });
   assert.deepEqual(calls, [
     {
-      url: "https://api.example.test/api/me/email-binding-code",
+      url: "https://api.example.test/api/v1/me/email-binding-code",
       method: "POST",
       data: { email: "bound@example.com" },
       authorization: "Bearer access-old",
     },
     {
-      url: "https://api.example.test/api/me/email-binding",
+      url: "https://api.example.test/api/v1/me/email-binding",
       method: "POST",
       data: {
         email: "bound@example.com",
@@ -440,7 +455,7 @@ test("createFeedback posts authenticated user feedback", async () => {
   assert.equal(feedback.id, "feedback-1");
   assert.deepEqual(calls, [
     {
-      url: "https://api.example.test/api/me/feedback",
+      url: "https://api.example.test/api/v1/me/feedback",
       method: "POST",
       data: {
         category: "suggestion",
@@ -466,13 +481,13 @@ test("authenticated requests refresh once on 401 and retry with the new access t
       data: options.data,
     });
     if (
-      options.url.endsWith("/api/me/gears/stats?tab=available") &&
+      options.url.endsWith("/api/v1/me/gears/stats?tab=available") &&
       calls.length === 1
     ) {
       options.success({ statusCode: 401, data: { code: "unauthorized" } });
       return;
     }
-    if (options.url.endsWith("/api/auth/refresh")) {
+    if (options.url.endsWith("/api/v1/auth/refresh")) {
       assert.deepEqual(options.data, { refresh_token: "refresh-old" });
       options.success({
         statusCode: 200,
@@ -480,7 +495,7 @@ test("authenticated requests refresh once on 401 and retry with the new access t
       });
       return;
     }
-    if (options.url.endsWith("/api/me/gears/stats?tab=available")) {
+    if (options.url.endsWith("/api/v1/me/gears/stats?tab=available")) {
       options.success({
         statusCode: 200,
         data: {
@@ -504,9 +519,9 @@ test("authenticated requests refresh once on 401 and retry with the new access t
   assert.deepEqual(
     calls.map((call) => call.url.replace("https://api.example.test", "")),
     [
-      "/api/me/gears/stats?tab=available",
-      "/api/auth/refresh",
-      "/api/me/gears/stats?tab=available",
+      "/api/v1/me/gears/stats?tab=available",
+      "/api/v1/auth/refresh",
+      "/api/v1/me/gears/stats?tab=available",
     ],
   );
   assert.equal(calls[0].authorization, "Bearer access-old");
@@ -535,7 +550,7 @@ test("getGearSpecKeyRankings calls authenticated category endpoint", async () =>
   assert.deepEqual(response, { keys: ["battery_capacity", "rated_energy"] });
   assert.deepEqual(calls, [
     {
-      url: "https://api.example.test/api/me/gears/spec-key-rankings?category=electronics_system",
+      url: "https://api.example.test/api/v1/me/gears/spec-key-rankings?category=electronics_system",
       authorization: "Bearer access-old",
     },
   ]);
@@ -581,7 +596,7 @@ test("getGearOverview calls the authenticated first-screen aggregate endpoint", 
   assert.equal(response.stats.current_count, 1);
   assert.deepEqual(calls, [
     {
-      url: "https://api.example.test/api/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+      url: "https://api.example.test/api/v1/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
       method: "GET",
       authorization: "Bearer access-old",
     },
@@ -594,7 +609,7 @@ test("identical GET requests share one in-flight wx.request", async () => {
     requestCount += 1;
     assert.equal(
       options.url,
-      "https://api.example.test/api/me/gears/overview?tab=available&limit=2",
+      "https://api.example.test/api/v1/me/gears/overview?tab=available&limit=2",
     );
     setTimeout(() => {
       options.success({
@@ -647,7 +662,7 @@ test("getGearTagSuggestions calls authenticated suggestion endpoint", async () =
   assert.deepEqual(response, { items: [{ tag: "冬季", color: "blue" }] });
   assert.deepEqual(calls, [
     {
-      url: "https://api.example.test/api/me/gears/tag-suggestions?limit=12",
+      url: "https://api.example.test/api/v1/me/gears/tag-suggestions?limit=12",
       authorization: "Bearer access-old",
     },
   ]);
@@ -680,7 +695,7 @@ test("getKnotFilters calls the public knot filters endpoint with locale", async 
   });
   assert.deepEqual(calls, [
     {
-      url: "https://api.example.test/api/skills/knots/filters",
+      url: "https://api.example.test/api/v1/skills/knots/filters",
       locale: "zh-CN",
     },
   ]);
@@ -695,7 +710,7 @@ test("loginWithPassword persists access and refresh tokens", async () => {
       data: options.data,
       authorization: options.header && options.header.authorization,
     });
-    assert.equal(options.url, "https://api.example.test/api/auth/login");
+    assert.equal(options.url, "https://api.example.test/api/v1/auth/login");
     options.success({
       statusCode: 200,
       data: loginResponse("access-pass", "refresh-pass"),
@@ -726,7 +741,7 @@ test("registerWithPassword persists the returned session", async () => {
       method: options.method,
       data: options.data,
     });
-    assert.equal(options.url, "https://api.example.test/api/auth/register");
+    assert.equal(options.url, "https://api.example.test/api/v1/auth/register");
     options.success({
       statusCode: 200,
       data: loginResponse("access-register", "refresh-register"),
@@ -766,7 +781,7 @@ test("email code and captcha helpers call public auth endpoints", async () => {
       data: options.data,
       authorization: options.header && options.header.authorization,
     });
-    if (options.url.endsWith("/api/auth/email-verification-code")) {
+    if (options.url.endsWith("/api/v1/auth/email-verification-code")) {
       options.success({
         statusCode: 200,
         data: {
@@ -777,7 +792,7 @@ test("email code and captcha helpers call public auth endpoints", async () => {
       });
       return;
     }
-    if (options.url.endsWith("/api/auth/captcha")) {
+    if (options.url.endsWith("/api/v1/auth/captcha")) {
       options.success({
         statusCode: 200,
         data: {
@@ -804,13 +819,13 @@ test("email code and captcha helpers call public auth endpoints", async () => {
   assert.equal(captcha.captcha_ticket, "ticket-1");
   assert.deepEqual(calls, [
     {
-      url: "https://api.example.test/api/auth/email-verification-code",
+      url: "https://api.example.test/api/v1/auth/email-verification-code",
       method: "POST",
       data: { email: "bob@example.com" },
       authorization: undefined,
     },
     {
-      url: "https://api.example.test/api/auth/captcha",
+      url: "https://api.example.test/api/v1/auth/captcha",
       method: "POST",
       data: { account: "trail_bob" },
       authorization: undefined,
@@ -820,13 +835,13 @@ test("email code and captcha helpers call public auth endpoints", async () => {
 
 test("captcha required errors keep status code and response code", async () => {
   installWxMock((options) => {
-    assert.equal(options.url, "https://api.example.test/api/auth/login");
+    assert.equal(options.url, "https://api.example.test/api/v1/auth/login");
     options.success({
       statusCode: 428,
       data: {
         code: "captcha_required",
         message: "请完成验证码后再试",
-        captcha: { captcha_type: "image", endpoint: "/api/auth/captcha" },
+        captcha: { captcha_type: "image", endpoint: "/api/v1/auth/captcha" },
       },
     });
   });
@@ -843,7 +858,7 @@ test("captcha required errors keep status code and response code", async () => {
       assert.equal(isCaptchaRequiredError(error), true);
       assert.equal(error.statusCode, 428);
       assert.equal(error.code, "captcha_required");
-      assert.equal(error.captcha.endpoint, "/api/auth/captcha");
+      assert.equal(error.captcha.endpoint, "/api/v1/auth/captcha");
       return true;
     },
   );
@@ -851,7 +866,7 @@ test("captcha required errors keep status code and response code", async () => {
 
 test("not found API errors can be identified without exposing raw messages", async () => {
   const storage = installWxMock((options) => {
-    assert.equal(options.url, "https://api.example.test/api/me/profile");
+    assert.equal(options.url, "https://api.example.test/api/v1/me/profile");
     options.success({
       statusCode: 404,
       data: { code: "not_found", message: "resource not found" },
@@ -879,7 +894,7 @@ test("cacheable GET responses are reused after network failure", async () => {
     callCount += 1;
     assert.equal(
       options.url,
-      "https://api.example.test/api/skills/knots/list?offset=0&limit=2",
+      "https://api.example.test/api/v1/skills/knots/list?offset=0&limit=2",
     );
     if (callCount === 1) {
       options.success({
@@ -971,7 +986,7 @@ test("clearLoginState removes user-scoped offline caches", async () => {
   const storage = installWxMock((options) => {
     assert.equal(
       options.url,
-      "https://api.example.test/api/me/gears/stats?tab=available",
+      "https://api.example.test/api/v1/me/gears/stats?tab=available",
     );
     options.success({
       statusCode: 200,
@@ -1109,7 +1124,7 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
     (options) => {
       const path = options.url.replace("https://api.example.test", "");
       requests.push(path);
-      if (path === "/api/skills/knots/offline-manifest") {
+      if (path === "/api/v1/skills/knots/offline-manifest") {
         options.success({
           statusCode: 200,
           data: {
@@ -1215,7 +1230,7 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
     onProgress: (item) => progress.push(item.phase),
   });
 
-  assert.deepEqual(requests, ["/api/skills/knots/offline-manifest"]);
+  assert.deepEqual(requests, ["/api/v1/skills/knots/offline-manifest"]);
   assert.equal(result.items.length, 2);
   assert.equal(result.detailCount, 2);
   assert.equal(result.mediaReadyCount, 3);
@@ -1232,12 +1247,12 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
   assert.equal(hasOfflineCacheStorage(storage), true);
   assert.ok(
     offlineCacheKeys(storage).includes(
-      "/api/skills/knots/list?offset=0&limit=1|zh-CN|",
+      "/api/v1/skills/knots/list?offset=0&limit=1|zh-CN|",
     ),
   );
   assert.ok(
     offlineCacheKeys(storage).includes(
-      "/api/skills/knots/detail/bowline|zh-CN|",
+      "/api/v1/skills/knots/detail/bowline|zh-CN|",
     ),
   );
   assert.deepEqual(getKnotOfflineCacheInventory("zh-CN"), {
@@ -1279,7 +1294,7 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
   );
   assert.ok(
     !offlineCacheKeys(storage).includes(
-      "/api/skills/knots/detail/bowline|zh-CN|",
+      "/api/v1/skills/knots/detail/bowline|zh-CN|",
     ),
   );
   assert.equal(storage.get("removed:wxfile://saved/1"), true);
@@ -1299,7 +1314,7 @@ test("prepareAllKnotsOfflineCache only reads the manifest before confirmation", 
     (options) => {
       const path = options.url.replace("https://api.example.test", "");
       requests.push(path);
-      assert.equal(path, "/api/skills/knots/offline-manifest");
+      assert.equal(path, "/api/v1/skills/knots/offline-manifest");
       options.success({
         statusCode: 200,
         data: {
@@ -1346,7 +1361,7 @@ test("prepareAllKnotsOfflineCache only reads the manifest before confirmation", 
 
   const plan = await prepareAllKnotsOfflineCache({ pageSize: 1 });
 
-  assert.deepEqual(requests, ["/api/skills/knots/offline-manifest"]);
+  assert.deepEqual(requests, ["/api/v1/skills/knots/offline-manifest"]);
   assert.equal(plan.items.length, 1);
   assert.equal(plan.estimatedBytes, 128);
   assert.deepEqual(downloads, []);

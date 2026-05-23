@@ -53,7 +53,7 @@ class SkillsViewModelTest {
         private val failKnots: Boolean = false,
     ) : SkillRepositoryContract {
         override suspend fun listSkills(locale: SkillLocale): SkillCategoriesResponse = SkillCategoriesResponse(
-            listOf(SkillCategorySummary("knots", "knots", "绳结", "常用户外绳结", 8, "/api/skills/knots")),
+            listOf(SkillCategorySummary("knots", "knots", "绳结", "常用户外绳结", 8, "/api/v1/skills/knots")),
         )
 
         override suspend fun listKnots(locale: SkillLocale, request: ListKnotsRequest): KnotListResponse {
@@ -66,7 +66,7 @@ class SkillsViewModelTest {
                         slug = "bowline",
                         title = "单套结",
                         summary = "固定绳圈",
-                        href = "/api/skills/knots/bowline",
+                        href = "/api/v1/skills/knots/bowline",
                     ),
                 ),
                 page = PageInfo(limit = 20, offset = 0),

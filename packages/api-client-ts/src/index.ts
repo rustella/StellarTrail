@@ -70,6 +70,9 @@ export interface ApiClientOptions {
   onSessionRefresh?: (response: WechatLoginResponse) => void;
 }
 
+const API_PREFIX = "/api/v1";
+const HEALTH_PATH = "/healthz";
+
 export class StellarTrailApiError extends Error {
   readonly status: number;
   readonly code?: string;
@@ -141,31 +144,27 @@ export class StellarTrailApiClient {
   }
 
   async meta(): Promise<MetaResponse> {
-    return this.get("/api/meta");
+    return this.get("/meta");
   }
 
   async listSkills(locale?: SkillLocale): Promise<SkillCategoriesResponse> {
-    return this.get("/api/skills", false, locale);
+    return this.get("/skills", false, locale);
   }
 
   async listKnotFilters(locale?: SkillLocale): Promise<KnotFiltersResponse> {
-    return this.get("/api/skills/knots/filters", false, locale);
+    return this.get("/skills/knots/filters", false, locale);
   }
 
   async listKnots(
     request: ListKnotsRequest = {},
     locale?: SkillLocale,
   ): Promise<KnotListResponse> {
-    return this.get(
-      `/api/skills/knots/list${queryString(request)}`,
-      false,
-      locale,
-    );
+    return this.get(`/skills/knots/list${queryString(request)}`, false, locale);
   }
 
   async getKnotDetail(id: string, locale?: SkillLocale): Promise<KnotDetail> {
     return this.get(
-      `/api/skills/knots/detail/${encodeURIComponent(id)}`,
+      `/skills/knots/detail/${encodeURIComponent(id)}`,
       false,
       locale,
     );
@@ -174,22 +173,22 @@ export class StellarTrailApiClient {
   async getKnotOfflineManifest(
     locale?: SkillLocale,
   ): Promise<KnotOfflineManifestResponse> {
-    return this.get("/api/skills/knots/offline-manifest", false, locale);
+    return this.get("/skills/knots/offline-manifest", false, locale);
   }
 
   async listApiUsage(
     request: ApiUsageListRequest = {},
   ): Promise<ApiUsageListResponse> {
-    return this.get(`/api/admin/api-usage${queryString(request)}`, true);
+    return this.get(`/admin/api-usage${queryString(request)}`, true);
   }
 
   async grantAdmin(request: AdminUserSelector): Promise<AdminRoleResponse> {
-    return this.post("/api/admin/admins", request, true);
+    return this.post("/admin/admins", request, true);
   }
 
   async revokeAdmin(request: AdminUserSelector): Promise<void> {
     await this.request(
-      `/api/admin/admins${queryString(request)}`,
+      `/admin/admins${queryString(request)}`,
       { method: "DELETE" },
       true,
     );
@@ -198,7 +197,7 @@ export class StellarTrailApiClient {
   async listAdminFeedback(
     request: ListAdminFeedbackRequest = {},
   ): Promise<ListAdminFeedbackResponse> {
-    return this.get(`/api/admin/feedback${queryString(request)}`, true);
+    return this.get(`/admin/feedback${queryString(request)}`, true);
   }
 
   async uploadKnotMedia(
@@ -212,7 +211,7 @@ export class StellarTrailApiClient {
     if (input.sourceName) form.set("source_name", input.sourceName);
     if (input.sourcePath) form.set("source_path", input.sourcePath);
     const response = await this.request(
-      `/api/admin/skills/knots/${encodeURIComponent(input.knotId)}/media/${encodeURIComponent(input.assetId)}`,
+      `/admin/skills/knots/${encodeURIComponent(input.knotId)}/media/${encodeURIComponent(input.assetId)}`,
       { method: "PUT", body: form },
       true,
     );
@@ -229,42 +228,38 @@ export class StellarTrailApiClient {
   async listGearTemplates(
     locale?: AppLocale,
   ): Promise<ContentListResponse<GearTemplate>> {
-    return this.get("/api/gear-templates", false, locale);
+    return this.get("/gear-templates", false, locale);
   }
 
   async getGearTemplate(id: string, locale?: AppLocale): Promise<GearTemplate> {
-    return this.get(
-      `/api/gear-templates/${encodeURIComponent(id)}`,
-      false,
-      locale,
-    );
+    return this.get(`/gear-templates/${encodeURIComponent(id)}`, false, locale);
   }
 
   async listGearAtlas(
     request: ListGearAtlasRequest = {},
     locale?: AppLocale,
   ): Promise<ListGearAtlasResponse> {
-    return this.get(`/api/gear-atlas${queryString(request)}`, false, locale);
+    return this.get(`/gear-atlas${queryString(request)}`, false, locale);
   }
 
   async getGearAtlasItem(
     id: string,
     locale?: AppLocale,
   ): Promise<GearAtlasPublicItem> {
-    return this.get(`/api/gear-atlas/${encodeURIComponent(id)}`, false, locale);
+    return this.get(`/gear-atlas/${encodeURIComponent(id)}`, false, locale);
   }
 
   async createGearAtlasSubmission(
     request: CreateGearAtlasSubmissionRequest,
   ): Promise<GearAtlasSubmission> {
-    return this.post("/api/me/gear-atlas-submissions", request, true);
+    return this.post("/me/gear-atlas-submissions", request, true);
   }
 
   async createGearAtlasSubmissionFromGear(
     gearId: string,
   ): Promise<GearAtlasSubmission> {
     return this.post(
-      `/api/me/gears/${encodeURIComponent(gearId)}/atlas-submission`,
+      `/me/gears/${encodeURIComponent(gearId)}/atlas-submission`,
       undefined,
       true,
     );
@@ -273,24 +268,21 @@ export class StellarTrailApiClient {
   async listMyGearAtlasSubmissions(
     request: Pick<ListGearAtlasSubmissionsRequest, "limit" | "cursor"> = {},
   ): Promise<ListGearAtlasSubmissionsResponse> {
-    return this.get(
-      `/api/me/gear-atlas-submissions${queryString(request)}`,
-      true,
-    );
+    return this.get(`/me/gear-atlas-submissions${queryString(request)}`, true);
   }
 
   async listAdminGearAtlasSubmissions(
     request: ListGearAtlasSubmissionsRequest = {},
   ): Promise<ListGearAtlasSubmissionsResponse> {
     return this.get(
-      `/api/admin/gear-atlas-submissions${queryString(request)}`,
+      `/admin/gear-atlas-submissions${queryString(request)}`,
       true,
     );
   }
 
   async getAdminGearAtlasSubmission(id: string): Promise<GearAtlasSubmission> {
     return this.get(
-      `/api/admin/gear-atlas-submissions/${encodeURIComponent(id)}`,
+      `/admin/gear-atlas-submissions/${encodeURIComponent(id)}`,
       true,
     );
   }
@@ -300,7 +292,7 @@ export class StellarTrailApiClient {
     request: UpdateGearAtlasSubmissionRequest,
   ): Promise<GearAtlasSubmission> {
     return this.patch(
-      `/api/admin/gear-atlas-submissions/${encodeURIComponent(id)}`,
+      `/admin/gear-atlas-submissions/${encodeURIComponent(id)}`,
       request,
       true,
     );
@@ -308,7 +300,7 @@ export class StellarTrailApiClient {
 
   async approveGearAtlasSubmission(id: string): Promise<GearAtlasSubmission> {
     return this.post(
-      `/api/admin/gear-atlas-submissions/${encodeURIComponent(id)}/approve`,
+      `/admin/gear-atlas-submissions/${encodeURIComponent(id)}/approve`,
       undefined,
       true,
     );
@@ -319,7 +311,7 @@ export class StellarTrailApiClient {
     request: RejectGearAtlasSubmissionRequest,
   ): Promise<GearAtlasSubmission> {
     return this.post(
-      `/api/admin/gear-atlas-submissions/${encodeURIComponent(id)}/reject`,
+      `/admin/gear-atlas-submissions/${encodeURIComponent(id)}/reject`,
       request,
       true,
     );
@@ -329,7 +321,7 @@ export class StellarTrailApiClient {
     request: WechatLoginRequest,
   ): Promise<WechatLoginResponse> {
     const response = await this.post<WechatLoginResponse>(
-      "/api/auth/wechat-login",
+      "/auth/wechat-login",
       request,
     );
     this.applyLoginResponse(response);
@@ -340,7 +332,7 @@ export class StellarTrailApiClient {
     request: EmailVerificationCodeRequest,
   ): Promise<EmailVerificationCodeResponse> {
     return this.post<EmailVerificationCodeResponse>(
-      "/api/auth/email-verification-code",
+      "/auth/email-verification-code",
       request,
     );
   }
@@ -349,7 +341,7 @@ export class StellarTrailApiClient {
     request: EmailLoginCodeRequest,
   ): Promise<EmailVerificationCodeResponse> {
     return this.post<EmailVerificationCodeResponse>(
-      "/api/auth/email-login-code",
+      "/auth/email-login-code",
       request,
     );
   }
@@ -358,7 +350,7 @@ export class StellarTrailApiClient {
     request: EmailLoginRequest,
   ): Promise<WechatLoginResponse> {
     const response = await this.post<WechatLoginResponse>(
-      "/api/auth/email-login",
+      "/auth/email-login",
       request,
     );
     this.applyLoginResponse(response);
@@ -369,7 +361,7 @@ export class StellarTrailApiClient {
     request: PasswordResetCodeRequest,
   ): Promise<EmailVerificationCodeResponse> {
     return this.post<EmailVerificationCodeResponse>(
-      "/api/auth/password-reset-code",
+      "/auth/password-reset-code",
       request,
     );
   }
@@ -378,7 +370,7 @@ export class StellarTrailApiClient {
     request: PasswordResetRequest,
   ): Promise<WechatLoginResponse> {
     const response = await this.post<WechatLoginResponse>(
-      "/api/auth/password-reset",
+      "/auth/password-reset",
       request,
     );
     this.applyLoginResponse(response);
@@ -389,18 +381,18 @@ export class StellarTrailApiClient {
     request: BindEmailCodeRequest,
   ): Promise<EmailVerificationCodeResponse> {
     return this.post<EmailVerificationCodeResponse>(
-      "/api/me/email-binding-code",
+      "/me/email-binding-code",
       request,
       true,
     );
   }
 
   async bindEmail(request: BindEmailRequest): Promise<BindEmailResponse> {
-    return this.post<BindEmailResponse>("/api/me/email-binding", request, true);
+    return this.post<BindEmailResponse>("/me/email-binding", request, true);
   }
 
   async getProfile(): Promise<ProfileUserResponse> {
-    return this.get<ProfileUserResponse>("/api/me/profile", true);
+    return this.get<ProfileUserResponse>("/me/profile", true);
   }
 
   async uploadProfileAvatar(
@@ -410,7 +402,7 @@ export class StellarTrailApiClient {
     const form = new FormData();
     form.set("file", file, filename);
     const response = await this.request(
-      "/api/me/profile/avatar",
+      "/me/profile/avatar",
       { method: "PUT", body: form },
       true,
     );
@@ -420,12 +412,12 @@ export class StellarTrailApiClient {
   async createCaptcha(
     request: CaptchaChallengeRequest,
   ): Promise<CaptchaChallengeResponse> {
-    return this.post<CaptchaChallengeResponse>("/api/auth/captcha", request);
+    return this.post<CaptchaChallengeResponse>("/auth/captcha", request);
   }
 
   async register(request: RegisterRequest): Promise<WechatLoginResponse> {
     const response = await this.post<WechatLoginResponse>(
-      "/api/auth/register",
+      "/auth/register",
       request,
     );
     this.applyLoginResponse(response);
@@ -436,7 +428,7 @@ export class StellarTrailApiClient {
     request: PasswordLoginRequest,
   ): Promise<WechatLoginResponse> {
     const response = await this.post<WechatLoginResponse>(
-      "/api/auth/login",
+      "/auth/login",
       request,
     );
     this.applyLoginResponse(response);
@@ -447,7 +439,7 @@ export class StellarTrailApiClient {
     request: RefreshTokenRequest,
   ): Promise<WechatLoginResponse> {
     const response = await this.post<WechatLoginResponse>(
-      "/api/auth/refresh",
+      "/auth/refresh",
       request,
     );
     this.applyLoginResponse(response, true);
@@ -457,56 +449,53 @@ export class StellarTrailApiClient {
   async listGearCategories(
     tab?: "available" | "history",
   ): Promise<GearCategoriesResponse> {
-    return this.get(`/api/me/gears/categories${queryString({ tab })}`, true);
+    return this.get(`/me/gears/categories${queryString({ tab })}`, true);
   }
 
   async getGearStats(
     tab?: "available" | "history",
   ): Promise<GearStatsResponse> {
-    return this.get(`/api/me/gears/stats${queryString({ tab })}`, true);
+    return this.get(`/me/gears/stats${queryString({ tab })}`, true);
   }
 
   async getGearOverview(
     request: GearOverviewRequest = {},
   ): Promise<GearOverviewResponse> {
-    return this.get(`/api/me/gears/overview${queryString(request)}`, true);
+    return this.get(`/me/gears/overview${queryString(request)}`, true);
   }
 
   async getGearSpecKeyRankings(
     category: GearCategory,
   ): Promise<GearSpecKeyRankingsResponse> {
     return this.get(
-      `/api/me/gears/spec-key-rankings${queryString({ category })}`,
+      `/me/gears/spec-key-rankings${queryString({ category })}`,
       true,
     );
   }
 
   async getGearTagSuggestions(limit = 20): Promise<GearTagSuggestionsResponse> {
-    return this.get(
-      `/api/me/gears/tag-suggestions${queryString({ limit })}`,
-      true,
-    );
+    return this.get(`/me/gears/tag-suggestions${queryString({ limit })}`, true);
   }
 
   async listGears(request: ListGearsRequest = {}): Promise<ListGearsResponse> {
-    return this.get(`/api/me/gears${queryString(request)}`, true);
+    return this.get(`/me/gears${queryString(request)}`, true);
   }
 
   async getGear(id: string): Promise<GearItem> {
-    return this.get(`/api/me/gears/${encodeURIComponent(id)}`, true);
+    return this.get(`/me/gears/${encodeURIComponent(id)}`, true);
   }
 
   async createGear(request: CreateGearRequest): Promise<GearItem> {
-    return this.post("/api/me/gears", request, true);
+    return this.post("/me/gears", request, true);
   }
 
   async updateGear(id: string, request: UpdateGearRequest): Promise<GearItem> {
-    return this.patch(`/api/me/gears/${encodeURIComponent(id)}`, request, true);
+    return this.patch(`/me/gears/${encodeURIComponent(id)}`, request, true);
   }
 
   async archiveGear(id: string): Promise<void> {
     await this.request(
-      `/api/me/gears/${encodeURIComponent(id)}`,
+      `/me/gears/${encodeURIComponent(id)}`,
       { method: "DELETE" },
       true,
     );
@@ -514,7 +503,7 @@ export class StellarTrailApiClient {
 
   async restoreGear(id: string): Promise<GearItem> {
     return this.post(
-      `/api/me/gears/${encodeURIComponent(id)}/restore`,
+      `/me/gears/${encodeURIComponent(id)}/restore`,
       undefined,
       true,
     );
@@ -522,7 +511,7 @@ export class StellarTrailApiClient {
 
   async exportGearsCsv(tab?: "available" | "history"): Promise<string> {
     const response = await this.request(
-      `/api/me/gears/export${queryString({ tab, format: "csv" })}`,
+      `/me/gears/export${queryString({ tab, format: "csv" })}`,
       {},
       true,
     );
@@ -530,7 +519,7 @@ export class StellarTrailApiClient {
   }
 
   async importGears(request: ImportGearsRequest): Promise<ImportGearsResponse> {
-    return this.post("/api/me/gears/import", request, true);
+    return this.post("/me/gears/import", request, true);
   }
 
   private async get<T>(
@@ -612,7 +601,7 @@ export class StellarTrailApiClient {
       }
       headers.set("authorization", `Bearer ${this.accessToken}`);
     }
-    return this.fetcher(`${this.baseUrl}${path}`, {
+    return this.fetcher(`${this.baseUrl}${versionedApiPath(path)}`, {
       ...init,
       headers,
     });
@@ -674,6 +663,14 @@ function queryString(params: object): string {
   }
   const value = search.toString();
   return value ? `?${value}` : "";
+}
+
+function versionedApiPath(path: string): string {
+  if (path === HEALTH_PATH || path.startsWith(`${API_PREFIX}/`)) {
+    return path;
+  }
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${API_PREFIX}${normalized}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

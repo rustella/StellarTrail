@@ -159,7 +159,7 @@ async fn register_password_user(app: &Router, suffix: &str) -> String {
     let (code_status, code_value) = send_json(
         app,
         "POST",
-        "/api/auth/email-verification-code",
+        "/api/v1/auth/email-verification-code",
         None,
         json!({"email": email}),
     )
@@ -170,7 +170,7 @@ async fn register_password_user(app: &Router, suffix: &str) -> String {
     let (register_status, register_value) = send_json(
         app,
         "POST",
-        "/api/auth/register",
+        "/api/v1/auth/register",
         None,
         json!({
             "username": username,
@@ -224,7 +224,7 @@ async fn upload_image(
 
     let mut builder = Request::builder()
         .method("POST")
-        .uri("/api/me/uploads")
+        .uri("/api/v1/me/uploads")
         .header(
             header::CONTENT_TYPE,
             format!("multipart/form-data; boundary={boundary}"),
@@ -268,7 +268,7 @@ async fn upload_avatar(
 
     let mut builder = Request::builder()
         .method("PUT")
-        .uri("/api/me/profile/avatar")
+        .uri("/api/v1/me/profile/avatar")
         .header(
             header::CONTENT_TYPE,
             format!("multipart/form-data; boundary={boundary}"),
@@ -315,7 +315,7 @@ async fn authenticated_user_can_upload_png_feedback_image_to_object_store() {
         value["download_url"]
             .as_str()
             .unwrap()
-            .starts_with("/api/me/uploads/")
+            .starts_with("/api/v1/me/uploads/")
     );
     assert_eq!(app.object_store.object_count(), 1);
     let stored = app.object_store.only_object().unwrap();
@@ -432,7 +432,7 @@ async fn authenticated_user_can_download_own_upload_from_object_store() {
     let (download_status, body) = send_empty(
         &app.router,
         "GET",
-        &format!("/api/me/uploads/{id}"),
+        &format!("/api/v1/me/uploads/{id}"),
         Some(&token),
     )
     .await;
@@ -570,7 +570,7 @@ async fn download_rejects_cross_user_access() {
     let (download_status, _body) = send_empty(
         &app.router,
         "GET",
-        &format!("/api/me/uploads/{id}"),
+        &format!("/api/v1/me/uploads/{id}"),
         Some(&token_b),
     )
     .await;
@@ -596,7 +596,7 @@ async fn authenticated_user_can_submit_feedback_with_uploaded_images() {
     let (status, value) = send_json(
         &app.router,
         "POST",
-        "/api/me/feedback",
+        "/api/v1/me/feedback",
         Some(&token),
         json!({
             "category": "bug",
@@ -635,7 +635,7 @@ async fn admin_can_list_feedback_and_download_attached_images() {
     let (submit_status, submitted) = send_json(
         &app.router,
         "POST",
-        "/api/me/feedback",
+        "/api/v1/me/feedback",
         Some(&user_token),
         json!({
             "category": "bug",
@@ -652,18 +652,23 @@ async fn admin_can_list_feedback_and_download_attached_images() {
     assert_eq!(submit_status, StatusCode::CREATED, "{submitted}");
 
     let (missing_status, missing) =
-        send_empty_json(&app.router, "GET", "/api/admin/feedback", None).await;
+        send_empty_json(&app.router, "GET", "/api/v1/admin/feedback", None).await;
     assert_eq!(missing_status, StatusCode::UNAUTHORIZED, "{missing}");
 
-    let (non_admin_status, non_admin) =
-        send_empty_json(&app.router, "GET", "/api/admin/feedback", Some(&user_token)).await;
+    let (non_admin_status, non_admin) = send_empty_json(
+        &app.router,
+        "GET",
+        "/api/v1/admin/feedback",
+        Some(&user_token),
+    )
+    .await;
     assert_eq!(non_admin_status, StatusCode::FORBIDDEN, "{non_admin}");
 
     let admin_token = grant_admin_role(&app, "feedback_admin").await;
     let (list_status, list) = send_empty_json(
         &app.router,
         "GET",
-        "/api/admin/feedback?status=open",
+        "/api/v1/admin/feedback?status=open",
         Some(&admin_token),
     )
     .await;
@@ -679,13 +684,13 @@ async fn admin_can_list_feedback_and_download_attached_images() {
     assert_eq!(list["items"][0]["images"][0]["id"], image_id);
     assert_eq!(
         list["items"][0]["images"][0]["download_url"],
-        format!("/api/admin/feedback-images/{image_id}")
+        format!("/api/v1/admin/feedback-images/{image_id}")
     );
 
     let (image_status, image_bytes) = send_empty(
         &app.router,
         "GET",
-        &format!("/api/admin/feedback-images/{image_id}"),
+        &format!("/api/v1/admin/feedback-images/{image_id}"),
         Some(&admin_token),
     )
     .await;
@@ -709,7 +714,7 @@ async fn feedback_allows_more_than_five_images() {
     let (status, value) = send_json(
         &app.router,
         "POST",
-        "/api/me/feedback",
+        "/api/v1/me/feedback",
         Some(&token),
         json!({
             "category": "suggestion",
@@ -742,7 +747,7 @@ async fn feedback_rejects_image_from_another_user() {
     let (status, value) = send_json(
         &app.router,
         "POST",
-        "/api/me/feedback",
+        "/api/v1/me/feedback",
         Some(&token_b),
         json!({
             "category": "bug",
@@ -774,7 +779,7 @@ async fn feedback_rejects_duplicate_image_ids() {
     let (status, value) = send_json(
         &app.router,
         "POST",
-        "/api/me/feedback",
+        "/api/v1/me/feedback",
         Some(&token),
         json!({
             "category": "bug",

@@ -154,7 +154,7 @@ async fn register_password_user(
     let (code_status, code_value) = send_json(
         app,
         "POST",
-        "/api/auth/email-verification-code",
+        "/api/v1/auth/email-verification-code",
         None,
         json!({"email": email}),
     )
@@ -165,7 +165,7 @@ async fn register_password_user(
     let (register_status, register_value) = send_json(
         app,
         "POST",
-        "/api/auth/register",
+        "/api/v1/auth/register",
         None,
         json!({
             "username": username,
@@ -184,7 +184,7 @@ async fn create_captcha(app: &Router, account: &str) -> (String, String) {
     let (status, value) = send_json(
         app,
         "POST",
-        "/api/auth/captcha",
+        "/api/v1/auth/captcha",
         None,
         json!({"account": account}),
     )
@@ -230,7 +230,7 @@ async fn local_mock_login_returns_token_and_user() {
     let (status, value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/wechat-login",
+        "/api/v1/auth/wechat-login",
         None,
         json!({"code": "local-dev-user", "profile": {"nickname": "测试用户"}}),
     )
@@ -248,7 +248,7 @@ async fn current_profile_returns_authenticated_user_snapshot() {
     let (login_status, login_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/wechat-login",
+        "/api/v1/auth/wechat-login",
         None,
         json!({
             "code": "profile-current-user",
@@ -263,7 +263,7 @@ async fn current_profile_returns_authenticated_user_snapshot() {
     let access_token = login_value["access_token"].as_str().unwrap();
 
     let (unauthorized_status, unauthorized_value) =
-        send_empty(&app.router, "GET", "/api/me/profile", None).await;
+        send_empty(&app.router, "GET", "/api/v1/me/profile", None).await;
     assert_eq!(
         unauthorized_status,
         StatusCode::UNAUTHORIZED,
@@ -271,7 +271,7 @@ async fn current_profile_returns_authenticated_user_snapshot() {
     );
 
     let (profile_status, profile_value) =
-        send_empty(&app.router, "GET", "/api/me/profile", Some(access_token)).await;
+        send_empty(&app.router, "GET", "/api/v1/me/profile", Some(access_token)).await;
 
     assert_eq!(profile_status, StatusCode::OK, "{profile_value}");
     assert_eq!(profile_value["user"]["nickname"], "微信昵称");
@@ -288,7 +288,7 @@ async fn wechat_login_without_profile_preserves_existing_nickname_and_avatar() {
     let (first_status, first_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/wechat-login",
+        "/api/v1/auth/wechat-login",
         None,
         json!({
             "code": "profile-preserve-user",
@@ -305,7 +305,7 @@ async fn wechat_login_without_profile_preserves_existing_nickname_and_avatar() {
     let (second_status, second_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/wechat-login",
+        "/api/v1/auth/wechat-login",
         None,
         json!({"code": "profile-preserve-user"}),
     )
@@ -364,7 +364,7 @@ async fn refresh_token_rotates_session_and_rejects_replay() {
     let (refresh_status, refresh_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/refresh",
+        "/api/v1/auth/refresh",
         None,
         json!({"refresh_token": old_refresh_token}),
     )
@@ -381,7 +381,7 @@ async fn refresh_token_rotates_session_and_rejects_replay() {
     let (gear_status, gear_stats) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/stats",
+        "/api/v1/me/gears/stats",
         Some(new_access_token),
     )
     .await;
@@ -390,7 +390,7 @@ async fn refresh_token_rotates_session_and_rejects_replay() {
     let (old_access_status, old_access_value) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/stats",
+        "/api/v1/me/gears/stats",
         Some(&old_access_token),
     )
     .await;
@@ -405,7 +405,7 @@ async fn refresh_token_rotates_session_and_rejects_replay() {
     let (replay_status, replay_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/refresh",
+        "/api/v1/auth/refresh",
         None,
         json!({"refresh_token": old_refresh_token}),
     )
@@ -460,7 +460,7 @@ async fn production_email_verification_sends_mail_and_hides_debug_code() {
     let (status, value) = send_json(
         &router,
         "POST",
-        "/api/auth/email-verification-code",
+        "/api/v1/auth/email-verification-code",
         None,
         json!({"email": "Trail.User@Example.COM"}),
     )
@@ -526,7 +526,7 @@ async fn production_email_verification_delivery_failure_returns_safe_error() {
     let (status, value) = send_json(
         &router,
         "POST",
-        "/api/auth/email-verification-code",
+        "/api/v1/auth/email-verification-code",
         None,
         json!({"email": "trail.user@example.com"}),
     )
@@ -574,7 +574,7 @@ async fn production_wechat_login_uses_code2session_client() {
     let (status, value) = send_json(
         &router,
         "POST",
-        "/api/auth/wechat-login",
+        "/api/v1/auth/wechat-login",
         None,
         json!({"code": "wx-js-code", "profile": {"nickname": "微信用户", "avatar_url": null}}),
     )
@@ -594,7 +594,7 @@ async fn production_wechat_login_uses_code2session_client() {
     );
 
     let (gear_status, gear_stats) =
-        send_empty(&router, "GET", "/api/me/gears/stats", Some(access_token)).await;
+        send_empty(&router, "GET", "/api/v1/me/gears/stats", Some(access_token)).await;
     assert_eq!(gear_status, StatusCode::OK, "{gear_stats}");
 }
 
@@ -634,7 +634,7 @@ async fn email_registration_and_password_login_flow_uses_sha256_password_hash() 
     let (username_login_status, username_login_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/login",
+        "/api/v1/auth/login",
         None,
         json!({"account": "trail_alice", "password": "OutdoorPass123!"}),
     )
@@ -652,7 +652,7 @@ async fn email_registration_and_password_login_flow_uses_sha256_password_hash() 
     let (email_login_status, email_login_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/login",
+        "/api/v1/auth/login",
         None,
         json!({"account": "alice@example.com", "password": "OutdoorPass123!"}),
     )
@@ -679,7 +679,7 @@ async fn password_login_requires_captcha_after_repeated_failures() {
         let (status, value) = send_json(
             &app.router,
             "POST",
-            "/api/auth/login",
+            "/api/v1/auth/login",
             None,
             json!({"account": "trail_bob", "password": "wrong-password"}),
         )
@@ -691,7 +691,7 @@ async fn password_login_requires_captcha_after_repeated_failures() {
     let (captcha_status, captcha_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/login",
+        "/api/v1/auth/login",
         None,
         json!({"account": "trail_bob", "password": "OutdoorPass123!"}),
     )
@@ -703,13 +703,13 @@ async fn password_login_requires_captcha_after_repeated_failures() {
     );
     assert_eq!(captcha_value["code"], "captcha_required");
     assert_eq!(captcha_value["captcha"]["type"], "image");
-    assert_eq!(captcha_value["captcha"]["endpoint"], "/api/auth/captcha");
+    assert_eq!(captcha_value["captcha"]["endpoint"], "/api/v1/auth/captcha");
 
     let (captcha_ticket, captcha_answer) = create_captcha(&app.router, "trail_bob").await;
     let (verified_status, verified_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/login",
+        "/api/v1/auth/login",
         None,
         json!({
             "account": "trail_bob",
@@ -724,7 +724,7 @@ async fn password_login_requires_captcha_after_repeated_failures() {
     let (reset_status, reset_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/login",
+        "/api/v1/auth/login",
         None,
         json!({"account": "bob@example.com", "password": "OutdoorPass123!"}),
     )
@@ -736,13 +736,13 @@ async fn password_login_requires_captcha_after_repeated_failures() {
 async fn protected_gear_routes_reject_missing_token() {
     let app = test_app().await;
 
-    let (status, value) = send_empty(&app.router, "GET", "/api/me/gears/stats", None).await;
+    let (status, value) = send_empty(&app.router, "GET", "/api/v1/me/gears/stats", None).await;
 
     assert_eq!(status, StatusCode::UNAUTHORIZED, "{value}");
     assert_eq!(value["code"], "unauthorized");
 
     let (overview_status, overview_value) =
-        send_empty(&app.router, "GET", "/api/me/gears/overview", None).await;
+        send_empty(&app.router, "GET", "/api/v1/me/gears/overview", None).await;
     assert_eq!(
         overview_status,
         StatusCode::UNAUTHORIZED,
@@ -765,7 +765,7 @@ async fn email_code_login_issues_tokens_and_rejects_replay_or_wrong_purpose() {
     let (code_status, code_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/email-login-code",
+        "/api/v1/auth/email-login-code",
         None,
         json!({"email": "Mail-Login-Alice@Example.COM"}),
     )
@@ -777,7 +777,7 @@ async fn email_code_login_issues_tokens_and_rejects_replay_or_wrong_purpose() {
     let (login_status, login_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/email-login",
+        "/api/v1/auth/email-login",
         None,
         json!({"email": "mail-login-alice@example.com", "email_verification_code": login_code}),
     )
@@ -789,7 +789,7 @@ async fn email_code_login_issues_tokens_and_rejects_replay_or_wrong_purpose() {
     let (replay_status, replay_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/email-login",
+        "/api/v1/auth/email-login",
         None,
         json!({"email": "mail-login-alice@example.com", "email_verification_code": code_value["debug_code"].as_str().unwrap()}),
     )
@@ -799,7 +799,7 @@ async fn email_code_login_issues_tokens_and_rejects_replay_or_wrong_purpose() {
     let (register_code_status, register_code_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/email-verification-code",
+        "/api/v1/auth/email-verification-code",
         None,
         json!({"email": "mail-login-alice@example.com"}),
     )
@@ -812,7 +812,7 @@ async fn email_code_login_issues_tokens_and_rejects_replay_or_wrong_purpose() {
     let (wrong_purpose_status, wrong_purpose_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/email-login",
+        "/api/v1/auth/email-login",
         None,
         json!({
             "email": "mail-login-alice@example.com",
@@ -841,7 +841,7 @@ async fn email_codes_lock_after_repeated_wrong_guesses() {
     let (login_code_status, login_code_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/email-login-code",
+        "/api/v1/auth/email-login-code",
         None,
         json!({"email": "mail-lock-alice@example.com"}),
     )
@@ -853,7 +853,7 @@ async fn email_codes_lock_after_repeated_wrong_guesses() {
         let (guess_status, guess_value) = send_json(
             &app.router,
             "POST",
-            "/api/auth/email-login",
+            "/api/v1/auth/email-login",
             None,
             json!({"email": "mail-lock-alice@example.com", "email_verification_code": "000000"}),
         )
@@ -864,7 +864,7 @@ async fn email_codes_lock_after_repeated_wrong_guesses() {
     let (locked_login_status, locked_login_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/email-login",
+        "/api/v1/auth/email-login",
         None,
         json!({"email": "mail-lock-alice@example.com", "email_verification_code": login_code}),
     )
@@ -878,7 +878,7 @@ async fn email_codes_lock_after_repeated_wrong_guesses() {
     let (reset_code_status, reset_code_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/password-reset-code",
+        "/api/v1/auth/password-reset-code",
         None,
         json!({"email": "mail-lock-alice@example.com"}),
     )
@@ -890,7 +890,7 @@ async fn email_codes_lock_after_repeated_wrong_guesses() {
         let (guess_status, guess_value) = send_json(
             &app.router,
             "POST",
-            "/api/auth/password-reset",
+            "/api/v1/auth/password-reset",
             None,
             json!({
                 "email": "mail-lock-alice@example.com",
@@ -906,7 +906,7 @@ async fn email_codes_lock_after_repeated_wrong_guesses() {
     let (locked_reset_status, locked_reset_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/password-reset",
+        "/api/v1/auth/password-reset",
         None,
         json!({
             "email": "mail-lock-alice@example.com",
@@ -939,7 +939,7 @@ async fn password_reset_updates_password_revokes_old_sessions_and_rejects_replay
     let (code_status, code_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/password-reset-code",
+        "/api/v1/auth/password-reset-code",
         None,
         json!({"email": "reset-alice@example.com"}),
     )
@@ -950,7 +950,7 @@ async fn password_reset_updates_password_revokes_old_sessions_and_rejects_replay
     let (reset_status, reset_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/password-reset",
+        "/api/v1/auth/password-reset",
         None,
         json!({
             "email": "reset-alice@example.com",
@@ -968,7 +968,7 @@ async fn password_reset_updates_password_revokes_old_sessions_and_rejects_replay
     let (old_access_status, old_access_value) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/stats",
+        "/api/v1/me/gears/stats",
         Some(&old_access_token),
     )
     .await;
@@ -981,7 +981,7 @@ async fn password_reset_updates_password_revokes_old_sessions_and_rejects_replay
     let (old_refresh_status, old_refresh_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/refresh",
+        "/api/v1/auth/refresh",
         None,
         json!({"refresh_token": old_refresh_token}),
     )
@@ -995,7 +995,7 @@ async fn password_reset_updates_password_revokes_old_sessions_and_rejects_replay
     let (old_password_status, old_password_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/login",
+        "/api/v1/auth/login",
         None,
         json!({"account": "reset-alice@example.com", "password": "OutdoorPass123!"}),
     )
@@ -1009,7 +1009,7 @@ async fn password_reset_updates_password_revokes_old_sessions_and_rejects_replay
     let (new_password_status, new_password_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/login",
+        "/api/v1/auth/login",
         None,
         json!({"account": "reset-alice@example.com", "password": "NewOutdoorPass123!"}),
     )
@@ -1019,7 +1019,7 @@ async fn password_reset_updates_password_revokes_old_sessions_and_rejects_replay
     let (replay_status, replay_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/password-reset",
+        "/api/v1/auth/password-reset",
         None,
         json!({
             "email": "reset-alice@example.com",
@@ -1039,7 +1039,7 @@ async fn wechat_user_can_bind_email_then_reset_password() {
     let (wechat_status, wechat_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/wechat-login",
+        "/api/v1/auth/wechat-login",
         None,
         json!({"code": "bind-email-user", "profile": {"nickname": "微信用户"}}),
     )
@@ -1052,7 +1052,7 @@ async fn wechat_user_can_bind_email_then_reset_password() {
     let (missing_reset_code_status, missing_reset_code_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/password-reset-code",
+        "/api/v1/auth/password-reset-code",
         None,
         json!({"email": "bound-wechat@example.com"}),
     )
@@ -1067,7 +1067,7 @@ async fn wechat_user_can_bind_email_then_reset_password() {
     let (register_code_status, register_code_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/email-verification-code",
+        "/api/v1/auth/email-verification-code",
         None,
         json!({"email": "bound-wechat@example.com"}),
     )
@@ -1081,7 +1081,7 @@ async fn wechat_user_can_bind_email_then_reset_password() {
     let (wrong_purpose_status, wrong_purpose_value) = send_json(
         &app.router,
         "POST",
-        "/api/me/email-binding",
+        "/api/v1/me/email-binding",
         Some(&access_token),
         json!({
             "email": "bound-wechat@example.com",
@@ -1098,7 +1098,7 @@ async fn wechat_user_can_bind_email_then_reset_password() {
     let (bind_code_status, bind_code_value) = send_json(
         &app.router,
         "POST",
-        "/api/me/email-binding-code",
+        "/api/v1/me/email-binding-code",
         Some(&access_token),
         json!({"email": "Bound-WeChat@Example.COM"}),
     )
@@ -1110,7 +1110,7 @@ async fn wechat_user_can_bind_email_then_reset_password() {
     let (bind_status, bind_value) = send_json(
         &app.router,
         "POST",
-        "/api/me/email-binding",
+        "/api/v1/me/email-binding",
         Some(&access_token),
         json!({
             "email": "bound-wechat@example.com",
@@ -1125,7 +1125,7 @@ async fn wechat_user_can_bind_email_then_reset_password() {
     let (already_bound_status, already_bound_value) = send_json(
         &app.router,
         "POST",
-        "/api/me/email-binding-code",
+        "/api/v1/me/email-binding-code",
         Some(&access_token),
         json!({"email": "bound-wechat@example.com"}),
     )
@@ -1139,7 +1139,7 @@ async fn wechat_user_can_bind_email_then_reset_password() {
     let (reset_code_status, reset_code_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/password-reset-code",
+        "/api/v1/auth/password-reset-code",
         None,
         json!({"email": "bound-wechat@example.com"}),
     )
@@ -1150,7 +1150,7 @@ async fn wechat_user_can_bind_email_then_reset_password() {
     let (reset_status, reset_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/password-reset",
+        "/api/v1/auth/password-reset",
         None,
         json!({
             "email": "bound-wechat@example.com",
@@ -1167,7 +1167,7 @@ async fn wechat_user_can_bind_email_then_reset_password() {
     let (password_login_status, password_login_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/login",
+        "/api/v1/auth/login",
         None,
         json!({"account": "bound-wechat@example.com", "password": "BoundOutdoorPass123!"}),
     )
@@ -1194,7 +1194,7 @@ async fn bind_email_requires_auth_and_rejects_taken_email() {
     let (unauthorized_status, unauthorized_value) = send_json(
         &app.router,
         "POST",
-        "/api/me/email-binding-code",
+        "/api/v1/me/email-binding-code",
         None,
         json!({"email": "new-wechat@example.com"}),
     )
@@ -1208,7 +1208,7 @@ async fn bind_email_requires_auth_and_rejects_taken_email() {
     let (wechat_status, wechat_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/wechat-login",
+        "/api/v1/auth/wechat-login",
         None,
         json!({"code": "bind-email-taken", "profile": {"nickname": "微信用户"}}),
     )
@@ -1219,7 +1219,7 @@ async fn bind_email_requires_auth_and_rejects_taken_email() {
     let (taken_status, taken_value) = send_json(
         &app.router,
         "POST",
-        "/api/me/email-binding-code",
+        "/api/v1/me/email-binding-code",
         Some(&access_token),
         json!({"email": "taken@example.com"}),
     )
@@ -1237,8 +1237,8 @@ async fn login_and_reset_code_requests_do_not_reveal_missing_email() {
     let app = test_app().await;
 
     for path in [
-        "/api/auth/email-login-code",
-        "/api/auth/password-reset-code",
+        "/api/v1/auth/email-login-code",
+        "/api/v1/auth/password-reset-code",
     ] {
         let (status, value) = send_json(
             &app.router,
@@ -1256,7 +1256,7 @@ async fn login_and_reset_code_requests_do_not_reveal_missing_email() {
     let (login_status, login_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/email-login",
+        "/api/v1/auth/email-login",
         None,
         json!({"email": "missing@example.com", "email_verification_code": "000000"}),
     )
@@ -1266,7 +1266,7 @@ async fn login_and_reset_code_requests_do_not_reveal_missing_email() {
     let (reset_status, reset_value) = send_json(
         &app.router,
         "POST",
-        "/api/auth/password-reset",
+        "/api/v1/auth/password-reset",
         None,
         json!({
             "email": "missing@example.com",
@@ -1333,7 +1333,7 @@ async fn production_email_login_and_reset_codes_send_mail_and_hide_debug_code() 
     let (login_status, login_value) = send_json(
         &router,
         "POST",
-        "/api/auth/email-login-code",
+        "/api/v1/auth/email-login-code",
         None,
         json!({"email": "prod-mail-user@example.com"}),
     )
@@ -1344,7 +1344,7 @@ async fn production_email_login_and_reset_codes_send_mail_and_hide_debug_code() 
     let (reset_status, reset_value) = send_json(
         &router,
         "POST",
-        "/api/auth/password-reset-code",
+        "/api/v1/auth/password-reset-code",
         None,
         json!({"email": "prod-mail-user@example.com"}),
     )
@@ -1420,7 +1420,7 @@ async fn production_bind_email_code_sends_mail_and_hides_debug_code() {
     let (status, value) = send_json(
         &router,
         "POST",
-        "/api/me/email-binding-code",
+        "/api/v1/me/email-binding-code",
         Some(access_token),
         json!({"email": "prod-bind-wechat@example.com"}),
     )

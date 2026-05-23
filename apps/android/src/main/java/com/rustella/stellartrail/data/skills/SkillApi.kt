@@ -9,11 +9,11 @@ import com.rustella.stellartrail.domain.skills.SkillLocale
 
 class SkillApi(private val apiClient: ApiClient) {
     suspend fun listSkills(locale: SkillLocale = SkillLocale.ZH_CN): SkillCategoriesResponse =
-        apiClient.get("/api/skills", locale = locale)
+        apiClient.get("/skills", locale = locale)
 
     suspend fun listKnots(locale: SkillLocale = SkillLocale.ZH_CN, request: ListKnotsRequest = ListKnotsRequest()): KnotListResponse =
         apiClient.get(
-            "/api/skills/knots/list",
+            "/skills/knots/list",
             query = mapOf(
                 "offset" to request.offset.toString(),
                 "limit" to request.limit.toString(),
@@ -24,7 +24,7 @@ class SkillApi(private val apiClient: ApiClient) {
         )
 
     suspend fun knotDetail(id: String, locale: SkillLocale = SkillLocale.ZH_CN): KnotDetail =
-        apiClient.get("/api/skills/knots/detail/$id", locale = locale)
+        apiClient.get("/skills/knots/detail/$id", locale = locale)
 
     fun resolveMediaUrl(pathOrUrl: String): String = apiClient.resolveAssetUrl(pathOrUrl)
 }

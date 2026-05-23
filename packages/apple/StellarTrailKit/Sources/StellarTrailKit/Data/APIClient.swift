@@ -1,5 +1,8 @@
 import Foundation
 
+private let apiPrefix = "/api/v1"
+private let healthPath = "/healthz"
+
 enum HTTPMethod: String {
     case get = "GET"
     case post = "POST"
@@ -79,7 +82,7 @@ final class APIClient {
 
     private func uploadAvatarData(data: Data, fileName: String, mimeType: String, retryOnUnauthorized: Bool) async throws -> Data {
         let boundary = "Boundary-\(UUID().uuidString)"
-        let url = try buildURL(path: "/api/me/profile/avatar", queryItems: [])
+        let url = try buildURL(path: "/me/profile/avatar", queryItems: [])
         var request = URLRequest(url: url)
         request.httpMethod = HTTPMethod.put.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -155,7 +158,7 @@ final class APIClient {
             throw AppError.invalidURL
         }
         let basePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let requestPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let requestPath = versionedAPIPath(path).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         components.path = "/" + [basePath, requestPath].filter { !$0.isEmpty }.joined(separator: "/")
         components.queryItems = queryItems.isEmpty ? nil : queryItems
         guard let url = components.url else { throw AppError.invalidURL }
@@ -168,7 +171,7 @@ final class APIClient {
             throw AppError.unauthorized
         }
         let body = RefreshTokenRequest(refreshToken: refreshToken)
-        let response: LoginResponse = try await send(try APIRequest.post("/api/auth/refresh", body: body), requiresAuth: false, retryOnUnauthorized: false)
+        let response: LoginResponse = try await send(try APIRequest.post("/auth/refresh", body: body), requiresAuth: false, retryOnUnauthorized: false)
         sessionStore.replace(with: response)
     }
 
@@ -194,6 +197,14 @@ final class APIClient {
         body.appendString("\r\n--\(boundary)--\r\n")
         return body
     }
+}
+
+private func versionedAPIPath(_ path: String) -> String {
+    if path == healthPath || path.hasPrefix("\(apiPrefix)/") {
+        return path
+    }
+    let normalized = path.hasPrefix("/") ? path : "/\(path)"
+    return apiPrefix + normalized
 }
 
 private extension Data {

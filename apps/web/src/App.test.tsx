@@ -37,7 +37,7 @@ const sampleKnotSummary = {
       license_note: null,
     },
   ],
-  href: "/api/skills/knots/detail/adjustable-grip-hitch-knot",
+  href: "/api/v1/skills/knots/detail/adjustable-grip-hitch-knot",
 };
 
 const sampleKnotDetail = {
@@ -186,7 +186,7 @@ function buildClient(): WebGearApi {
           title: "绳结",
           summary: "户外、露营、钓鱼、航海等场景常用绳结技能。",
           item_count: 1,
-          href: "/api/skills/knots/list",
+          href: "/api/v1/skills/knots/list",
         },
       ],
     }),
@@ -381,7 +381,7 @@ function buildClient(): WebGearApi {
               content_type: "image/png",
               size_bytes: 67,
               sha256: "hash",
-              download_url: "/api/admin/feedback-images/upload-1",
+              download_url: "/api/v1/admin/feedback-images/upload-1",
               created_at: "2026-01-23T00:00:00Z",
             },
           ],

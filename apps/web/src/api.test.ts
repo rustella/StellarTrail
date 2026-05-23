@@ -24,7 +24,7 @@ describe("createWebGearApi", () => {
       if (this !== globalThis) {
         throw new TypeError("Illegal invocation");
       }
-      expect(input).toBe("/api/meta");
+      expect(input).toBe("/api/v1/meta");
       expect(init).toBeDefined();
       return Promise.resolve(
         new Response(
@@ -64,7 +64,7 @@ describe("createWebGearApi", () => {
           body: typeof init?.body === "string" ? init.body : undefined,
         });
         if (
-          url === "/api/me/gears/stats?tab=available" &&
+          url === "/api/v1/me/gears/stats?tab=available" &&
           requests.length === 1
         ) {
           return new Response(JSON.stringify({ code: "unauthorized" }), {
@@ -72,7 +72,7 @@ describe("createWebGearApi", () => {
             headers: { "content-type": "application/json" },
           });
         }
-        if (url === "/api/auth/refresh") {
+        if (url === "/api/v1/auth/refresh") {
           return new Response(
             JSON.stringify({
               access_token: "access-new",
@@ -84,7 +84,7 @@ describe("createWebGearApi", () => {
             { status: 200, headers: { "content-type": "application/json" } },
           );
         }
-        if (url === "/api/me/gears/stats?tab=available") {
+        if (url === "/api/v1/me/gears/stats?tab=available") {
           return new Response(
             JSON.stringify({
               current_count: 0,
@@ -113,9 +113,9 @@ describe("createWebGearApi", () => {
       current_count: 0,
     });
     expect(requests.map((request) => request.url)).toEqual([
-      "/api/me/gears/stats?tab=available",
-      "/api/auth/refresh",
-      "/api/me/gears/stats?tab=available",
+      "/api/v1/me/gears/stats?tab=available",
+      "/api/v1/auth/refresh",
+      "/api/v1/me/gears/stats?tab=available",
     ]);
     expect(requests[0].authorization).toBe("Bearer access-old");
     expect(requests[1].body).toBe(
@@ -200,7 +200,7 @@ describe("StellarTrailApiClient public knot requests", () => {
 
     expect(requests).toHaveLength(1);
     const url = new URL(`https://example.test${requests[0].url}`);
-    expect(url.pathname).toBe("/api/skills/knots/list");
+    expect(url.pathname).toBe("/api/v1/skills/knots/list");
     expect(url.searchParams.get("offset")).toBe("0");
     expect(url.searchParams.get("limit")).toBe("24");
     expect(url.searchParams.get("category")).toBe("camping-knots");
@@ -237,7 +237,7 @@ describe("StellarTrailApiClient public knot requests", () => {
     await client.listKnotFilters("zh-CN");
 
     expect(requests).toHaveLength(1);
-    expect(requests[0].url).toBe("/api/skills/knots/filters");
+    expect(requests[0].url).toBe("/api/v1/skills/knots/filters");
     expect(requests[0].headers.get("X-StellarTrail-Locale")).toBe("zh-CN");
     expect(requests[0].headers.get("authorization")).toBeNull();
   });
@@ -262,7 +262,7 @@ describe("StellarTrailApiClient public knot requests", () => {
             categories: [],
             types: [],
             media: [],
-            href: "/api/skills/knots/detail/adjustable%20grip",
+            href: "/api/v1/skills/knots/detail/adjustable%20grip",
             locale: "zh-CN",
           }),
           { status: 200, headers: { "content-type": "application/json" } },
@@ -277,7 +277,9 @@ describe("StellarTrailApiClient public knot requests", () => {
     await client.getKnotDetail("adjustable grip", "zh-CN");
 
     expect(requests).toHaveLength(1);
-    expect(requests[0].url).toBe("/api/skills/knots/detail/adjustable%20grip");
+    expect(requests[0].url).toBe(
+      "/api/v1/skills/knots/detail/adjustable%20grip",
+    );
     expect(requests[0].headers.get("X-StellarTrail-Locale")).toBe("zh-CN");
     expect(requests[0].headers.get("authorization")).toBeNull();
   });

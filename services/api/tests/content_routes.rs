@@ -90,7 +90,7 @@ async fn get_json_with_headers(
 async fn gear_template_routes_return_db_seed_without_content_directory() {
     let app = test_app().await;
 
-    let (status, templates) = get_json(&app.router, "/api/gear-templates").await;
+    let (status, templates) = get_json(&app.router, "/api/v1/gear-templates").await;
     assert_eq!(status, StatusCode::OK, "{templates}");
     assert_eq!(templates["items"].as_array().unwrap().len(), 1);
     assert_eq!(templates["items"][0]["id"], "backpacking-basic");
@@ -99,7 +99,8 @@ async fn gear_template_routes_return_db_seed_without_content_directory() {
         "雨衣或硬壳"
     );
 
-    let (status, template) = get_json(&app.router, "/api/gear-templates/backpacking-basic").await;
+    let (status, template) =
+        get_json(&app.router, "/api/v1/gear-templates/backpacking-basic").await;
     assert_eq!(status, StatusCode::OK, "{template}");
     assert_eq!(template["title"], "入门徒步基础装备模板");
     assert_eq!(template["categories"][0]["id"], "rain_protection");
@@ -111,7 +112,7 @@ async fn gear_template_routes_resolve_english_locale_headers() {
 
     let (status, headers, templates) = get_json_with_headers(
         &app.router,
-        "/api/gear-templates",
+        "/api/v1/gear-templates",
         &[("X-StellarTrail-Locale", "en")],
     )
     .await;
@@ -128,7 +129,7 @@ async fn gear_template_routes_resolve_english_locale_headers() {
 
     let (status, headers, detail) = get_json_with_headers(
         &app.router,
-        "/api/gear-templates/backpacking-basic",
+        "/api/v1/gear-templates/backpacking-basic",
         &[("Accept-Language", "en-US,en;q=0.8")],
     )
     .await;
@@ -136,14 +137,14 @@ async fn gear_template_routes_resolve_english_locale_headers() {
     assert_eq!(headers.get(header::CONTENT_LANGUAGE).unwrap(), "en");
     assert_eq!(detail["categories"][1]["name"], "Lighting");
 
-    let (status, body) = get_json(&app.router, "/api/gear-templates?locale=en").await;
+    let (status, body) = get_json(&app.router, "/api/v1/gear-templates?locale=en").await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
     assert_eq!(body["code"], "unsupported_query_parameter");
     assert_eq!(body["parameter"], "locale");
 
     let (status, body) = get_json(
         &app.router,
-        "/api/gear-templates/backpacking-basic?locale=en",
+        "/api/v1/gear-templates/backpacking-basic?locale=en",
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
@@ -156,10 +157,10 @@ async fn removed_content_routes_are_not_registered() {
     let app = test_app().await;
 
     for uri in [
-        "/api/mountains",
-        "/api/mountains/wugongshan",
-        "/api/routes",
-        "/api/routes/wugongshan-classic-2d1n",
+        "/api/v1/mountains",
+        "/api/v1/mountains/wugongshan",
+        "/api/v1/routes",
+        "/api/v1/routes/wugongshan-classic-2d1n",
         "/assets/skills/knots/adjustable-grip-hitch-knot/demo.gif",
     ] {
         let (status, body) = get_json(&app.router, uri).await;
@@ -172,7 +173,7 @@ async fn removed_content_routes_are_not_registered() {
 async fn gear_template_detail_returns_not_found_for_unknown_id() {
     let app = test_app().await;
 
-    let (status, body) = get_json(&app.router, "/api/gear-templates/missing-template").await;
+    let (status, body) = get_json(&app.router, "/api/v1/gear-templates/missing-template").await;
 
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
     assert_eq!(body["code"], "not_found");

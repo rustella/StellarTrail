@@ -38,30 +38,27 @@ use crate::services::public_response_cache::invalidate_gear_atlas_public_respons
 /// Builds all gear atlas routes.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/gear-atlas", get(list_public))
-        .route("/api/gear-atlas/:id", get(get_public))
+        .route("/gear-atlas", get(list_public))
+        .route("/gear-atlas/:id", get(get_public))
         .route(
-            "/api/me/gear-atlas-submissions",
+            "/me/gear-atlas-submissions",
             get(list_my_submissions).post(create_manual_submission),
         )
         .route(
-            "/api/me/gears/:id/atlas-submission",
+            "/me/gears/:id/atlas-submission",
             post(create_submission_from_personal_gear),
         )
+        .route("/admin/gear-atlas-submissions", get(list_admin_submissions))
         .route(
-            "/api/admin/gear-atlas-submissions",
-            get(list_admin_submissions),
-        )
-        .route(
-            "/api/admin/gear-atlas-submissions/:id",
+            "/admin/gear-atlas-submissions/:id",
             get(get_admin_submission).patch(update_admin_submission),
         )
         .route(
-            "/api/admin/gear-atlas-submissions/:id/approve",
+            "/admin/gear-atlas-submissions/:id/approve",
             post(approve_submission),
         )
         .route(
-            "/api/admin/gear-atlas-submissions/:id/reject",
+            "/admin/gear-atlas-submissions/:id/reject",
             post(reject_submission),
         )
 }

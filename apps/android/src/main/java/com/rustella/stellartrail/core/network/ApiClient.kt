@@ -127,7 +127,7 @@ class ApiClient(
     @PublishedApi
     internal fun buildUrl(path: String, query: Map<String, String?> = emptyMap()): String {
         val builder = URLBuilder().takeFrom(baseUrl)
-        val cleanPath = path.trimStart('/')
+        val cleanPath = versionedApiPath(path).trimStart('/')
         if (cleanPath.isNotEmpty()) {
             builder.appendPathSegments(cleanPath.split('/'))
         }
@@ -145,14 +145,15 @@ class ApiClient(
     }
 
     @PublishedApi
-    internal fun canRefreshAfterUnauthorized(path: String): Boolean = !path.startsWith("/api/auth/")
+    internal fun canRefreshAfterUnauthorized(path: String): Boolean =
+        !versionedApiPath(path).startsWith("$API_PREFIX/auth/")
 
     @PublishedApi
     internal suspend fun refreshWithStoredToken(): Boolean {
         val refreshToken = refreshTokenProvider()?.takeIf { it.isNotBlank() } ?: return false
         return try {
             val response = post<RefreshTokenRequest, LoginResponse>(
-                "/api/auth/refresh",
+                "/auth/refresh",
                 RefreshTokenRequest(refreshToken),
             )
             sessionRefreshHandler(response)
@@ -186,6 +187,16 @@ class ApiClient(
 
 @PublishedApi
 internal const val NETWORK_LOG_TAG = "StellarTrailApi"
+
+@PublishedApi
+internal const val API_PREFIX = "/api/v1"
+
+@PublishedApi
+internal fun versionedApiPath(path: String): String {
+    if (path == "/healthz" || path.startsWith("$API_PREFIX/")) return path
+    val normalized = if (path.startsWith('/')) path else "/$path"
+    return API_PREFIX + normalized
+}
 
 private class NetworkDiagnosticsEventListener : EventListener() {
     override fun dnsStart(call: Call, domainName: String) {

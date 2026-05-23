@@ -116,7 +116,7 @@ async fn register_password_user(app: &Router, suffix: &str, email: &str) -> Valu
     let (code_status, code_value) = send_json(
         app,
         "POST",
-        "/api/auth/email-verification-code",
+        "/api/v1/auth/email-verification-code",
         None,
         json!({"email": email}),
     )
@@ -127,7 +127,7 @@ async fn register_password_user(app: &Router, suffix: &str, email: &str) -> Valu
     let (register_status, register_value) = send_json(
         app,
         "POST",
-        "/api/auth/register",
+        "/api/v1/auth/register",
         None,
         json!({
             "username": username,
@@ -191,23 +191,23 @@ async fn middleware_records_authenticated_user_id_and_route_template_without_que
     let (status, body) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears?limit=20&token=secret-token",
+        "/api/v1/me/gears?limit=20&token=secret-token",
         Some(&token),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
 
-    let rows = wait_for_usage(&app.db, "/api/me/gears", "GET", 200).await;
+    let rows = wait_for_usage(&app.db, "/api/v1/me/gears", "GET", 200).await;
     let row = rows
         .iter()
         .find(|row| row.user_id.as_deref() == Some(user_id.as_str()) && row.status_code == 200)
         .expect("authenticated usage row should include trusted user id");
-    assert_eq!(row.route_pattern, "/api/me/gears");
+    assert_eq!(row.route_pattern, "/api/v1/me/gears");
     assert_eq!(row.call_count, 1);
 
     let today = OffsetDateTime::now_utc().date().to_string();
     let admin_path = format!(
-        "/api/admin/api-usage?from={today}&to={today}&method=GET&route=%2Fapi%2Fme%2Fgears"
+        "/api/v1/admin/api-usage?from={today}&to={today}&method=GET&route=%2Fapi%2Fv1%2Fme%2Fgears"
     );
     let (admin_status, admin_body) =
         send_empty(&app.router, "GET", &admin_path, Some(&token)).await;
@@ -218,7 +218,7 @@ async fn middleware_records_authenticated_user_id_and_route_template_without_que
         .iter()
         .find(|item| item["user_id"] == user_id && item["status_code"] == 200)
         .expect("admin response should expose the matching aggregate");
-    assert_eq!(item["route_pattern"], "/api/me/gears");
+    assert_eq!(item["route_pattern"], "/api/v1/me/gears");
     let serialized = admin_body.to_string();
     assert!(!serialized.contains("secret-token"));
     assert!(!serialized.contains("limit=20"));
@@ -231,19 +231,19 @@ async fn middleware_records_failed_auth_as_anonymous_template_only() {
     let (status, body) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/private-object-id?access_token=secret-token",
+        "/api/v1/me/gears/private-object-id?access_token=secret-token",
         None,
     )
     .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "{body}");
 
-    let rows = wait_for_usage(&app.db, "/api/me/gears/:id", "GET", 401).await;
+    let rows = wait_for_usage(&app.db, "/api/v1/me/gears/:id", "GET", 401).await;
     let row = rows
         .iter()
         .find(|row| row.status_code == 401)
         .expect("failed authentication should still be counted anonymously");
     assert!(row.user_id.is_none());
-    assert_eq!(row.route_pattern, "/api/me/gears/:id");
+    assert_eq!(row.route_pattern, "/api/v1/me/gears/:id");
     let serialized = serde_json::to_string(&json!({
         "route_pattern": row.route_pattern,
         "user_id": row.user_id,
@@ -264,7 +264,7 @@ async fn admin_usage_endpoint_requires_database_admin_role() {
     let (status, body) = send_empty(
         &app.router,
         "GET",
-        &format!("/api/admin/api-usage?from={today}&to={today}"),
+        &format!("/api/v1/admin/api-usage?from={today}&to={today}"),
         Some(token),
     )
     .await;
