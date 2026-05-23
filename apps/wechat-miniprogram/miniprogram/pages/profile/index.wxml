@@ -1,9 +1,4 @@
 <view class="container {{themeClass}}">
-  <view class="card">
-    <view class="title">我的寻径星野</view>
-    <view class="subtitle">管理装备、学习技能，也可以切换黑夜模式。</view>
-  </view>
-
   <view class="card account-card">
     <view class="account-main">
       <button
