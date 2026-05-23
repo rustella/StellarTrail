@@ -5,6 +5,9 @@ import type {
   AppLocale,
   CaptchaChallengeRequest,
   CaptchaChallengeResponse,
+  ClientKey,
+  ClientVersion,
+  ClientVersionRequest,
   CreateGearAtlasSubmissionRequest,
   CreateGearRequest,
   EmailLoginCodeRequest,
@@ -22,6 +25,8 @@ import type {
   ListGearAtlasResponse,
   ListGearAtlasSubmissionsRequest,
   ListGearAtlasSubmissionsResponse,
+  ListClientVersionsRequest,
+  ListClientVersionsResponse,
   ListAdminFeedbackRequest,
   ListAdminFeedbackResponse,
   KnotDetail,
@@ -52,6 +57,11 @@ export interface WebGearApi {
   ): void;
   resolveAssetUrl(pathOrUrl: string): string;
   meta(): Promise<MetaResponse>;
+  getCurrentClientVersion(clientKey: ClientKey): Promise<ClientVersion>;
+  listClientVersions(
+    clientKey: ClientKey,
+    request?: Pick<ListClientVersionsRequest, "limit" | "cursor">,
+  ): Promise<ListClientVersionsResponse>;
   loginWithWechatCode(
     request: WechatLoginRequest,
   ): Promise<WechatLoginResponse>;
@@ -112,6 +122,16 @@ export interface WebGearApi {
   listAdminFeedback(
     request?: ListAdminFeedbackRequest,
   ): Promise<ListAdminFeedbackResponse>;
+  listAdminClientVersions(
+    request?: ListClientVersionsRequest,
+  ): Promise<ListClientVersionsResponse>;
+  createAdminClientVersion(
+    request: ClientVersionRequest,
+  ): Promise<ClientVersion>;
+  updateAdminClientVersion(
+    id: string,
+    request: ClientVersionRequest,
+  ): Promise<ClientVersion>;
   listAdminGearAtlasSubmissions(
     request?: ListGearAtlasSubmissionsRequest,
   ): Promise<ListGearAtlasSubmissionsResponse>;

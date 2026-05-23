@@ -6,6 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import type {
+  ClientVersion,
   GearAtlasPublicItem,
   GearAtlasSubmission,
 } from "@stellartrail/shared-types";
@@ -81,6 +82,23 @@ function buildAtlasPublicItem(
   return buildAtlasSubmission(overrides);
 }
 
+function buildClientVersion(
+  overrides: Partial<ClientVersion> = {},
+): ClientVersion {
+  return {
+    id: "client-version-1",
+    client_key: "wechat_miniprogram",
+    version: "0.1.0",
+    title: "0.1.0 初始版本",
+    release_notes: ["装备库上线", "绳结离线缓存"],
+    status: "published",
+    published_at: "2026-05-23T00:00:00Z",
+    created_at: "2026-05-23T00:00:00Z",
+    updated_at: "2026-05-23T00:00:00Z",
+    ...overrides,
+  };
+}
+
 function buildClient(): WebGearApi {
   return {
     setAccessToken: vi.fn(),
@@ -95,6 +113,11 @@ function buildClient(): WebGearApi {
       name: "StellarTrail",
       env: "local",
       database_kind: "sqlite",
+    }),
+    getCurrentClientVersion: vi.fn().mockResolvedValue(buildClientVersion()),
+    listClientVersions: vi.fn().mockResolvedValue({
+      next_cursor: null,
+      items: [buildClientVersion()],
     }),
     loginWithWechatCode: vi.fn().mockResolvedValue({
       access_token: "token-123",
@@ -388,6 +411,30 @@ function buildClient(): WebGearApi {
         },
       ],
     }),
+    listAdminClientVersions: vi.fn().mockResolvedValue({
+      next_cursor: null,
+      items: [buildClientVersion()],
+    }),
+    createAdminClientVersion: vi.fn().mockImplementation((request) =>
+      Promise.resolve(
+        buildClientVersion({
+          id: "client-version-created",
+          ...request,
+          published_at:
+            request.status === "published" ? "2026-05-23T01:00:00Z" : null,
+        }),
+      ),
+    ),
+    updateAdminClientVersion: vi.fn().mockImplementation((id, request) =>
+      Promise.resolve(
+        buildClientVersion({
+          id,
+          ...request,
+          published_at:
+            request.status === "published" ? "2026-05-23T02:00:00Z" : null,
+        }),
+      ),
+    ),
     listAdminGearAtlasSubmissions: vi.fn().mockResolvedValue({
       next_cursor: null,
       items: [
@@ -969,6 +1016,58 @@ describe("App", () => {
     });
   });
 
+  it("opens the admin client versions page and saves a release", async () => {
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    );
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "版本信息" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "版本信息" }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/admin/client-versions");
+    expect(client.listAdminClientVersions).toHaveBeenCalledWith({
+      client_key: "wechat_miniprogram",
+      status: undefined,
+      limit: 50,
+    });
+    expect(await screen.findByText("0.1.0 初始版本")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("例如 0.1.0"), {
+      target: { value: "0.2.0" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("例如 0.1.0 初始版本"), {
+      target: { value: "0.2.0 装备图鉴更新" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("每行一条更新内容"), {
+      target: { value: "新增版本信息\n优化绳结离线缓存" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "创建版本" }));
+
+    await waitFor(() => {
+      expect(client.createAdminClientVersion).toHaveBeenCalledWith({
+        client_key: "wechat_miniprogram",
+        version: "0.2.0",
+        title: "0.2.0 装备图鉴更新",
+        release_notes: ["新增版本信息", "优化绳结离线缓存"],
+        status: "draft",
+      });
+    });
+  });
+
   it("opens the admin review queue directly from the /admin URL", async () => {
     window.history.replaceState(null, "", "/admin");
     const client = buildClient();
@@ -990,6 +1089,9 @@ describe("App", () => {
     ).toHaveAttribute("aria-current", "page");
     expect(
       within(adminNavigation).getByRole("button", { name: "反馈信息" }),
+    ).toBeInTheDocument();
+    expect(
+      within(adminNavigation).getByRole("button", { name: "版本信息" }),
     ).toBeInTheDocument();
     await waitFor(() => {
       expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
@@ -1021,8 +1123,37 @@ describe("App", () => {
     expect(
       within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
     ).toBeInTheDocument();
+    expect(
+      within(adminNavigation).getByRole("button", { name: "版本信息" }),
+    ).toBeInTheDocument();
     expect(client.listAdminFeedback).toHaveBeenCalledWith({
       status: "open",
+      limit: 50,
+    });
+  });
+
+  it("opens the client versions page directly from the /admin/client-versions URL", async () => {
+    window.history.replaceState(null, "", "/admin/client-versions");
+    const client = buildClient();
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "版本信息" }),
+    ).toBeInTheDocument();
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    expect(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(adminNavigation).getByRole("button", { name: "版本信息" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(client.listAdminClientVersions).toHaveBeenCalledWith({
+      client_key: "wechat_miniprogram",
+      status: undefined,
       limit: 50,
     });
   });
