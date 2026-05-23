@@ -643,6 +643,8 @@
 }
 
 .version-modal-card {
+  display: flex;
+  flex-direction: column;
   max-height: 82vh;
 }
 
@@ -654,7 +656,9 @@
 }
 
 .version-list {
+  height: 58vh;
   max-height: 660rpx;
+  min-height: 320rpx;
   margin-top: 22rpx;
 }
 
