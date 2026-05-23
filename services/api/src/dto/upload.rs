@@ -20,7 +20,10 @@ pub struct UploadImageResponse {
 impl From<&UploadImageRecord> for UploadImageResponse {
     /// Converts persisted upload metadata to a current-user API response.
     fn from(record: &UploadImageRecord) -> Self {
-        Self::from_record_with_download_url(record, format!("/api/me/uploads/{}", record.id))
+        Self::from_record_with_download_url(
+            record,
+            crate::routes::api_path(format!("/me/uploads/{}", record.id)),
+        )
     }
 }
 

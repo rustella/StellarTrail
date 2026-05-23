@@ -18,13 +18,15 @@ use crate::{
     state::AppState,
 };
 
+use super::{API_PREFIX, API_PREFIX_WITH_SLASH};
+
 const DEFAULT_LOOKBACK_DAYS: i64 = 30;
 const DEFAULT_LIMIT: u64 = 50;
 const MAX_LIMIT: u64 = 100;
 
 /// Builds administrator-only API usage routes.
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/api/admin/api-usage", get(list_api_usage))
+    Router::new().route("/admin/api-usage", get(list_api_usage))
 }
 
 async fn list_api_usage(
@@ -140,12 +142,12 @@ fn validate_method(value: String) -> Result<String, ApiError> {
 
 fn validate_route_pattern(value: String) -> Result<String, ApiError> {
     let route = value.trim();
-    if route.starts_with("/api/") && !route.contains('?') && route.len() <= 200 {
+    if route.starts_with(API_PREFIX_WITH_SLASH) && !route.contains('?') && route.len() <= 200 {
         Ok(route.to_owned())
     } else {
         Err(ApiError::invalid_query_parameter(
             "route",
-            "route must be an /api route pattern without query string".to_owned(),
+            format!("route must be an {API_PREFIX} route pattern without query string"),
         ))
     }
 }
@@ -184,7 +186,7 @@ mod tests {
     #[test]
     fn normalize_query_rejects_raw_query_in_route_filter() {
         let error = normalize_query(ApiUsageQueryParams {
-            route: Some("/api/me/gears?token=x".to_owned()),
+            route: Some("/api/v1/me/gears?token=x".to_owned()),
             ..Default::default()
         })
         .unwrap_err();

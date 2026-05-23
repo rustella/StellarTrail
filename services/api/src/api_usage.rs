@@ -19,7 +19,7 @@ use stellartrail_db::repositories::{ApiUsageIncrement, ApiUsageRepository};
 use time::{OffsetDateTime, format_description::well_known::Iso8601};
 use tokio::sync::mpsc;
 
-use crate::state::AppState;
+use crate::{routes::API_PREFIX_WITH_SLASH, state::AppState};
 
 const API_USAGE_QUEUE_CAPACITY: usize = 1024;
 
@@ -144,7 +144,7 @@ pub async fn track_api_usage(
 }
 
 fn should_track(method: &Method, route_pattern: &str) -> bool {
-    method != Method::OPTIONS && route_pattern.starts_with("/api/")
+    method != Method::OPTIONS && route_pattern.starts_with(API_PREFIX_WITH_SLASH)
 }
 
 #[cfg(test)]
@@ -153,10 +153,11 @@ mod tests {
 
     #[test]
     fn should_track_only_business_api_routes() {
-        assert!(should_track(&Method::GET, "/api/me/gears"));
-        assert!(should_track(&Method::POST, "/api/auth/login"));
+        assert!(should_track(&Method::GET, "/api/v1/me/gears"));
+        assert!(should_track(&Method::POST, "/api/v1/auth/login"));
         assert!(!should_track(&Method::GET, "/healthz"));
-        assert!(!should_track(&Method::OPTIONS, "/api/me/gears"));
+        assert!(!should_track(&Method::GET, "/api/me/gears"));
+        assert!(!should_track(&Method::OPTIONS, "/api/v1/me/gears"));
     }
 
     #[test]
@@ -164,14 +165,14 @@ mod tests {
         let event = ApiUsageEvent {
             user_id: Some("user-1".to_owned()),
             method: "GET".to_owned(),
-            route_pattern: "/api/me/gears/:id".to_owned(),
+            route_pattern: "/api/v1/me/gears/:id".to_owned(),
             status_code: 200,
             occurred_at: OffsetDateTime::from_unix_timestamp(1_779_120_000).unwrap(),
         };
 
         let increment = event.into_increment().unwrap();
         assert_eq!(increment.user_id.as_deref(), Some("user-1"));
-        assert_eq!(increment.route_pattern, "/api/me/gears/:id");
+        assert_eq!(increment.route_pattern, "/api/v1/me/gears/:id");
         assert_eq!(increment.status_code, 200);
         assert_eq!(increment.call_count, 1);
     }

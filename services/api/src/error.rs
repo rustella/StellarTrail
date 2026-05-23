@@ -8,6 +8,8 @@ use axum::{
 use serde::Serialize;
 use stellartrail_domain::validation::FieldViolation;
 
+use crate::routes::CAPTCHA_ENDPOINT;
+
 /// Unified API error enum covering validation failures, authentication failures, missing resources, captcha requirements, and internal errors.
 #[derive(Debug)]
 pub enum ApiError {
@@ -151,7 +153,7 @@ impl IntoResponse for ApiError {
                 None,
                 Some(CaptchaChallenge {
                     captcha_type: "image",
-                    endpoint: "/api/auth/captcha",
+                    endpoint: CAPTCHA_ENDPOINT,
                 }),
                 None,
                 None,

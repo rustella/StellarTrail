@@ -413,7 +413,7 @@ async fn skills_returns_locale_resolved_category_without_parallel_language_field
     let (status, headers, body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/skills")
+            .uri("/api/v1/skills")
             .header("X-StellarTrail-Locale", "zh-CN")
             .body(Body::empty())
             .unwrap(),
@@ -438,7 +438,7 @@ async fn knot_filters_return_locale_resolved_categories_and_difficulties_with_co
     let (status, headers, body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/skills/knots/filters")
+            .uri("/api/v1/skills/knots/filters")
             .header("X-StellarTrail-Locale", "zh-CN")
             .body(Body::empty())
             .unwrap(),
@@ -471,7 +471,7 @@ async fn knots_list_combines_category_difficulty_and_keyword_filters() {
     let (status, _headers, body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=beginner&q=%E8%B0%83%E8%8A%82")
+            .uri("/api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=beginner&q=%E8%B0%83%E8%8A%82")
             .header("X-StellarTrail-Locale", "zh-CN")
             .body(Body::empty())
             .unwrap(),
@@ -486,7 +486,7 @@ async fn knots_list_combines_category_difficulty_and_keyword_filters() {
     let (status, _headers, body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=technical")
+            .uri("/api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=technical")
             .header("X-StellarTrail-Locale", "zh-CN")
             .body(Body::empty())
             .unwrap(),
@@ -503,7 +503,7 @@ async fn public_skills_etag_supports_not_modified_responses() {
     let (status, headers, _body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/skills/knots/list?offset=0&limit=1")
+            .uri("/api/v1/skills/knots/list?offset=0&limit=1")
             .header("X-StellarTrail-Locale", "zh-CN")
             .body(Body::empty())
             .unwrap(),
@@ -523,7 +523,7 @@ async fn public_skills_etag_supports_not_modified_responses() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/api/skills/knots/list?offset=0&limit=1")
+                .uri("/api/v1/skills/knots/list?offset=0&limit=1")
                 .header("X-StellarTrail-Locale", "zh-CN")
                 .header(header::IF_NONE_MATCH, etag)
                 .body(Body::empty())
@@ -549,9 +549,9 @@ async fn public_knot_list_detail_and_filters_use_response_cache() {
     .await;
 
     for path in [
-        "/api/skills/knots/list?offset=0&limit=1",
-        "/api/skills/knots/detail/adjustable-grip-hitch-knot",
-        "/api/skills/knots/filters",
+        "/api/v1/skills/knots/list?offset=0&limit=1",
+        "/api/v1/skills/knots/detail/adjustable-grip-hitch-knot",
+        "/api/v1/skills/knots/filters",
     ] {
         let (first_status, _first_headers, _first_body) = json_response(
             &app.router,
@@ -588,7 +588,7 @@ async fn knots_list_uses_offset_pagination_and_hides_source_slugs() {
     let (status, _headers, body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/skills/knots/list?offset=0&limit=1")
+            .uri("/api/v1/skills/knots/list?offset=0&limit=1")
             .header("X-StellarTrail-Locale", "en")
             .body(Body::empty())
             .unwrap(),
@@ -615,7 +615,7 @@ async fn knot_detail_returns_media_resource_urls_from_db_and_no_language_specifi
     let (status, headers, body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/skills/knots/detail/adjustable-grip-hitch-knot")
+            .uri("/api/v1/skills/knots/detail/adjustable-grip-hitch-knot")
             .header("X-StellarTrail-Locale", "zh-CN")
             .body(Body::empty())
             .unwrap(),
@@ -664,7 +664,7 @@ async fn knot_offline_manifest_returns_complete_payload_with_deduped_media_estim
     let (status, headers, body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/skills/knots/offline-manifest")
+            .uri("/api/v1/skills/knots/offline-manifest")
             .header("X-StellarTrail-Locale", "zh-CN")
             .body(Body::empty())
             .unwrap(),
@@ -725,7 +725,7 @@ async fn knot_offline_manifest_uses_public_response_cache_and_etag() {
     let (status, headers, _body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/skills/knots/offline-manifest")
+            .uri("/api/v1/skills/knots/offline-manifest")
             .header("X-StellarTrail-Locale", "zh-CN")
             .body(Body::empty())
             .unwrap(),
@@ -746,7 +746,7 @@ async fn knot_offline_manifest_uses_public_response_cache_and_etag() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/api/skills/knots/offline-manifest")
+                .uri("/api/v1/skills/knots/offline-manifest")
                 .header("X-StellarTrail-Locale", "zh-CN")
                 .header(header::IF_NONE_MATCH, etag)
                 .body(Body::empty())
@@ -769,7 +769,7 @@ async fn knots_list_uses_media_resource_urls_from_different_public_domains() {
     let (status, _headers, body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/skills/knots/list?offset=0&limit=1")
+            .uri("/api/v1/skills/knots/list?offset=0&limit=1")
             .header("X-StellarTrail-Locale", "en")
             .body(Body::empty())
             .unwrap(),
@@ -791,9 +791,9 @@ async fn knots_list_uses_media_resource_urls_from_different_public_domains() {
 #[tokio::test]
 async fn locale_query_parameter_is_rejected_globally() {
     for uri in [
-        "/api/skills/knots/list?locale=en",
-        "/api/skills/knots/list?l%6fcale=en",
-        "/api/skills/knots/offline-manifest?locale=en",
+        "/api/v1/skills/knots/list?locale=en",
+        "/api/v1/skills/knots/list?l%6fcale=en",
+        "/api/v1/skills/knots/offline-manifest?locale=en",
     ] {
         let app = seeded_app().await;
         let (status, _headers, body) = json_response(
@@ -811,8 +811,8 @@ async fn locale_query_parameter_is_rejected_globally() {
 #[tokio::test]
 async fn cursor_and_next_cursor_are_rejected() {
     for (uri, parameter) in [
-        ("/api/skills/knots/list?cursor=abc", "cursor"),
-        ("/api/skills/knots/list?next_cursor=abc", "next_cursor"),
+        ("/api/v1/skills/knots/list?cursor=abc", "cursor"),
+        ("/api/v1/skills/knots/list?next_cursor=abc", "next_cursor"),
     ] {
         let app = seeded_app().await;
         let (status, _headers, body) = json_response(
@@ -830,14 +830,14 @@ async fn cursor_and_next_cursor_are_rejected() {
 #[tokio::test]
 async fn offline_manifest_rejects_filter_and_pagination_query_parameters() {
     for (uri, parameter) in [
-        ("/api/skills/knots/offline-manifest?offset=0", "offset"),
-        ("/api/skills/knots/offline-manifest?limit=10", "limit"),
+        ("/api/v1/skills/knots/offline-manifest?offset=0", "offset"),
+        ("/api/v1/skills/knots/offline-manifest?limit=10", "limit"),
         (
-            "/api/skills/knots/offline-manifest?category=camping-knots",
+            "/api/v1/skills/knots/offline-manifest?category=camping-knots",
             "category",
         ),
-        ("/api/skills/knots/offline-manifest?q=grip", "q"),
-        ("/api/skills/knots/offline-manifest?cursor=abc", "cursor"),
+        ("/api/v1/skills/knots/offline-manifest?q=grip", "q"),
+        ("/api/v1/skills/knots/offline-manifest?cursor=abc", "cursor"),
     ] {
         let app = seeded_app().await;
         let (status, _headers, body) = json_response(
@@ -859,7 +859,7 @@ async fn invalid_locale_header_is_rejected() {
         let (status, _headers, body) = json_response(
             &app.router,
             Request::builder()
-                .uri("/api/skills/knots/list")
+                .uri("/api/v1/skills/knots/list")
                 .header("X-StellarTrail-Locale", raw)
                 .body(Body::empty())
                 .unwrap(),
@@ -878,7 +878,7 @@ async fn accept_language_header_is_header_fallback_after_stellartrail_locale() {
     let (status, headers, body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/skills/knots/list?offset=0&limit=1")
+            .uri("/api/v1/skills/knots/list?offset=0&limit=1")
             .header(header::ACCEPT_LANGUAGE, "en-US,en;q=0.8")
             .body(Body::empty())
             .unwrap(),
@@ -894,11 +894,11 @@ async fn accept_language_header_is_header_fallback_after_stellartrail_locale() {
 #[tokio::test]
 async fn old_knots_routes_are_not_kept_as_compatibility_aliases() {
     for uri in [
-        "/api/skills/knots",
-        "/api/skills/knots/adjustable-grip-hitch-knot",
-        "/api/knots",
-        "/api/skills?category=knot",
-        "/api/skills/adjustable-grip-hitch-knot",
+        "/api/v1/skills/knots",
+        "/api/v1/skills/knots/adjustable-grip-hitch-knot",
+        "/api/v1/knots",
+        "/api/v1/skills?category=knot",
+        "/api/v1/skills/adjustable-grip-hitch-knot",
     ] {
         let app = seeded_app().await;
         let (status, _headers, body) = json_response(

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::locale::Locale;
 
-/// Outdoor skill category summary returned by `GET /api/skills`.
+/// Outdoor skill category summary returned by `GET /api/v1/skills`.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SkillCategorySummary {
     pub id: String,

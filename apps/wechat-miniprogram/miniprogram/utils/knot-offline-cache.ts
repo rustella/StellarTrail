@@ -100,9 +100,9 @@ interface CacheAllKnotsForOfflineOptions {
 
 const DEFAULT_PAGE_SIZE = 10;
 const DEFAULT_MEDIA_CONCURRENCY = 3;
-const KNOT_OFFLINE_META_PATH = "/api/skills/knots/offline-cache-meta";
-const KNOT_DETAIL_PATH_PREFIX = "/api/skills/knots/detail/";
-const KNOT_LIST_PATH_PREFIX = "/api/skills/knots/list";
+const KNOT_OFFLINE_META_PATH = "/api/v1/skills/knots/offline-cache-meta";
+const KNOT_DETAIL_PATH_PREFIX = "/api/v1/skills/knots/detail/";
+const KNOT_LIST_PATH_PREFIX = "/api/v1/skills/knots/list";
 
 export async function cacheAllKnotsForOffline(
   options: CacheAllKnotsForOfflineOptions = {},

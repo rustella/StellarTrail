@@ -19,7 +19,7 @@ use crate::{
 /// Builds administrator-only knot media routes.
 pub fn routes() -> Router<AppState> {
     Router::new().route(
-        "/api/admin/skills/knots/:knot_id/media/:asset_id",
+        "/admin/skills/knots/:knot_id/media/:asset_id",
         put(upload_knot_media),
     )
 }

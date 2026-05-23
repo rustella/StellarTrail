@@ -64,66 +64,66 @@ final class AuthRepository: AuthRepositorying {
     }
 
     func sendEmailVerificationCode(email: String) async throws -> EmailVerificationCodeResponse {
-        try await client.send(try APIRequest.post("/api/auth/email-verification-code", body: EmailVerificationCodeRequest(email: email)), requiresAuth: false)
+        try await client.send(try APIRequest.post("/auth/email-verification-code", body: EmailVerificationCodeRequest(email: email)), requiresAuth: false)
     }
 
     func sendEmailLoginCode(email: String) async throws -> EmailVerificationCodeResponse {
-        try await client.send(try APIRequest.post("/api/auth/email-login-code", body: EmailLoginCodeRequest(email: email)), requiresAuth: false)
+        try await client.send(try APIRequest.post("/auth/email-login-code", body: EmailLoginCodeRequest(email: email)), requiresAuth: false)
     }
 
     func sendPasswordResetCode(email: String) async throws -> EmailVerificationCodeResponse {
-        try await client.send(try APIRequest.post("/api/auth/password-reset-code", body: PasswordResetCodeRequest(email: email)), requiresAuth: false)
+        try await client.send(try APIRequest.post("/auth/password-reset-code", body: PasswordResetCodeRequest(email: email)), requiresAuth: false)
     }
 
     func register(_ request: RegisterRequest) async throws -> LoginResponse {
-        let response: LoginResponse = try await client.send(try APIRequest.post("/api/auth/register", body: request), requiresAuth: false)
+        let response: LoginResponse = try await client.send(try APIRequest.post("/auth/register", body: request), requiresAuth: false)
         sessionStore.replace(with: response)
         return response
     }
 
     func login(account: String, password: String, captchaTicket: String?, captchaAnswer: String?) async throws -> LoginResponse {
         let request = PasswordLoginRequest(account: account, password: password, captchaTicket: captchaTicket, captchaAnswer: captchaAnswer)
-        let response: LoginResponse = try await client.send(try APIRequest.post("/api/auth/login", body: request), requiresAuth: false)
+        let response: LoginResponse = try await client.send(try APIRequest.post("/auth/login", body: request), requiresAuth: false)
         sessionStore.replace(with: response)
         return response
     }
 
     func loginWithEmailCode(email: String, code: String) async throws -> LoginResponse {
         let request = EmailLoginRequest(email: email, emailVerificationCode: code)
-        let response: LoginResponse = try await client.send(try APIRequest.post("/api/auth/email-login", body: request), requiresAuth: false)
+        let response: LoginResponse = try await client.send(try APIRequest.post("/auth/email-login", body: request), requiresAuth: false)
         sessionStore.replace(with: response)
         return response
     }
 
     func resetPassword(_ request: PasswordResetRequest) async throws -> LoginResponse {
-        let response: LoginResponse = try await client.send(try APIRequest.post("/api/auth/password-reset", body: request), requiresAuth: false)
+        let response: LoginResponse = try await client.send(try APIRequest.post("/auth/password-reset", body: request), requiresAuth: false)
         sessionStore.replace(with: response)
         return response
     }
 
     func wechatLogin(code: String, profile: WechatLoginProfile?) async throws -> LoginResponse {
         let request = WechatLoginRequest(code: code, profile: profile)
-        let response: LoginResponse = try await client.send(try APIRequest.post("/api/auth/wechat-login", body: request), requiresAuth: false)
+        let response: LoginResponse = try await client.send(try APIRequest.post("/auth/wechat-login", body: request), requiresAuth: false)
         sessionStore.replace(with: response)
         return response
     }
 
     func captcha(account: String) async throws -> CaptchaChallengeResponse {
-        try await client.send(try APIRequest.post("/api/auth/captcha", body: CaptchaChallengeRequest(account: account)), requiresAuth: false)
+        try await client.send(try APIRequest.post("/auth/captcha", body: CaptchaChallengeRequest(account: account)), requiresAuth: false)
     }
 
     func currentUser() async throws -> UserProfile {
-        let response: ProfileUserResponse = try await client.send(.get("/api/me/profile"), requiresAuth: true)
+        let response: ProfileUserResponse = try await client.send(.get("/me/profile"), requiresAuth: true)
         replaceCurrentUser(response.user)
         return response.user
     }
 
     func sendBindEmailCode(email: String) async throws -> EmailVerificationCodeResponse {
-        try await client.send(try APIRequest.post("/api/me/email-binding-code", body: BindEmailCodeRequest(email: email)), requiresAuth: true)
+        try await client.send(try APIRequest.post("/me/email-binding-code", body: BindEmailCodeRequest(email: email)), requiresAuth: true)
     }
 
     func bindEmail(email: String, code: String) async throws -> UserProfile {
-        let response: BindEmailResponse = try await client.send(try APIRequest.post("/api/me/email-binding", body: BindEmailRequest(email: email, emailVerificationCode: code)), requiresAuth: true)
+        let response: BindEmailResponse = try await client.send(try APIRequest.post("/me/email-binding", body: BindEmailRequest(email: email, emailVerificationCode: code)), requiresAuth: true)
         replaceCurrentUser(response.user)
         return response.user
     }
@@ -153,43 +153,43 @@ final class GearRepository: GearRepositorying {
     init(client: APIClient) { self.client = client }
 
     func stats(tab: GearTab) async throws -> GearStatsResponse {
-        try await client.send(.get("/api/me/gears/stats", queryItems: [URLQueryItem(name: "tab", value: tab.rawValue)]), requiresAuth: true)
+        try await client.send(.get("/me/gears/stats", queryItems: [URLQueryItem(name: "tab", value: tab.rawValue)]), requiresAuth: true)
     }
 
     func categories(tab: GearTab) async throws -> GearCategoriesResponse {
-        try await client.send(.get("/api/me/gears/categories", queryItems: [URLQueryItem(name: "tab", value: tab.rawValue)]), requiresAuth: true)
+        try await client.send(.get("/me/gears/categories", queryItems: [URLQueryItem(name: "tab", value: tab.rawValue)]), requiresAuth: true)
     }
 
     func specKeyRankings(category: GearCategory) async throws -> GearSpecKeyRankingsResponse {
-        try await client.send(.get("/api/me/gears/spec-key-rankings", queryItems: [URLQueryItem(name: "category", value: category.rawValue)]), requiresAuth: true)
+        try await client.send(.get("/me/gears/spec-key-rankings", queryItems: [URLQueryItem(name: "category", value: category.rawValue)]), requiresAuth: true)
     }
 
     func tagSuggestions(limit: Int) async throws -> GearTagSuggestionsResponse {
-        try await client.send(.get("/api/me/gears/tag-suggestions", queryItems: [URLQueryItem(name: "limit", value: String(limit))]), requiresAuth: true)
+        try await client.send(.get("/me/gears/tag-suggestions", queryItems: [URLQueryItem(name: "limit", value: String(limit))]), requiresAuth: true)
     }
 
     func list(_ request: ListGearsRequest) async throws -> ListGearsResponse {
-        try await client.send(.get("/api/me/gears", queryItems: request.queryItems), requiresAuth: true)
+        try await client.send(.get("/me/gears", queryItems: request.queryItems), requiresAuth: true)
     }
 
     func get(id: String) async throws -> GearItem {
-        try await client.send(.get("/api/me/gears/\(id.urlPathEscaped)"), requiresAuth: true)
+        try await client.send(.get("/me/gears/\(id.urlPathEscaped)"), requiresAuth: true)
     }
 
     func create(_ request: CreateGearRequest) async throws -> GearItem {
-        try await client.send(try APIRequest.post("/api/me/gears", body: request), requiresAuth: true)
+        try await client.send(try APIRequest.post("/me/gears", body: request), requiresAuth: true)
     }
 
     func update(id: String, request: UpdateGearRequest) async throws -> GearItem {
-        try await client.send(try APIRequest.patch("/api/me/gears/\(id.urlPathEscaped)", body: request), requiresAuth: true)
+        try await client.send(try APIRequest.patch("/me/gears/\(id.urlPathEscaped)", body: request), requiresAuth: true)
     }
 
     func archive(id: String) async throws {
-        let _: EmptyResponse = try await client.sendEmpty(.delete("/api/me/gears/\(id.urlPathEscaped)"), requiresAuth: true)
+        let _: EmptyResponse = try await client.sendEmpty(.delete("/me/gears/\(id.urlPathEscaped)"), requiresAuth: true)
     }
 
     func restore(id: String) async throws -> GearItem {
-        try await client.send(.post("/api/me/gears/\(id.urlPathEscaped)/restore"), requiresAuth: true)
+        try await client.send(.post("/me/gears/\(id.urlPathEscaped)/restore"), requiresAuth: true)
     }
 }
 
@@ -200,23 +200,23 @@ final class GearAtlasRepository: GearAtlasRepositorying {
     init(client: APIClient) { self.client = client }
 
     func list(_ request: ListGearAtlasRequest) async throws -> ListGearAtlasResponse {
-        try await client.send(.get("/api/gear-atlas", queryItems: request.queryItems), requiresAuth: false)
+        try await client.send(.get("/gear-atlas", queryItems: request.queryItems), requiresAuth: false)
     }
 
     func get(id: String) async throws -> GearAtlasPublicItem {
-        try await client.send(.get("/api/gear-atlas/\(id.urlPathEscaped)"), requiresAuth: false)
+        try await client.send(.get("/gear-atlas/\(id.urlPathEscaped)"), requiresAuth: false)
     }
 
     func createSubmission(_ request: CreateGearAtlasSubmissionRequest) async throws -> GearAtlasSubmission {
-        try await client.send(try APIRequest.post("/api/me/gear-atlas-submissions", body: request), requiresAuth: true)
+        try await client.send(try APIRequest.post("/me/gear-atlas-submissions", body: request), requiresAuth: true)
     }
 
     func submitGear(id: String) async throws -> GearAtlasSubmission {
-        try await client.send(.post("/api/me/gears/\(id.urlPathEscaped)/atlas-submission"), requiresAuth: true)
+        try await client.send(.post("/me/gears/\(id.urlPathEscaped)/atlas-submission"), requiresAuth: true)
     }
 
     func mySubmissions(_ request: ListGearAtlasSubmissionsRequest) async throws -> ListGearAtlasSubmissionsResponse {
-        try await client.send(.get("/api/me/gear-atlas-submissions", queryItems: request.queryItems), requiresAuth: true)
+        try await client.send(.get("/me/gear-atlas-submissions", queryItems: request.queryItems), requiresAuth: true)
     }
 }
 
@@ -227,19 +227,19 @@ final class SkillRepository: SkillRepositorying {
     init(client: APIClient) { self.client = client }
 
     func categories() async throws -> SkillCategoriesResponse {
-        try await client.send(.get("/api/skills"), requiresAuth: false)
+        try await client.send(.get("/skills"), requiresAuth: false)
     }
 
     func knots(_ request: ListKnotsRequest) async throws -> KnotListResponse {
-        try await client.send(.get("/api/skills/knots/list", queryItems: request.queryItems), requiresAuth: false)
+        try await client.send(.get("/skills/knots/list", queryItems: request.queryItems), requiresAuth: false)
     }
 
     func knotDetail(id: String) async throws -> KnotDetail {
-        try await client.send(.get("/api/skills/knots/detail/\(id.urlPathEscaped)"), requiresAuth: false)
+        try await client.send(.get("/skills/knots/detail/\(id.urlPathEscaped)"), requiresAuth: false)
     }
 
     func offlineManifest() async throws -> KnotOfflineManifestResponse {
-        try await client.send(.get("/api/skills/knots/offline-manifest"), requiresAuth: false)
+        try await client.send(.get("/skills/knots/offline-manifest"), requiresAuth: false)
     }
 }
 
@@ -250,7 +250,7 @@ final class ContentRepository: ContentRepositorying {
     init(client: APIClient) { self.client = client }
 
     func gearTemplates() async throws -> GearTemplatesResponse {
-        try await client.send(.get("/api/gear-templates"), requiresAuth: false)
+        try await client.send(.get("/gear-templates"), requiresAuth: false)
     }
 }
 

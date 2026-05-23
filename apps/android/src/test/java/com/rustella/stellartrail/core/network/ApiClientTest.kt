@@ -73,7 +73,7 @@ class ApiClientTest {
         val engine = MockEngine { request ->
             requests += request
             when (request.url.encodedPath) {
-                "/api/me/gears/categories" -> {
+                "/api/v1/me/gears/categories" -> {
                     if (request.headers[HttpHeaders.Authorization] == "Bearer fresh-access-token") {
                         respond(
                             content = """{"status":"ok"}""",
@@ -87,7 +87,7 @@ class ApiClientTest {
                         )
                     }
                 }
-                "/api/auth/refresh" -> respond(
+                "/api/v1/auth/refresh" -> respond(
                     content = """{
                         "access_token":"fresh-access-token",
                         "expires_at":"2026-05-17T12:00:00Z",
@@ -111,11 +111,11 @@ class ApiClientTest {
             httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
         )
 
-        val response = client.get<HealthResponse>("/api/me/gears/categories")
+        val response = client.get<HealthResponse>("/api/v1/me/gears/categories")
 
         assertEquals("ok", response.status)
         assertEquals(
-            listOf("/api/me/gears/categories", "/api/auth/refresh", "/api/me/gears/categories"),
+            listOf("/api/v1/me/gears/categories", "/api/v1/auth/refresh", "/api/v1/me/gears/categories"),
             requests.map { it.url.encodedPath },
         )
         assertEquals("Bearer expired-access-token", requests[0].headers[HttpHeaders.Authorization])

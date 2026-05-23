@@ -83,8 +83,17 @@ async fn system_routes_return_health_and_meta() {
     assert_eq!(health_status, StatusCode::OK);
     assert_eq!(health["status"], "ok");
 
-    let (meta_status, meta) = send_empty(&app.router, "GET", "/api/meta", None).await;
+    let (meta_status, meta) = send_empty(&app.router, "GET", "/api/v1/meta", None).await;
     assert_eq!(meta_status, StatusCode::OK);
     assert_eq!(meta["name"], "StellarTrail");
     assert_eq!(meta["database_kind"], "sqlite");
+}
+
+#[tokio::test]
+async fn old_api_prefix_is_not_registered() {
+    let app = test_app().await;
+
+    let (status, body) = send_empty(&app.router, "GET", "/api/meta", None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["code"], "not_found");
 }

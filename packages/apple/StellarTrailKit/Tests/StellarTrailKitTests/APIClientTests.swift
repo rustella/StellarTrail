@@ -32,13 +32,13 @@ final class APIClientTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             XCTAssertEqual(request.url?.scheme, "https")
             XCTAssertEqual(urlHost(request.url), "api.example.invalid")
-            XCTAssertEqual(request.url?.path, "/api/gear-templates")
+            XCTAssertEqual(request.url?.path, "/api/v1/gear-templates")
             XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
             XCTAssertEqual(request.value(forHTTPHeaderField: "X-StellarTrail-Locale"), "zh-CN")
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, #"{"items":[]}"#.data(using: .utf8)!)
         }
 
-        let _: GearTemplatesResponse = try await client.send(.get("/api/gear-templates"), requiresAuth: false)
+        let _: GearTemplatesResponse = try await client.send(.get("/api/v1/gear-templates"), requiresAuth: false)
     }
 
     func testPrivateRequestAttachesBearerToken() async throws {
@@ -52,7 +52,7 @@ final class APIClientTests: XCTestCase {
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, #"{"current_count":0,"archived_count":0,"total_value_cents":0,"total_weight_g":0,"by_category":[],"by_status":[]}"#.data(using: .utf8)!)
         }
 
-        let _: GearStatsResponse = try await client.send(.get("/api/me/gears/stats"), requiresAuth: true)
+        let _: GearStatsResponse = try await client.send(.get("/api/v1/me/gears/stats"), requiresAuth: true)
     }
 
     func testPrivateRequestRefreshesTokenAndRetriesOnce() async throws {
@@ -63,7 +63,7 @@ final class APIClientTests: XCTestCase {
         var statsAttempts = 0
 
         MockURLProtocol.requestHandler = { request in
-            if request.url?.path == "/api/auth/refresh" {
+            if request.url?.path == "/api/v1/auth/refresh" {
                 XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
                 let body = requestBodyString(from: request)
                 XCTAssertEqual(body, #"{"refresh_token":"refresh"}"#)
@@ -80,7 +80,7 @@ final class APIClientTests: XCTestCase {
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
         }
 
-        let stats: GearStatsResponse = try await client.send(.get("/api/me/gears/stats"), requiresAuth: true)
+        let stats: GearStatsResponse = try await client.send(.get("/api/v1/me/gears/stats"), requiresAuth: true)
 
         XCTAssertEqual(stats.currentCount, 1)
         XCTAssertEqual(sessionStore.currentSession?.accessToken, "new")
@@ -94,7 +94,7 @@ final class APIClientTests: XCTestCase {
         let repository = AuthRepository(client: client, sessionStore: sessionStore)
 
         MockURLProtocol.requestHandler = { request in
-            XCTAssertEqual(request.url?.path, "/api/auth/wechat-login")
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/wechat-login")
             XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
             let bodyData = try XCTUnwrap(requestBodyData(from: request))
             let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
@@ -123,7 +123,7 @@ final class APIClientTests: XCTestCase {
         let repository = AuthRepository(client: client, sessionStore: sessionStore)
 
         MockURLProtocol.requestHandler = { request in
-            XCTAssertEqual(request.url?.path, "/api/auth/email-login")
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/email-login")
             XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
             let bodyData = try XCTUnwrap(requestBodyData(from: request))
             let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
@@ -147,12 +147,12 @@ final class APIClientTests: XCTestCase {
         let repository = GearAtlasRepository(client: client)
 
         MockURLProtocol.requestHandler = { request in
-            if request.url?.path == "/api/gear-atlas" {
+            if request.url?.path == "/api/v1/gear-atlas" {
                 XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
                 XCTAssertEqual(request.url?.query?.contains("category=lighting_system"), true)
                 return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, #"{"items":[],"next_cursor":null}"#.data(using: .utf8)!)
             }
-            XCTAssertEqual(request.url?.path, "/api/me/gear-atlas-submissions")
+            XCTAssertEqual(request.url?.path, "/api/v1/me/gear-atlas-submissions")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer x")
             let bodyData = try XCTUnwrap(requestBodyData(from: request))
             let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
@@ -188,59 +188,59 @@ final class APIClientTests: XCTestCase {
             XCTAssertEqual(url.scheme, "https")
             XCTAssertEqual(urlHost(url), "api.example.invalid")
             XCTAssertEqual(request.value(forHTTPHeaderField: "X-StellarTrail-Locale"), "zh-CN")
-            if url.path.hasPrefix("/api/me/") {
+            if url.path.hasPrefix("/api/v1/me/") {
                 XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer x")
             } else {
                 XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
             }
 
             switch key {
-            case "GET /api/gear-templates":
+            case "GET /api/v1/gear-templates":
                 return jsonResponse(url: url, #"{"items":[]}"#)
-            case "GET /api/me/gears/stats":
+            case "GET /api/v1/me/gears/stats":
                 return jsonResponse(url: url, #"{"current_count":0,"archived_count":0,"total_value_cents":0,"total_weight_g":0,"by_category":[],"by_status":[]}"#)
-            case "GET /api/me/gears/categories":
+            case "GET /api/v1/me/gears/categories":
                 return jsonResponse(url: url, #"{"items":[]}"#)
-            case "GET /api/me/gears/spec-key-rankings":
+            case "GET /api/v1/me/gears/spec-key-rankings":
                 return jsonResponse(url: url, #"{"keys":["max_brightness"]}"#)
-            case "GET /api/me/gears/tag-suggestions":
+            case "GET /api/v1/me/gears/tag-suggestions":
                 return jsonResponse(url: url, #"{"items":[{"tag":"夜行","color":"violet"}]}"#)
-            case "GET /api/me/gears":
+            case "GET /api/v1/me/gears":
                 return jsonResponse(url: url, #"{"items":[],"next_cursor":null}"#)
-            case "GET /api/me/gears/gear-1", "POST /api/me/gears", "PATCH /api/me/gears/gear-1", "POST /api/me/gears/gear-1/restore":
+            case "GET /api/v1/me/gears/gear-1", "POST /api/v1/me/gears", "PATCH /api/v1/me/gears/gear-1", "POST /api/v1/me/gears/gear-1/restore":
                 return jsonResponse(url: url, gearItemPayload)
-            case "DELETE /api/me/gears/gear-1":
+            case "DELETE /api/v1/me/gears/gear-1":
                 return emptyResponse(url: url)
-            case "GET /api/gear-atlas":
+            case "GET /api/v1/gear-atlas":
                 return jsonResponse(url: url, #"{"items":[],"next_cursor":null}"#)
-            case "GET /api/gear-atlas/atlas-1":
+            case "GET /api/v1/gear-atlas/atlas-1":
                 return jsonResponse(url: url, gearAtlasItemPayload)
-            case "POST /api/me/gear-atlas-submissions", "POST /api/me/gears/gear-1/atlas-submission":
+            case "POST /api/v1/me/gear-atlas-submissions", "POST /api/v1/me/gears/gear-1/atlas-submission":
                 return jsonResponse(url: url, gearAtlasSubmissionPayload, statusCode: 201)
-            case "GET /api/me/gear-atlas-submissions":
+            case "GET /api/v1/me/gear-atlas-submissions":
                 return jsonResponse(url: url, #"{"items":[],"next_cursor":null}"#)
-            case "GET /api/skills":
+            case "GET /api/v1/skills":
                 return jsonResponse(url: url, #"{"items":[]}"#)
-            case "GET /api/skills/knots/list":
+            case "GET /api/v1/skills/knots/list":
                 return jsonResponse(url: url, #"{"locale":"zh-CN","items":[],"page":{"limit":20,"offset":0,"next_offset":null}}"#)
-            case "GET /api/skills/knots/detail/bowline":
+            case "GET /api/v1/skills/knots/detail/bowline":
                 return jsonResponse(url: url, knotDetailPayload)
-            case "GET /api/skills/knots/offline-manifest":
+            case "GET /api/v1/skills/knots/offline-manifest":
                 return jsonResponse(url: url, #"{"locale":"zh-CN","item_count":0,"media_count":0,"estimated_bytes":0,"items":[]}"#)
-            case "GET /api/me/profile", "POST /api/me/email-binding", "PUT /api/me/profile/avatar":
+            case "GET /api/v1/me/profile", "POST /api/v1/me/email-binding", "PUT /api/v1/me/profile/avatar":
                 return jsonResponse(url: url, profilePayload)
-            case "POST /api/me/email-binding-code",
-                 "POST /api/auth/email-verification-code",
-                 "POST /api/auth/email-login-code",
-                 "POST /api/auth/password-reset-code":
+            case "POST /api/v1/me/email-binding-code",
+                 "POST /api/v1/auth/email-verification-code",
+                 "POST /api/v1/auth/email-login-code",
+                 "POST /api/v1/auth/password-reset-code":
                 return jsonResponse(url: url, #"{"email":"alice@example.com","expires_at":"2026-05-16T12:30:00Z","debug_code":"654321"}"#)
-            case "POST /api/auth/captcha":
+            case "POST /api/v1/auth/captcha":
                 return jsonResponse(url: url, #"{"captcha_ticket":"ticket-1","captcha_type":"svg","image_svg":"<svg></svg>","expires_at":"2026-05-16T12:30:00Z","debug_answer":"1234"}"#)
-            case "POST /api/auth/register",
-                 "POST /api/auth/login",
-                 "POST /api/auth/email-login",
-                 "POST /api/auth/password-reset",
-                 "POST /api/auth/wechat-login":
+            case "POST /api/v1/auth/register",
+                 "POST /api/v1/auth/login",
+                 "POST /api/v1/auth/email-login",
+                 "POST /api/v1/auth/password-reset",
+                 "POST /api/v1/auth/wechat-login":
                 return jsonResponse(url: url, loginPayload)
             default:
                 XCTFail("Unexpected request: \(key)")
@@ -305,39 +305,39 @@ final class APIClientTests: XCTestCase {
         let _: LoginResponse = try await authRepository.wechatLogin(code: "macos-local-user", profile: WechatLoginProfile(nickname: "macOS 本地用户", avatarUrl: nil))
 
         XCTAssertEqual(Set(seenRequests), Set([
-            "GET /api/gear-templates",
-            "GET /api/me/gears/stats",
-            "GET /api/me/gears/categories",
-            "GET /api/me/gears/spec-key-rankings",
-            "GET /api/me/gears/tag-suggestions",
-            "GET /api/me/gears",
-            "GET /api/me/gears/gear-1",
-            "POST /api/me/gears",
-            "PATCH /api/me/gears/gear-1",
-            "DELETE /api/me/gears/gear-1",
-            "POST /api/me/gears/gear-1/restore",
-            "GET /api/gear-atlas",
-            "GET /api/gear-atlas/atlas-1",
-            "POST /api/me/gear-atlas-submissions",
-            "POST /api/me/gears/gear-1/atlas-submission",
-            "GET /api/me/gear-atlas-submissions",
-            "GET /api/skills",
-            "GET /api/skills/knots/list",
-            "GET /api/skills/knots/detail/bowline",
-            "GET /api/skills/knots/offline-manifest",
-            "GET /api/me/profile",
-            "POST /api/me/email-binding-code",
-            "POST /api/me/email-binding",
-            "PUT /api/me/profile/avatar",
-            "POST /api/auth/email-verification-code",
-            "POST /api/auth/email-login-code",
-            "POST /api/auth/password-reset-code",
-            "POST /api/auth/captcha",
-            "POST /api/auth/register",
-            "POST /api/auth/login",
-            "POST /api/auth/email-login",
-            "POST /api/auth/password-reset",
-            "POST /api/auth/wechat-login"
+            "GET /api/v1/gear-templates",
+            "GET /api/v1/me/gears/stats",
+            "GET /api/v1/me/gears/categories",
+            "GET /api/v1/me/gears/spec-key-rankings",
+            "GET /api/v1/me/gears/tag-suggestions",
+            "GET /api/v1/me/gears",
+            "GET /api/v1/me/gears/gear-1",
+            "POST /api/v1/me/gears",
+            "PATCH /api/v1/me/gears/gear-1",
+            "DELETE /api/v1/me/gears/gear-1",
+            "POST /api/v1/me/gears/gear-1/restore",
+            "GET /api/v1/gear-atlas",
+            "GET /api/v1/gear-atlas/atlas-1",
+            "POST /api/v1/me/gear-atlas-submissions",
+            "POST /api/v1/me/gears/gear-1/atlas-submission",
+            "GET /api/v1/me/gear-atlas-submissions",
+            "GET /api/v1/skills",
+            "GET /api/v1/skills/knots/list",
+            "GET /api/v1/skills/knots/detail/bowline",
+            "GET /api/v1/skills/knots/offline-manifest",
+            "GET /api/v1/me/profile",
+            "POST /api/v1/me/email-binding-code",
+            "POST /api/v1/me/email-binding",
+            "PUT /api/v1/me/profile/avatar",
+            "POST /api/v1/auth/email-verification-code",
+            "POST /api/v1/auth/email-login-code",
+            "POST /api/v1/auth/password-reset-code",
+            "POST /api/v1/auth/captcha",
+            "POST /api/v1/auth/register",
+            "POST /api/v1/auth/login",
+            "POST /api/v1/auth/email-login",
+            "POST /api/v1/auth/password-reset",
+            "POST /api/v1/auth/wechat-login"
         ]))
     }
 

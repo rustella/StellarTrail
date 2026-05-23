@@ -30,19 +30,16 @@ use crate::{
 /// Runs the `routes` server-side flow while preserving input validation, error propagation, and state invariants.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/me/gears/categories", get(categories))
-        .route("/api/me/gears/stats", get(stats))
-        .route("/api/me/gears/overview", get(overview))
-        .route("/api/me/gears/spec-key-rankings", get(spec_key_rankings))
-        .route("/api/me/gears/tag-suggestions", get(tag_suggestions))
-        .route("/api/me/gears/export", get(export_csv))
-        .route("/api/me/gears/import", post(import_json))
-        .route("/api/me/gears", get(list).post(create))
-        .route(
-            "/api/me/gears/:id",
-            get(get_one).patch(update).delete(archive),
-        )
-        .route("/api/me/gears/:id/restore", post(restore))
+        .route("/me/gears/categories", get(categories))
+        .route("/me/gears/stats", get(stats))
+        .route("/me/gears/overview", get(overview))
+        .route("/me/gears/spec-key-rankings", get(spec_key_rankings))
+        .route("/me/gears/tag-suggestions", get(tag_suggestions))
+        .route("/me/gears/export", get(export_csv))
+        .route("/me/gears/import", post(import_json))
+        .route("/me/gears", get(list).post(create))
+        .route("/me/gears/:id", get(get_one).patch(update).delete(archive))
+        .route("/me/gears/:id/restore", post(restore))
 }
 
 /// Returns the first-screen categories, stats, and list payload in one cached read.

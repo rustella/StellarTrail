@@ -110,7 +110,7 @@ async fn register_password_user(app: &Router, username: &str) -> Value {
     let (code_status, code_body) = send_json(
         app,
         "POST",
-        "/api/auth/email-verification-code",
+        "/api/v1/auth/email-verification-code",
         None,
         json!({ "email": email }),
     )
@@ -121,7 +121,7 @@ async fn register_password_user(app: &Router, username: &str) -> Value {
     let (status, value) = send_json(
         app,
         "POST",
-        "/api/auth/register",
+        "/api/v1/auth/register",
         None,
         json!({
             "username": username,
@@ -171,7 +171,7 @@ async fn admin_management_requires_authenticated_super_admin() {
     let (missing_status, missing) = send_json(
         &app.router,
         "POST",
-        "/api/admin/admins",
+        "/api/v1/admin/admins",
         None,
         json!({"username": "target_admin"}),
     )
@@ -181,7 +181,7 @@ async fn admin_management_requires_authenticated_super_admin() {
     let (normal_status, normal) = send_json(
         &app.router,
         "POST",
-        "/api/admin/admins",
+        "/api/v1/admin/admins",
         Some(normal_token),
         json!({"username": "target_admin"}),
     )
@@ -191,7 +191,7 @@ async fn admin_management_requires_authenticated_super_admin() {
     let (admin_status, admin) = send_json(
         &app.router,
         "POST",
-        "/api/admin/admins",
+        "/api/v1/admin/admins",
         Some(regular_admin_token),
         json!({"username": "target_admin"}),
     )
@@ -201,7 +201,7 @@ async fn admin_management_requires_authenticated_super_admin() {
     let (admin_delete_status, admin_delete) = send_empty(
         &app.router,
         "DELETE",
-        "/api/admin/admins?username=target_admin",
+        "/api/v1/admin/admins?username=target_admin",
         Some(regular_admin_token),
     )
     .await;
@@ -222,7 +222,7 @@ async fn super_admin_grants_and_revokes_admin_by_username_and_user_id() {
     let (grant_status, grant) = send_json(
         &app.router,
         "POST",
-        "/api/admin/admins",
+        "/api/v1/admin/admins",
         Some(owner_token),
         json!({"username": "Trail_Admin"}),
     )
@@ -235,7 +235,7 @@ async fn super_admin_grants_and_revokes_admin_by_username_and_user_id() {
     let (admin_access_status, admin_access) = send_empty(
         &app.router,
         "GET",
-        &format!("/api/admin/api-usage?from={today}&to={today}"),
+        &format!("/api/v1/admin/api-usage?from={today}&to={today}"),
         Some(target_token),
     )
     .await;
@@ -244,7 +244,7 @@ async fn super_admin_grants_and_revokes_admin_by_username_and_user_id() {
     let (repeat_status, repeat) = send_json(
         &app.router,
         "POST",
-        "/api/admin/admins",
+        "/api/v1/admin/admins",
         Some(owner_token),
         json!({"username": "trail_admin"}),
     )
@@ -255,7 +255,7 @@ async fn super_admin_grants_and_revokes_admin_by_username_and_user_id() {
     let (delete_status, delete_body) = send_empty(
         &app.router,
         "DELETE",
-        &format!("/api/admin/admins?user_id={target_id}"),
+        &format!("/api/v1/admin/admins?user_id={target_id}"),
         Some(owner_token),
     )
     .await;
@@ -264,7 +264,7 @@ async fn super_admin_grants_and_revokes_admin_by_username_and_user_id() {
     let (removed_status, removed) = send_empty(
         &app.router,
         "GET",
-        &format!("/api/admin/api-usage?from={today}&to={today}"),
+        &format!("/api/v1/admin/api-usage?from={today}&to={today}"),
         Some(target_token),
     )
     .await;
@@ -273,7 +273,7 @@ async fn super_admin_grants_and_revokes_admin_by_username_and_user_id() {
     let (grant_by_id_status, grant_by_id) = send_json(
         &app.router,
         "POST",
-        "/api/admin/admins",
+        "/api/v1/admin/admins",
         Some(owner_token),
         json!({"user_id": target_id}),
     )
@@ -283,7 +283,7 @@ async fn super_admin_grants_and_revokes_admin_by_username_and_user_id() {
     let (delete_by_name_status, delete_by_name_body) = send_empty(
         &app.router,
         "DELETE",
-        "/api/admin/admins?username=trail_admin",
+        "/api/v1/admin/admins?username=trail_admin",
         Some(owner_token),
     )
     .await;
@@ -308,7 +308,7 @@ async fn grant_does_not_downgrade_super_admin_and_delete_rejects_super_admin() {
     let (grant_status, grant) = send_json(
         &app.router,
         "POST",
-        "/api/admin/admins",
+        "/api/v1/admin/admins",
         Some(owner_token),
         json!({"user_id": target_id}),
     )
@@ -319,7 +319,7 @@ async fn grant_does_not_downgrade_super_admin_and_delete_rejects_super_admin() {
     let (delete_status, delete_body) = send_empty(
         &app.router,
         "DELETE",
-        &format!("/api/admin/admins?user_id={target_id}"),
+        &format!("/api/v1/admin/admins?user_id={target_id}"),
         Some(owner_token),
     )
     .await;
@@ -342,7 +342,7 @@ async fn admin_selector_validation_and_missing_targets_are_stable() {
     let (empty_status, empty) = send_json(
         &app.router,
         "POST",
-        "/api/admin/admins",
+        "/api/v1/admin/admins",
         Some(owner_token),
         json!({}),
     )
@@ -352,7 +352,7 @@ async fn admin_selector_validation_and_missing_targets_are_stable() {
     let (both_status, both) = send_json(
         &app.router,
         "POST",
-        "/api/admin/admins",
+        "/api/v1/admin/admins",
         Some(owner_token),
         json!({"username": "missing_admin", "user_id": "missing-id"}),
     )
@@ -362,7 +362,7 @@ async fn admin_selector_validation_and_missing_targets_are_stable() {
     let (missing_grant_status, missing_grant) = send_json(
         &app.router,
         "POST",
-        "/api/admin/admins",
+        "/api/v1/admin/admins",
         Some(owner_token),
         json!({"username": "missing_admin"}),
     )
@@ -376,7 +376,7 @@ async fn admin_selector_validation_and_missing_targets_are_stable() {
     let (missing_delete_status, missing_delete) = send_empty(
         &app.router,
         "DELETE",
-        "/api/admin/admins?username=missing_admin",
+        "/api/v1/admin/admins?username=missing_admin",
         Some(owner_token),
     )
     .await;
@@ -391,7 +391,7 @@ async fn admin_selector_validation_and_missing_targets_are_stable() {
     let (no_role_delete_status, no_role_delete) = send_empty(
         &app.router,
         "DELETE",
-        &format!("/api/admin/admins?user_id={no_role_id}"),
+        &format!("/api/v1/admin/admins?user_id={no_role_id}"),
         Some(owner_token),
     )
     .await;

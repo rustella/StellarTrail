@@ -60,6 +60,8 @@ const USER_STORAGE_KEY = "stellartrail_user";
 const API_BASE_URL_STORAGE_KEY = "stellartrail_api_base_url";
 const DEFAULT_API_BASE_URL = "https://api.example.invalid";
 const DEFAULT_ASSETS_BASE_URL = "https://assets.example.invalid";
+const API_PREFIX = "/api/v1";
+const HEALTH_PATH = "/healthz";
 const API_REQUEST_TIMEOUT_MS = 15_000;
 const WECHAT_LOGIN_TIMEOUT_MS = 5_000;
 
@@ -364,9 +366,12 @@ export function getStoredUser(): WechatLoginResponse["user"] | null {
 }
 
 export async function getCurrentUser(): Promise<WechatLoginResponse["user"]> {
-  const response = await requestJson<ProfileUserResponse>("/api/me/profile", {
-    auth: true,
-  });
+  const response = await requestJson<ProfileUserResponse>(
+    "/api/v1/me/profile",
+    {
+      auth: true,
+    },
+  );
   saveUser(response.user);
   return response.user;
 }
@@ -374,7 +379,7 @@ export async function getCurrentUser(): Promise<WechatLoginResponse["user"]> {
 export function sendBindEmailCode(
   email: string,
 ): Promise<EmailVerificationCodeResponse> {
-  return requestJson("/api/me/email-binding-code", {
+  return requestJson("/api/v1/me/email-binding-code", {
     method: "POST",
     auth: true,
     data: { email } satisfies BindEmailCodeRequest,
@@ -385,7 +390,7 @@ export async function bindEmailToCurrentAccount(
   request: BindEmailRequest,
 ): Promise<WechatLoginResponse["user"]> {
   const response = await requestJson<BindEmailResponse>(
-    "/api/me/email-binding",
+    "/api/v1/me/email-binding",
     {
       method: "POST",
       auth: true,
@@ -399,7 +404,7 @@ export async function bindEmailToCurrentAccount(
 export function createFeedback(
   request: CreateFeedbackRequest,
 ): Promise<FeedbackResponse> {
-  return requestJson("/api/me/feedback", {
+  return requestJson("/api/v1/me/feedback", {
     method: "POST",
     auth: true,
     data: request,
@@ -435,10 +440,13 @@ export async function loginWithWechat(
 export async function loginWithPassword(
   request: PasswordLoginRequest,
 ): Promise<string> {
-  const response = await requestJson<WechatLoginResponse>("/api/auth/login", {
-    method: "POST",
-    data: normalizePasswordLoginRequest(request),
-  });
+  const response = await requestJson<WechatLoginResponse>(
+    "/api/v1/auth/login",
+    {
+      method: "POST",
+      data: normalizePasswordLoginRequest(request),
+    },
+  );
   saveLoginResponse(response);
   return response.access_token;
 }
@@ -447,7 +455,7 @@ export async function registerWithPassword(
   request: RegisterRequest,
 ): Promise<string> {
   const response = await requestJson<WechatLoginResponse>(
-    "/api/auth/register",
+    "/api/v1/auth/register",
     {
       method: "POST",
       data: request,
@@ -460,7 +468,7 @@ export async function registerWithPassword(
 export function sendEmailVerificationCode(
   email: string,
 ): Promise<EmailVerificationCodeResponse> {
-  return requestJson("/api/auth/email-verification-code", {
+  return requestJson("/api/v1/auth/email-verification-code", {
     method: "POST",
     data: { email } satisfies EmailVerificationCodeRequest,
   });
@@ -469,7 +477,7 @@ export function sendEmailVerificationCode(
 export function sendEmailLoginCode(
   email: string,
 ): Promise<EmailVerificationCodeResponse> {
-  return requestJson("/api/auth/email-login-code", {
+  return requestJson("/api/v1/auth/email-login-code", {
     method: "POST",
     data: { email } satisfies EmailLoginCodeRequest,
   });
@@ -479,7 +487,7 @@ export async function loginWithEmailCode(
   request: EmailLoginRequest,
 ): Promise<string> {
   const response = await requestJson<WechatLoginResponse>(
-    "/api/auth/email-login",
+    "/api/v1/auth/email-login",
     {
       method: "POST",
       data: request,
@@ -492,7 +500,7 @@ export async function loginWithEmailCode(
 export function sendPasswordResetCode(
   email: string,
 ): Promise<EmailVerificationCodeResponse> {
-  return requestJson("/api/auth/password-reset-code", {
+  return requestJson("/api/v1/auth/password-reset-code", {
     method: "POST",
     data: { email } satisfies PasswordResetCodeRequest,
   });
@@ -502,7 +510,7 @@ export async function resetPassword(
   request: PasswordResetRequest,
 ): Promise<string> {
   const response = await requestJson<WechatLoginResponse>(
-    "/api/auth/password-reset",
+    "/api/v1/auth/password-reset",
     {
       method: "POST",
       data: request,
@@ -515,7 +523,7 @@ export async function resetPassword(
 export function createCaptcha(
   account: string,
 ): Promise<CaptchaChallengeResponse> {
-  return requestJson("/api/auth/captcha", {
+  return requestJson("/api/v1/auth/captcha", {
     method: "POST",
     data: { account } satisfies CaptchaChallengeRequest,
   });
@@ -525,7 +533,7 @@ async function runWechatLogin(profile?: WechatLoginProfile): Promise<string> {
   const code = await getWechatLoginCode();
   const normalizedProfile = normalizeWechatLoginProfile(profile);
   const response = await requestJson<WechatLoginResponse>(
-    "/api/auth/wechat-login",
+    "/api/v1/auth/wechat-login",
     {
       method: "POST",
       data: {
@@ -584,29 +592,29 @@ export function clearLoginState(): void {
 }
 
 export async function listGearTemplates(): Promise<ListGearTemplatesResponse> {
-  return requestJson("/api/gear-templates");
+  return requestJson("/api/v1/gear-templates");
 }
 
 export async function getGearTemplate(id: string): Promise<GearTemplate> {
-  return requestJson(`/api/gear-templates/${encodeURIComponent(id)}`);
+  return requestJson(`/api/v1/gear-templates/${encodeURIComponent(id)}`);
 }
 
 export async function listGearAtlas(
   request: ListGearAtlasRequest = {},
 ): Promise<ListGearAtlasResponse> {
-  return requestJson(`/api/gear-atlas${queryString(request)}`);
+  return requestJson(`/api/v1/gear-atlas${queryString(request)}`);
 }
 
 export async function getGearAtlasItem(
   id: string,
 ): Promise<GearAtlasPublicItem> {
-  return requestJson(`/api/gear-atlas/${encodeURIComponent(id)}`);
+  return requestJson(`/api/v1/gear-atlas/${encodeURIComponent(id)}`);
 }
 
 export async function createGearAtlasSubmission(
   request: CreateGearAtlasSubmissionRequest,
 ): Promise<GearAtlasSubmission> {
-  return requestJson("/api/me/gear-atlas-submissions", {
+  return requestJson("/api/v1/me/gear-atlas-submissions", {
     method: "POST",
     data: request,
     auth: true,
@@ -617,7 +625,7 @@ export async function submitGearToAtlas(
   id: string,
 ): Promise<GearAtlasSubmission> {
   return requestJson(
-    `/api/me/gears/${encodeURIComponent(id)}/atlas-submission`,
+    `/api/v1/me/gears/${encodeURIComponent(id)}/atlas-submission`,
     {
       method: "POST",
       auth: true,
@@ -628,15 +636,18 @@ export async function submitGearToAtlas(
 export async function listMyGearAtlasSubmissions(
   request: { limit?: number; cursor?: string } = {},
 ): Promise<ListGearAtlasSubmissionsResponse> {
-  return requestJson(`/api/me/gear-atlas-submissions${queryString(request)}`, {
-    auth: true,
-  });
+  return requestJson(
+    `/api/v1/me/gear-atlas-submissions${queryString(request)}`,
+    {
+      auth: true,
+    },
+  );
 }
 
 export async function listGearCategories(
   tab: "available" | "history",
 ): Promise<GearCategoriesResponse> {
-  return requestJson(`/api/me/gears/categories${queryString({ tab })}`, {
+  return requestJson(`/api/v1/me/gears/categories${queryString({ tab })}`, {
     auth: true,
   });
 }
@@ -644,7 +655,7 @@ export async function listGearCategories(
 export async function getGearStats(
   tab: "available" | "history",
 ): Promise<GearStatsResponse> {
-  return requestJson(`/api/me/gears/stats${queryString({ tab })}`, {
+  return requestJson(`/api/v1/me/gears/stats${queryString({ tab })}`, {
     auth: true,
   });
 }
@@ -653,7 +664,7 @@ export async function getGearSpecKeyRankings(
   category: GearCategory,
 ): Promise<GearSpecKeyRankingsResponse> {
   return requestJson(
-    `/api/me/gears/spec-key-rankings${queryString({ category })}`,
+    `/api/v1/me/gears/spec-key-rankings${queryString({ category })}`,
     { auth: true },
   );
 }
@@ -663,7 +674,7 @@ export async function getGearOverview(request: {
   limit?: number;
   sort?: string;
 }): Promise<GearOverviewResponse> {
-  return requestJson(`/api/me/gears/overview${queryString(request)}`, {
+  return requestJson(`/api/v1/me/gears/overview${queryString(request)}`, {
     auth: true,
   });
 }
@@ -671,25 +682,30 @@ export async function getGearOverview(request: {
 export async function getGearTagSuggestions(
   limit = 20,
 ): Promise<GearTagSuggestionsResponse> {
-  return requestJson(`/api/me/gears/tag-suggestions${queryString({ limit })}`, {
-    auth: true,
-  });
+  return requestJson(
+    `/api/v1/me/gears/tag-suggestions${queryString({ limit })}`,
+    {
+      auth: true,
+    },
+  );
 }
 
 export async function listGears(
   request: ListGearsRequest,
 ): Promise<ListGearsResponse> {
-  return requestJson(`/api/me/gears${queryString(request)}`, { auth: true });
+  return requestJson(`/api/v1/me/gears${queryString(request)}`, { auth: true });
 }
 
 export async function getGear(id: string): Promise<GearItem> {
-  return requestJson(`/api/me/gears/${encodeURIComponent(id)}`, { auth: true });
+  return requestJson(`/api/v1/me/gears/${encodeURIComponent(id)}`, {
+    auth: true,
+  });
 }
 
 export async function createGear(
   request: CreateGearRequest,
 ): Promise<GearItem> {
-  return requestJson("/api/me/gears", {
+  return requestJson("/api/v1/me/gears", {
     method: "POST",
     data: request,
     auth: true,
@@ -700,7 +716,7 @@ export async function updateGear(
   id: string,
   request: UpdateGearRequest,
 ): Promise<GearItem> {
-  return requestJson(`/api/me/gears/${encodeURIComponent(id)}`, {
+  return requestJson(`/api/v1/me/gears/${encodeURIComponent(id)}`, {
     method: "PATCH",
     data: request,
     auth: true,
@@ -708,14 +724,14 @@ export async function updateGear(
 }
 
 export async function archiveGear(id: string): Promise<void> {
-  await requestJson<void>(`/api/me/gears/${encodeURIComponent(id)}`, {
+  await requestJson<void>(`/api/v1/me/gears/${encodeURIComponent(id)}`, {
     method: "DELETE",
     auth: true,
   });
 }
 
 export async function restoreGear(id: string): Promise<GearItem> {
-  return requestJson(`/api/me/gears/${encodeURIComponent(id)}/restore`, {
+  return requestJson(`/api/v1/me/gears/${encodeURIComponent(id)}/restore`, {
     method: "POST",
     auth: true,
   });
@@ -724,7 +740,7 @@ export async function restoreGear(id: string): Promise<GearItem> {
 export async function listSkills(
   locale: SkillLocale = "zh-CN",
 ): Promise<ListSkillsResponse> {
-  return requestJson("/api/skills", { locale });
+  return requestJson("/api/v1/skills", { locale });
 }
 
 export async function listKnots(
@@ -739,7 +755,7 @@ export async function listKnots(
 export async function getKnotFilters(
   locale: SkillLocale = "zh-CN",
 ): Promise<KnotFiltersResponse> {
-  return requestJson("/api/skills/knots/filters", { locale });
+  return requestJson("/api/v1/skills/knots/filters", { locale });
 }
 
 export async function getKnotDetail(
@@ -752,18 +768,18 @@ export async function getKnotDetail(
 export async function getKnotOfflineManifest(
   locale: SkillLocale = "zh-CN",
 ): Promise<KnotOfflineManifestResponse> {
-  return requestJson("/api/skills/knots/offline-manifest", {
+  return requestJson("/api/v1/skills/knots/offline-manifest", {
     locale,
     cache: false,
   });
 }
 
 export function knotListPath(request: ListKnotsRequest = {}): string {
-  return `/api/skills/knots/list${queryString(request)}`;
+  return `/api/v1/skills/knots/list${queryString(request)}`;
 }
 
 export function knotDetailPath(id: string): string {
-  return `/api/skills/knots/detail/${encodeURIComponent(id)}`;
+  return `/api/v1/skills/knots/detail/${encodeURIComponent(id)}`;
 }
 
 export function getErrorMessage(error: unknown): string {
@@ -788,14 +804,19 @@ async function requestJson<T>(
   options: ApiRequestOptions = {},
   didRetryUnauthorized = false,
 ): Promise<T> {
+  const requestPath = versionedApiPath(path);
   const method = options.method ?? "GET";
   if (method === "GET" && !didRetryUnauthorized) {
-    const key = inFlightGetKey(path, options);
+    const key = inFlightGetKey(requestPath, options);
     const pending = pendingGetRequests.get(key) as Promise<T> | undefined;
     if (pending) {
       return pending;
     }
-    const request = requestJsonOnce<T>(path, options, didRetryUnauthorized);
+    const request = requestJsonOnce<T>(
+      requestPath,
+      options,
+      didRetryUnauthorized,
+    );
     pendingGetRequests.set(key, request);
     return request.finally(() => {
       if (pendingGetRequests.get(key) === request) {
@@ -811,12 +832,13 @@ async function requestJsonOnce<T>(
   options: ApiRequestOptions = {},
   didRetryUnauthorized = false,
 ): Promise<T> {
+  const requestPath = versionedApiPath(path);
   const method = options.method ?? "GET";
   if (method !== "GET" && isOffline()) {
     throw new OfflineWriteBlockedError();
   }
   const token = options.auth ? await ensureAccessToken() : undefined;
-  const cacheDescriptor = offlineCacheDescriptor(path, options);
+  const cacheDescriptor = offlineCacheDescriptor(requestPath, options);
   const header: Record<string, string> = {};
   if (options.data !== undefined) {
     header["content-type"] = "application/json";
@@ -830,7 +852,7 @@ async function requestJsonOnce<T>(
 
   return new Promise<T>((resolve, reject) => {
     wx.request({
-      url: `${getApiBaseUrl()}${path}`,
+      url: `${getApiBaseUrl()}${requestPath}`,
       method: method as any,
       data: options.data as any,
       header,
@@ -897,6 +919,14 @@ function inFlightGetKey(path: string, options: ApiRequestOptions): string {
   return ["GET", path, options.locale ?? "", authScope].join("|");
 }
 
+function versionedApiPath(path: string): string {
+  if (path === HEALTH_PATH || path.startsWith(`${API_PREFIX}/`)) {
+    return path;
+  }
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${API_PREFIX}${normalized}`;
+}
+
 function offlineCacheDescriptor(
   path: string,
   options: ApiRequestOptions,
@@ -932,23 +962,23 @@ function offlineCacheDescriptor(
 
 function isPublicCacheablePath(path: string): boolean {
   return (
-    path === "/api/skills" ||
-    path.startsWith("/api/skills/") ||
-    path === "/api/gear-templates" ||
-    path.startsWith("/api/gear-templates/") ||
-    path === "/api/gear-atlas" ||
-    path.startsWith("/api/gear-atlas?") ||
-    path.startsWith("/api/gear-atlas/")
+    path === "/api/v1/skills" ||
+    path.startsWith("/api/v1/skills/") ||
+    path === "/api/v1/gear-templates" ||
+    path.startsWith("/api/v1/gear-templates/") ||
+    path === "/api/v1/gear-atlas" ||
+    path.startsWith("/api/v1/gear-atlas?") ||
+    path.startsWith("/api/v1/gear-atlas/")
   );
 }
 
 function isUserCacheablePath(path: string): boolean {
   return (
-    path === "/api/me/gears" ||
-    path.startsWith("/api/me/gears?") ||
-    path.startsWith("/api/me/gears/") ||
-    path === "/api/me/gear-atlas-submissions" ||
-    path.startsWith("/api/me/gear-atlas-submissions?")
+    path === "/api/v1/me/gears" ||
+    path.startsWith("/api/v1/me/gears?") ||
+    path.startsWith("/api/v1/me/gears/") ||
+    path === "/api/v1/me/gear-atlas-submissions" ||
+    path.startsWith("/api/v1/me/gear-atlas-submissions?")
   );
 }
 
@@ -1033,7 +1063,7 @@ function uploadWechatAvatarOnce(
 ): Promise<ProfileUserResponse> {
   return new Promise((resolve, reject) => {
     wx.uploadFile({
-      url: `${getApiBaseUrl()}/api/me/profile/avatar`,
+      url: `${getApiBaseUrl()}${versionedApiPath("/me/profile/avatar")}`,
       filePath,
       name: "file",
       header: {
@@ -1088,7 +1118,7 @@ async function refreshAccessTokenOnce(): Promise<string> {
   if (!refreshToken) {
     throw new Error("登录已过期，请重新登录");
   }
-  const response = await requestJson<WechatLoginResponse>("/api/auth/refresh", {
+  const response = await requestJson<WechatLoginResponse>("/auth/refresh", {
     method: "POST",
     data: { refresh_token: refreshToken },
   });

@@ -219,7 +219,7 @@ private class FixtureGearAtlasRepository : GearAtlasRepositoryContract {
 
 private class FixtureSkillRepository : SkillRepositoryContract {
     private val categories = listOf(
-        SkillCategorySummary("knots", "knots", "绳结", "常用露营、钓鱼、连接和固定绳结，按场景快速复习。", 3, "/api/skills/knots"),
+        SkillCategorySummary("knots", "knots", "绳结", "常用露营、钓鱼、连接和固定绳结，按场景快速复习。", 3, "/api/v1/skills/knots"),
     )
     private val knots = fixtureKnots()
 
@@ -361,7 +361,7 @@ private fun fixtureKnots() = listOf(
         categories = listOf(KnotTaxonomyItem("basic", "basic", "基础")),
         types = listOf(KnotTaxonomyItem("loop", "loop", "固定绳圈")),
         media = listOf(KnotMediaAsset("thumbnail", "preview", "knots/bowline.png", "image/png")),
-        href = "/api/skills/knots/detail/bowline",
+        href = "/api/v1/skills/knots/detail/bowline",
     ),
     KnotSummary(
         id = "taut-line",
@@ -371,6 +371,6 @@ private fun fixtureKnots() = listOf(
         difficulty = "进阶",
         categories = listOf(KnotTaxonomyItem("camp", "camp", "营地")),
         types = listOf(KnotTaxonomyItem("tension", "tension", "张力调节")),
-        href = "/api/skills/knots/detail/taut-line",
+        href = "/api/v1/skills/knots/detail/taut-line",
     ),
 )

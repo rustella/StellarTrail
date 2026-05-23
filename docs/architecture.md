@@ -22,11 +22,11 @@ MinIO / S3-compatible object storage -> public media URLs stored in DB
 
 ## Phase-one scope
 
-第一期核心是装备库管理、DB-backed 装备模板、账号登录和绳结公共技能。路线、山峰、行程和导航模块尚未开始实现；服务端不注册 `/api/mountains*` 或 `/api/routes*`，也不再通过 repo-local `content/` 文件树启动加载公共内容。
+第一期核心是装备库管理、DB-backed 装备模板、账号登录和绳结公共技能。路线、山峰、行程和导航模块尚未开始实现；服务端不注册 `/api/v1/mountains*` 或 `/api/v1/routes*`，也不再通过 repo-local `content/` 文件树启动加载公共内容。
 
 服务端分层：
 
-- `services/api`：HTTP 路由、DTO、mock 登录、认证、错误响应、Redis read-through cache、装备导入导出、绳结公开读接口、装备模板公开读接口和管理员绳结媒体上传接口。
+- `services/api/v1`：HTTP 路由、DTO、mock 登录、认证、错误响应、Redis read-through cache、装备导入导出、绳结公开读接口、装备模板公开读接口和管理员绳结媒体上传接口。
 - `crates/domain`：装备、装备模板、技能、用户和反馈等领域模型、枚举和校验规则。
 - `crates/db`：SeaORM 连接、repository、用户会话、装备、绳结、媒体资源和装备模板持久化。
 - `crates/migration`：数据库 schema 迁移。
@@ -53,10 +53,10 @@ MinIO / S3-compatible object storage -> public media URLs stored in DB
 
 `REDIS_URL` 为空时服务端不启用缓存；配置 Redis 后，`AppState` 会初始化 Redis-backed cache。当前缓存优先覆盖装备库的高频只读接口：
 
-- `GET /api/me/gears/categories`
-- `GET /api/me/gears/stats`
-- `GET /api/me/gears`
-- `GET /api/me/gears/:id`
+- `GET /api/v1/me/gears/categories`
+- `GET /api/v1/me/gears/stats`
+- `GET /api/v1/me/gears`
+- `GET /api/v1/me/gears/:id`
 
 缓存采用 read-through 模式，默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒。每个用户有独立 gear cache version；创建、更新、归档、恢复和导入装备后会递增版本号，让后续读请求自动绕过旧 key，避免跨用户或写后读到旧数据。Redis 读写异常只会降级为直连数据库，不影响接口可用性。
 

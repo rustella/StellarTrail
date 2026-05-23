@@ -26,28 +26,25 @@ use crate::{
 ///
 /// Login, registration, captcha, and refresh routes are all unauthenticated by
 /// design because they establish or renew a session. The authenticated email-binding
-/// handlers still require Bearer Token before changing `/api/me/*` account data.
+/// handlers still require Bearer Token before changing `/me/*` account data.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/auth/wechat-login", post(wechat_login))
+        .route("/auth/wechat-login", post(wechat_login))
         .route(
-            "/api/auth/email-verification-code",
+            "/auth/email-verification-code",
             post(send_email_verification_code),
         )
-        .route("/api/auth/email-login-code", post(send_email_login_code))
-        .route("/api/auth/email-login", post(email_login))
-        .route(
-            "/api/auth/password-reset-code",
-            post(send_password_reset_code),
-        )
-        .route("/api/auth/password-reset", post(password_reset))
-        .route("/api/me/email-binding-code", post(send_bind_email_code))
-        .route("/api/me/email-binding", post(bind_email))
-        .route("/api/auth/register", post(register))
-        .route("/api/auth/login", post(password_login))
+        .route("/auth/email-login-code", post(send_email_login_code))
+        .route("/auth/email-login", post(email_login))
+        .route("/auth/password-reset-code", post(send_password_reset_code))
+        .route("/auth/password-reset", post(password_reset))
+        .route("/me/email-binding-code", post(send_bind_email_code))
+        .route("/me/email-binding", post(bind_email))
+        .route("/auth/register", post(register))
+        .route("/auth/login", post(password_login))
         // Refresh is intentionally public: the refresh token itself is the credential.
-        .route("/api/auth/refresh", post(refresh_token))
-        .route("/api/auth/captcha", post(create_captcha))
+        .route("/auth/refresh", post(refresh_token))
+        .route("/auth/captcha", post(create_captcha))
 }
 
 /// Handles WeChat Mini Program code login and issues a StellarTrail session token on success.

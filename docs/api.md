@@ -1,12 +1,12 @@
 # API
 
-StellarTrail 第一期服务端只实现装备库管理。除系统接口、登录接口和公共内容接口外，`/api/me/*` 均需要 Bearer Token。
+StellarTrail 第一期服务端只实现装备库管理。除系统接口、登录接口和公共内容接口外，`/api/v1/me/*` 均需要 Bearer Token。
 
 ## System
 
 ```http
 GET /healthz
-GET /api/meta
+GET /api/v1/meta
 ```
 
 ## 全局限流
@@ -49,20 +49,20 @@ X-RateLimit-Reset: 1770000000
 ## Auth
 
 ```http
-POST /api/auth/wechat-login
-POST /api/auth/email-verification-code
-POST /api/auth/email-login-code
-POST /api/auth/email-login
-POST /api/auth/password-reset-code
-POST /api/auth/password-reset
-POST /api/me/email-binding-code
-POST /api/me/email-binding
-POST /api/auth/register
-POST /api/auth/login
-POST /api/auth/refresh
-POST /api/auth/captcha
-GET /api/me/profile
-PUT /api/me/profile/avatar
+POST /api/v1/auth/wechat-login
+POST /api/v1/auth/email-verification-code
+POST /api/v1/auth/email-login-code
+POST /api/v1/auth/email-login
+POST /api/v1/auth/password-reset-code
+POST /api/v1/auth/password-reset
+POST /api/v1/me/email-binding-code
+POST /api/v1/me/email-binding
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+POST /api/v1/auth/refresh
+POST /api/v1/auth/captcha
+GET /api/v1/me/profile
+PUT /api/v1/me/profile/avatar
 ```
 
 ### WeChat login
@@ -86,7 +86,7 @@ PUT /api/me/profile/avatar
 注册页可在同一表单中填写用户名、邮箱、密码、确认密码，并通过“发送邮箱验证码”按钮调用：
 
 ```json
-POST /api/auth/email-verification-code
+POST /api/v1/auth/email-verification-code
 {
   "email": "alice@example.com"
 }
@@ -105,7 +105,7 @@ POST /api/auth/email-verification-code
 注册接口会校验邮箱验证码和确认密码，密码以 SHA-256 十六进制摘要写入数据库：
 
 ```json
-POST /api/auth/register
+POST /api/v1/auth/register
 {
   "username": "trail_alice",
   "email": "alice@example.com",
@@ -118,7 +118,7 @@ POST /api/auth/register
 登录接口的 `account` 可填写用户名或邮箱。首次和正常登录不需要验证码；同一账号连续多次输错密码后，接口返回 `captcha_required`，前端应先调用图片验证码接口获取 `captcha_ticket` 与 `image_svg`，用户填写图形内容后带回登录接口。
 
 ```json
-POST /api/auth/captcha
+POST /api/v1/auth/captcha
 {
   "account": "trail_alice"
 }
@@ -134,7 +134,7 @@ POST /api/auth/captcha
 ```
 
 ```json
-POST /api/auth/login
+POST /api/v1/auth/login
 {
   "account": "trail_alice",
   "password": "OutdoorPass123!",
@@ -149,21 +149,21 @@ POST /api/auth/login
 {
   "code": "captcha_required",
   "message": "多次登录失败，请先完成验证码验证",
-  "captcha": { "type": "image", "endpoint": "/api/auth/captcha" }
+  "captcha": { "type": "image", "endpoint": "/api/v1/auth/captcha" }
 }
 ```
 
 邮箱验证码登录先对已存在账号发送一次性验证码。为避免账号枚举，不存在的邮箱也返回同样结构，但不会发送邮件，也不会返回 `debug_code`：
 
 ```json
-POST /api/auth/email-login-code
+POST /api/v1/auth/email-login-code
 {
   "email": "alice@example.com"
 }
 ```
 
 ```json
-POST /api/auth/email-login
+POST /api/v1/auth/email-login
 {
   "email": "alice@example.com",
   "email_verification_code": "123456"
@@ -173,14 +173,14 @@ POST /api/auth/email-login
 找回密码同样先发送一次性验证码。验证码只可用于找回密码，不能复用注册或登录验证码；重置成功后旧 session 会失效，并签发新的登录态：
 
 ```json
-POST /api/auth/password-reset-code
+POST /api/v1/auth/password-reset-code
 {
   "email": "alice@example.com"
 }
 ```
 
 ```json
-POST /api/auth/password-reset
+POST /api/v1/auth/password-reset
 {
   "email": "alice@example.com",
   "password": "***",
@@ -192,7 +192,7 @@ POST /api/auth/password-reset
 微信一键登录创建的账号初始可以没有邮箱。登录后可以先发送绑定邮箱验证码，再用同一用途的验证码绑定邮箱；注册、登录或找回密码验证码不能混用：
 
 ```json
-POST /api/me/email-binding-code
+POST /api/v1/me/email-binding-code
 Authorization: Bearer ***
 {
   "email": "alice@example.com"
@@ -200,7 +200,7 @@ Authorization: Bearer ***
 ```
 
 ```json
-POST /api/me/email-binding
+POST /api/v1/me/email-binding
 Authorization: Bearer ***
 {
   "email": "alice@example.com",
@@ -229,7 +229,7 @@ Authorization: Bearer ***
 登录后可读取当前用户资料，用于客户端从后端刷新头像和昵称。
 
 ```http
-GET /api/me/profile
+GET /api/v1/me/profile
 Authorization: Bearer ***
 ```
 
@@ -252,7 +252,7 @@ Authorization: Bearer ***
 登录后可上传当前用户头像。服务端会校验图片文件签名，上传到公开头像 bucket，并更新当前用户的 `avatar_url`。通用客户端传入标准文件名和 MIME 时仍会校验扩展名、声明 MIME 与文件签名一致；微信小程序 `chooseAvatar` 产生的临时文件名或 `application/octet-stream` 会按文件签名推断图片类型。微信小程序 `wx.uploadFile` 只发起 `POST` 上传，因此服务端同时接受 `PUT` 和 `POST`，推荐通用客户端使用 `PUT`。
 
 ```http
-PUT /api/me/profile/avatar
+PUT /api/v1/me/profile/avatar
 Authorization: Bearer ***
 Content-Type: multipart/form-data
 ```
@@ -284,7 +284,7 @@ Authorization: Bearer ***
 当 `access_token` 过期或私有接口返回 401 时，客户端可使用 `refresh_token` 换取新的 token pair。refresh 成功会轮换 refresh token，旧 refresh token 立即失效，客户端必须持久化新的 `refresh_token`。
 
 ```json
-POST /api/auth/refresh
+POST /api/v1/auth/refresh
 {
   "refresh_token": "opaque-refresh-token"
 }
@@ -310,23 +310,23 @@ POST /api/auth/refresh
 
 ## Public skills, gear templates, and gear atlas
 
-公共技能、装备模板和装备图鉴浏览接口不需要 Bearer Token。API 启动不再读取 repo-local `content/` 文件树，也不再挂载 `/assets/*` 静态目录；公开媒体 URL 均来自 DB 中保存的 MinIO/S3-compatible 对象存储地址。山峰和路线模块尚未开始实现，因此不注册 `/api/mountains*` 或 `/api/routes*`。
+公共技能、装备模板和装备图鉴浏览接口不需要 Bearer Token。API 启动不再读取 repo-local `content/` 文件树，也不再挂载 `/assets/*` 静态目录；公开媒体 URL 均来自 DB 中保存的 MinIO/S3-compatible 对象存储地址。山峰和路线模块尚未开始实现，因此不注册 `/api/v1/mountains*` 或 `/api/v1/routes*`。
 
 ```http
-GET /api/skills
-GET /api/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=beginner&q=wind
-GET /api/skills/knots/filters
-GET /api/skills/knots/offline-manifest
-GET /api/skills/knots/detail/:id
-GET /api/gear-templates
-GET /api/gear-templates/:id
-GET /api/gear-atlas?category=lighting_system&q=headlamp&sort=name_asc&limit=20&cursor=0
-GET /api/gear-atlas/:id
+GET /api/v1/skills
+GET /api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=beginner&q=wind
+GET /api/v1/skills/knots/filters
+GET /api/v1/skills/knots/offline-manifest
+GET /api/v1/skills/knots/detail/:id
+GET /api/v1/gear-templates
+GET /api/v1/gear-templates/:id
+GET /api/v1/gear-atlas?category=lighting_system&q=headlamp&sort=name_asc&limit=20&cursor=0
+GET /api/v1/gear-atlas/:id
 ```
 
-`/api/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不暴露 Markdown mock。`/api/gear-templates` 和 `/api/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。`/api/gear-atlas` 和 `/api/gear-atlas/:id` 返回已审核通过的公共装备图鉴，不包含用户个人购买、位置、标签、备注、拒绝原因、原始投稿快照或审核改动摘要字段。图鉴公共尺寸使用 `variants` 数组表示，每项包含 `key`、`label`，以及可选 `official_price_cents`、`official_price_currency`、`weight_g`；分类参数 `specs` 不再接受或返回 `size`、`backpack_size`、`size_or_length`。外部导入来源只暴露 `source_name`、`source_url`、`source_rating_score` 和 `source_rating_count` 等公开审计摘要，不暴露内部去重键、导入批次或授权备注。
+`/api/v1/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不暴露 Markdown mock。`/api/v1/gear-templates` 和 `/api/v1/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。`/api/v1/gear-atlas` 和 `/api/v1/gear-atlas/:id` 返回已审核通过的公共装备图鉴，不包含用户个人购买、位置、标签、备注、拒绝原因、原始投稿快照或审核改动摘要字段。图鉴公共尺寸使用 `variants` 数组表示，每项包含 `key`、`label`，以及可选 `official_price_cents`、`official_price_currency`、`weight_g`；分类参数 `specs` 不再接受或返回 `size`、`backpack_size`、`size_or_length`。外部导入来源只暴露 `source_name`、`source_url`、`source_rating_score` 和 `source_rating_count` 等公开审计摘要，不暴露内部去重键、导入批次或授权备注。
 
-用户自己的 `GET /api/me/gear-atlas-submissions` 和管理员审核接口会返回投稿状态字段 `status`、可选 `rejection_reason`、以及审核通过时的 `review_changes`。`review_changes` 是数组，每项包含 `field`、中文 `label`、`before` 和 `after`，表示管理员按原始投稿快照和最终通过值生成的公共字段差异。管理员 `PATCH /api/admin/gear-atlas-submissions/:id` 只能替换图鉴公共字段；`POST /api/admin/gear-atlas-submissions/:id/reject` 必须提交非空 `reason`，空白原因返回 `422`。
+用户自己的 `GET /api/v1/me/gear-atlas-submissions` 和管理员审核接口会返回投稿状态字段 `status`、可选 `rejection_reason`、以及审核通过时的 `review_changes`。`review_changes` 是数组，每项包含 `field`、中文 `label`、`before` 和 `after`，表示管理员按原始投稿快照和最终通过值生成的公共字段差异。管理员 `PATCH /api/v1/admin/gear-atlas-submissions/:id` 只能替换图鉴公共字段；`POST /api/v1/admin/gear-atlas-submissions/:id/reject` 必须提交非空 `reason`，空白原因返回 `422`。
 
 公共内容语言不使用 query 参数，统一通过请求头：
 
@@ -340,11 +340,11 @@ X-StellarTrail-Locale: en
 
 ### Outdoor skills / knots
 
-一期户外技能只有绳结。服务端通过 `import-knots3d` 将 `.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json` 导入数据库；绳结媒体不再从 `/assets/*` 或本地静态目录拼 URL。管理员使用 `PUT /api/admin/skills/knots/:knot_id/media/:asset_id` 上传 GIF/MP4/WebP/PNG 等二进制到 MinIO/S3-compatible object storage，服务端把 `media_resources` 与 `knot_media_resources` 元数据写入数据库。公开读接口只返回 DB 中 active media 的 `url`/`mime_type`/`size_bytes` 等公共字段，允许这些 URL 指向与 API 不同域名的 MinIO/CDN。运行配置只保留一组 `minio` 连接信息，私有反馈图和公开绳结媒体分别配置业务 bucket。
+一期户外技能只有绳结。服务端通过 `import-knots3d` 将 `.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json` 导入数据库；绳结媒体不再从 `/assets/*` 或本地静态目录拼 URL。管理员使用 `PUT /api/v1/admin/skills/knots/:knot_id/media/:asset_id` 上传 GIF/MP4/WebP/PNG 等二进制到 MinIO/S3-compatible object storage，服务端把 `media_resources` 与 `knot_media_resources` 元数据写入数据库。公开读接口只返回 DB 中 active media 的 `url`/`mime_type`/`size_bytes` 等公共字段，允许这些 URL 指向与 API 不同域名的 MinIO/CDN。运行配置只保留一组 `minio` 连接信息，私有反馈图和公开绳结媒体分别配置业务 bucket。
 
 核心媒体 `asset_id` / `media_type`：`thumbnail`、`preview`、`draw_gif`、`turntable_gif`、`draw_mp4`、`turntable_mp4`。Knots3D 全量一期验收目标为 `225 knots × 6 core media = 1350`。
 
-绳结分页参数为 `offset`/`limit`，筛选参数为 `category`、`difficulty`，关键词为 `q`；响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`。`/api/skills/knots/filters` 返回当前语言下可选用途、难度及数量。`/api/skills/knots/offline-manifest` 不接受 query 参数，返回完整离线清单、`item_count`、去重后的 `media_count` 和 `estimated_bytes`，并复用 public response cache 与 `ETag`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
+绳结分页参数为 `offset`/`limit`，筛选参数为 `category`、`difficulty`，关键词为 `q`；响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`。`/api/v1/skills/knots/filters` 返回当前语言下可选用途、难度及数量。`/api/v1/skills/knots/offline-manifest` 不接受 query 参数，返回完整离线清单、`item_count`、去重后的 `media_count` 和 `estimated_bytes`，并复用 public response cache 与 `ETag`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
 
 ### Gear templates and gear atlas i18n
 
@@ -359,7 +359,7 @@ X-StellarTrail-Locale: en
 管理员上传接口需要 Bearer Token，且当前用户必须拥有数据库 `admin_roles` 中的 `admin` 或 `super_admin` 角色。该接口是批量导入 Knots3D 媒体的唯一写入入口：脚本不得绕过 API 直接写 MinIO 或 DB。
 
 ```http
-PUT /api/admin/skills/knots/:knot_id/media/:asset_id
+PUT /api/v1/admin/skills/knots/:knot_id/media/:asset_id
 Authorization: Bearer <admin-token>
 Content-Type: multipart/form-data
 ```
@@ -410,7 +410,7 @@ npm run knots:upload-media -- --verify-only
 ## Admin API usage statistics
 
 ```http
-GET /api/admin/api-usage?from=2026-05-01&to=2026-05-18&method=GET&route=/api/me/gears&limit=50&offset=0
+GET /api/v1/admin/api-usage?from=2026-05-01&to=2026-05-18&method=GET&route=/api/v1/me/gears&limit=50&offset=0
 ```
 
 该接口需要 Bearer Token，且当前用户必须拥有数据库 `admin_roles` 中的 `admin` 或 `super_admin` 角色。它只返回按日期、用户、HTTP 方法、路由模板和状态码聚合后的计数，不返回单次请求日志。
@@ -418,7 +418,7 @@ GET /api/admin/api-usage?from=2026-05-01&to=2026-05-18&method=GET&route=/api/me/
 ## Admin feedback
 
 ```http
-GET /api/admin/feedback?status=open&limit=50&cursor=0
+GET /api/v1/admin/feedback?status=open&limit=50&cursor=0
 Authorization: Bearer <admin-token>
 ```
 
@@ -453,7 +453,7 @@ Authorization: Bearer <admin-token>
           "content_type": "image/png",
           "size_bytes": 1024,
           "sha256": "hex",
-          "download_url": "/api/admin/feedback-images/upload-uuid",
+          "download_url": "/api/v1/admin/feedback-images/upload-uuid",
           "created_at": "2026-05-19T00:00:00Z"
         }
       ],
@@ -470,7 +470,7 @@ Authorization: Bearer <admin-token>
 管理员角色存储在 `admin_roles` 表，角色值为 `admin` 或 `super_admin`。迁移只会把数据库中已存在且未删除的 `username = 'stellarisw'` 用户写入或升级为 `super_admin`；如果该用户不存在，迁移不会创建用户或预留用户名。`admin` 与 `super_admin` 都能访问管理员能力，只有 `super_admin` 可以授予或移除普通 `admin`。
 
 ```http
-POST /api/admin/admins
+POST /api/v1/admin/admins
 Authorization: Bearer <super-admin-token>
 Content-Type: application/json
 
@@ -489,7 +489,7 @@ Content-Type: application/json
 移除普通管理员：
 
 ```http
-DELETE /api/admin/admins?username=trail_admin
+DELETE /api/v1/admin/admins?username=trail_admin
 Authorization: Bearer <super-admin-token>
 ```
 
@@ -500,20 +500,20 @@ Authorization: Bearer <super-admin-token>
 隐私边界：
 
 - 记录 `user_id`（认证成功时）、`method`、matched route 模板、`status_code`、日期桶和调用次数。
-- 动态路径只保存模板，例如 `/api/me/gears/:id`，不保存真实装备 ID。
+- 动态路径只保存模板，例如 `/api/v1/me/gears/:id`，不保存真实装备 ID。
 - 不记录 query string、请求体、响应体、Authorization header、access token、refresh token、token hash、Cookie、IP、User-Agent。
 
 查询参数：
 
-| 字段      | 必填 | 说明                                                                |
-| --------- | ---- | ------------------------------------------------------------------- |
-| `from`    | 否   | 起始日期，`YYYY-MM-DD`；默认最近 30 天。                            |
-| `to`      | 否   | 结束日期，`YYYY-MM-DD`；默认当天。                                  |
-| `user_id` | 否   | 仅查看某个用户的聚合统计。                                          |
-| `method`  | 否   | `GET` / `POST` / `PUT` / `PATCH` / `DELETE`。                       |
-| `route`   | 否   | matched route 模板，例如 `/api/me/gears/:id`；不能带 query string。 |
-| `limit`   | 否   | 默认 50，最大 100。                                                 |
-| `offset`  | 否   | 分页偏移。                                                          |
+| 字段      | 必填 | 说明                                                                   |
+| --------- | ---- | ---------------------------------------------------------------------- |
+| `from`    | 否   | 起始日期，`YYYY-MM-DD`；默认最近 30 天。                               |
+| `to`      | 否   | 结束日期，`YYYY-MM-DD`；默认当天。                                     |
+| `user_id` | 否   | 仅查看某个用户的聚合统计。                                             |
+| `method`  | 否   | `GET` / `POST` / `PUT` / `PATCH` / `DELETE`。                          |
+| `route`   | 否   | matched route 模板，例如 `/api/v1/me/gears/:id`；不能带 query string。 |
+| `limit`   | 否   | 默认 50，最大 100。                                                    |
+| `offset`  | 否   | 分页偏移。                                                             |
 
 响应示例：
 
@@ -524,7 +524,7 @@ Authorization: Bearer <super-admin-token>
       "bucket_date": "2026-05-18",
       "user_id": "user-id",
       "method": "GET",
-      "route_pattern": "/api/me/gears",
+      "route_pattern": "/api/v1/me/gears",
       "status_code": 200,
       "call_count": 12,
       "first_called_at": "2026-05-18T08:00:00Z",
@@ -537,24 +537,24 @@ Authorization: Bearer <super-admin-token>
 
 ## Cache / performance
 
-服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/me/gears`、`PATCH /api/me/gears/:id`、`DELETE /api/me/gears/:id`、`POST /api/me/gears/:id/restore` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。公共读接口（装备图鉴、技能、绳结列表、筛选、详情、离线 manifest）也会缓存最终 JSON 响应和 ETag，Redis 不可用时退回 API 进程内存缓存。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境；公共接口 HTTP 缓存 TTL 由 `public_api.cache_ttl_seconds` 控制。装备 specs 字段频次只保存在 Redis sorted set 中，key 为 `<prefix>:gear:<user_id>:spec-keys:<category>`，member 只保存 spec key，不保存用户填写的具体值。用户标签建议也只保存在 Redis：标签频次 key 为 `<prefix>:gear:<user_id>:tags`，标签颜色偏好 hash key 为 `<prefix>:gear:<user_id>:tag-colors`。
+服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/v1/me/gears`、`PATCH /api/v1/me/gears/:id`、`DELETE /api/v1/me/gears/:id`、`POST /api/v1/me/gears/:id/restore` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。公共读接口（装备图鉴、技能、绳结列表、筛选、详情、离线 manifest）也会缓存最终 JSON 响应和 ETag，Redis 不可用时退回 API 进程内存缓存。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境；公共接口 HTTP 缓存 TTL 由 `public_api.cache_ttl_seconds` 控制。装备 specs 字段频次只保存在 Redis sorted set 中，key 为 `<prefix>:gear:<user_id>:spec-keys:<category>`，member 只保存 spec key，不保存用户填写的具体值。用户标签建议也只保存在 Redis：标签频次 key 为 `<prefix>:gear:<user_id>:tags`，标签颜色偏好 hash key 为 `<prefix>:gear:<user_id>:tag-colors`。
 
 ## Gear inventory
 
 ```http
-GET /api/me/gears/categories?tab=available
-GET /api/me/gears/stats?tab=available
-GET /api/me/gears/overview?tab=available&limit=20&sort=created_at_desc
-GET /api/me/gears/spec-key-rankings?category=electronics_system
-GET /api/me/gears/tag-suggestions?limit=20
-GET /api/me/gears?tab=available&category=electronics_system&status=available&q=nitecore&sort=created_at_desc&limit=20&cursor=0
-POST /api/me/gears
-GET /api/me/gears/:id
-PATCH /api/me/gears/:id
-DELETE /api/me/gears/:id
-POST /api/me/gears/:id/restore
-GET /api/me/gears/export?tab=available&format=csv
-POST /api/me/gears/import
+GET /api/v1/me/gears/categories?tab=available
+GET /api/v1/me/gears/stats?tab=available
+GET /api/v1/me/gears/overview?tab=available&limit=20&sort=created_at_desc
+GET /api/v1/me/gears/spec-key-rankings?category=electronics_system
+GET /api/v1/me/gears/tag-suggestions?limit=20
+GET /api/v1/me/gears?tab=available&category=electronics_system&status=available&q=nitecore&sort=created_at_desc&limit=20&cursor=0
+POST /api/v1/me/gears
+GET /api/v1/me/gears/:id
+PATCH /api/v1/me/gears/:id
+DELETE /api/v1/me/gears/:id
+POST /api/v1/me/gears/:id/restore
+GET /api/v1/me/gears/export?tab=available&format=csv
+POST /api/v1/me/gears/import
 ```
 
 ### Create gear
@@ -607,11 +607,11 @@ POST /api/me/gears/import
 
 个人装备可以独立存在，不要求先关联装备图鉴。用户实际选择或手填的尺寸保存在 `selected_variant_label`，可选的稳定 key 保存在 `selected_variant_key`；当装备关联图鉴时，`atlas_item_id` 指向公开图鉴条目，客户端可读取该图鉴条目的 `variants` 作为“可选尺寸”。个人装备 `specs` 继续保存容量、背长、收纳尺寸等参数，但不再接受 `size`、`backpack_size`、`size_or_length`。
 
-删除接口是软删除：`DELETE /api/me/gears/:id` 会进入 `tab=history`；`POST /api/me/gears/:id/restore` 可恢复。
+删除接口是软删除：`DELETE /api/v1/me/gears/:id` 会进入 `tab=history`；`POST /api/v1/me/gears/:id/restore` 可恢复。
 
 ### Gear overview
 
-`GET /api/me/gears/overview` 是小程序首屏聚合接口，不是新的装备业务模型。它一次返回装备分类筛选、统计卡片和首屏列表，避免小程序进入首页或装备页时连续请求 `categories`、`stats`、`list` 三个接口。数据仍来自现有装备分类统计、装备统计和装备列表逻辑。
+`GET /api/v1/me/gears/overview` 是小程序首屏聚合接口，不是新的装备业务模型。它一次返回装备分类筛选、统计卡片和首屏列表，避免小程序进入首页或装备页时连续请求 `categories`、`stats`、`list` 三个接口。数据仍来自现有装备分类统计、装备统计和装备列表逻辑。
 
 支持参数：
 
@@ -619,7 +619,7 @@ POST /api/me/gears/import
 - `limit`: 首屏列表数量，默认 `20`，仓储层会按列表接口同样规则限制在 `1..100`。
 - `sort`: 首屏列表排序，默认 `created_at_desc`。
 
-不支持 `cursor`、`q`、`category`、`status`。筛选、搜索、状态切换和后续分页仍调用 `GET /api/me/gears`，避免每次筛选都重新计算统计。
+不支持 `cursor`、`q`、`category`、`status`。筛选、搜索、状态切换和后续分页仍调用 `GET /api/v1/me/gears`，避免每次筛选都重新计算统计。
 
 ```json
 {
@@ -643,7 +643,7 @@ POST /api/me/gears/import
 
 ### Spec key rankings
 
-`GET /api/me/gears/spec-key-rankings?category=electronics_system` 返回当前登录用户在该装备分类下常填写的 specs 字段 key：
+`GET /api/v1/me/gears/spec-key-rankings?category=electronics_system` 返回当前登录用户在该装备分类下常填写的 specs 字段 key：
 
 ```json
 {
@@ -655,7 +655,7 @@ POST /api/me/gears/import
 
 ### Tag suggestions
 
-`GET /api/me/gears/tag-suggestions?limit=20` 返回当前登录用户常用装备标签，以及该标签当前颜色偏好：
+`GET /api/v1/me/gears/tag-suggestions?limit=20` 返回当前登录用户常用装备标签，以及该标签当前颜色偏好：
 
 ```json
 {

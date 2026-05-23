@@ -15,11 +15,8 @@ use crate::{
 /// Profile route group.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/me/profile", get(current_profile))
-        .route(
-            "/api/me/profile/avatar",
-            put(upload_avatar).post(upload_avatar),
-        )
+        .route("/me/profile", get(current_profile))
+        .route("/me/profile/avatar", put(upload_avatar).post(upload_avatar))
 }
 
 /// Returns the authenticated user's current profile snapshot.

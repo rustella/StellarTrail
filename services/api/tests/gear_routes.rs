@@ -145,7 +145,7 @@ async fn login_response(app: &Router, code: &str) -> Value {
     let (status, value) = send_json(
         app,
         "POST",
-        "/api/auth/wechat-login",
+        "/api/v1/auth/wechat-login",
         None,
         json!({"code": code, "profile": {"nickname": "测试用户", "avatar_url": null}}),
     )
@@ -158,7 +158,7 @@ async fn register_password_user_response(app: &Router, username: &str, email: &s
     let (code_status, code_body) = send_json(
         app,
         "POST",
-        "/api/auth/email-verification-code",
+        "/api/v1/auth/email-verification-code",
         None,
         json!({ "email": email }),
     )
@@ -169,7 +169,7 @@ async fn register_password_user_response(app: &Router, username: &str, email: &s
     let (status, value) = send_json(
         app,
         "POST",
-        "/api/auth/register",
+        "/api/v1/auth/register",
         None,
         json!({
             "username": username,
@@ -206,7 +206,7 @@ async fn gear_stats_reads_are_cached_and_mutations_invalidate_cache_version() {
     let (create_status, created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({"category": "lighting_system", "name": "缓存头灯"}),
     )
@@ -214,7 +214,7 @@ async fn gear_stats_reads_are_cached_and_mutations_invalidate_cache_version() {
     assert_eq!(create_status, StatusCode::CREATED, "{created}");
 
     let (first_status, first_stats) =
-        send_empty(&app.router, "GET", "/api/me/gears/stats", Some(&token)).await;
+        send_empty(&app.router, "GET", "/api/v1/me/gears/stats", Some(&token)).await;
     assert_eq!(first_status, StatusCode::OK, "{first_stats}");
     assert_eq!(first_stats["current_count"], 1);
     let after_first_read = store.stats();
@@ -224,7 +224,7 @@ async fn gear_stats_reads_are_cached_and_mutations_invalidate_cache_version() {
     );
 
     let (second_status, second_stats) =
-        send_empty(&app.router, "GET", "/api/me/gears/stats", Some(&token)).await;
+        send_empty(&app.router, "GET", "/api/v1/me/gears/stats", Some(&token)).await;
     assert_eq!(second_status, StatusCode::OK, "{second_stats}");
     assert_eq!(second_stats["current_count"], 1);
     let after_second_read = store.stats();
@@ -236,7 +236,7 @@ async fn gear_stats_reads_are_cached_and_mutations_invalidate_cache_version() {
     let (second_create_status, second_created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({"category": "lighting_system", "name": "缓存营灯"}),
     )
@@ -253,7 +253,7 @@ async fn gear_stats_reads_are_cached_and_mutations_invalidate_cache_version() {
     );
 
     let (fresh_status, fresh_stats) =
-        send_empty(&app.router, "GET", "/api/me/gears/stats", Some(&token)).await;
+        send_empty(&app.router, "GET", "/api/v1/me/gears/stats", Some(&token)).await;
     assert_eq!(fresh_status, StatusCode::OK, "{fresh_stats}");
     assert_eq!(fresh_stats["current_count"], 2);
 }
@@ -272,7 +272,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (create_status, created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({
             "category": "lighting_system",
@@ -287,7 +287,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (first_status, first) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        "/api/v1/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
         Some(&token),
     )
     .await;
@@ -302,7 +302,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (second_status, second) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        "/api/v1/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
         Some(&token),
     )
     .await;
@@ -317,7 +317,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (unsupported_status, unsupported) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/overview?q=headlamp",
+        "/api/v1/me/gears/overview?q=headlamp",
         Some(&token),
     )
     .await;
@@ -328,7 +328,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (second_create_status, second_created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({"category": "lighting_system", "name": "首屏营灯"}),
     )
@@ -342,7 +342,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (fresh_status, fresh) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        "/api/v1/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
         Some(&token),
     )
     .await;
@@ -366,7 +366,7 @@ async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user(
     let (initial_status, initial) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/spec-key-rankings?category=electronics_system",
+        "/api/v1/me/gears/spec-key-rankings?category=electronics_system",
         Some(&token),
     )
     .await;
@@ -376,7 +376,7 @@ async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user(
     let (create_status, created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({
             "category": "electronics_system",
@@ -396,7 +396,7 @@ async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user(
     let (second_create_status, second_created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({
             "category": "electronics_system",
@@ -416,7 +416,7 @@ async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user(
     let (ranking_status, ranking) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/spec-key-rankings?category=electronics_system",
+        "/api/v1/me/gears/spec-key-rankings?category=electronics_system",
         Some(&token),
     )
     .await;
@@ -445,7 +445,7 @@ async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user(
     let (update_status, updated) = send_json(
         &app.router,
         "PATCH",
-        &format!("/api/me/gears/{gear_id}"),
+        &format!("/api/v1/me/gears/{gear_id}"),
         Some(&token),
         json!({
             "specs": {
@@ -460,7 +460,7 @@ async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user(
     let (updated_ranking_status, updated_ranking) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/spec-key-rankings?category=electronics_system",
+        "/api/v1/me/gears/spec-key-rankings?category=electronics_system",
         Some(&token),
     )
     .await;
@@ -477,7 +477,7 @@ async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user(
     let (other_status, other_ranking) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/spec-key-rankings?category=electronics_system",
+        "/api/v1/me/gears/spec-key-rankings?category=electronics_system",
         Some(&other_token),
     )
     .await;
@@ -492,7 +492,7 @@ async fn spec_key_rankings_degrade_when_cache_is_disabled() {
     let (create_status, created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({
             "category": "electronics_system",
@@ -508,7 +508,7 @@ async fn spec_key_rankings_degrade_when_cache_is_disabled() {
     let (ranking_status, ranking) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/spec-key-rankings?category=electronics_system",
+        "/api/v1/me/gears/spec-key-rankings?category=electronics_system",
         Some(&token),
     )
     .await;
@@ -532,7 +532,7 @@ async fn tag_suggestions_track_tag_frequency_and_colors_without_changing_gear_ta
     let (initial_status, initial) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/tag-suggestions",
+        "/api/v1/me/gears/tag-suggestions",
         Some(&token),
     )
     .await;
@@ -542,7 +542,7 @@ async fn tag_suggestions_track_tag_frequency_and_colors_without_changing_gear_ta
     let (create_status, created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({
             "category": "electronics_system",
@@ -570,7 +570,7 @@ async fn tag_suggestions_track_tag_frequency_and_colors_without_changing_gear_ta
     let (suggestion_status, suggestions) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/tag-suggestions?limit=20",
+        "/api/v1/me/gears/tag-suggestions?limit=20",
         Some(&token),
     )
     .await;
@@ -579,7 +579,8 @@ async fn tag_suggestions_track_tag_frequency_and_colors_without_changing_gear_ta
     assert!(suggestion_items.contains(&json!({"tag": "冬季", "color": "blue"})));
     assert!(suggestion_items.contains(&json!({"tag": "电子", "color": "teal"})));
 
-    let (list_status, list) = send_empty(&app.router, "GET", "/api/me/gears", Some(&token)).await;
+    let (list_status, list) =
+        send_empty(&app.router, "GET", "/api/v1/me/gears", Some(&token)).await;
     assert_eq!(list_status, StatusCode::OK, "{list}");
     assert_eq!(list["items"][0]["tags"], json!(["冬季", "电子"]));
     assert_eq!(
@@ -591,7 +592,7 @@ async fn tag_suggestions_track_tag_frequency_and_colors_without_changing_gear_ta
     let (other_status, other_suggestions) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/tag-suggestions",
+        "/api/v1/me/gears/tag-suggestions",
         Some(&other_token),
     )
     .await;
@@ -607,7 +608,7 @@ async fn tag_color_validation_and_disabled_cache_degrade_cleanly() {
     let (invalid_status, invalid) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({
             "category": "electronics_system",
@@ -634,7 +635,7 @@ async fn tag_color_validation_and_disabled_cache_degrade_cleanly() {
     let (create_status, created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({
             "category": "electronics_system",
@@ -651,7 +652,7 @@ async fn tag_color_validation_and_disabled_cache_degrade_cleanly() {
     let (suggestion_status, suggestions) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears/tag-suggestions",
+        "/api/v1/me/gears/tag-suggestions",
         Some(&token),
     )
     .await;
@@ -667,7 +668,7 @@ async fn backpack_specs_keep_back_length_and_reject_size_specs() {
     let (backpack_status, backpack) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({
             "category": "backpack_system",
@@ -686,7 +687,7 @@ async fn backpack_specs_keep_back_length_and_reject_size_specs() {
     let (old_backpack_status, old_backpack) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({
             "category": "backpack_system",
@@ -720,7 +721,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     let (create_status, created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({
             "category": "electronics_system",
@@ -754,7 +755,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     let (submission_status, submission) = send_empty(
         &app.router,
         "POST",
-        &format!("/api/me/gears/{gear_id}/atlas-submission"),
+        &format!("/api/v1/me/gears/{gear_id}/atlas-submission"),
         Some(&token),
     )
     .await;
@@ -772,14 +773,14 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     assert!(submission.get("tags").is_none());
 
     let (public_pending_status, public_pending) =
-        send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
+        send_empty(&app.router, "GET", "/api/v1/gear-atlas", None).await;
     assert_eq!(public_pending_status, StatusCode::OK, "{public_pending}");
     assert_eq!(public_pending["items"].as_array().unwrap().len(), 0);
 
     let (duplicate_status, duplicate) = send_empty(
         &app.router,
         "POST",
-        &format!("/api/me/gears/{gear_id}/atlas-submission"),
+        &format!("/api/v1/me/gears/{gear_id}/atlas-submission"),
         Some(&token),
     )
     .await;
@@ -789,7 +790,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     let (non_admin_status, non_admin) = send_empty(
         &app.router,
         "GET",
-        "/api/admin/gear-atlas-submissions",
+        "/api/v1/admin/gear-atlas-submissions",
         Some(&token),
     )
     .await;
@@ -803,7 +804,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     let (admin_list_status, admin_list) = send_empty(
         &app.router,
         "GET",
-        "/api/admin/gear-atlas-submissions?status=pending",
+        "/api/v1/admin/gear-atlas-submissions?status=pending",
         Some(admin_token.as_str()),
     )
     .await;
@@ -814,7 +815,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     let (approve_status, approved) = send_empty(
         &app.router,
         "POST",
-        &format!("/api/admin/gear-atlas-submissions/{submission_id}/approve"),
+        &format!("/api/v1/admin/gear-atlas-submissions/{submission_id}/approve"),
         Some(admin_token.as_str()),
     )
     .await;
@@ -825,7 +826,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     let (fallback_status, fallback_headers, fallback_public) = send_empty_with_headers(
         &app.router,
         "GET",
-        "/api/gear-atlas",
+        "/api/v1/gear-atlas",
         None,
         &[("X-StellarTrail-Locale", "en")],
     )
@@ -855,7 +856,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
         .await
         .expect("insert english atlas localization");
 
-    let (public_status, public) = send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
+    let (public_status, public) = send_empty(&app.router, "GET", "/api/v1/gear-atlas", None).await;
     assert_eq!(public_status, StatusCode::OK, "{public}");
     assert_eq!(public["items"].as_array().unwrap().len(), 1);
     assert_eq!(public["items"][0]["id"], submission_id);
@@ -864,7 +865,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     let (english_public_status, english_headers, english_public) = send_empty_with_headers(
         &app.router,
         "GET",
-        "/api/gear-atlas?limit=21",
+        "/api/v1/gear-atlas?limit=21",
         None,
         &[("X-StellarTrail-Locale", "en")],
     )
@@ -880,7 +881,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     let (detail_status, detail) = send_empty(
         &app.router,
         "GET",
-        &format!("/api/gear-atlas/{submission_id}"),
+        &format!("/api/v1/gear-atlas/{submission_id}"),
         None,
     )
     .await;
@@ -895,7 +896,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     let (english_detail_status, english_detail_headers, english_detail) = send_empty_with_headers(
         &app.router,
         "GET",
-        &format!("/api/gear-atlas/{submission_id}"),
+        &format!("/api/v1/gear-atlas/{submission_id}"),
         None,
         &[("Accept-Language", "en-US,en;q=0.8")],
     )
@@ -913,8 +914,14 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
         "Backup power for winter hiking"
     );
 
-    let (locale_status, _, locale_body) =
-        send_empty_with_headers(&app.router, "GET", "/api/gear-atlas?locale=en", None, &[]).await;
+    let (locale_status, _, locale_body) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        "/api/v1/gear-atlas?locale=en",
+        None,
+        &[],
+    )
+    .await;
     assert_eq!(locale_status, StatusCode::BAD_REQUEST, "{locale_body}");
     assert_eq!(locale_body["code"], "unsupported_query_parameter");
     assert_eq!(locale_body["parameter"], "locale");
@@ -922,7 +929,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     let (detail_locale_status, _, detail_locale_body) = send_empty_with_headers(
         &app.router,
         "GET",
-        &format!("/api/gear-atlas/{submission_id}?locale=en"),
+        &format!("/api/v1/gear-atlas/{submission_id}?locale=en"),
         None,
         &[],
     )
@@ -977,7 +984,7 @@ async fn gear_atlas_public_routes_expose_external_source_summary_without_interna
         .expect("approve import")
         .expect("approved import");
 
-    let (list_status, list) = send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
+    let (list_status, list) = send_empty(&app.router, "GET", "/api/v1/gear-atlas", None).await;
     assert_eq!(list_status, StatusCode::OK, "{list}");
     let item = &list["items"][0];
     assert_eq!(item["source_name"], "8264 户外用品点评");
@@ -994,7 +1001,7 @@ async fn gear_atlas_public_routes_expose_external_source_summary_without_interna
     let (detail_status, detail) = send_empty(
         &app.router,
         "GET",
-        &format!("/api/gear-atlas/{}", imported.id),
+        &format!("/api/v1/gear-atlas/{}", imported.id),
         None,
     )
     .await;
@@ -1049,7 +1056,7 @@ async fn gear_atlas_public_routes_use_response_cache_and_etag() {
         .expect("approved import");
 
     let (first_list_status, first_list_headers, first_list) =
-        send_empty_with_headers(&app.router, "GET", "/api/gear-atlas?limit=10", None, &[]).await;
+        send_empty_with_headers(&app.router, "GET", "/api/v1/gear-atlas?limit=10", None, &[]).await;
     assert_eq!(first_list_status, StatusCode::OK, "{first_list}");
     assert_eq!(first_list["items"][0]["name"], "缓存图鉴头灯");
     let list_etag = first_list_headers
@@ -1064,7 +1071,7 @@ async fn gear_atlas_public_routes_use_response_cache_and_etag() {
     let (second_list_status, _second_list_headers, second_list) = send_empty_with_headers(
         &app.router,
         "GET",
-        "/api/gear-atlas?limit=10",
+        "/api/v1/gear-atlas?limit=10",
         None,
         &[(header::IF_NONE_MATCH.as_str(), list_etag.as_str())],
     )
@@ -1077,7 +1084,7 @@ async fn gear_atlas_public_routes_use_response_cache_and_etag() {
     let after_second_list = store.stats();
     assert!(after_second_list.hit_count > after_first_list.hit_count);
 
-    let detail_path = format!("/api/gear-atlas/{}", imported.id);
+    let detail_path = format!("/api/v1/gear-atlas/{}", imported.id);
     let (first_detail_status, first_detail_headers, first_detail) =
         send_empty_with_headers(&app.router, "GET", &detail_path, None, &[]).await;
     assert_eq!(first_detail_status, StatusCode::OK, "{first_detail}");
@@ -1116,7 +1123,7 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
     let (unauth_status, unauth) = send_json(
         &app.router,
         "POST",
-        "/api/me/gear-atlas-submissions",
+        "/api/v1/me/gear-atlas-submissions",
         None,
         json!({"category": "lighting_system", "name": "未登录头灯"}),
     )
@@ -1126,7 +1133,7 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
     let (invalid_status, invalid) = send_json(
         &app.router,
         "POST",
-        "/api/me/gear-atlas-submissions",
+        "/api/v1/me/gear-atlas-submissions",
         Some(&token),
         json!({
             "category": "lighting_system",
@@ -1152,7 +1159,7 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
     let (invalid_size_status, invalid_size) = send_json(
         &app.router,
         "POST",
-        "/api/me/gear-atlas-submissions",
+        "/api/v1/me/gear-atlas-submissions",
         Some(&token),
         json!({
             "category": "clothing_system",
@@ -1177,7 +1184,7 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
     let (create_status, created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gear-atlas-submissions",
+        "/api/v1/me/gear-atlas-submissions",
         Some(&token),
         json!({
             "category": "lighting_system",
@@ -1202,7 +1209,7 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
     let (update_status, updated) = send_json(
         &app.router,
         "PATCH",
-        &format!("/api/admin/gear-atlas-submissions/{submission_id}"),
+        &format!("/api/v1/admin/gear-atlas-submissions/{submission_id}"),
         Some(admin_token.as_str()),
         json!({
             "category": "lighting_system",
@@ -1225,7 +1232,7 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
     let (blank_reject_status, blank_reject) = send_json(
         &app.router,
         "POST",
-        &format!("/api/admin/gear-atlas-submissions/{submission_id}/reject"),
+        &format!("/api/v1/admin/gear-atlas-submissions/{submission_id}/reject"),
         Some(admin_token.as_str()),
         json!({"reason": "  "}),
     )
@@ -1239,7 +1246,7 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
     let (reject_status, rejected) = send_json(
         &app.router,
         "POST",
-        &format!("/api/admin/gear-atlas-submissions/{submission_id}/reject"),
+        &format!("/api/v1/admin/gear-atlas-submissions/{submission_id}/reject"),
         Some(admin_token.as_str()),
         json!({"reason": "信息不足"}),
     )
@@ -1248,7 +1255,7 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
     assert_eq!(rejected["status"], "rejected");
     assert_eq!(rejected["rejection_reason"], "信息不足");
 
-    let (public_status, public) = send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
+    let (public_status, public) = send_empty(&app.router, "GET", "/api/v1/gear-atlas", None).await;
     assert_eq!(public_status, StatusCode::OK, "{public}");
     assert_eq!(public["items"].as_array().unwrap().len(), 0);
 }
@@ -1260,7 +1267,7 @@ async fn gear_atlas_admin_edits_are_reported_to_submitter_after_approval() {
     let (create_status, created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gear-atlas-submissions",
+        "/api/v1/me/gear-atlas-submissions",
         Some(&token),
         json!({
             "category": "sleep_system",
@@ -1292,7 +1299,7 @@ async fn gear_atlas_admin_edits_are_reported_to_submitter_after_approval() {
     let (update_status, updated) = send_json(
         &app.router,
         "PATCH",
-        &format!("/api/admin/gear-atlas-submissions/{submission_id}"),
+        &format!("/api/v1/admin/gear-atlas-submissions/{submission_id}"),
         Some(admin_token.as_str()),
         json!({
             "category": "sleep_system",
@@ -1316,7 +1323,7 @@ async fn gear_atlas_admin_edits_are_reported_to_submitter_after_approval() {
     let (approve_status, approved) = send_empty(
         &app.router,
         "POST",
-        &format!("/api/admin/gear-atlas-submissions/{submission_id}/approve"),
+        &format!("/api/v1/admin/gear-atlas-submissions/{submission_id}/approve"),
         Some(admin_token.as_str()),
     )
     .await;
@@ -1337,7 +1344,7 @@ async fn gear_atlas_admin_edits_are_reported_to_submitter_after_approval() {
     let (mine_status, mine) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gear-atlas-submissions",
+        "/api/v1/me/gear-atlas-submissions",
         Some(&token),
     )
     .await;
@@ -1350,7 +1357,7 @@ async fn gear_atlas_admin_edits_are_reported_to_submitter_after_approval() {
             .any(|change| change["field"] == "name")
     );
 
-    let (public_status, public) = send_empty(&app.router, "GET", "/api/gear-atlas", None).await;
+    let (public_status, public) = send_empty(&app.router, "GET", "/api/v1/gear-atlas", None).await;
     assert_eq!(public_status, StatusCode::OK, "{public}");
     assert_eq!(public["items"][0]["name"], "审核后睡袋");
     assert!(public["items"][0].get("review_changes").is_none());
@@ -1390,7 +1397,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     let (status, created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         create_body,
     )
@@ -1406,14 +1413,19 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     assert_eq!(created["specs"]["battery_capacity"], "20000 mAh");
 
     let (stats_status, stats) =
-        send_empty(&app.router, "GET", "/api/me/gears/stats", Some(&token)).await;
+        send_empty(&app.router, "GET", "/api/v1/me/gears/stats", Some(&token)).await;
     assert_eq!(stats_status, StatusCode::OK, "{stats}");
     assert_eq!(stats["current_count"], 1);
     assert_eq!(stats["total_value_cents"], 63900);
     assert_eq!(stats["total_weight_g"], 315);
 
-    let (category_status, categories) =
-        send_empty(&app.router, "GET", "/api/me/gears/categories", Some(&token)).await;
+    let (category_status, categories) = send_empty(
+        &app.router,
+        "GET",
+        "/api/v1/me/gears/categories",
+        Some(&token),
+    )
+    .await;
     assert_eq!(category_status, StatusCode::OK, "{categories}");
     assert_eq!(categories["items"][0]["id"], "all");
     assert_eq!(categories["items"][0]["count"], 1);
@@ -1421,7 +1433,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     let (list_status, list) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears?category=electronics_system&q=nitecore&sort=created_at_desc",
+        "/api/v1/me/gears?category=electronics_system&q=nitecore&sort=created_at_desc",
         Some(&token),
     )
     .await;
@@ -1436,7 +1448,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     let (invalid_status, invalid) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token),
         json!({
             "category": "electronics_system",
@@ -1478,7 +1490,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     let (update_status, updated) = send_json(
         &app.router,
         "PATCH",
-        &format!("/api/me/gears/{gear_id}"),
+        &format!("/api/v1/me/gears/{gear_id}"),
         Some(&token),
         json!({"status": "maintenance", "storage_location": "维修箱"}),
     )
@@ -1491,21 +1503,21 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     let (delete_status, delete_body) = send_empty(
         &app.router,
         "DELETE",
-        &format!("/api/me/gears/{gear_id}"),
+        &format!("/api/v1/me/gears/{gear_id}"),
         Some(&token),
     )
     .await;
     assert_eq!(delete_status, StatusCode::NO_CONTENT, "{delete_body}");
 
     let (available_status, available) =
-        send_empty(&app.router, "GET", "/api/me/gears", Some(&token)).await;
+        send_empty(&app.router, "GET", "/api/v1/me/gears", Some(&token)).await;
     assert_eq!(available_status, StatusCode::OK, "{available}");
     assert_eq!(available["items"].as_array().unwrap().len(), 0);
 
     let (history_status, history) = send_empty(
         &app.router,
         "GET",
-        "/api/me/gears?tab=history",
+        "/api/v1/me/gears?tab=history",
         Some(&token),
     )
     .await;
@@ -1515,7 +1527,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     let (restore_status, restored) = send_empty(
         &app.router,
         "POST",
-        &format!("/api/me/gears/{gear_id}/restore"),
+        &format!("/api/v1/me/gears/{gear_id}/restore"),
         Some(&token),
     )
     .await;
@@ -1531,7 +1543,7 @@ async fn gear_import_dry_run_and_export_csv_are_supported() {
     let (dry_status, dry) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears/import",
+        "/api/v1/me/gears/import",
         Some(&token),
         json!({
             "dry_run": true,
@@ -1545,7 +1557,7 @@ async fn gear_import_dry_run_and_export_csv_are_supported() {
     let (import_status, imported) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears/import",
+        "/api/v1/me/gears/import",
         Some(&token),
         json!({
             "items": [{"category": "lighting_system", "name": "头灯", "status": "available"}]
@@ -1561,7 +1573,7 @@ async fn gear_import_dry_run_and_export_csv_are_supported() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/api/me/gears/export?format=csv")
+                .uri("/api/v1/me/gears/export?format=csv")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -1592,7 +1604,7 @@ async fn users_cannot_read_each_others_gear() {
     let (status, created) = send_json(
         &app.router,
         "POST",
-        "/api/me/gears",
+        "/api/v1/me/gears",
         Some(&token_a),
         json!({"category": "lighting_system", "name": "A 的头灯"}),
     )
@@ -1603,7 +1615,7 @@ async fn users_cannot_read_each_others_gear() {
     let (read_status, value) = send_empty(
         &app.router,
         "GET",
-        &format!("/api/me/gears/{gear_id}"),
+        &format!("/api/v1/me/gears/{gear_id}"),
         Some(&token_b),
     )
     .await;

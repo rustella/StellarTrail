@@ -206,13 +206,17 @@ mod tests {
             .unwrap();
 
         usage_repo
-            .record_increment(&increment(Some(user.id.clone()), "/api/me/gears/:id", 200))
+            .record_increment(&increment(
+                Some(user.id.clone()),
+                "/api/v1/me/gears/:id",
+                200,
+            ))
             .await
             .unwrap();
         usage_repo
             .record_increment(&ApiUsageIncrement {
                 occurred_at: "2026-05-18T12:35:56Z".to_owned(),
-                ..increment(Some(user.id.clone()), "/api/me/gears/:id", 200)
+                ..increment(Some(user.id.clone()), "/api/v1/me/gears/:id", 200)
             })
             .await
             .unwrap();
@@ -223,7 +227,7 @@ mod tests {
                 to_date: "2026-05-18".to_owned(),
                 user_id: Some(user.id.clone()),
                 method: Some("GET".to_owned()),
-                route_pattern: Some("/api/me/gears/:id".to_owned()),
+                route_pattern: Some("/api/v1/me/gears/:id".to_owned()),
                 limit: 50,
                 offset: 0,
             })
@@ -232,7 +236,7 @@ mod tests {
 
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].user_id.as_deref(), Some(user.id.as_str()));
-        assert_eq!(rows[0].route_pattern, "/api/me/gears/:id");
+        assert_eq!(rows[0].route_pattern, "/api/v1/me/gears/:id");
         assert_eq!(rows[0].status_code, 200);
         assert_eq!(rows[0].call_count, 2);
         assert_eq!(rows[0].first_called_at, "2026-05-18T12:34:56Z");
@@ -243,7 +247,7 @@ mod tests {
     async fn anonymous_traffic_is_grouped_without_user_id() {
         let (usage_repo, _auth_repo) = test_repo().await;
         usage_repo
-            .record_increment(&increment(None, "/api/skills/knots/detail/:id", 404))
+            .record_increment(&increment(None, "/api/v1/skills/knots/detail/:id", 404))
             .await
             .unwrap();
 
@@ -253,7 +257,7 @@ mod tests {
                 to_date: "2026-05-18".to_owned(),
                 user_id: None,
                 method: None,
-                route_pattern: Some("/api/skills/knots/detail/:id".to_owned()),
+                route_pattern: Some("/api/v1/skills/knots/detail/:id".to_owned()),
                 limit: 50,
                 offset: 0,
             })
@@ -278,18 +282,18 @@ mod tests {
             .await
             .unwrap();
         usage_repo
-            .record_increment(&increment(Some(user_a.id.clone()), "/api/me/gears", 200))
+            .record_increment(&increment(Some(user_a.id.clone()), "/api/v1/me/gears", 200))
             .await
             .unwrap();
         usage_repo
-            .record_increment(&increment(Some(user_b.id), "/api/me/gears", 200))
+            .record_increment(&increment(Some(user_b.id), "/api/v1/me/gears", 200))
             .await
             .unwrap();
         usage_repo
             .record_increment(&ApiUsageIncrement {
                 bucket_date: "2026-05-17".to_owned(),
                 method: "POST".to_owned(),
-                ..increment(Some(user_a.id.clone()), "/api/me/gears", 201)
+                ..increment(Some(user_a.id.clone()), "/api/v1/me/gears", 201)
             })
             .await
             .unwrap();
@@ -300,7 +304,7 @@ mod tests {
                 to_date: "2026-05-18".to_owned(),
                 user_id: Some(user_a.id.clone()),
                 method: Some("GET".to_owned()),
-                route_pattern: Some("/api/me/gears".to_owned()),
+                route_pattern: Some("/api/v1/me/gears".to_owned()),
                 limit: 50,
                 offset: 0,
             })

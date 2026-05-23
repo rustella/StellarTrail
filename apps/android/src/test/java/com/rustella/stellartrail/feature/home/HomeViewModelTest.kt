@@ -124,7 +124,7 @@ class HomeViewModelTest {
         private val failListSkills: Boolean = false,
     ) : SkillRepositoryContract {
         override suspend fun listSkills(locale: SkillLocale): SkillCategoriesResponse = SkillCategoriesResponse(
-            listOf(SkillCategorySummary("knots", "knots", "绳结", "常用户外绳结", 8, "/api/skills/knots")),
+            listOf(SkillCategorySummary("knots", "knots", "绳结", "常用户外绳结", 8, "/api/v1/skills/knots")),
         ).also {
             if (failListSkills) throw UnknownHostException("api.stellartrail.example")
         }

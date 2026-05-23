@@ -17,32 +17,32 @@ import com.rustella.stellartrail.domain.auth.WechatLoginRequest
 
 class AuthApi(private val apiClient: ApiClient) {
     suspend fun sendEmailVerificationCode(request: EmailVerificationCodeRequest): EmailVerificationCodeResponse =
-        apiClient.post("/api/auth/email-verification-code", request)
+        apiClient.post("/auth/email-verification-code", request)
 
     suspend fun sendEmailLoginCode(request: EmailLoginCodeRequest): EmailVerificationCodeResponse =
-        apiClient.post("/api/auth/email-login-code", request)
+        apiClient.post("/auth/email-login-code", request)
 
     suspend fun loginWithEmailCode(request: EmailLoginRequest): LoginResponse =
-        apiClient.post("/api/auth/email-login", request)
+        apiClient.post("/auth/email-login", request)
 
     suspend fun sendPasswordResetCode(request: PasswordResetCodeRequest): EmailVerificationCodeResponse =
-        apiClient.post("/api/auth/password-reset-code", request)
+        apiClient.post("/auth/password-reset-code", request)
 
     suspend fun resetPassword(request: PasswordResetRequest): LoginResponse =
-        apiClient.post("/api/auth/password-reset", request)
+        apiClient.post("/auth/password-reset", request)
 
     suspend fun createCaptcha(request: CaptchaChallengeRequest): CaptchaChallengeResponse =
-        apiClient.post("/api/auth/captcha", request)
+        apiClient.post("/auth/captcha", request)
 
     suspend fun register(request: RegisterRequest): LoginResponse =
-        apiClient.post("/api/auth/register", request)
+        apiClient.post("/auth/register", request)
 
     suspend fun loginWithPassword(request: PasswordLoginRequest): LoginResponse =
-        apiClient.post("/api/auth/login", request)
+        apiClient.post("/auth/login", request)
 
     suspend fun refresh(request: RefreshTokenRequest): LoginResponse =
-        apiClient.post("/api/auth/refresh", request)
+        apiClient.post("/auth/refresh", request)
 
     suspend fun loginWithWechatCode(request: WechatLoginRequest): LoginResponse =
-        apiClient.post("/api/auth/wechat-login", request)
+        apiClient.post("/auth/wechat-login", request)
 }

@@ -175,7 +175,7 @@ async fn register_password_user_response(app: &Router, username: &str) -> Value 
     let (code_status, code_value) = send_json(
         app,
         "POST",
-        "/api/auth/email-verification-code",
+        "/api/v1/auth/email-verification-code",
         None,
         json!({"email": email}),
     )
@@ -186,7 +186,7 @@ async fn register_password_user_response(app: &Router, username: &str) -> Value 
     let (register_status, register_value) = send_json(
         app,
         "POST",
-        "/api/auth/register",
+        "/api/v1/auth/register",
         None,
         json!({
             "username": username,
@@ -246,7 +246,7 @@ async fn upload_knot_media(
     let mut builder = Request::builder()
         .method("PUT")
         .uri(format!(
-            "/api/admin/skills/knots/adjustable-grip-hitch-knot/media/{asset_id}"
+            "/api/v1/admin/skills/knots/adjustable-grip-hitch-knot/media/{asset_id}"
         ))
         .header(
             header::CONTENT_TYPE,
@@ -340,7 +340,7 @@ async fn admin_can_upload_knot_media_to_object_store_db_and_public_read_api() {
 
     let (public_status, public_body) = json_get(
         &app.router,
-        "/api/skills/knots/detail/adjustable-grip-hitch-knot",
+        "/api/v1/skills/knots/detail/adjustable-grip-hitch-knot",
     )
     .await;
     assert_eq!(public_status, StatusCode::OK, "{public_body}");

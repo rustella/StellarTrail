@@ -13,16 +13,16 @@ import com.rustella.stellartrail.domain.gear.UpdateGearRequest
 import com.rustella.stellartrail.domain.gear.apiValue
 
 class GearApi(private val apiClient: ApiClient) {
-    suspend fun listTemplates(): ListGearTemplatesResponse = apiClient.get("/api/gear-templates")
+    suspend fun listTemplates(): ListGearTemplatesResponse = apiClient.get("/gear-templates")
 
     suspend fun listCategories(tab: GearTab): GearCategoriesResponse =
-        apiClient.get("/api/me/gears/categories", query = mapOf("tab" to tab.apiValue()))
+        apiClient.get("/me/gears/categories", query = mapOf("tab" to tab.apiValue()))
 
     suspend fun stats(tab: GearTab): GearStatsResponse =
-        apiClient.get("/api/me/gears/stats", query = mapOf("tab" to tab.apiValue()))
+        apiClient.get("/me/gears/stats", query = mapOf("tab" to tab.apiValue()))
 
     suspend fun list(request: ListGearsRequest): ListGearsResponse = apiClient.get(
-        "/api/me/gears",
+        "/me/gears",
         query = mapOf(
             "tab" to request.tab.apiValue(),
             "category" to request.category?.apiValue(),
@@ -34,17 +34,17 @@ class GearApi(private val apiClient: ApiClient) {
         ),
     )
 
-    suspend fun get(id: String): GearItem = apiClient.get("/api/me/gears/$id")
+    suspend fun get(id: String): GearItem = apiClient.get("/me/gears/$id")
 
-    suspend fun create(request: CreateGearRequest): GearItem = apiClient.post("/api/me/gears", request)
+    suspend fun create(request: CreateGearRequest): GearItem = apiClient.post("/me/gears", request)
 
-    suspend fun update(id: String, request: UpdateGearRequest): GearItem = apiClient.patch("/api/me/gears/$id", request)
+    suspend fun update(id: String, request: UpdateGearRequest): GearItem = apiClient.patch("/me/gears/$id", request)
 
     suspend fun archive(id: String) {
-        apiClient.delete("/api/me/gears/$id")
+        apiClient.delete("/me/gears/$id")
     }
 
-    suspend fun restore(id: String): GearItem = apiClient.post("/api/me/gears/$id/restore", EmptyRequest)
+    suspend fun restore(id: String): GearItem = apiClient.post("/me/gears/$id/restore", EmptyRequest)
 
     @kotlinx.serialization.Serializable
     private object EmptyRequest

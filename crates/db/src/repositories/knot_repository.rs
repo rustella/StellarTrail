@@ -11,6 +11,8 @@ use stellartrail_domain::skill::{
 
 use super::{MediaResourceRepository, statement};
 
+const API_PREFIX: &str = "/api/v1";
+
 /// Grouping key for taxonomy rows that belong to the same knot and taxonomy item.
 type KnotTaxonomyCandidateKey = (String, String);
 
@@ -225,7 +227,7 @@ impl KnotRepository {
             title: title.to_owned(),
             summary: summary.to_owned(),
             item_count: count.max(0) as u32,
-            href: "/api/skills/knots/list".to_owned(),
+            href: format!("{API_PREFIX}/skills/knots/list"),
         }])
     }
 
@@ -353,7 +355,7 @@ impl KnotRepository {
                         categories: detail.categories.clone(),
                         types: detail.types.clone(),
                         media: detail.media.clone(),
-                        href: format!("/api/skills/knots/detail/{}", detail.id),
+                        href: format!("{API_PREFIX}/skills/knots/detail/{}", detail.id),
                     });
                 }
             }

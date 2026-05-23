@@ -17,8 +17,8 @@ use crate::{
 /// Upload route group.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/me/uploads", post(upload_feedback_image))
-        .route("/api/me/uploads/:id", get(download_upload))
+        .route("/me/uploads", post(upload_feedback_image))
+        .route("/me/uploads/:id", get(download_upload))
 }
 
 /// Accepts a multipart feedback image upload for the authenticated user.

@@ -173,7 +173,7 @@ impl From<&AdminFeedbackRecord> for AdminFeedbackResponse {
                 .map(|image| {
                     UploadImageResponse::from_record_with_download_url(
                         image,
-                        format!("/api/admin/feedback-images/{}", image.id),
+                        crate::routes::api_path(format!("/admin/feedback-images/{}", image.id)),
                     )
                 })
                 .collect(),
