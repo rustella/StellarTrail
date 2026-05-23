@@ -662,7 +662,6 @@ function AtlasCard({
             <small>官方价</small>
           </span>
         </span>
-        <span className="atlas-source-text">{sourceSummary(item)}</span>
       </button>
     </article>
   );
@@ -766,29 +765,6 @@ function AtlasDetailDrawer({
         ) : (
           <p className="muted">暂无分类参数。</p>
         )}
-      </section>
-      <section className="atlas-detail-section">
-        <h3>来源摘要</h3>
-        <dl>
-          <div>
-            <dt>来源</dt>
-            <dd>{sourceSummary(item)}</dd>
-          </div>
-          {item.source_url ? (
-            <div>
-              <dt>来源链接</dt>
-              <dd>
-                <a href={item.source_url} target="_blank" rel="noreferrer">
-                  打开来源
-                </a>
-              </dd>
-            </div>
-          ) : null}
-          <div>
-            <dt>更新时间</dt>
-            <dd>{formatDate(item.updated_at)}</dd>
-          </div>
-        </dl>
       </section>
     </aside>
   );
@@ -1209,24 +1185,6 @@ function brandModelText(item: GearAtlasPublicItem): string {
   return (
     [item.brand, item.model].filter(Boolean).join(" · ") || "未填写品牌型号"
   );
-}
-
-function sourceSummary(item: GearAtlasPublicItem): string {
-  const source =
-    item.source_name || (item.source_url ? "外部来源" : "社区投稿");
-  if (
-    item.source_rating_score !== undefined &&
-    item.source_rating_score !== null
-  ) {
-    const rating = `${item.source_rating_score.toFixed(1)} 分`;
-    const count =
-      item.source_rating_count !== undefined &&
-      item.source_rating_count !== null
-        ? ` / ${item.source_rating_count} 条`
-        : "";
-    return `${source} · ${rating}${count}`;
-  }
-  return source;
 }
 
 function formatAtlasPrice(

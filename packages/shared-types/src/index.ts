@@ -505,10 +505,6 @@ export interface GearAtlasPublicItem {
   variants?: GearVariant[] | null;
   specs?: GearSpecs | null;
   approved_at?: string | null;
-  source_name?: string | null;
-  source_url?: string | null;
-  source_rating_score?: number | null;
-  source_rating_count?: number | null;
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
@@ -524,6 +520,10 @@ export interface GearAtlasReviewChange {
 export interface GearAtlasSubmission extends GearAtlasPublicItem {
   source_type: GearAtlasSourceType;
   source_user_gear_id?: string | null;
+  source_name?: string | null;
+  source_url?: string | null;
+  source_rating_score?: number | null;
+  source_rating_count?: number | null;
   status: GearAtlasStatus;
   rejection_reason?: string | null;
   review_changes?: GearAtlasReviewChange[] | null;

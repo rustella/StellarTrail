@@ -106,10 +106,6 @@ pub struct GearAtlasPublicItemResponse {
     pub variants: GearVariants,
     pub specs: GearSpecs,
     pub approved_at: Option<String>,
-    pub source_name: Option<String>,
-    pub source_url: Option<String>,
-    pub source_rating_score: Option<f64>,
-    pub source_rating_count: Option<i32>,
     pub is_deleted: bool,
     pub created_at: String,
     pub updated_at: String,
@@ -138,10 +134,6 @@ impl GearAtlasPublicItemResponse {
             variants: item.variants.clone(),
             specs: item.specs.clone(),
             approved_at: item.approved_at.clone(),
-            source_name: item.source_name.clone(),
-            source_url: item.source_url.clone(),
-            source_rating_score: item.source_rating_score,
-            source_rating_count: item.source_rating_count,
             is_deleted: item.is_deleted,
             created_at: item.created_at.clone(),
             updated_at: item.updated_at.clone(),
@@ -178,6 +170,29 @@ impl From<&GearAtlasItem> for GearAtlasSubmissionResponse {
     }
 }
 
+/// Submission item returned only from administrator endpoints, including source audit metadata.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GearAtlasAdminSubmissionResponse {
+    #[serde(flatten)]
+    pub submission: GearAtlasSubmissionResponse,
+    pub source_name: Option<String>,
+    pub source_url: Option<String>,
+    pub source_rating_score: Option<f64>,
+    pub source_rating_count: Option<i32>,
+}
+
+impl From<&GearAtlasItem> for GearAtlasAdminSubmissionResponse {
+    fn from(item: &GearAtlasItem) -> Self {
+        Self {
+            submission: GearAtlasSubmissionResponse::from(item),
+            source_name: item.source_name.clone(),
+            source_url: item.source_url.clone(),
+            source_rating_score: item.source_rating_score,
+            source_rating_count: item.source_rating_count,
+        }
+    }
+}
+
 /// Paginated public gear atlas list response.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListGearAtlasResponse {
@@ -189,5 +204,12 @@ pub struct ListGearAtlasResponse {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListGearAtlasSubmissionsResponse {
     pub items: Vec<GearAtlasSubmissionResponse>,
+    pub next_cursor: Option<String>,
+}
+
+/// Paginated administrator gear atlas submission list response.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ListAdminGearAtlasSubmissionsResponse {
+    pub items: Vec<GearAtlasAdminSubmissionResponse>,
     pub next_cursor: Option<String>,
 }

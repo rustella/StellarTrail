@@ -340,10 +340,6 @@ function buildClient(): WebGearApi {
           model: "NU25",
           category: "lighting_system",
           category_label: "照明系统",
-          source_name: "8264",
-          source_url: "https://example.test/gear",
-          source_rating_score: 4.8,
-          source_rating_count: 12,
           approved_at: "2026-01-24T00:00:00Z",
         }),
       ],
@@ -356,10 +352,6 @@ function buildClient(): WebGearApi {
         model: "NU25",
         category: "lighting_system",
         category_label: "照明系统",
-        source_name: "8264",
-        source_url: "https://example.test/gear",
-        source_rating_score: 4.8,
-        source_rating_count: 12,
         approved_at: "2026-01-24T00:00:00Z",
       }),
     ),
@@ -464,6 +456,10 @@ function buildClient(): WebGearApi {
           approved_at: null,
           source_type: "user_gear",
           source_user_gear_id: "gear-1",
+          source_name: "8264",
+          source_url: "https://example.test/gear",
+          source_rating_score: 4.8,
+          source_rating_count: 12,
           status: "pending",
           rejection_reason: null,
           reviewed_at: null,
@@ -489,6 +485,10 @@ function buildClient(): WebGearApi {
       approved_at: null,
       source_type: "user_gear",
       source_user_gear_id: "gear-1",
+      source_name: "8264",
+      source_url: "https://example.test/gear",
+      source_rating_score: 4.8,
+      source_rating_count: 12,
       status: "pending",
       rejection_reason: null,
       reviewed_at: null,
@@ -779,6 +779,11 @@ describe("App", () => {
         Boolean(element?.textContent?.includes("个人装备生成")),
       ).length,
     ).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /SUMMIT 20000/ }));
+    expect(
+      await screen.findByText("8264 · 4.8 分 / 12 条"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("https://example.test/gear")).toBeInTheDocument();
     expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
       status: "pending",
       deleted: "active",

@@ -21,10 +21,12 @@ use stellartrail_domain::{gear_atlas::draft_from_personal_gear, validation::Fiel
 
 use crate::{
     dto::gear_atlas::{
-        CreateGearAtlasSubmissionRequest, GearAtlasPublicItemResponse, GearAtlasSubmissionResponse,
-        ListAdminGearAtlasSubmissionsQuery, ListGearAtlasQuery, ListGearAtlasResponse,
-        ListGearAtlasSubmissionsResponse, ListMyGearAtlasSubmissionsQuery,
-        RejectGearAtlasSubmissionRequest, UpdateGearAtlasSubmissionRequest,
+        CreateGearAtlasSubmissionRequest, GearAtlasAdminSubmissionResponse,
+        GearAtlasPublicItemResponse, GearAtlasSubmissionResponse,
+        ListAdminGearAtlasSubmissionsQuery, ListAdminGearAtlasSubmissionsResponse,
+        ListGearAtlasQuery, ListGearAtlasResponse, ListGearAtlasSubmissionsResponse,
+        ListMyGearAtlasSubmissionsQuery, RejectGearAtlasSubmissionRequest,
+        UpdateGearAtlasSubmissionRequest,
     },
     error::ApiError,
     extractors::AuthenticatedUser,
@@ -80,7 +82,7 @@ async fn list_public(
     let locale = resolve_locale(&headers)?;
     let cache_version = state.cache().public_gear_atlas_version().await;
     let normalized_input = json!({
-        "v": 1,
+        "v": 2,
         "cache_version": cache_version,
         "locale": locale.as_str(),
         "category": query.category.map(|category| category.as_str()),
@@ -137,7 +139,7 @@ async fn get_public(
     let locale = resolve_locale(&headers)?;
     let cache_version = state.cache().public_gear_atlas_version().await;
     let normalized_input = format!(
-        "v1|atlas-cache-v{cache_version}|{}|id={id}",
+        "v2|atlas-cache-v{cache_version}|{}|id={id}",
         locale.as_str()
     );
     cached_localized_json_with(
@@ -231,7 +233,7 @@ async fn list_admin_submissions(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Query(query): Query<ListAdminGearAtlasSubmissionsQuery>,
-) -> Result<Json<ListGearAtlasSubmissionsResponse>, ApiError> {
+) -> Result<Json<ListAdminGearAtlasSubmissionsResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
     let (items, next_cursor) = GearAtlasRepository::new(state.db().clone())
         .list_admin(&ListGearAtlasAdminOptions {
@@ -243,10 +245,10 @@ async fn list_admin_submissions(
             cursor: query.cursor,
         })
         .await?;
-    Ok(Json(ListGearAtlasSubmissionsResponse {
+    Ok(Json(ListAdminGearAtlasSubmissionsResponse {
         items: items
             .iter()
-            .map(GearAtlasSubmissionResponse::from)
+            .map(GearAtlasAdminSubmissionResponse::from)
             .collect(),
         next_cursor,
     }))
@@ -273,27 +275,27 @@ async fn restore_admin_submission(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
-) -> Result<Json<GearAtlasSubmissionResponse>, ApiError> {
+) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
     let item = GearAtlasRepository::new(state.db().clone())
         .restore_deleted(&id)
         .await?
         .ok_or(ApiError::NotFound)?;
     invalidate_gear_atlas_public_responses(&state).await;
-    Ok(Json(GearAtlasSubmissionResponse::from(&item)))
+    Ok(Json(GearAtlasAdminSubmissionResponse::from(&item)))
 }
 
 async fn get_admin_submission(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
-) -> Result<Json<GearAtlasSubmissionResponse>, ApiError> {
+) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
     let item = GearAtlasRepository::new(state.db().clone())
         .get_any(&id)
         .await?
         .ok_or(ApiError::NotFound)?;
-    Ok(Json(GearAtlasSubmissionResponse::from(&item)))
+    Ok(Json(GearAtlasAdminSubmissionResponse::from(&item)))
 }
 
 async fn update_admin_submission(
@@ -301,7 +303,7 @@ async fn update_admin_submission(
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
     Json(payload): Json<UpdateGearAtlasSubmissionRequest>,
-) -> Result<Json<GearAtlasSubmissionResponse>, ApiError> {
+) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
     let repo = GearAtlasRepository::new(state.db().clone());
     let existing = repo.get_any(&id).await?.ok_or(ApiError::NotFound)?;
@@ -316,21 +318,21 @@ async fn update_admin_submission(
         .await?
         .ok_or(ApiError::NotFound)?;
     invalidate_gear_atlas_public_responses(&state).await;
-    Ok(Json(GearAtlasSubmissionResponse::from(&item)))
+    Ok(Json(GearAtlasAdminSubmissionResponse::from(&item)))
 }
 
 async fn approve_submission(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
-) -> Result<Json<GearAtlasSubmissionResponse>, ApiError> {
+) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
     let item = GearAtlasRepository::new(state.db().clone())
         .approve(&id, &user.id)
         .await?
         .ok_or(ApiError::NotFound)?;
     invalidate_gear_atlas_public_responses(&state).await;
-    Ok(Json(GearAtlasSubmissionResponse::from(&item)))
+    Ok(Json(GearAtlasAdminSubmissionResponse::from(&item)))
 }
 
 async fn reject_submission(
@@ -338,7 +340,7 @@ async fn reject_submission(
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
     Json(payload): Json<RejectGearAtlasSubmissionRequest>,
-) -> Result<Json<GearAtlasSubmissionResponse>, ApiError> {
+) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
     let reason = normalize_rejection_reason(payload.reason)?;
     let item = GearAtlasRepository::new(state.db().clone())
@@ -346,7 +348,7 @@ async fn reject_submission(
         .await?
         .ok_or(ApiError::NotFound)?;
     invalidate_gear_atlas_public_responses(&state).await;
-    Ok(Json(GearAtlasSubmissionResponse::from(&item)))
+    Ok(Json(GearAtlasAdminSubmissionResponse::from(&item)))
 }
 
 fn normalize_rejection_reason(value: Option<String>) -> Result<String, ApiError> {

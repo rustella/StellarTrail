@@ -47,10 +47,6 @@ function buildItem(
     variants: [],
     specs: { max_brightness: "450 lm" },
     approved_at: "2026-01-24T00:00:00Z",
-    source_name: "8264",
-    source_url: "https://example.test/gear",
-    source_rating_score: 4.8,
-    source_rating_count: 12,
     is_deleted: false,
     created_at: "2026-01-23T00:00:00Z",
     updated_at: "2026-01-24T00:00:00Z",
@@ -206,7 +202,7 @@ describe("GearAtlasPage", () => {
     );
   });
 
-  it("opens a public atlas detail drawer with specs and source summary", async () => {
+  it("opens a public atlas detail drawer without source audit fields", async () => {
     const api = buildApi();
     render(<GearAtlasPage api={api} session={null} />);
 
@@ -216,11 +212,8 @@ describe("GearAtlasPage", () => {
     expect(api.getGearAtlasItem).toHaveBeenCalledWith("atlas-1", "zh-CN");
     expect(screen.getByText("最大亮度")).toBeInTheDocument();
     expect(screen.getByText("450 lm")).toBeInTheDocument();
-    expect(screen.getAllByText("8264 · 4.8 分 / 12 条")).toHaveLength(2);
-    expect(screen.getByRole("link", { name: "打开来源" })).toHaveAttribute(
-      "href",
-      "https://example.test/gear",
-    );
+    expect(screen.queryByText("来源摘要")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "打开来源" })).toBeNull();
   });
 
   it("localizes imported sleep system spec names in the public detail", async () => {
