@@ -1,8 +1,10 @@
 export {
+  acceptKnotDisclaimer,
   consumeOfflineCacheNotice,
   favoriteKnot,
   getErrorMessage,
   getFavoriteKnotStatus,
+  getKnotDisclaimer,
   getKnotDetail,
   getKnotFilters,
   getKnotOfflineManifest,

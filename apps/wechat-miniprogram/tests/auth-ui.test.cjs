@@ -31,9 +31,9 @@ ${ts}`;
   assert.match(wxml, /placeholder="邮箱验证码"/);
   assert.match(wxml, /password="{{true}}"/);
   assert.match(wxml, /注册账号/);
-  assert.match(pageSource, /WECHAT_PROFILE_PROMPT_PENDING_KEY/);
-  assert.match(pageSource, /markWechatProfilePromptPending/);
   assert.match(pageSource, /afterLoginSuccess\("\/pages\/index\/index"\)/);
+  assert.doesNotMatch(pageSource, /WECHAT_PROFILE_PROMPT_PENDING_KEY/);
+  assert.doesNotMatch(pageSource, /markWechatProfilePromptPending/);
   assert.doesNotMatch(wxml, /open-type="chooseAvatar"/);
   assert.doesNotMatch(wxml, /type="nickname"/);
   assert.doesNotMatch(wxml, /导入并登录/);
@@ -42,22 +42,23 @@ ${ts}`;
   assert.doesNotMatch(wxml, /API|后端|接口|游客|免登录|写操作|模板/);
 });
 
-test("home page prompts to import WeChat profile after login", () => {
+test("home page does not automatically prompt to import WeChat profile", () => {
   const wxml = read("pages/index/index.wxml");
   const ts = read("pages/index/index.ts");
   const pageSource = `${wxml}
 ${ts}`;
 
-  assert.match(wxml, /open-type="chooseAvatar"/);
-  assert.match(wxml, /type="nickname"/);
-  assert.match(wxml, /导入资料/);
-  assert.match(wxml, /跳过/);
-  assert.match(pageSource, /showWechatProfilePromptIfNeeded/);
-  assert.match(pageSource, /importWechatProfile/);
-  assert.match(pageSource, /skipWechatProfileImport/);
-  assert.match(pageSource, /uploadWechatAvatar/);
-  assert.match(pageSource, /loginWithWechat\(\{ nickname \}\)/);
-  assert.match(pageSource, /WECHAT_PROFILE_PROMPT_PENDING_KEY/);
+  assert.doesNotMatch(wxml, /导入微信资料/);
+  assert.doesNotMatch(wxml, /导入资料/);
+  assert.doesNotMatch(wxml, /可以导入微信头像和昵称/);
+  assert.doesNotMatch(wxml, /type="nickname"/);
+  assert.doesNotMatch(wxml, /bindchooseavatar="onChooseWechatAvatar"/);
+  assert.doesNotMatch(pageSource, /showWechatProfilePromptIfNeeded/);
+  assert.doesNotMatch(pageSource, /importWechatProfile/);
+  assert.doesNotMatch(pageSource, /skipWechatProfileImport/);
+  assert.doesNotMatch(pageSource, /uploadWechatAvatar/);
+  assert.doesNotMatch(pageSource, /loginWithWechat\(\{ nickname \}\)/);
+  assert.doesNotMatch(pageSource, /WECHAT_PROFILE_PROMPT_PENDING_KEY/);
 });
 
 test("home page gear overview renders stats without concrete gear rows", () => {

@@ -86,7 +86,9 @@
           <view class="gear-tags">
             <text>{{item.categoryText}}</text>
             <text>{{item.statusText}}</text>
-            <text wx:if="{{item.showQuantityBadge}}">{{item.quantityText}}</text>
+            <text wx:if="{{item.showQuantityBadge}}"
+              >{{item.quantityText}}</text
+            >
             <text>{{item.weightText}}</text>
             <text>{{item.priceText}}</text>
           </view>

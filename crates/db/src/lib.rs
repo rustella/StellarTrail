@@ -9,6 +9,6 @@ pub use connection::connect_database;
 pub use repositories::{
     ApiUsageIncrement, ApiUsageQuery, ApiUsageRecord, ApiUsageRepository, AuthRepository,
     GearRepository, GearTemplateRepository, KnotFavoriteListEntry, KnotFavoriteStatus,
-    KnotRepository, ListGearOptions, SkillFavoriteCounts, SkillFavoriteRepository, UserRecord,
-    hash_token,
+    KnotRepository, ListGearOptions, ListRoadmapOptions, RoadmapItemRecord, RoadmapListEntry,
+    RoadmapRepository, SkillFavoriteCounts, SkillFavoriteRepository, UserRecord, hash_token,
 };

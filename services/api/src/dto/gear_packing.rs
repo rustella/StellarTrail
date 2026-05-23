@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use stellartrail_domain::{
     gear::GearItem,
     gear_packing::{
-        normalize_gear_ids, GearPackingListDetail, GearPackingListDraft, GearPackingListItem,
-        GearPackingListStats, GearPackingListSummary,
+        GearPackingListDetail, GearPackingListDraft, GearPackingListItem, GearPackingListStats,
+        GearPackingListSummary, normalize_gear_ids,
     },
     validation::{FieldViolation, ValidationError},
 };

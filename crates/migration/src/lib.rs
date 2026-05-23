@@ -33,6 +33,7 @@ mod m20260523_000003_add_upload_images_user_purpose_index;
 mod m20260523_000004_add_soft_delete_flags;
 mod m20260524_000001_create_gear_packing_lists;
 mod m20260524_000002_create_user_knot_favorites;
+mod m20260524_000003_create_user_disclaimer_acceptances;
 mod m20260524_000004_add_gear_quantities;
 mod m20260524_000005_create_roadmap;
 
@@ -77,9 +78,10 @@ impl MigratorTrait for Migrator {
             Box::new(create_client_versions::Migration),
             Box::new(m20260523_000004_add_soft_delete_flags::Migration),
             Box::new(m20260524_000001_create_gear_packing_lists::Migration),
+            Box::new(m20260524_000002_create_user_knot_favorites::Migration),
+            Box::new(m20260524_000003_create_user_disclaimer_acceptances::Migration),
             Box::new(m20260524_000004_add_gear_quantities::Migration),
             Box::new(m20260524_000005_create_roadmap::Migration),
-            Box::new(m20260524_000002_create_user_knot_favorites::Migration),
         ]
     }
 }

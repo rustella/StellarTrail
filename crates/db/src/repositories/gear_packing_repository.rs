@@ -2,7 +2,7 @@
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, QueryResult};
 use stellartrail_domain::{
-    gear::{now_rfc3339, GearItem},
+    gear::{GearItem, now_rfc3339},
     gear_packing::{
         GearPackingList, GearPackingListDetail, GearPackingListDraft, GearPackingListItem,
         GearPackingListStats, GearPackingListSummary,
@@ -10,7 +10,7 @@ use stellartrail_domain::{
 };
 use uuid::Uuid;
 
-use super::{statement, GearRepository};
+use super::{GearRepository, statement};
 
 /// Pagination options for packing-list index reads.
 #[derive(Clone, Debug)]
@@ -275,11 +275,7 @@ impl GearPackingRepository {
         let packed_quantity = if let Some(value) = packed_quantity {
             value.clamp(0, planned_quantity)
         } else if let Some(packed) = packed {
-            if packed {
-                planned_quantity
-            } else {
-                0
-            }
+            if packed { planned_quantity } else { 0 }
         } else {
             current.packed_quantity.clamp(0, planned_quantity)
         };
@@ -652,11 +648,12 @@ mod tests {
         assert_eq!(removed.stats.item_count, 1);
 
         assert!(repo.soft_delete(&user.id, &created.list.id).await.unwrap());
-        assert!(repo
-            .detail(&user.id, &created.list.id)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            repo.detail(&user.id, &created.list.id)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]

@@ -481,6 +481,95 @@
   line-height: 1.6;
 }
 
+.disclaimer-mask {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx 32rpx calc(48rpx + env(safe-area-inset-bottom));
+  background: rgba(15, 23, 42, 0.58);
+  box-sizing: border-box;
+}
+
+.disclaimer-card {
+  width: 100%;
+  max-height: 82vh;
+  padding: 32rpx;
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: 0 28rpx 72rpx rgba(15, 23, 42, 0.24);
+  box-sizing: border-box;
+}
+
+.disclaimer-title {
+  color: var(--text-color);
+  font-size: 34rpx;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.disclaimer-version {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.disclaimer-content {
+  height: 430rpx;
+  margin-top: 22rpx;
+  padding: 22rpx;
+  border: 1rpx solid var(--soft-border-color);
+  border-radius: var(--card-inner-radius);
+  color: var(--heading-muted-color);
+  background: var(--control-bg);
+  font-size: 25rpx;
+  line-height: 1.72;
+  box-sizing: border-box;
+}
+
+.disclaimer-error {
+  margin-top: 16rpx;
+  padding: 14rpx 18rpx;
+  border-radius: var(--card-inner-radius);
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
+.disclaimer-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 14rpx;
+  margin-top: 24rpx;
+}
+
+.disclaimer-actions button {
+  min-width: 0;
+  margin: 0;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  font-size: 25rpx;
+  font-weight: 900;
+  line-height: 72rpx;
+}
+
+.disclaimer-actions button::after {
+  border: 0;
+}
+
+.disclaimer-secondary {
+  color: var(--text-color);
+  background: var(--soft-control-bg);
+}
+
+.disclaimer-primary {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}
 
 .skills-page.theme-dark .hero-card,
 .skills-page.theme-dark .hero-title {
