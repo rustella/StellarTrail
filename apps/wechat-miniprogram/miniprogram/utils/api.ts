@@ -25,7 +25,9 @@ import type {
   WechatLoginResponse,
 } from "./gear-utils";
 import type {
+  AcceptKnotDisclaimerRequest,
   KnotDetail,
+  KnotDisclaimerResponse,
   KnotFiltersResponse,
   KnotListResponse,
   KnotOfflineManifestResponse,
@@ -1048,6 +1050,23 @@ export async function getKnotOfflineManifest(
   });
 }
 
+export async function getKnotDisclaimer(): Promise<KnotDisclaimerResponse> {
+  return requestJson("/api/v1/me/skills/knots/disclaimer", {
+    auth: true,
+  });
+}
+
+export async function acceptKnotDisclaimer(
+  request: AcceptKnotDisclaimerRequest = {},
+): Promise<KnotDisclaimerResponse> {
+  return requestJson("/api/v1/me/skills/knots/disclaimer/acceptance", {
+    method: "POST",
+    auth: true,
+    cache: false,
+    data: request,
+  });
+}
+
 export async function listClientVersions(
   clientKey: ClientKey,
   options: { limit?: number; cursor?: string } = {},
@@ -1427,6 +1446,7 @@ function isUserCacheablePath(path: string): boolean {
     path === "/api/v1/me/packing-lists" ||
     path.startsWith("/api/v1/me/packing-lists?") ||
     path.startsWith("/api/v1/me/packing-lists/") ||
+    path === "/api/v1/me/skills/knots/disclaimer" ||
     path === "/api/v1/me/roadmap" ||
     path.startsWith("/api/v1/me/roadmap?") ||
     path === "/api/v1/me/gear-atlas-submissions" ||

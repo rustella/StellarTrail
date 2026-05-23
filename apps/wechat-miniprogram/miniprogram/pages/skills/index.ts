@@ -1,7 +1,10 @@
 import {
+  acceptKnotDisclaimer as submitKnotDisclaimerAcceptance,
   consumeOfflineCacheNotice,
   getErrorMessage,
+  getKnotDisclaimer,
   getKnotFilters,
+  hasAccessToken,
   isOfflineCacheMissError,
   listKnots,
   resolveAssetUrl,
@@ -24,6 +27,13 @@ import {
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import { resolveCachedMediaUrl } from "../../utils/media-cache";
 import { delayNextTick, indexedAppendData } from "../../utils/page-data";
+import {
+  getDefaultLoginPrompt,
+  hideLoginPrompt,
+  openLoginPageFromPrompt,
+  requireLoginForAction,
+} from "../../utils/auth-prompt";
+import { isOffline, showOfflineWriteBlockedToast } from "../../utils/network-state";
 
 type SkillsMode = "catalog" | "knots";
 
@@ -89,6 +99,14 @@ Page({
     cacheSummaryText: "",
     error: "",
     offlineNotice: "",
+    loginPrompt: getDefaultLoginPrompt(),
+    checkingKnotDisclaimer: false,
+    knotDisclaimerVisible: false,
+    knotDisclaimerTitle: "",
+    knotDisclaimerContent: "",
+    knotDisclaimerVersion: "",
+    knotDisclaimerError: "",
+    acceptingKnotDisclaimer: false,
     ...getThemeViewData(),
   },
 
@@ -103,6 +121,10 @@ Page({
   },
 
   ensureSkillsPageReady() {
+    if (this.data.mode === "knots" && !hasAccessToken()) {
+      this.showSkillCatalog();
+      return;
+    }
     if (wx.getStorageSync(KNOT_CACHE_ENTRY_KEY) === true) {
       wx.removeStorageSync(KNOT_CACHE_ENTRY_KEY);
       this.openKnotsFromEntry();
@@ -147,12 +169,120 @@ Page({
     this.openKnotsFromEntry();
   },
 
-  openKnotsFromEntry() {
+  async openKnotsFromEntry() {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录并同意绳结教程免责声明后，可以查看绳结列表。",
+        redirectUrl: "/pages/skills/index",
+      })
+    ) {
+      return;
+    }
+    this.setData({
+      checkingKnotDisclaimer: true,
+      knotDisclaimerError: "",
+      error: "",
+      offlineNotice: "",
+    });
+    try {
+      const disclaimer = await getKnotDisclaimer();
+      if (disclaimer.accepted) {
+        this.enterKnotsList();
+        return;
+      }
+      this.setData({
+        checkingKnotDisclaimer: false,
+        knotDisclaimerVisible: true,
+        knotDisclaimerTitle: disclaimer.title,
+        knotDisclaimerContent: disclaimer.content,
+        knotDisclaimerVersion: disclaimer.version,
+      });
+    } catch (error) {
+      this.setData({ checkingKnotDisclaimer: false });
+      if (!hasAccessToken()) {
+        requireLoginForAction(this, {
+          message: "登录并同意绳结教程免责声明后，可以查看绳结列表。",
+          redirectUrl: "/pages/skills/index",
+        });
+        return;
+      }
+      wx.showToast({ title: getErrorMessage(error), icon: "none" });
+    }
+  },
+
+  enterKnotsList() {
     wx.setNavigationBarTitle({ title: "绳结" });
-    this.setData({ mode: "knots", error: "", offlineNotice: "" });
+    this.setData({
+      mode: "knots",
+      error: "",
+      offlineNotice: "",
+      checkingKnotDisclaimer: false,
+      knotDisclaimerVisible: false,
+      knotDisclaimerError: "",
+      acceptingKnotDisclaimer: false,
+    });
     if (!this.data.allKnots.length) {
       this.loadKnots();
     }
+  },
+
+  rejectKnotDisclaimer() {
+    this.setData({
+      knotDisclaimerVisible: false,
+      knotDisclaimerError: "",
+      acceptingKnotDisclaimer: false,
+      checkingKnotDisclaimer: false,
+    });
+    this.showSkillCatalog();
+  },
+
+  async acceptKnotDisclaimer() {
+    if (this.data.acceptingKnotDisclaimer) {
+      return;
+    }
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
+    this.setData({
+      acceptingKnotDisclaimer: true,
+      knotDisclaimerError: "",
+    });
+    try {
+      const response = await submitKnotDisclaimerAcceptance({
+        client_platform: "wechat_miniprogram",
+        client_version: miniProgramVersion(),
+        device_model: deviceModel(),
+      });
+      if (!response.accepted) {
+        this.setData({
+          acceptingKnotDisclaimer: false,
+          knotDisclaimerError: "同意状态未保存，请稍后重试。",
+        });
+        return;
+      }
+      this.enterKnotsList();
+    } catch (error) {
+      this.setData({
+        acceptingKnotDisclaimer: false,
+        knotDisclaimerError: getErrorMessage(error),
+      });
+      if (!hasAccessToken()) {
+        this.setData({ knotDisclaimerVisible: false });
+        requireLoginForAction(this, {
+          message: "登录状态已过期，请重新登录后查看绳结列表。",
+          redirectUrl: "/pages/skills/index",
+        });
+      }
+    }
+  },
+
+  loginPromptClose() {
+    hideLoginPrompt(this);
+  },
+
+  loginPromptGoLogin() {
+    openLoginPageFromPrompt(this);
   },
 
   showSkillCatalog() {
@@ -163,6 +293,10 @@ Page({
       offlineNotice: "",
       loading: false,
       loadingMore: false,
+      checkingKnotDisclaimer: false,
+      knotDisclaimerVisible: false,
+      knotDisclaimerError: "",
+      acceptingKnotDisclaimer: false,
     });
   },
 
@@ -794,4 +928,25 @@ async function mapKnotListCardsInBatches(
     await delayNextTick();
   }
   return allCards;
+}
+
+function miniProgramVersion(): string {
+  const info = safeAccountInfo();
+  return info?.miniProgram?.version || "dev";
+}
+
+function safeAccountInfo(): WechatMiniprogram.AccountInfo | undefined {
+  try {
+    return wx.getAccountInfoSync();
+  } catch {
+    return undefined;
+  }
+}
+
+function deviceModel(): string | null {
+  try {
+    return wx.getSystemInfoSync().model || null;
+  } catch {
+    return null;
+  }
 }

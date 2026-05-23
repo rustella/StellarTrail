@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -76,6 +77,87 @@ ${ts}`;
   assert.doesNotMatch(wxml, /brandModelText/);
   assert.doesNotMatch(wxml, /还没有装备记录，先添加第一件户外装备吧。/);
   assert.doesNotMatch(wxss, /\.recent-/);
+});
+
+test("home page hides featured knots until the user accepts the disclaimer", () => {
+  const wxml = read("pages/index/index.wxml");
+  const ts = read("pages/index/index.ts");
+
+  assert.match(ts, /getKnotDisclaimer/);
+  assert.match(ts, /if \(!hasAccessToken\(\)\) \{/);
+  assert.match(ts, /if \(!disclaimer\.accepted\) \{/);
+  assert.match(ts, /this\.hideFeaturedSkills\(\)/);
+  assert.match(ts, /await listKnots\(\{ offset: 0, limit: 3 \}\)/);
+  assert.match(wxml, /wx:elif="{{featuredSkills\.length}}"/);
+});
+
+test("skills page gates knot list behind disclaimer acceptance", () => {
+  const wxml = read("pages/skills/index.wxml");
+  const wxss = read("pages/skills/index.wxss");
+  const ts = read("pages/skills/index.ts");
+
+  assert.match(ts, /getKnotDisclaimer/);
+  assert.match(ts, /submitKnotDisclaimerAcceptance/);
+  assert.match(ts, /enterKnotsList/);
+  assert.match(ts, /rejectKnotDisclaimer/);
+  assert.match(wxml, /knotDisclaimerVisible/);
+  assert.match(wxml, /我已阅读并同意/);
+  assert.match(wxml, /拒绝并退出/);
+  assert.match(wxss, /\.disclaimer-mask/);
+  assert.match(wxss, /\.disclaimer-content/);
+});
+
+test("knot detail page shows safety notice before source description", () => {
+  const wxml = read("pages/skills/detail/index.wxml");
+  const wxss = read("pages/skills/detail/index.wxss");
+
+  assert.ok(wxml.indexOf("安全提示") < wxml.indexOf("资料说明"));
+  assert.match(wxml, /仅供绳结知识学习和非承重练习/);
+  assert.match(
+    wxml,
+    /不得直接用于承载人体、攀登、救援、吊装、高空作业、航海安全/,
+  );
+  assert.match(wxml, /专业训练/);
+  assert.match(wxml, /现场条件检查复核/);
+  assert.doesNotMatch(wxml, /用途说明/);
+  assert.match(wxss, /\.safety-card/);
+  assert.match(wxss, /var\(--status-warning-bg\)/);
+});
+
+test("knot risk copy audit flags critical high-risk wording", () => {
+  const script = path.resolve(
+    appRoot,
+    "../..",
+    "scripts/audit-knot-risk-copy.mjs",
+  );
+  const manifest = {
+    locale: "zh-CN",
+    item_count: 1,
+    media_count: 0,
+    items: [
+      {
+        id: "firemans-chair-knot",
+        title: "消防员椅结",
+        summary: "具有两个可调锁定绳环的临时救援吊带。",
+        description: "该绳结可用作救援安全带并支撑人员。",
+        steps: [],
+        categories: [],
+        types: [],
+      },
+    ],
+  };
+  const result = spawnSync(
+    process.execPath,
+    [script, "--stdin", "--fail-on-critical"],
+    {
+      input: JSON.stringify(manifest),
+      encoding: "utf8",
+    },
+  );
+  assert.equal(result.status, 2);
+  const summary = JSON.parse(result.stdout);
+  assert.equal(summary.critical_count, 1);
+  assert.equal(summary.text_risk_item_counts.rescue, 1);
 });
 
 test("profile page renders stored WeChat nickname and avatar", () => {
