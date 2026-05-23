@@ -1,6 +1,7 @@
 package com.rustella.stellartrail.core.network
 
 import com.rustella.stellartrail.core.config.AppConfig
+import com.rustella.stellartrail.core.config.AppDomainCandidate
 import com.rustella.stellartrail.domain.common.HealthResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -53,7 +54,7 @@ class ApiClientTest {
             }
         }
         val client = ApiClient(
-            configProvider = { AppConfig("https://api.example.invalid") },
+            configProvider = { AppConfig("https://api.example.invalid", domainCandidates = domainCandidates) },
             httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
         )
 
@@ -89,7 +90,7 @@ class ApiClientTest {
             }
         }
         val client = ApiClient(
-            configProvider = { AppConfig("https://api.example.invalid") },
+            configProvider = { AppConfig("https://api.example.invalid", domainCandidates = domainCandidates) },
             httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
         )
 
@@ -217,5 +218,23 @@ class ApiClientTest {
         content = content,
         status = status,
         headers = headersOf(HttpHeaders.ContentType, "application/json"),
+    )
+
+    private val domainCandidates = listOf(
+        AppDomainCandidate(
+            id = "primary",
+            apiBaseUrl = "https://api.example.invalid",
+            assetsBaseUrl = "https://assets.example.invalid",
+        ),
+        AppDomainCandidate(
+            id = "backup",
+            apiBaseUrl = "https://api-alt1.example.invalid",
+            assetsBaseUrl = "https://assets-alt1.example.invalid",
+        ),
+        AppDomainCandidate(
+            id = "backup-2",
+            apiBaseUrl = "https://api-alt2.example.invalid",
+            assetsBaseUrl = "https://assets-alt2.example.invalid",
+        ),
     )
 }

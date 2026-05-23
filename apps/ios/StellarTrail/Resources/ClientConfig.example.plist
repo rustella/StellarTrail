@@ -6,5 +6,7 @@
     <string>https://api.example.invalid</string>
     <key>ASSETS_BASE_URL</key>
     <string>https://assets.example.invalid</string>
+    <key>DOMAIN_CANDIDATES</key>
+    <array/>
 </dict>
 </plist>

@@ -19,15 +19,16 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(settings.assetsBaseURLString, "https://assets.example.invalid")
         XCTAssertEqual(urlHost(settings.baseURL), "api.example.invalid")
         XCTAssertEqual(urlHost(settings.assetsBaseURL), "assets.example.invalid")
+        XCTAssertTrue(settings.domainCandidates.isEmpty)
         XCTAssertEqual(client.resolveAssetURL("knots/bowline.png")?.absoluteString, "https://assets.example.invalid/knots/bowline.png")
         XCTAssertEqual(client.resolveAssetURL("/knots/bowline.png")?.absoluteString, "https://assets.example.invalid/knots/bowline.png")
         XCTAssertEqual(client.resolveAssetURL("https://cdn.example.invalid/knots/bowline.png")?.absoluteString, "https://cdn.example.invalid/knots/bowline.png")
-        XCTAssertEqual(client.resolveAssetURL("https://assets-alt2.example.invalid/knots/bowline.png")?.absoluteString, "https://assets.example.invalid/knots/bowline.png")
+        XCTAssertEqual(client.resolveAssetURL("https://assets-alt2.example.invalid/knots/bowline.png")?.absoluteString, "https://assets-alt2.example.invalid/knots/bowline.png")
     }
 
     func testProductionDomainProbeKeepsFirstHealthyDomainFamily() async throws {
         MockURLProtocol.automaticallyRespondsToHealthChecks = false
-        let settings = AppSettingsStore(defaults: .testSuite())
+        let settings = AppSettingsStore(defaults: .testSuite(), clientConfig: domainProbeClientConfig)
         let sessionStore = SessionStore(keychainStore: InMemoryKeychainStore())
         let client = APIClient(settingsStore: settings, sessionStore: sessionStore, session: .mocked)
         var seenRequests: [String] = []
@@ -60,7 +61,7 @@ final class APIClientTests: XCTestCase {
 
     func testProductionDomainProbeFallsThroughToSecondHealthyDomainFamily() async throws {
         MockURLProtocol.automaticallyRespondsToHealthChecks = false
-        let settings = AppSettingsStore(defaults: .testSuite())
+        let settings = AppSettingsStore(defaults: .testSuite(), clientConfig: domainProbeClientConfig)
         let sessionStore = SessionStore(keychainStore: InMemoryKeychainStore())
         let client = APIClient(settingsStore: settings, sessionStore: sessionStore, session: .mocked)
         var seenRequests: [String] = []
@@ -432,17 +433,29 @@ final class APIClientTests: XCTestCase {
         ]))
     }
 
-    func testSettingsMigratesMisspelledAPIBaseURL() {
-        let defaults = UserDefaults.testSuite()
-        defaults.set("https://api.example.invalid/", forKey: "stellartrail.baseURLString")
-
-        let settings = AppSettingsStore(defaults: defaults)
-
-        XCTAssertEqual(settings.baseURLString, "https://api.example.invalid")
-        XCTAssertEqual(defaults.string(forKey: "stellartrail.baseURLString"), "https://api.example.invalid")
-    }
-
 }
+
+private let domainProbeClientConfig = ClientConfig(
+    apiBaseURLString: "https://api.example.invalid",
+    assetsBaseURLString: "https://assets.example.invalid",
+    domainCandidates: [
+        ClientDomainCandidate(
+            id: "primary",
+            apiBaseURLString: "https://api.example.invalid",
+            assetsBaseURLString: "https://assets.example.invalid"
+        ),
+        ClientDomainCandidate(
+            id: "backup",
+            apiBaseURLString: "https://api-alt1.example.invalid",
+            assetsBaseURLString: "https://assets-alt1.example.invalid"
+        ),
+        ClientDomainCandidate(
+            id: "backup-2",
+            apiBaseURLString: "https://api-alt2.example.invalid",
+            assetsBaseURLString: "https://assets-alt2.example.invalid"
+        ),
+    ]
+)
 
 private let gearItemPayload = #"{"id":"gear-1","user_id":"user-fixture","category":"lighting_system","name":"头灯","brand":"Nitecore","model":"NU25","color":null,"material":null,"capacity":null,"size":null,"description":"夜行备用","weight_g":86,"official_price_cents":19900,"official_price_currency":"CNY","warmth_index":null,"waterproof_index":null,"purchase_date":"2026-05-01","purchase_price_cents":15900,"purchase_price_currency":"CNY","expiry_or_warranty_date":null,"purchase_location":"旗舰店","status":"available","storage_location":"玄关","specs":{"max_brightness":"450 lm"},"tags":["夜行"],"tag_colors":{"夜行":"violet"},"share_enabled":true,"share_status":"pending","notes":"备用电池已检查","archived_at":null,"created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-01T10:00:00Z"}"#
 

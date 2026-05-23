@@ -17,23 +17,7 @@ export interface ClientDomainCandidate {
 const DEFAULT_CONFIG: ResolvedClientConfig = {
   apiBaseUrl: "https://api.example.invalid",
   assetsBaseUrl: "https://assets.example.invalid",
-  domainCandidates: [
-    {
-      id: "stellartrail",
-      apiBaseUrl: "https://api.example.invalid",
-      assetsBaseUrl: "https://assets.example.invalid",
-    },
-    {
-      id: "stellaris",
-      apiBaseUrl: "https://api-alt1.example.invalid",
-      assetsBaseUrl: "https://assets-alt1.example.invalid",
-    },
-    {
-      id: "iwx",
-      apiBaseUrl: "https://api-alt2.example.invalid",
-      assetsBaseUrl: "https://assets-alt2.example.invalid",
-    },
-  ],
+  domainCandidates: [],
 };
 
 declare const require:
@@ -81,17 +65,10 @@ export function loadClientConfig(): ResolvedClientConfig {
 
 function resolveDomainCandidates(
   local: Partial<ClientConfig>,
-  apiBaseUrl: string,
-  assetsBaseUrl: string,
+  _apiBaseUrl: string,
+  _assetsBaseUrl: string,
 ): ClientDomainCandidate[] {
-  const configured = normalizeDomainCandidates(local.domainCandidates);
-  if (configured.length > 0) {
-    return configured;
-  }
-  if (local.apiBaseUrl && !isKnownProductionApiBaseUrl(apiBaseUrl)) {
-    return [];
-  }
-  return DEFAULT_CONFIG.domainCandidates.map((candidate) => ({ ...candidate }));
+  return normalizeDomainCandidates(local.domainCandidates);
 }
 
 function normalizeDomainCandidates(
@@ -110,12 +87,4 @@ function normalizeDomainCandidates(
       (candidate) =>
         candidate.id && candidate.apiBaseUrl && candidate.assetsBaseUrl,
     );
-}
-
-function isKnownProductionApiBaseUrl(apiBaseUrl: string): boolean {
-  return DEFAULT_CONFIG.domainCandidates.some(
-    (candidate) =>
-      normalizeBaseUrl(candidate.apiBaseUrl, DEFAULT_CONFIG.apiBaseUrl) ===
-      apiBaseUrl,
-  );
 }

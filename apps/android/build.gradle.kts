@@ -44,6 +44,11 @@ android {
             "DEFAULT_ASSETS_BASE_URL",
             quotedBuildConfigString(clientConfigValue("stellartrail.assetsBaseUrl", "https://assets.example.invalid")),
         )
+        buildConfigField(
+            "String",
+            "DEFAULT_DOMAIN_CANDIDATES",
+            quotedBuildConfigString(clientConfigValue("stellartrail.domainCandidates", "")),
+        )
     }
 
     buildTypes {
