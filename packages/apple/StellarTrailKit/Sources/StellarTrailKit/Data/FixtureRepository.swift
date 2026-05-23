@@ -156,6 +156,18 @@ final class FixtureRepository: AuthRepositorying, GearRepositorying, GearAtlasRe
         gearItems[index] = FixtureData.copy(gearItems[index], archivedAt: "2026-05-17T09:00:00Z")
     }
 
+    func delete(id: String) async throws {
+        guard let index = gearItems.firstIndex(where: { $0.id == id }) else { throw AppError.server("没有找到这件装备") }
+        gearItems[index] = FixtureData.copy(gearItems[index], archivedAt: gearItems[index].archivedAt, isDeleted: true)
+    }
+
+    func undelete(id: String) async throws -> GearItem {
+        guard let index = gearItems.firstIndex(where: { $0.id == id }) else { throw AppError.server("没有找到这件装备") }
+        let item = FixtureData.copy(gearItems[index], archivedAt: gearItems[index].archivedAt, isDeleted: false)
+        gearItems[index] = item
+        return item
+    }
+
     func restore(id: String) async throws -> GearItem {
         guard let index = gearItems.firstIndex(where: { $0.id == id }) else { throw AppError.server("没有找到这件装备") }
         let item = FixtureData.copy(gearItems[index], archivedAt: nil)
@@ -285,18 +297,18 @@ enum FixtureData {
     ]
 
     static let gearItems: [GearItem] = [
-        GearItem(id: "gear-1", userId: "user-fixture", category: .backpackSystem, name: "轻量背包", brand: "山野", model: "45L", color: "松石绿", material: "尼龙", capacity: "45L", size: "M", description: "周末和一晚露营都能用。", weightG: 980, officialPriceCents: 109900, officialPriceCurrency: "CNY", warmthIndex: nil, waterproofIndex: "防泼水", purchaseDate: "2026-05-01", purchasePriceCents: 89900, purchasePriceCurrency: "CNY", expiryOrWarrantyDate: "2028-05-01", purchaseLocation: "品牌官网", status: .available, storageLocation: "装备柜 A", specs: ["capacity": "45 L", "recommended_load": "12 kg", "back_length": "48 cm", "backpack_size": "M", "waterproof_rating": "防泼水"], tags: ["轻量", "三季"], tagColors: ["轻量": "teal", "三季": "green"], shareEnabled: true, shareStatus: .approved, notes: "常用背包，肩带已调好。", archivedAt: nil, createdAt: "2026-05-01T10:00:00Z", updatedAt: "2026-05-02T10:00:00Z"),
-        GearItem(id: "gear-2", userId: "user-fixture", category: .lightingSystem, name: "头灯", brand: "星火", model: "HL200", color: "黑色", material: nil, capacity: nil, size: nil, description: "备用电池放在顶包。", weightG: 86, officialPriceCents: 19900, officialPriceCurrency: "CNY", warmthIndex: nil, waterproofIndex: "IPX4", purchaseDate: "2026-04-12", purchasePriceCents: 15900, purchasePriceCurrency: "CNY", expiryOrWarrantyDate: nil, purchaseLocation: "京东", status: .inUse, storageLocation: "顶包", specs: ["max_brightness": "450 lm", "runtime": "8 h", "battery_type": "AAA", "waterproof_rating": "IPX4"], tags: ["夜行", "备用"], tagColors: ["夜行": "blue", "备用": "amber"], shareEnabled: false, shareStatus: .notShared, notes: nil, archivedAt: nil, createdAt: "2026-04-12T10:00:00Z", updatedAt: "2026-05-01T08:00:00Z"),
-        GearItem(id: "gear-archived", userId: "user-fixture", category: .sleepSystem, name: "旧睡袋", brand: "北山", model: "Warm 400", color: "蓝色", material: "羽绒", capacity: nil, size: "L", description: "已换新，保留记录。", weightG: 760, officialPriceCents: 89900, officialPriceCurrency: "CNY", warmthIndex: "5℃", waterproofIndex: nil, purchaseDate: "2023-02-01", purchasePriceCents: 69900, purchasePriceCurrency: "CNY", expiryOrWarrantyDate: nil, purchaseLocation: "线下户外店", status: .retired, storageLocation: "储藏箱", specs: ["type": "睡袋", "temperature_or_r_value": "5 ℃", "filling": "羽绒"], tags: ["历史"], tagColors: ["历史": "slate"], shareEnabled: false, shareStatus: .notShared, notes: "拉链磨损。", archivedAt: "2026-01-01T10:00:00Z", createdAt: "2023-02-01T10:00:00Z", updatedAt: "2026-01-01T10:00:00Z")
+        GearItem(id: "gear-1", userId: "user-fixture", category: .backpackSystem, name: "轻量背包", brand: "山野", model: "45L", color: "松石绿", material: "尼龙", capacity: "45L", size: "M", description: "周末和一晚露营都能用。", weightG: 980, officialPriceCents: 109900, officialPriceCurrency: "CNY", warmthIndex: nil, waterproofIndex: "防泼水", purchaseDate: "2026-05-01", purchasePriceCents: 89900, purchasePriceCurrency: "CNY", expiryOrWarrantyDate: "2028-05-01", purchaseLocation: "品牌官网", status: .available, storageLocation: "装备柜 A", specs: ["capacity": "45 L", "recommended_load": "12 kg", "back_length": "48 cm", "backpack_size": "M", "waterproof_rating": "防泼水"], tags: ["轻量", "三季"], tagColors: ["轻量": "teal", "三季": "green"], shareEnabled: true, shareStatus: .approved, notes: "常用背包，肩带已调好。", archivedAt: nil, isDeleted: false, createdAt: "2026-05-01T10:00:00Z", updatedAt: "2026-05-02T10:00:00Z"),
+        GearItem(id: "gear-2", userId: "user-fixture", category: .lightingSystem, name: "头灯", brand: "星火", model: "HL200", color: "黑色", material: nil, capacity: nil, size: nil, description: "备用电池放在顶包。", weightG: 86, officialPriceCents: 19900, officialPriceCurrency: "CNY", warmthIndex: nil, waterproofIndex: "IPX4", purchaseDate: "2026-04-12", purchasePriceCents: 15900, purchasePriceCurrency: "CNY", expiryOrWarrantyDate: nil, purchaseLocation: "京东", status: .inUse, storageLocation: "顶包", specs: ["max_brightness": "450 lm", "runtime": "8 h", "battery_type": "AAA", "waterproof_rating": "IPX4"], tags: ["夜行", "备用"], tagColors: ["夜行": "blue", "备用": "amber"], shareEnabled: false, shareStatus: .notShared, notes: nil, archivedAt: nil, isDeleted: false, createdAt: "2026-04-12T10:00:00Z", updatedAt: "2026-05-01T08:00:00Z"),
+        GearItem(id: "gear-archived", userId: "user-fixture", category: .sleepSystem, name: "旧睡袋", brand: "北山", model: "Warm 400", color: "蓝色", material: "羽绒", capacity: nil, size: "L", description: "已换新，保留记录。", weightG: 760, officialPriceCents: 89900, officialPriceCurrency: "CNY", warmthIndex: "5℃", waterproofIndex: nil, purchaseDate: "2023-02-01", purchasePriceCents: 69900, purchasePriceCurrency: "CNY", expiryOrWarrantyDate: nil, purchaseLocation: "线下户外店", status: .retired, storageLocation: "储藏箱", specs: ["type": "睡袋", "temperature_or_r_value": "5 ℃", "filling": "羽绒"], tags: ["历史"], tagColors: ["历史": "slate"], shareEnabled: false, shareStatus: .notShared, notes: "拉链磨损。", archivedAt: "2026-01-01T10:00:00Z", isDeleted: false, createdAt: "2023-02-01T10:00:00Z", updatedAt: "2026-01-01T10:00:00Z")
     ]
 
     static let atlasItems: [GearAtlasPublicItem] = [
-        GearAtlasPublicItem(id: "atlas-1", category: .backpackSystem, categoryLabel: GearCategory.backpackSystem.label, name: "山野 45L 轻量背包", brand: "山野", model: "45L", description: "适合周末和一晚轻量露营的背负系统。", weightG: 980, officialPriceCents: 109900, officialPriceCurrency: "CNY", specs: ["capacity": "45 L", "recommended_load": "12 kg", "back_length": "48 cm"], approvedAt: "2026-05-03T10:00:00Z", createdAt: "2026-05-01T10:00:00Z", updatedAt: "2026-05-03T10:00:00Z"),
-        GearAtlasPublicItem(id: "atlas-2", category: .lightingSystem, categoryLabel: GearCategory.lightingSystem.label, name: "星火 HL200 头灯", brand: "星火", model: "HL200", description: "轻量备用头灯，夜行和营地都够用。", weightG: 86, officialPriceCents: 19900, officialPriceCurrency: "CNY", specs: ["max_brightness": "450 lm", "runtime": "8 h", "waterproof_rating": "IPX4"], approvedAt: "2026-04-18T10:00:00Z", createdAt: "2026-04-15T10:00:00Z", updatedAt: "2026-04-18T10:00:00Z")
+        GearAtlasPublicItem(id: "atlas-1", category: .backpackSystem, categoryLabel: GearCategory.backpackSystem.label, name: "山野 45L 轻量背包", brand: "山野", model: "45L", description: "适合周末和一晚轻量露营的背负系统。", weightG: 980, officialPriceCents: 109900, officialPriceCurrency: "CNY", specs: ["capacity": "45 L", "recommended_load": "12 kg", "back_length": "48 cm"], approvedAt: "2026-05-03T10:00:00Z", isDeleted: false, createdAt: "2026-05-01T10:00:00Z", updatedAt: "2026-05-03T10:00:00Z"),
+        GearAtlasPublicItem(id: "atlas-2", category: .lightingSystem, categoryLabel: GearCategory.lightingSystem.label, name: "星火 HL200 头灯", brand: "星火", model: "HL200", description: "轻量备用头灯，夜行和营地都够用。", weightG: 86, officialPriceCents: 19900, officialPriceCurrency: "CNY", specs: ["max_brightness": "450 lm", "runtime": "8 h", "waterproof_rating": "IPX4"], approvedAt: "2026-04-18T10:00:00Z", isDeleted: false, createdAt: "2026-04-15T10:00:00Z", updatedAt: "2026-04-18T10:00:00Z")
     ]
 
     static let atlasSubmissions: [GearAtlasSubmission] = [
-        GearAtlasSubmission(id: "submission-1", category: .backpackSystem, categoryLabel: GearCategory.backpackSystem.label, name: "轻量背包", brand: "山野", model: "45L", description: "用户装备公开字段投稿。", weightG: 980, officialPriceCents: 109900, officialPriceCurrency: "CNY", specs: ["capacity": "45 L", "recommended_load": "12 kg"], approvedAt: nil, createdAt: "2026-05-02T10:00:00Z", updatedAt: "2026-05-02T10:00:00Z", sourceType: .userGear, sourceUserGearId: "gear-1", status: .pending, rejectionReason: nil, reviewedAt: nil)
+        GearAtlasSubmission(id: "submission-1", category: .backpackSystem, categoryLabel: GearCategory.backpackSystem.label, name: "轻量背包", brand: "山野", model: "45L", description: "用户装备公开字段投稿。", weightG: 980, officialPriceCents: 109900, officialPriceCurrency: "CNY", specs: ["capacity": "45 L", "recommended_load": "12 kg"], approvedAt: nil, isDeleted: false, createdAt: "2026-05-02T10:00:00Z", updatedAt: "2026-05-02T10:00:00Z", sourceType: .userGear, sourceUserGearId: "gear-1", status: .pending, rejectionReason: nil, reviewedAt: nil)
     ]
 
     static func item(from request: CreateGearRequest, id: String, archivedAt: String? = nil) -> GearItem {
@@ -331,13 +343,14 @@ enum FixtureData {
             shareStatus: request.shareEnabled == true ? .pending : .notShared,
             notes: request.notes?.nilIfBlank,
             archivedAt: archivedAt,
+            isDeleted: false,
             createdAt: "2026-05-17T09:00:00Z",
             updatedAt: "2026-05-17T09:00:00Z"
         )
     }
 
-    static func copy(_ item: GearItem, archivedAt: String?) -> GearItem {
-        GearItem(id: item.id, userId: item.userId, category: item.category, name: item.name, brand: item.brand, model: item.model, color: item.color, material: item.material, capacity: item.capacity, size: item.size, description: item.description, weightG: item.weightG, officialPriceCents: item.officialPriceCents, officialPriceCurrency: item.officialPriceCurrency, warmthIndex: item.warmthIndex, waterproofIndex: item.waterproofIndex, purchaseDate: item.purchaseDate, purchasePriceCents: item.purchasePriceCents, purchasePriceCurrency: item.purchasePriceCurrency, expiryOrWarrantyDate: item.expiryOrWarrantyDate, purchaseLocation: item.purchaseLocation, status: item.status, storageLocation: item.storageLocation, specs: item.specs, tags: item.tags, tagColors: item.tagColors, shareEnabled: item.shareEnabled, shareStatus: item.shareStatus, notes: item.notes, archivedAt: archivedAt, createdAt: item.createdAt, updatedAt: "2026-05-17T09:00:00Z")
+    static func copy(_ item: GearItem, archivedAt: String?, isDeleted: Bool? = nil) -> GearItem {
+        GearItem(id: item.id, userId: item.userId, category: item.category, name: item.name, brand: item.brand, model: item.model, color: item.color, material: item.material, capacity: item.capacity, size: item.size, description: item.description, weightG: item.weightG, officialPriceCents: item.officialPriceCents, officialPriceCurrency: item.officialPriceCurrency, warmthIndex: item.warmthIndex, waterproofIndex: item.waterproofIndex, purchaseDate: item.purchaseDate, purchasePriceCents: item.purchasePriceCents, purchasePriceCurrency: item.purchasePriceCurrency, expiryOrWarrantyDate: item.expiryOrWarrantyDate, purchaseLocation: item.purchaseLocation, status: item.status, storageLocation: item.storageLocation, specs: item.specs, tags: item.tags, tagColors: item.tagColors, shareEnabled: item.shareEnabled, shareStatus: item.shareStatus, notes: item.notes, archivedAt: archivedAt, isDeleted: isDeleted ?? item.isDeleted, createdAt: item.createdAt, updatedAt: "2026-05-17T09:00:00Z")
     }
 
     static func atlasSubmission(from request: CreateGearAtlasSubmissionRequest, id: String, sourceGearID: String?) -> GearAtlasSubmission {
@@ -354,6 +367,7 @@ enum FixtureData {
             officialPriceCurrency: request.officialPriceCurrency,
             specs: request.specs,
             approvedAt: nil,
+            isDeleted: false,
             createdAt: "2026-05-17T09:00:00Z",
             updatedAt: "2026-05-17T09:00:00Z",
             sourceType: sourceGearID == nil ? .manual : .userGear,

@@ -70,6 +70,7 @@ function buildAtlasSubmission(
     rejection_reason: null,
     review_changes: [],
     reviewed_at: null,
+    is_deleted: false,
     created_at: "2026-01-23T00:00:00Z",
     updated_at: "2026-01-23T00:00:00Z",
     ...overrides,
@@ -258,6 +259,7 @@ function buildClient(): WebGearApi {
           weight_g: 315,
           purchase_price_cents: 63900,
           purchase_date: "2026-01-22",
+          is_deleted: false,
           created_at: "2026-01-23T00:00:00Z",
           updated_at: "2026-01-23T00:00:00Z",
         },
@@ -273,6 +275,7 @@ function buildClient(): WebGearApi {
           weight_g: 860,
           purchase_price_cents: null,
           purchase_date: null,
+          is_deleted: false,
           created_at: "2026-01-24T00:00:00Z",
           updated_at: "2026-01-24T00:00:00Z",
         },
@@ -308,12 +311,17 @@ function buildClient(): WebGearApi {
       share_status: "not_shared",
       notes: "冷天备用",
       archived_at: null,
+      is_deleted: false,
       created_at: "2026-01-23T00:00:00Z",
       updated_at: "2026-01-23T00:00:00Z",
     }),
     createGear: vi.fn().mockResolvedValue({ id: "gear-new" }),
     updateGear: vi.fn().mockResolvedValue({ id: "gear-1" }),
     archiveGear: vi.fn().mockResolvedValue(undefined),
+    deleteGear: vi.fn().mockResolvedValue(undefined),
+    undeleteGear: vi
+      .fn()
+      .mockResolvedValue({ id: "gear-1", is_deleted: false }),
     restoreGear: vi.fn().mockResolvedValue({ id: "gear-1" }),
     exportGearsCsv: vi.fn().mockResolvedValue("name\nSUMMIT"),
     importGears: vi.fn().mockResolvedValue({
@@ -403,9 +411,11 @@ function buildClient(): WebGearApi {
               size_bytes: 67,
               sha256: "hash",
               download_url: "/api/v1/admin/feedback-images/upload-1",
+              is_deleted: false,
               created_at: "2026-01-23T00:00:00Z",
             },
           ],
+          is_deleted: false,
           created_at: "2026-01-23T00:00:00Z",
           updated_at: "2026-01-23T00:00:00Z",
         },
@@ -457,6 +467,7 @@ function buildClient(): WebGearApi {
           status: "pending",
           rejection_reason: null,
           reviewed_at: null,
+          is_deleted: false,
           created_at: "2026-01-23T00:00:00Z",
           updated_at: "2026-01-23T00:00:00Z",
         },
@@ -481,6 +492,7 @@ function buildClient(): WebGearApi {
       status: "pending",
       rejection_reason: null,
       reviewed_at: null,
+      is_deleted: false,
       created_at: "2026-01-23T00:00:00Z",
       updated_at: "2026-01-23T00:00:00Z",
     }),
@@ -511,9 +523,19 @@ function buildClient(): WebGearApi {
       status: "approved",
       rejection_reason: null,
       reviewed_at: "2026-01-24T00:00:00Z",
+      is_deleted: false,
       created_at: "2026-01-23T00:00:00Z",
       updated_at: "2026-01-24T00:00:00Z",
     }),
+    deleteAdminFeedback: vi.fn().mockResolvedValue(undefined),
+    restoreAdminFeedback: vi.fn().mockResolvedValue(undefined),
+    deleteAdminGearAtlasSubmission: vi.fn().mockResolvedValue(undefined),
+    restoreAdminGearAtlasSubmission: vi.fn().mockResolvedValue(
+      buildAtlasSubmission({
+        id: "atlas-1",
+        is_deleted: false,
+      }),
+    ),
     rejectGearAtlasSubmission: vi.fn().mockResolvedValue({
       id: "atlas-1",
       category: "electronics_system",
@@ -533,6 +555,7 @@ function buildClient(): WebGearApi {
       status: "rejected",
       rejection_reason: "信息不足",
       reviewed_at: "2026-01-24T00:00:00Z",
+      is_deleted: false,
       created_at: "2026-01-23T00:00:00Z",
       updated_at: "2026-01-24T00:00:00Z",
     }),
@@ -758,6 +781,7 @@ describe("App", () => {
     ).toBeGreaterThan(0);
     expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
       status: "pending",
+      deleted: "active",
       limit: 20,
     });
   });
@@ -978,6 +1002,7 @@ describe("App", () => {
     expect(await screen.findByText("第二页审核装备")).toBeInTheDocument();
     expect(client.listAdminGearAtlasSubmissions).toHaveBeenLastCalledWith({
       status: "pending",
+      deleted: "active",
       limit: 20,
       cursor: "20",
     });
@@ -1012,6 +1037,7 @@ describe("App", () => {
     expect(screen.getByText("screen.png")).toBeInTheDocument();
     expect(client.listAdminFeedback).toHaveBeenCalledWith({
       status: "open",
+      deleted: "active",
       limit: 50,
     });
   });
@@ -1096,6 +1122,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
         status: "pending",
+        deleted: "active",
         limit: 20,
       });
     });
@@ -1128,6 +1155,7 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(client.listAdminFeedback).toHaveBeenCalledWith({
       status: "open",
+      deleted: "active",
       limit: 50,
     });
   });
@@ -1428,6 +1456,7 @@ describe("App", () => {
       share_status: "not_shared",
       notes: null,
       archived_at: null,
+      is_deleted: false,
       created_at: "2026-01-23T00:00:00Z",
       updated_at: "2026-01-23T00:00:00Z",
     });

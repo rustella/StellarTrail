@@ -200,6 +200,8 @@ export interface AdminRoleResponse {
   role: AdminRole;
 }
 
+export type DeletedFilter = "active" | "deleted" | "all";
+
 export interface UploadImageInfo {
   id: string;
   purpose: string;
@@ -209,6 +211,7 @@ export interface UploadImageInfo {
   size_bytes: number;
   sha256: string;
   download_url: string;
+  is_deleted: boolean;
   created_at: string;
 }
 
@@ -232,12 +235,14 @@ export interface AdminFeedbackItem {
   device_model?: string | null;
   status: string;
   images: UploadImageInfo[];
+  is_deleted: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export interface ListAdminFeedbackRequest {
   status?: string;
+  deleted?: DeletedFilter;
   limit?: number;
   cursor?: string;
 }
@@ -346,6 +351,7 @@ export interface GearItem {
   share_status: GearShareStatus;
   notes?: string | null;
   archived_at?: string | null;
+  is_deleted: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -371,6 +377,7 @@ export interface GearSummary {
   specs?: GearSpecs | null;
   tags: string[];
   tag_colors?: GearTagColorMap | null;
+  is_deleted: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -450,6 +457,7 @@ export interface ListGearsRequest {
   tab?: GearTab;
   category?: GearCategory;
   status?: GearStatus;
+  deleted?: DeletedFilter;
   q?: string;
   sort?: GearSort;
   limit?: number;
@@ -501,6 +509,7 @@ export interface GearAtlasPublicItem {
   source_url?: string | null;
   source_rating_score?: number | null;
   source_rating_count?: number | null;
+  is_deleted: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -552,6 +561,7 @@ export interface ListGearAtlasResponse {
 export interface ListGearAtlasSubmissionsRequest {
   status?: GearAtlasStatus;
   category?: GearCategory;
+  deleted?: DeletedFilter;
   q?: string;
   limit?: number;
   cursor?: string;

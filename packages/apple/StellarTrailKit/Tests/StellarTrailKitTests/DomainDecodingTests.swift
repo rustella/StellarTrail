@@ -49,6 +49,7 @@ final class DomainDecodingTests: XCTestCase {
           "share_status":"approved",
           "notes":"常用",
           "archived_at":null,
+          "is_deleted":false,
           "created_at":"2026-05-01T10:00:00Z",
           "updated_at":"2026-05-02T10:00:00Z"
         }
@@ -103,6 +104,7 @@ final class DomainDecodingTests: XCTestCase {
           "official_price_currency":"CNY",
           "specs":{"max_brightness":"450 lm"},
           "approved_at":"2026-05-01T10:00:00Z",
+          "is_deleted":false,
           "created_at":"2026-04-30T10:00:00Z",
           "updated_at":"2026-05-01T10:00:00Z"
         }
@@ -114,6 +116,7 @@ final class DomainDecodingTests: XCTestCase {
         XCTAssertEqual(item.formattedWeight, "86 g")
         XCTAssertEqual(item.formattedOfficialPrice, "¥199")
         XCTAssertEqual(item.specs?["max_brightness"], "450 lm")
+        XCTAssertFalse(item.isDeleted)
     }
 
     func testKnotListUsesOffsetPagination() throws {

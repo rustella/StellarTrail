@@ -249,7 +249,7 @@ final class APIClientTests: XCTestCase {
             let bodyData = try XCTUnwrap(requestBodyData(from: request))
             let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
             XCTAssertEqual(body["category"] as? String, "lighting_system")
-            let payload = #"{"id":"submission-1","category":"lighting_system","category_label":"照明系统","name":"头灯","brand":null,"model":null,"description":null,"weight_g":86,"official_price_cents":19900,"official_price_currency":"CNY","specs":{"max_brightness":"450 lm"},"approved_at":null,"created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-01T10:00:00Z","source_type":"manual","source_user_gear_id":null,"status":"pending","rejection_reason":null,"reviewed_at":null}"#.data(using: .utf8)!
+            let payload = #"{"id":"submission-1","category":"lighting_system","category_label":"照明系统","name":"头灯","brand":null,"model":null,"description":null,"weight_g":86,"official_price_cents":19900,"official_price_currency":"CNY","specs":{"max_brightness":"450 lm"},"approved_at":null,"is_deleted":false,"created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-01T10:00:00Z","source_type":"manual","source_user_gear_id":null,"status":"pending","rejection_reason":null,"reviewed_at":null}"#.data(using: .utf8)!
             return (HTTPURLResponse(url: request.url!, statusCode: 201, httpVersion: nil, headerFields: nil)!, payload)
         }
 
@@ -299,9 +299,9 @@ final class APIClientTests: XCTestCase {
                 return jsonResponse(url: url, #"{"items":[{"tag":"夜行","color":"violet"}]}"#)
             case "GET /api/v1/me/gears":
                 return jsonResponse(url: url, #"{"items":[],"next_cursor":null}"#)
-            case "GET /api/v1/me/gears/gear-1", "POST /api/v1/me/gears", "PATCH /api/v1/me/gears/gear-1", "POST /api/v1/me/gears/gear-1/restore":
+            case "GET /api/v1/me/gears/gear-1", "POST /api/v1/me/gears", "PATCH /api/v1/me/gears/gear-1", "POST /api/v1/me/gears/gear-1/undelete", "POST /api/v1/me/gears/gear-1/restore":
                 return jsonResponse(url: url, gearItemPayload)
-            case "DELETE /api/v1/me/gears/gear-1":
+            case "DELETE /api/v1/me/gears/gear-1", "POST /api/v1/me/gears/gear-1/delete":
                 return emptyResponse(url: url)
             case "GET /api/v1/gear-atlas":
                 return jsonResponse(url: url, #"{"items":[],"next_cursor":null}"#)
@@ -372,6 +372,8 @@ final class APIClientTests: XCTestCase {
         let _: GearItem = try await gearRepository.create(gearPayload)
         let _: GearItem = try await gearRepository.update(id: "gear-1", request: gearPayload)
         try await gearRepository.archive(id: "gear-1")
+        try await gearRepository.delete(id: "gear-1")
+        let _: GearItem = try await gearRepository.undelete(id: "gear-1")
         let _: GearItem = try await gearRepository.restore(id: "gear-1")
         let _: ListGearAtlasResponse = try await atlasRepository.list(ListGearAtlasRequest(category: .lightingSystem, q: "头灯"))
         let _: GearAtlasPublicItem = try await atlasRepository.get(id: "atlas-1")
@@ -407,6 +409,8 @@ final class APIClientTests: XCTestCase {
             "POST /api/v1/me/gears",
             "PATCH /api/v1/me/gears/gear-1",
             "DELETE /api/v1/me/gears/gear-1",
+            "POST /api/v1/me/gears/gear-1/delete",
+            "POST /api/v1/me/gears/gear-1/undelete",
             "POST /api/v1/me/gears/gear-1/restore",
             "GET /api/v1/gear-atlas",
             "GET /api/v1/gear-atlas/atlas-1",
@@ -457,11 +461,11 @@ private let domainProbeClientConfig = ClientConfig(
     ]
 )
 
-private let gearItemPayload = #"{"id":"gear-1","user_id":"user-fixture","category":"lighting_system","name":"头灯","brand":"Nitecore","model":"NU25","color":null,"material":null,"capacity":null,"size":null,"description":"夜行备用","weight_g":86,"official_price_cents":19900,"official_price_currency":"CNY","warmth_index":null,"waterproof_index":null,"purchase_date":"2026-05-01","purchase_price_cents":15900,"purchase_price_currency":"CNY","expiry_or_warranty_date":null,"purchase_location":"旗舰店","status":"available","storage_location":"玄关","specs":{"max_brightness":"450 lm"},"tags":["夜行"],"tag_colors":{"夜行":"violet"},"share_enabled":true,"share_status":"pending","notes":"备用电池已检查","archived_at":null,"created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-01T10:00:00Z"}"#
+private let gearItemPayload = #"{"id":"gear-1","user_id":"user-fixture","category":"lighting_system","name":"头灯","brand":"Nitecore","model":"NU25","color":null,"material":null,"capacity":null,"size":null,"description":"夜行备用","weight_g":86,"official_price_cents":19900,"official_price_currency":"CNY","warmth_index":null,"waterproof_index":null,"purchase_date":"2026-05-01","purchase_price_cents":15900,"purchase_price_currency":"CNY","expiry_or_warranty_date":null,"purchase_location":"旗舰店","status":"available","storage_location":"玄关","specs":{"max_brightness":"450 lm"},"tags":["夜行"],"tag_colors":{"夜行":"violet"},"share_enabled":true,"share_status":"pending","notes":"备用电池已检查","archived_at":null,"is_deleted":false,"created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-01T10:00:00Z"}"#
 
-private let gearAtlasItemPayload = #"{"id":"atlas-1","category":"lighting_system","category_label":"照明系统","name":"头灯","brand":"Nitecore","model":"NU25","description":"公开字段","weight_g":86,"official_price_cents":19900,"official_price_currency":"CNY","specs":{"max_brightness":"450 lm"},"approved_at":"2026-05-01T10:00:00Z","created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-01T10:00:00Z"}"#
+private let gearAtlasItemPayload = #"{"id":"atlas-1","category":"lighting_system","category_label":"照明系统","name":"头灯","brand":"Nitecore","model":"NU25","description":"公开字段","weight_g":86,"official_price_cents":19900,"official_price_currency":"CNY","specs":{"max_brightness":"450 lm"},"approved_at":"2026-05-01T10:00:00Z","is_deleted":false,"created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-01T10:00:00Z"}"#
 
-private let gearAtlasSubmissionPayload = #"{"id":"submission-1","category":"lighting_system","category_label":"照明系统","name":"头灯","brand":"Nitecore","model":"NU25","description":"公开字段","weight_g":86,"official_price_cents":19900,"official_price_currency":"CNY","specs":{"max_brightness":"450 lm"},"approved_at":null,"created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-01T10:00:00Z","source_type":"manual","source_user_gear_id":null,"status":"pending","rejection_reason":null,"reviewed_at":null}"#
+private let gearAtlasSubmissionPayload = #"{"id":"submission-1","category":"lighting_system","category_label":"照明系统","name":"头灯","brand":"Nitecore","model":"NU25","description":"公开字段","weight_g":86,"official_price_cents":19900,"official_price_currency":"CNY","specs":{"max_brightness":"450 lm"},"approved_at":null,"is_deleted":false,"created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-01T10:00:00Z","source_type":"manual","source_user_gear_id":null,"status":"pending","rejection_reason":null,"reviewed_at":null}"#
 
 private let knotDetailPayload = #"{"id":"bowline","slug":"bowline","title":"称人结","summary":"常用固定绳结","categories":[],"types":[],"media":[],"href":null,"description":"适合快速形成固定绳圈。","steps":["绕圈","穿入","收紧"],"locale":"zh-CN"}"#
 

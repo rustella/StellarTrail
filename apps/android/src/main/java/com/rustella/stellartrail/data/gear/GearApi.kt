@@ -27,6 +27,7 @@ class GearApi(private val apiClient: ApiClient) {
             "tab" to request.tab.apiValue(),
             "category" to request.category?.apiValue(),
             "status" to request.status?.apiValue(),
+            "deleted" to request.deleted.apiValue(),
             "q" to request.query,
             "sort" to request.sort.apiValue(),
             "limit" to request.limit.toString(),
@@ -43,6 +44,12 @@ class GearApi(private val apiClient: ApiClient) {
     suspend fun archive(id: String) {
         apiClient.delete("/me/gears/$id")
     }
+
+    suspend fun delete(id: String) {
+        apiClient.post("/me/gears/$id/delete", EmptyRequest)
+    }
+
+    suspend fun undelete(id: String): GearItem = apiClient.post("/me/gears/$id/undelete", EmptyRequest)
 
     suspend fun restore(id: String): GearItem = apiClient.post("/me/gears/$id/restore", EmptyRequest)
 

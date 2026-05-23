@@ -30,6 +30,8 @@ export type GearShareStatus =
 
 export type GearTab = "available" | "history";
 
+export type DeletedFilter = "active" | "deleted" | "all";
+
 export type GearSort =
   | "created_at_desc"
   | "created_at_asc"
@@ -117,6 +119,7 @@ export interface GearItem {
   share_status: GearShareStatus;
   notes?: string | null;
   archived_at?: string | null;
+  is_deleted: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -139,6 +142,7 @@ export interface GearSummary {
   specs?: GearSpecs | null;
   tags?: string[];
   tag_colors?: GearTagColorMap | null;
+  is_deleted: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -156,6 +160,7 @@ export interface GearAtlasPublicItem {
   official_price_currency?: GearCurrency | string | null;
   specs?: GearSpecs | null;
   approved_at?: string | null;
+  is_deleted: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -261,6 +266,7 @@ export interface ListGearsRequest {
   tab?: GearTab;
   category?: GearCategory;
   status?: GearStatus;
+  deleted?: DeletedFilter;
   q?: string;
   sort?: GearSort;
   limit?: number;

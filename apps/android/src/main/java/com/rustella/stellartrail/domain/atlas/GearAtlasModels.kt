@@ -16,6 +16,7 @@ enum class GearAtlasStatus {
 enum class GearAtlasSourceType {
     @SerialName("manual") MANUAL,
     @SerialName("user_gear") USER_GEAR,
+    @SerialName("external_import") EXTERNAL_IMPORT,
 }
 
 @Serializable
@@ -40,6 +41,7 @@ data class GearAtlasPublicItem(
     @SerialName("official_price_currency") val officialPriceCurrency: String? = null,
     val specs: Map<String, String>? = null,
     @SerialName("approved_at") val approvedAt: String? = null,
+    @SerialName("is_deleted") val isDeleted: Boolean = false,
     @SerialName("created_at") val createdAt: String,
     @SerialName("updated_at") val updatedAt: String,
 )
@@ -58,6 +60,7 @@ data class GearAtlasSubmission(
     @SerialName("official_price_currency") val officialPriceCurrency: String? = null,
     val specs: Map<String, String>? = null,
     @SerialName("approved_at") val approvedAt: String? = null,
+    @SerialName("is_deleted") val isDeleted: Boolean = false,
     @SerialName("created_at") val createdAt: String,
     @SerialName("updated_at") val updatedAt: String,
     @SerialName("source_type") val sourceType: GearAtlasSourceType,

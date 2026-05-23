@@ -28,6 +28,8 @@ protocol GearRepositorying {
     func create(_ request: CreateGearRequest) async throws -> GearItem
     func update(id: String, request: UpdateGearRequest) async throws -> GearItem
     func archive(id: String) async throws
+    func delete(id: String) async throws
+    func undelete(id: String) async throws -> GearItem
     func restore(id: String) async throws -> GearItem
 }
 
@@ -186,6 +188,14 @@ final class GearRepository: GearRepositorying {
 
     func archive(id: String) async throws {
         let _: EmptyResponse = try await client.sendEmpty(.delete("/me/gears/\(id.urlPathEscaped)"), requiresAuth: true)
+    }
+
+    func delete(id: String) async throws {
+        let _: EmptyResponse = try await client.sendEmpty(.post("/me/gears/\(id.urlPathEscaped)/delete"), requiresAuth: true)
+    }
+
+    func undelete(id: String) async throws -> GearItem {
+        try await client.send(.post("/me/gears/\(id.urlPathEscaped)/undelete"), requiresAuth: true)
     }
 
     func restore(id: String) async throws -> GearItem {

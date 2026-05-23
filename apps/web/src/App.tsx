@@ -7,6 +7,7 @@ import type {
   ClientVersionRequest,
   ClientVersionStatus,
   CreateGearRequest,
+  DeletedFilter,
   GearAtlasPublicItem,
   GearCategory,
   GearCategoryFilter,
@@ -307,6 +308,7 @@ export default function App({ client }: AppProps) {
   const [atlasStatus, setAtlasStatus] = useState<"" | GearAtlasStatus>(
     "pending",
   );
+  const [atlasDeleted, setAtlasDeleted] = useState<DeletedFilter>("active");
   const [atlasSubmissions, setAtlasSubmissions] = useState<
     GearAtlasSubmission[]
   >([]);
@@ -319,6 +321,8 @@ export default function App({ client }: AppProps) {
   const [atlasError, setAtlasError] = useState<string | null>(null);
   const [feedbackStatus, setFeedbackStatus] =
     useState<FeedbackStatusFilter>("open");
+  const [feedbackDeleted, setFeedbackDeleted] =
+    useState<DeletedFilter>("active");
   const [adminFeedback, setAdminFeedback] = useState<AdminFeedbackItem[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
@@ -454,6 +458,7 @@ export default function App({ client }: AppProps) {
       try {
         const response = await api.listAdminGearAtlasSubmissions({
           status: atlasStatus || undefined,
+          deleted: atlasDeleted,
           limit: ATLAS_REVIEW_PAGE_SIZE,
           cursor: options.cursor || undefined,
         });
@@ -500,7 +505,7 @@ export default function App({ client }: AppProps) {
         }
       }
     },
-    [activePage, api, atlasStatus, session],
+    [activePage, api, atlasDeleted, atlasStatus, session],
   );
 
   useEffect(() => {
@@ -516,6 +521,7 @@ export default function App({ client }: AppProps) {
     try {
       const response = await api.listAdminFeedback({
         status: feedbackStatus || undefined,
+        deleted: feedbackDeleted,
         limit: 50,
       });
       setAdminFeedback(response.items);
@@ -525,7 +531,7 @@ export default function App({ client }: AppProps) {
     } finally {
       setFeedbackLoading(false);
     }
-  }, [activePage, api, feedbackStatus, session]);
+  }, [activePage, api, feedbackDeleted, feedbackStatus, session]);
 
   useEffect(() => {
     void loadAdminFeedback();
@@ -1114,6 +1120,66 @@ export default function App({ client }: AppProps) {
       setAtlasError(errorMessage(err));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function deleteAtlasSubmission(id: string) {
+    if (!window.confirm("确认隐藏这条图鉴记录吗？")) {
+      return;
+    }
+    setSubmitting(true);
+    setAtlasError(null);
+    try {
+      await api.deleteAdminGearAtlasSubmission(id);
+      setAtlasDetail(null);
+      await loadAtlasSubmissions();
+    } catch (err) {
+      setAtlasError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function restoreAtlasSubmission(id: string) {
+    setSubmitting(true);
+    setAtlasError(null);
+    try {
+      const restored = await api.restoreAdminGearAtlasSubmission(id);
+      setAtlasDetail(restored);
+      await loadAtlasSubmissions();
+    } catch (err) {
+      setAtlasError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function deleteAdminFeedback(id: string) {
+    if (!window.confirm("确认隐藏这条反馈吗？")) {
+      return;
+    }
+    setFeedbackLoading(true);
+    setFeedbackError(null);
+    try {
+      await api.deleteAdminFeedback(id);
+      await loadAdminFeedback();
+    } catch (err) {
+      setFeedbackError(errorMessage(err));
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }
+
+  async function restoreAdminFeedback(id: string) {
+    setFeedbackLoading(true);
+    setFeedbackError(null);
+    try {
+      await api.restoreAdminFeedback(id);
+      await loadAdminFeedback();
+    } catch (err) {
+      setFeedbackError(errorMessage(err));
+    } finally {
+      setFeedbackLoading(false);
     }
   }
 
@@ -1879,6 +1945,7 @@ export default function App({ client }: AppProps) {
             submissions={atlasSubmissions}
             selected={atlasDetail}
             status={atlasStatus}
+            deleted={atlasDeleted}
             loading={atlasLoading}
             loadingMore={atlasLoadingMore}
             submitting={submitting}
@@ -1888,6 +1955,15 @@ export default function App({ client }: AppProps) {
               atlasRequestRef.current += 1;
               atlasLoadMoreInFlightRef.current = false;
               setAtlasStatus(nextStatus);
+              setAtlasSubmissions([]);
+              setAtlasDetail(null);
+              setAtlasNextCursor(null);
+              setAtlasLoadingMore(false);
+            }}
+            onDeletedChange={(nextDeleted) => {
+              atlasRequestRef.current += 1;
+              atlasLoadMoreInFlightRef.current = false;
+              setAtlasDeleted(nextDeleted);
               setAtlasSubmissions([]);
               setAtlasDetail(null);
               setAtlasNextCursor(null);
@@ -1906,6 +1982,8 @@ export default function App({ client }: AppProps) {
             onOpen={openAtlasSubmission}
             onUpdate={updateAtlasSubmission}
             onApprove={approveAtlasSubmission}
+            onDelete={deleteAtlasSubmission}
+            onRestore={restoreAtlasSubmission}
             onReject={rejectAtlasSubmission}
           />
         </main>
@@ -1914,9 +1992,13 @@ export default function App({ client }: AppProps) {
           <AdminFeedbackPage
             items={adminFeedback}
             status={feedbackStatus}
+            deleted={feedbackDeleted}
             loading={feedbackLoading}
             error={feedbackError}
             onStatusChange={setFeedbackStatus}
+            onDeletedChange={setFeedbackDeleted}
+            onDelete={deleteAdminFeedback}
+            onRestore={restoreAdminFeedback}
             onRefresh={() => void loadAdminFeedback()}
           />
         </main>
@@ -1988,28 +2070,34 @@ function AtlasReviewPage({
   submissions,
   selected,
   status,
+  deleted,
   loading,
   loadingMore,
   submitting,
   error,
   hasMore,
   onStatusChange,
+  onDeletedChange,
   onRefresh,
   onLoadMore,
   onOpen,
   onUpdate,
   onApprove,
+  onDelete,
+  onRestore,
   onReject,
 }: {
   submissions: GearAtlasSubmission[];
   selected: GearAtlasSubmission | null;
   status: "" | GearAtlasStatus;
+  deleted: DeletedFilter;
   loading: boolean;
   loadingMore: boolean;
   submitting: boolean;
   error: string | null;
   hasMore: boolean;
   onStatusChange(status: "" | GearAtlasStatus): void;
+  onDeletedChange(deleted: DeletedFilter): void;
   onRefresh(): void;
   onLoadMore(): void;
   onOpen(id: string): Promise<void> | void;
@@ -2018,6 +2106,8 @@ function AtlasReviewPage({
     request: UpdateGearAtlasSubmissionRequest,
   ): Promise<void> | void;
   onApprove(id: string): Promise<void> | void;
+  onDelete(id: string): Promise<void> | void;
+  onRestore(id: string): Promise<void> | void;
   onReject(id: string, reason: string): Promise<void> | void;
 }) {
   const [form, setForm] = useState<AtlasReviewFormState | null>(null);
@@ -2177,6 +2267,17 @@ function AtlasReviewPage({
             <option value="rejected">已拒绝</option>
             <option value="">全部状态</option>
           </select>
+          <select
+            aria-label="图鉴删除状态"
+            value={deleted}
+            onChange={(event) =>
+              onDeletedChange(event.target.value as DeletedFilter)
+            }
+          >
+            <option value="active">未删除</option>
+            <option value="deleted">已删除</option>
+            <option value="all">全部记录</option>
+          </select>
           <button
             type="button"
             className="secondary-button"
@@ -2222,6 +2323,9 @@ function AtlasReviewPage({
               <span className={`status-pill status-atlas-${item.status}`}>
                 {atlasStatusLabel(item.status)}
               </span>
+              {item.is_deleted ? (
+                <span className="status-pill status-feedback-open">已删除</span>
+              ) : null}
               <strong>{joinGearName(item)}</strong>
               <small>
                 {item.category_label || categoryLabel(item.category)} ·{" "}
@@ -2264,6 +2368,11 @@ function AtlasReviewPage({
                 <span className={`status-pill status-atlas-${selected.status}`}>
                   {atlasStatusLabel(selected.status)}
                 </span>
+                {selected.is_deleted ? (
+                  <span className="status-pill status-feedback-open">
+                    已删除
+                  </span>
+                ) : null}
               </div>
 
               {form ? (
@@ -2640,6 +2749,25 @@ function AtlasReviewPage({
                 >
                   拒绝
                 </button>
+                {selected.is_deleted ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={submitting}
+                    onClick={() => void onRestore(selected.id)}
+                  >
+                    恢复
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={submitting}
+                    onClick={() => void onDelete(selected.id)}
+                  >
+                    删除
+                  </button>
+                )}
               </div>
             </>
           ) : (
@@ -2657,16 +2785,24 @@ function AtlasReviewPage({
 function AdminFeedbackPage({
   items,
   status,
+  deleted,
   loading,
   error,
   onStatusChange,
+  onDeletedChange,
+  onDelete,
+  onRestore,
   onRefresh,
 }: {
   items: AdminFeedbackItem[];
   status: FeedbackStatusFilter;
+  deleted: DeletedFilter;
   loading: boolean;
   error: string | null;
   onStatusChange(status: FeedbackStatusFilter): void;
+  onDeletedChange(deleted: DeletedFilter): void;
+  onDelete(id: string): Promise<void> | void;
+  onRestore(id: string): Promise<void> | void;
   onRefresh(): void;
 }) {
   return (
@@ -2689,6 +2825,17 @@ function AdminFeedbackPage({
           >
             <option value="open">待处理</option>
             <option value="">全部状态</option>
+          </select>
+          <select
+            aria-label="反馈删除状态"
+            value={deleted}
+            onChange={(event) =>
+              onDeletedChange(event.target.value as DeletedFilter)
+            }
+          >
+            <option value="active">未删除</option>
+            <option value="deleted">已删除</option>
+            <option value="all">全部记录</option>
           </select>
           <button
             type="button"
@@ -2730,6 +2877,9 @@ function AdminFeedbackPage({
               <span className="status-pill status-feedback-open">
                 {feedbackStatusLabel(item.status)}
               </span>
+              {item.is_deleted ? (
+                <span className="status-pill status-feedback-open">已删除</span>
+              ) : null}
             </div>
             <dl className="admin-feedback-meta">
               <div>
@@ -2767,6 +2917,27 @@ function AdminFeedbackPage({
                 <dd>{item.user.id}</dd>
               </div>
             </dl>
+            <div className="actions">
+              {item.is_deleted ? (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={loading}
+                  onClick={() => void onRestore(item.id)}
+                >
+                  恢复
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={loading}
+                  onClick={() => void onDelete(item.id)}
+                >
+                  删除
+                </button>
+              )}
+            </div>
           </article>
         ))}
       </section>

@@ -220,6 +220,22 @@ export class StellarTrailApiClient {
     return this.get(`/admin/feedback${queryString(request)}`, true);
   }
 
+  async deleteAdminFeedback(id: string): Promise<void> {
+    await this.request(
+      `/admin/feedback/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async restoreAdminFeedback(id: string): Promise<void> {
+    await this.request(
+      `/admin/feedback/${encodeURIComponent(id)}/restore`,
+      { method: "POST" },
+      true,
+    );
+  }
+
   async listAdminClientVersions(
     request: ListClientVersionsRequest = {},
   ): Promise<ListClientVersionsResponse> {
@@ -344,6 +360,24 @@ export class StellarTrailApiClient {
   async approveGearAtlasSubmission(id: string): Promise<GearAtlasSubmission> {
     return this.post(
       `/admin/gear-atlas-submissions/${encodeURIComponent(id)}/approve`,
+      undefined,
+      true,
+    );
+  }
+
+  async deleteAdminGearAtlasSubmission(id: string): Promise<void> {
+    await this.request(
+      `/admin/gear-atlas-submissions/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async restoreAdminGearAtlasSubmission(
+    id: string,
+  ): Promise<GearAtlasSubmission> {
+    return this.post(
+      `/admin/gear-atlas-submissions/${encodeURIComponent(id)}/restore`,
       undefined,
       true,
     );
@@ -540,6 +574,22 @@ export class StellarTrailApiClient {
     await this.request(
       `/me/gears/${encodeURIComponent(id)}`,
       { method: "DELETE" },
+      true,
+    );
+  }
+
+  async deleteGear(id: string): Promise<void> {
+    await this.request(
+      `/me/gears/${encodeURIComponent(id)}/delete`,
+      { method: "POST" },
+      true,
+    );
+  }
+
+  async undeleteGear(id: string): Promise<GearItem> {
+    return this.post(
+      `/me/gears/${encodeURIComponent(id)}/undelete`,
+      undefined,
       true,
     );
   }
