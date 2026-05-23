@@ -27,6 +27,7 @@ mod m20260521_000001_add_public_content_localizations;
 mod m20260521_000002_add_gear_atlas_import_metadata;
 mod m20260522_000001_add_gear_variants;
 mod m20260523_000001_add_gear_atlas_review_snapshots;
+mod m20260523_000002_remove_knot_difficulty;
 
 /// Concrete SeaORM migrator used by the API server and test suites.
 ///
@@ -64,6 +65,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260521_000002_add_gear_atlas_import_metadata::Migration),
             Box::new(m20260522_000001_add_gear_variants::Migration),
             Box::new(m20260523_000001_add_gear_atlas_review_snapshots::Migration),
+            Box::new(m20260523_000002_remove_knot_difficulty::Migration),
         ]
     }
 }

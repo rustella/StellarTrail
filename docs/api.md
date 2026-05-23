@@ -314,7 +314,7 @@ POST /api/v1/auth/refresh
 
 ```http
 GET /api/v1/skills
-GET /api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=beginner&q=wind
+GET /api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&q=wind
 GET /api/v1/skills/knots/filters
 GET /api/v1/skills/knots/offline-manifest
 GET /api/v1/skills/knots/detail/:id
@@ -344,7 +344,7 @@ X-StellarTrail-Locale: en
 
 核心媒体 `asset_id` / `media_type`：`thumbnail`、`preview`、`draw_gif`、`turntable_gif`、`draw_mp4`、`turntable_mp4`。Knots3D 全量一期验收目标为 `225 knots × 6 core media = 1350`。
 
-绳结分页参数为 `offset`/`limit`，筛选参数为 `category`、`difficulty`，关键词为 `q`；响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`。`/api/v1/skills/knots/filters` 返回当前语言下可选用途、难度及数量。`/api/v1/skills/knots/offline-manifest` 不接受 query 参数，返回完整离线清单、`item_count`、去重后的 `media_count` 和 `estimated_bytes`，并复用 public response cache 与 `ETag`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
+绳结分页参数为 `offset`/`limit`，筛选参数为 `category`，关键词为 `q`；响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`，也不再接受 `difficulty`。`/api/v1/skills/knots/filters` 返回当前语言下可选用途及数量。`/api/v1/skills/knots/offline-manifest` 不接受 query 参数，返回完整离线清单、`item_count`、去重后的 `media_count` 和 `estimated_bytes`，并复用 public response cache 与 `ETag`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
 
 ### Gear templates and gear atlas i18n
 

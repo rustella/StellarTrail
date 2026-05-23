@@ -72,15 +72,14 @@ impl KnotRepository {
         for knot in knots {
             tx.execute(statement(
                 backend,
-                "INSERT INTO knots(id, source_name, source_url, source_slug_en, source_slug_zh, difficulty) \
-                 VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO knots(id, source_name, source_url, source_slug_en, source_slug_zh) \
+                 VALUES (?, ?, ?, ?, ?)",
                 vec![
                     knot.id.clone().into(),
                     knot.source_name.clone().into(),
                     knot.source_url.clone().into(),
                     knot.source_slug_en.clone().into(),
                     knot.source_slug_zh.clone().into(),
-                    knot.difficulty.clone().into(),
                 ],
             ))
             .await?;
@@ -233,11 +232,10 @@ impl KnotRepository {
 
     /// Lists available knot filter options with locale-resolved labels and full-catalog counts.
     pub async fn list_knot_filters(&self, locale: Locale) -> Result<KnotFiltersResponse, DbErr> {
-        let backend = self.db.get_database_backend();
         let category_rows = self
             .db
             .query_all(statement(
-                backend,
+                self.db.get_database_backend(),
                 "SELECT kc.id AS id, COUNT(kcm.knot_id) AS count \
                  FROM knot_categories kc \
                  JOIN knot_category_memberships kcm ON kcm.category_id = kc.id \
@@ -252,43 +250,7 @@ impl KnotRepository {
             categories.push(fetch_category_filter_option(&self.db, &id, count, locale).await?);
         }
 
-        let difficulty_rows = self
-            .db
-            .query_all(statement(
-                backend,
-                "SELECT difficulty AS id, COUNT(*) AS count FROM knots \
-                 WHERE difficulty IS NOT NULL AND TRIM(difficulty) <> '' \
-                 GROUP BY difficulty \
-                 ORDER BY CASE difficulty \
-                    WHEN 'leisure' THEN 0 \
-                    WHEN 'beginner' THEN 1 \
-                    WHEN 'intermediate' THEN 2 \
-                    WHEN 'advanced' THEN 3 \
-                    WHEN 'technical' THEN 4 \
-                    ELSE 100 \
-                 END ASC, difficulty ASC",
-                vec![],
-            ))
-            .await?;
-        let difficulties = difficulty_rows
-            .into_iter()
-            .map(|row| {
-                let id: String = row.try_get("", "id")?;
-                let count: i64 = row.try_get("", "count")?;
-                Ok(KnotFilterOption {
-                    title: difficulty_label(&id, locale).to_owned(),
-                    id,
-                    slug: None,
-                    count: count.max(0) as u32,
-                })
-            })
-            .collect::<Result<Vec<_>, DbErr>>()?;
-
-        Ok(KnotFiltersResponse {
-            locale,
-            categories,
-            difficulties,
-        })
+        Ok(KnotFiltersResponse { locale, categories })
     }
 
     /// Lists knots with offset pagination and locale-resolved public fields.
@@ -298,7 +260,6 @@ impl KnotRepository {
         offset: u32,
         limit: u32,
         category: Option<&str>,
-        difficulty: Option<&str>,
         q: Option<&str>,
     ) -> Result<KnotListResponse, DbErr> {
         let backend = self.db.get_database_backend();
@@ -326,7 +287,6 @@ impl KnotRepository {
             .map(|row| row.try_get::<String>("", "id"))
             .collect::<Result<Vec<_>, _>>()?;
 
-        let difficulty = difficulty.map(str::trim).filter(|value| !value.is_empty());
         let query = q
             .map(|value| value.trim().to_lowercase())
             .filter(|value| !value.is_empty());
@@ -341,17 +301,12 @@ impl KnotRepository {
                     }
                     None => true,
                 };
-                let matches_difficulty = match difficulty {
-                    Some(value) => detail.difficulty.as_deref() == Some(value),
-                    None => true,
-                };
-                if matches_query && matches_difficulty {
+                if matches_query {
                     summaries.push(KnotSummary {
                         id: detail.id.clone(),
                         slug: detail.slug.clone(),
                         title: detail.title.clone(),
                         summary: detail.summary.clone(),
-                        difficulty: detail.difficulty.clone(),
                         categories: detail.categories.clone(),
                         types: detail.types.clone(),
                         media: detail.media.clone(),
@@ -405,18 +360,13 @@ impl KnotRepository {
             .db
             .query_all(statement(
                 backend,
-                "SELECT id, difficulty FROM knots ORDER BY id ASC",
+                "SELECT id FROM knots ORDER BY id ASC",
                 vec![],
             ))
             .await?;
         let knots = knot_rows
             .into_iter()
-            .map(|row| {
-                Ok((
-                    row.try_get::<String>("", "id")?,
-                    row.try_get::<Option<String>>("", "difficulty")?,
-                ))
-            })
+            .map(|row| row.try_get::<String>("", "id"))
             .collect::<Result<Vec<_>, DbErr>>()?;
 
         let localizations = fetch_all_knot_localizations(&self.db, locale).await?;
@@ -442,7 +392,7 @@ impl KnotRepository {
         let mut seen_media_urls = HashSet::new();
         let mut media_count = 0u32;
         let mut estimated_bytes = 0i64;
-        for (id, difficulty) in knots {
+        for id in knots {
             let Some(localization) = localizations.get(&id) else {
                 continue;
             };
@@ -460,7 +410,6 @@ impl KnotRepository {
                 summary: localization.summary.clone(),
                 description: localization.description.clone(),
                 steps: localization.steps.clone(),
-                difficulty,
                 categories: categories.get(&id).cloned().unwrap_or_default(),
                 types: types.get(&id).cloned().unwrap_or_default(),
                 media: item_media,
@@ -482,14 +431,14 @@ impl KnotRepository {
             .db
             .query_one(statement(
                 self.db.get_database_backend(),
-                "SELECT difficulty FROM knots WHERE id = ?",
+                "SELECT id FROM knots WHERE id = ?",
                 vec![id.to_owned().into()],
             ))
             .await?;
         let Some(row) = row else {
             return Ok(None);
         };
-        let difficulty = row.try_get::<Option<String>>("", "difficulty")?;
+        let _: String = row.try_get("", "id")?;
         let Some(localization) = fetch_knot_localization(&self.db, id, locale).await? else {
             return Ok(None);
         };
@@ -500,7 +449,6 @@ impl KnotRepository {
             summary: localization.summary,
             description: localization.description,
             steps: localization.steps,
-            difficulty,
             categories: fetch_categories(&self.db, id, locale).await?,
             types: fetch_types(&self.db, id, locale).await?,
             media: fetch_media(&self.db, id).await?,
@@ -632,22 +580,6 @@ async fn fetch_category_filter_option(
         title: id.to_owned(),
         count: count.max(0) as u32,
     })
-}
-
-fn difficulty_label(value: &str, locale: Locale) -> &'static str {
-    match (locale, value) {
-        (Locale::ZhCn, "leisure") => "入门",
-        (Locale::ZhCn, "beginner") => "新手",
-        (Locale::ZhCn, "intermediate") => "进阶",
-        (Locale::ZhCn, "advanced") => "熟练",
-        (Locale::ZhCn, "technical") => "技术",
-        (Locale::En, "leisure") => "Leisure",
-        (Locale::En, "beginner") => "Beginner",
-        (Locale::En, "intermediate") => "Intermediate",
-        (Locale::En, "advanced") => "Advanced",
-        (Locale::En, "technical") => "Technical",
-        _ => "Common",
-    }
 }
 
 async fn fetch_categories(

@@ -19,7 +19,6 @@ const sampleKnotSummary = {
   slug: "ke-tiao-jie-sheng-jie",
   title: "可调节绳结",
   summary: "调节绳索上的张力。",
-  difficulty: "beginner",
   categories: [
     { id: "camping-knots", slug: "lu-ying-sheng-jie", title: "露营绳结" },
   ],
@@ -200,7 +199,6 @@ function buildClient(): WebGearApi {
           count: 1,
         },
       ],
-      difficulties: [],
     }),
     listKnots: vi.fn().mockResolvedValue({
       locale: "zh-CN",

@@ -27,7 +27,6 @@ import type {
   KnotSummary,
   SkillLocale,
 } from "./skill-utils";
-import { getSkillDifficultyLabel } from "./skill-utils";
 
 export type KnotOfflineCachePhase = "list" | "detail" | "media";
 
@@ -67,7 +66,6 @@ export interface CachedKnotPreview {
   title: string;
   summary: string;
   categoryText: string;
-  difficultyText: string;
   cachedAt: string;
 }
 
@@ -427,7 +425,6 @@ function toKnotSummary(item: KnotDetail): KnotSummary {
     slug: item.slug,
     title: item.title,
     summary: item.summary,
-    difficulty: item.difficulty,
     categories: item.categories,
     types: item.types,
     media: item.media,
@@ -506,7 +503,6 @@ function addCachedKnotPreview(
     summary:
       item.summary || ("description" in item ? item.description || "" : ""),
     categoryText: item.categories[0]?.title ?? "绳结",
-    difficultyText: getSkillDifficultyLabel(item.difficulty),
     cachedAt,
   });
 }

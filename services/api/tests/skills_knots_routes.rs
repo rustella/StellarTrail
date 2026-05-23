@@ -35,7 +35,6 @@ fn sample_knot() -> KnotSeed {
         source_url: Some("https://knots3d.com/knots/en_us/adjustable-grip-hitch-knot".to_owned()),
         source_slug_en: "adjustable-grip-hitch-knot".to_owned(),
         source_slug_zh: Some("ke-tiao-jie-sheng-jie".to_owned()),
-        difficulty: Some("beginner".to_owned()),
         localizations: vec![
             KnotLocalizationSeed {
                 locale: Locale::En,
@@ -105,7 +104,6 @@ fn technical_knot() -> KnotSeed {
         source_url: Some("https://knots3d.com/knots/en_us/figure-eight-knot".to_owned()),
         source_slug_en: "figure-eight-knot".to_owned(),
         source_slug_zh: Some("ba-zi-jie".to_owned()),
-        difficulty: Some("technical".to_owned()),
         localizations: vec![
             KnotLocalizationSeed {
                 locale: Locale::En,
@@ -433,7 +431,7 @@ async fn skills_returns_locale_resolved_category_without_parallel_language_field
 }
 
 #[tokio::test]
-async fn knot_filters_return_locale_resolved_categories_and_difficulties_with_counts() {
+async fn knot_filters_return_locale_resolved_categories_with_counts() {
     let app = seeded_filter_app().await;
     let (status, headers, body) = json_response(
         &app.router,
@@ -454,24 +452,16 @@ async fn knot_filters_return_locale_resolved_categories_and_difficulties_with_co
             && option["title"] == "露营绳结"
             && option["count"] == 1
     }));
-    assert!(
-        body["difficulties"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|option| {
-                option["id"] == "technical" && option["title"] == "技术" && option["count"] == 1
-            })
-    );
+    assert!(body.get("difficulties").is_none());
 }
 
 #[tokio::test]
-async fn knots_list_combines_category_difficulty_and_keyword_filters() {
+async fn knots_list_combines_category_and_keyword_filters() {
     let app = seeded_filter_app().await;
     let (status, _headers, body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=beginner&q=%E8%B0%83%E8%8A%82")
+            .uri("/api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&q=%E8%B0%83%E8%8A%82")
             .header("X-StellarTrail-Locale", "zh-CN")
             .body(Body::empty())
             .unwrap(),
@@ -486,7 +476,7 @@ async fn knots_list_combines_category_difficulty_and_keyword_filters() {
     let (status, _headers, body) = json_response(
         &app.router,
         Request::builder()
-            .uri("/api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&difficulty=technical")
+            .uri("/api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&q=%E5%85%AB%E5%AD%97")
             .header("X-StellarTrail-Locale", "zh-CN")
             .body(Body::empty())
             .unwrap(),
@@ -495,6 +485,24 @@ async fn knots_list_combines_category_difficulty_and_keyword_filters() {
     assert_eq!(status, StatusCode::OK);
     assert!(body["items"].as_array().unwrap().is_empty());
     assert_eq!(body["page"]["next_offset"], Value::Null);
+}
+
+#[tokio::test]
+async fn knots_list_rejects_removed_difficulty_filter() {
+    let app = seeded_filter_app().await;
+    let (status, _headers, body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/api/v1/skills/knots/list?difficulty=technical")
+            .header("X-StellarTrail-Locale", "zh-CN")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["code"], "unsupported_query_parameter");
+    assert_eq!(body["parameter"], "difficulty");
 }
 
 #[tokio::test]

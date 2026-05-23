@@ -54,7 +54,6 @@
           </view>
           <view class="detail-meta">{{mediaCredit}}</view>
         </view>
-        <view class="difficulty-pill {{difficultyTone}}">{{difficultyText}}</view>
       </view>
     </view>
 

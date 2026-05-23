@@ -61,7 +61,6 @@ pub struct KnotFilterOption {
 pub struct KnotFiltersResponse {
     pub locale: Locale,
     pub categories: Vec<KnotFilterOption>,
-    pub difficulties: Vec<KnotFilterOption>,
 }
 
 /// Knot summary for list cards.
@@ -71,7 +70,6 @@ pub struct KnotSummary {
     pub slug: String,
     pub title: String,
     pub summary: String,
-    pub difficulty: Option<String>,
     pub categories: Vec<KnotTaxonomyItem>,
     pub types: Vec<KnotTaxonomyItem>,
     pub media: Vec<KnotMediaAsset>,
@@ -87,7 +85,6 @@ pub struct KnotDetail {
     pub summary: String,
     pub description: Option<String>,
     pub steps: Vec<String>,
-    pub difficulty: Option<String>,
     pub categories: Vec<KnotTaxonomyItem>,
     pub types: Vec<KnotTaxonomyItem>,
     pub media: Vec<KnotMediaAsset>,
@@ -124,7 +121,6 @@ pub struct KnotSeed {
     pub source_url: Option<String>,
     pub source_slug_en: String,
     pub source_slug_zh: Option<String>,
-    pub difficulty: Option<String>,
     pub localizations: Vec<KnotLocalizationSeed>,
     pub categories: Vec<KnotCategorySeed>,
     pub types: Vec<KnotTypeSeed>,

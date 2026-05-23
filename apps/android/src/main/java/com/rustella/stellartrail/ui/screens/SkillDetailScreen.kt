@@ -119,7 +119,6 @@ private fun SkillDetailContent(detail: KnotDetail) {
                         }
                     }
                 }
-                Badge(detail.difficulty ?: "入门", tone = BadgeTone.Warning)
             }
         }
     }

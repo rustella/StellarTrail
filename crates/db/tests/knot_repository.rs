@@ -28,7 +28,6 @@ fn seed() -> KnotSeed {
         source_url: Some("https://knots3d.com/en/adjustable-grip-hitch-knot".to_owned()),
         source_slug_en: "adjustable-grip-hitch-knot".to_owned(),
         source_slug_zh: Some("ke-tiao-jie-sheng-jie".to_owned()),
-        difficulty: Some("beginner".to_owned()),
         localizations: vec![
             KnotLocalizationSeed {
                 locale: Locale::En,
@@ -86,7 +85,6 @@ fn technical_seed() -> KnotSeed {
         source_url: Some("https://knots3d.com/en/figure-eight-knot".to_owned()),
         source_slug_en: "figure-eight-knot".to_owned(),
         source_slug_zh: Some("ba-zi-jie".to_owned()),
-        difficulty: Some("technical".to_owned()),
         localizations: vec![
             KnotLocalizationSeed {
                 locale: Locale::En,
@@ -198,7 +196,7 @@ async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offs
     assert_eq!(categories[0].item_count, 1);
 
     let page = repo
-        .list_knots(Locale::En, 0, 20, None, None, None)
+        .list_knots(Locale::En, 0, 20, None, None)
         .await
         .expect("list");
     assert_eq!(page.page.offset, 0);
@@ -331,7 +329,7 @@ async fn repository_builds_offline_manifest_with_fallback_locale_and_deduped_med
 }
 
 #[tokio::test]
-async fn repository_lists_filter_options_and_filters_knots_by_category_difficulty_and_query() {
+async fn repository_lists_filter_options_and_filters_knots_by_category_and_query() {
     let config = DatabaseConfig::new(temp_db_url("filters")).expect("db config");
     let db = connect_database(&config).await.expect("connect");
     Migrator::up(&db, None).await.expect("migrate");
@@ -350,37 +348,15 @@ async fn repository_lists_filter_options_and_filters_knots_by_category_difficult
     assert_eq!(camping.slug.as_deref(), Some("lu-ying"));
     assert_eq!(camping.title, "露营");
     assert_eq!(camping.count, 1);
-    let technical = filters
-        .difficulties
-        .iter()
-        .find(|option| option.id == "technical")
-        .expect("technical option");
-    assert_eq!(technical.title, "技术");
-    assert_eq!(technical.count, 1);
-
     let page = repo
-        .list_knots(
-            Locale::ZhCn,
-            0,
-            20,
-            Some("camping-knots"),
-            Some("beginner"),
-            Some("调节"),
-        )
+        .list_knots(Locale::ZhCn, 0, 20, Some("camping-knots"), Some("调节"))
         .await
         .expect("filtered list");
     assert_eq!(page.items.len(), 1);
     assert_eq!(page.items[0].id, "adjustable-grip-hitch-knot");
 
     let empty = repo
-        .list_knots(
-            Locale::ZhCn,
-            0,
-            20,
-            Some("camping-knots"),
-            Some("technical"),
-            None,
-        )
+        .list_knots(Locale::ZhCn, 0, 20, Some("camping-knots"), Some("八字"))
         .await
         .expect("empty filtered list");
     assert!(empty.items.is_empty());

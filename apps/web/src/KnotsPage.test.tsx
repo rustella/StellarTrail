@@ -9,7 +9,6 @@ const knotSummary = {
   slug: "ke-tiao-jie-sheng-jie",
   title: "可调节绳结",
   summary: "调节绳索上的张力。",
-  difficulty: "beginner",
   categories: [
     { id: "camping-knots", slug: "lu-ying-sheng-jie", title: "露营绳结" },
   ],
@@ -36,7 +35,6 @@ const secondKnotSummary = {
   slug: "dan-jie",
   title: "单结",
   summary: "快速形成固定绳圈。",
-  difficulty: "leisure",
   categories: [
     { id: "basic-knots", slug: "ji-chu-sheng-jie", title: "基础绳结" },
   ],
@@ -182,10 +180,6 @@ function buildKnotsApi(): KnotsApi {
           count: 1,
         },
       ],
-      difficulties: [
-        { id: "beginner", slug: null, title: "新手", count: 1 },
-        { id: "leisure", slug: null, title: "入门", count: 1 },
-      ],
     }),
     listKnots: vi.fn().mockResolvedValue({
       locale: "zh-CN",
@@ -223,7 +217,7 @@ describe("KnotsPage", () => {
     expect(screen.getByLabelText("绳结概览")).toHaveTextContent("绳结");
     expect(screen.getByText("可调节绳结")).toBeInTheDocument();
     expect(screen.getByText("露营绳结")).toBeInTheDocument();
-    expect(screen.getByText("新手")).toBeInTheDocument();
+    expect(screen.queryByText("新手")).not.toBeInTheDocument();
     expect(screen.getByText("调节绳索上的张力。")).toBeInTheDocument();
     expect(screen.queryByText(/API|后端|接口|游客/)).not.toBeInTheDocument();
   });

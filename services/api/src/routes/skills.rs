@@ -67,17 +67,18 @@ async fn knot_list(
     if query.contains_key("next_cursor") {
         return Err(ApiError::unsupported_query_parameter("next_cursor"));
     }
+    if query.contains_key("difficulty") {
+        return Err(ApiError::unsupported_query_parameter("difficulty"));
+    }
     let locale = resolve_locale(&headers)?;
     let offset = parse_u32_query(&query, "offset", 0)?;
     let limit = parse_u32_query(&query, "limit", 20)?.clamp(1, 100);
     let category = query.get("category").map(String::as_str);
-    let difficulty = query.get("difficulty").map(String::as_str);
     let q = query.get("q").map(String::as_str);
     let normalized_input = format!(
-        "v1|{}|offset={offset}|limit={limit}|category={}|difficulty={}|q={}",
+        "v2|{}|offset={offset}|limit={limit}|category={}|q={}",
         locale.as_str(),
         category.unwrap_or_default(),
-        difficulty.unwrap_or_default(),
         q.unwrap_or_default()
     );
     cached_localized_json_with(
@@ -89,7 +90,7 @@ async fn knot_list(
         || async {
             state
                 .knot_repository()
-                .list_knots(locale, offset, limit, category, difficulty, q)
+                .list_knots(locale, offset, limit, category, q)
                 .await
                 .map_err(ApiError::from)
         },
@@ -109,7 +110,7 @@ async fn knot_filters(
         &headers,
         locale,
         "skills-knots-filters",
-        &format!("v1|{}", locale.as_str()),
+        &format!("v2|{}", locale.as_str()),
         || async {
             state
                 .knot_repository()
@@ -134,7 +135,7 @@ async fn knot_offline_manifest(
         &headers,
         locale,
         "skills-knots-offline-manifest",
-        &format!("v1|{}", locale.as_str()),
+        &format!("v2|{}", locale.as_str()),
         || async {
             state
                 .knot_repository()
@@ -154,7 +155,7 @@ async fn knot_detail(
 ) -> Result<Response, ApiError> {
     reject_query_locale(&query)?;
     let locale = resolve_locale(&headers)?;
-    let normalized_input = format!("v1|{}|id={id}", locale.as_str());
+    let normalized_input = format!("v2|{}|id={id}", locale.as_str());
     cached_localized_json_with(
         &state,
         &headers,
