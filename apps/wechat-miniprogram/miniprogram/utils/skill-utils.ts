@@ -93,19 +93,42 @@ export interface ListKnotsRequest {
   q?: string;
 }
 
-export interface KnotDisclaimerResponse {
-  key: string;
-  version: string;
+export type FavoriteSkillCategory = "all" | "knots";
+
+export interface FavoriteSkillFilterOption {
+  id: FavoriteSkillCategory;
   title: string;
-  content: string;
-  accepted: boolean;
-  accepted_at?: string | null;
+  count: number;
 }
 
-export interface AcceptKnotDisclaimerRequest {
-  client_platform?: string | null;
-  client_version?: string | null;
-  device_model?: string | null;
+export interface FavoriteKnotItem {
+  skill_category: "knots";
+  favorited_at: string;
+  knot: KnotSummary;
+}
+
+export interface ListFavoriteSkillsResponse {
+  locale: SkillLocale;
+  filters: FavoriteSkillFilterOption[];
+  items: FavoriteKnotItem[];
+  page: {
+    limit: number;
+    offset: number;
+    next_offset?: number | null;
+  };
+}
+
+export interface FavoriteKnotStatusResponse {
+  skill_category: "knots";
+  knot_id: string;
+  is_favorited: boolean;
+  favorited_at?: string | null;
+}
+
+export interface ListFavoriteSkillsRequest {
+  skill_category?: FavoriteSkillCategory;
+  offset?: number;
+  limit?: number;
 }
 
 export interface SkillCard {

@@ -4,7 +4,6 @@ pub mod admin_role_repository;
 pub mod api_usage_repository;
 pub mod auth_repository;
 pub mod client_version_repository;
-pub mod disclaimer_acceptance_repository;
 pub mod feedback_repository;
 pub mod gear_atlas_repository;
 pub mod gear_packing_repository;
@@ -13,6 +12,7 @@ pub mod gear_template_repository;
 pub mod knot_repository;
 pub mod media_resource_repository;
 pub mod roadmap_repository;
+pub mod skill_favorite_repository;
 pub mod upload_image_repository;
 
 pub use admin_role_repository::{
@@ -24,9 +24,6 @@ pub use api_usage_repository::{
 pub use auth_repository::{AuthRepository, UserRecord, hash_token};
 pub use client_version_repository::{
     ClientVersionDraft, ClientVersionRecord, ClientVersionRepository, ListClientVersionsOptions,
-};
-pub use disclaimer_acceptance_repository::{
-    DisclaimerAcceptanceDraft, DisclaimerAcceptanceRecord, DisclaimerAcceptanceRepository,
 };
 pub use feedback_repository::{
     AdminFeedbackRecord, FeedbackAuthorRecord, FeedbackRecord, FeedbackRepository,
@@ -47,6 +44,9 @@ pub use media_resource_repository::{
 };
 pub use roadmap_repository::{
     ListRoadmapOptions, RoadmapItemRecord, RoadmapListEntry, RoadmapRepository,
+};
+pub use skill_favorite_repository::{
+    KnotFavoriteListEntry, KnotFavoriteStatus, SkillFavoriteCounts, SkillFavoriteRepository,
 };
 pub use upload_image_repository::{UploadImageDraft, UploadImageRecord, UploadImageRepository};
 

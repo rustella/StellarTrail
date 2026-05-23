@@ -1,14 +1,16 @@
 export {
-  acceptKnotDisclaimer,
   consumeOfflineCacheNotice,
+  favoriteKnot,
   getErrorMessage,
-  getKnotDisclaimer,
+  getFavoriteKnotStatus,
   getKnotDetail,
   getKnotFilters,
   getKnotOfflineManifest,
   hasAccessToken,
   isOfflineCacheMissError,
+  listFavoriteSkills,
   listKnots,
   listSkills,
   resolveAssetUrl,
+  unfavoriteKnot,
 } from "./api";

@@ -1,9 +1,13 @@
 import {
   consumeOfflineCacheNotice,
+  favoriteKnot,
   getErrorMessage,
+  getFavoriteKnotStatus,
   getKnotDetail,
+  hasAccessToken,
   isOfflineCacheMissError,
   resolveAssetUrl,
+  unfavoriteKnot,
 } from "../../../utils/api-skills";
 import {
   type KnotDetail,
@@ -11,6 +15,13 @@ import {
 } from "../../../utils/skill-utils";
 import { getThemeViewData, syncPageTheme } from "../../../utils/theme";
 import { resolveCachedMediaUrl } from "../../../utils/media-cache";
+import {
+  getDefaultLoginPrompt,
+  hideLoginPrompt,
+  openLoginPageFromPrompt,
+  requireLoginForAction,
+} from "../../../utils/auth-prompt";
+import { isOffline, showOfflineWriteBlockedToast } from "../../../utils/network-state";
 
 interface MediaView extends KnotMediaAsset {
   resolvedUrl: string;
@@ -30,8 +41,12 @@ Page({
     mediaCredit: "系法动图 · Knots 3D",
     mediaHelpText: "自动循环演示打结步骤。",
     loading: false,
+    isFavorited: false,
+    favoriteLoading: false,
+    favoritedAt: "",
     error: "",
     offlineNotice: "",
+    loginPrompt: getDefaultLoginPrompt(),
     ...getThemeViewData(),
   },
 
@@ -65,6 +80,7 @@ Page({
       );
       const activeMediaIndex = preferredMediaIndex(media);
       const activeMedia = media[activeMediaIndex] ?? null;
+      const favoriteStatus = await loadFavoriteStatus(detail.id);
       const offlineNotice = consumeOfflineCacheNotice();
       wx.setNavigationBarTitle({ title: detail.title });
       this.setData({
@@ -75,6 +91,9 @@ Page({
         activeMedia,
         mediaCredit: mediaCredit(activeMedia),
         mediaHelpText: activeMedia?.helpText ?? "",
+        isFavorited: favoriteStatus.isFavorited,
+        favoriteLoading: false,
+        favoritedAt: favoriteStatus.favoritedAt,
         loading: false,
         ...(offlineNotice ? { offlineNotice } : {}),
       });
@@ -105,7 +124,72 @@ Page({
       mediaHelpText: activeMedia.helpText,
     });
   },
+
+  async toggleFavorite() {
+    const id = this.data.detail?.id ?? this.data.id;
+    if (!id) {
+      return;
+    }
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以收藏技能，并在收藏清单里快速找到。",
+        redirectUrl: `/pages/skills/detail/index?id=${encodeURIComponent(id)}`,
+      })
+    ) {
+      return;
+    }
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
+    const previousFavorited = this.data.isFavorited;
+    const previousFavoritedAt = this.data.favoritedAt;
+    this.setData({ favoriteLoading: true });
+    try {
+      const status = previousFavorited
+        ? await unfavoriteKnot(id)
+        : await favoriteKnot(id);
+      this.setData({
+        isFavorited: status.is_favorited,
+        favoritedAt: status.favorited_at ?? "",
+        favoriteLoading: false,
+      });
+    } catch (error) {
+      this.setData({
+        isFavorited: previousFavorited,
+        favoritedAt: previousFavoritedAt,
+        favoriteLoading: false,
+      });
+      wx.showToast({ title: getErrorMessage(error), icon: "none" });
+    }
+  },
+
+  loginPromptClose() {
+    hideLoginPrompt(this);
+  },
+
+  loginPromptGoLogin() {
+    openLoginPageFromPrompt(this);
+  },
 });
+
+async function loadFavoriteStatus(id: string): Promise<{
+  isFavorited: boolean;
+  favoritedAt: string;
+}> {
+  if (!hasAccessToken()) {
+    return { isFavorited: false, favoritedAt: "" };
+  }
+  try {
+    const status = await getFavoriteKnotStatus(id);
+    return {
+      isFavorited: status.is_favorited,
+      favoritedAt: status.favorited_at ?? "",
+    };
+  } catch {
+    return { isFavorited: false, favoritedAt: "" };
+  }
+}
 
 function isDetailMediaAsset(item: KnotMediaAsset): boolean {
   return (

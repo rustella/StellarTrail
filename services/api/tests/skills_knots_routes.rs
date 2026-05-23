@@ -5,7 +5,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use sea_orm::{ConnectionTrait, Statement};
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::time::Duration;
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
@@ -427,30 +427,6 @@ async fn request_json(
     (status, body)
 }
 
-async fn request_json_body(
-    app: &Router,
-    method: &str,
-    uri: &str,
-    token: Option<&str>,
-    body: Value,
-) -> (StatusCode, Value) {
-    let mut builder = Request::builder()
-        .method(method)
-        .uri(uri)
-        .header(header::CONTENT_TYPE, "application/json");
-    if let Some(token) = token {
-        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
-    }
-    let (status, _headers, body) = json_response(
-        app,
-        builder
-            .body(Body::from(serde_json::to_vec(&body).unwrap()))
-            .unwrap(),
-    )
-    .await;
-    (status, body)
-}
-
 async fn create_test_session(app: &TestApp, username: &str) -> String {
     let repository = AuthRepository::new(app.db.clone());
     let user = repository
@@ -474,125 +450,6 @@ async fn create_test_session(app: &TestApp, username: &str) -> String {
         .await
         .expect("create session");
     access_token
-}
-
-#[tokio::test]
-async fn knot_disclaimer_requires_authenticated_user() {
-    let app = seeded_app().await;
-
-    let (status, body) = request_json(
-        &app.router,
-        "GET",
-        "/api/v1/me/skills/knots/disclaimer",
-        None,
-    )
-    .await;
-
-    assert_eq!(status, StatusCode::UNAUTHORIZED);
-    assert_eq!(body["code"], "unauthorized");
-}
-
-#[tokio::test]
-async fn knot_disclaimer_can_be_accepted_and_read_back() {
-    let app = seeded_app().await;
-    let token = create_test_session(&app, "knot-disclaimer-user").await;
-
-    let (initial_status, initial_body) = request_json(
-        &app.router,
-        "GET",
-        "/api/v1/me/skills/knots/disclaimer",
-        Some(&token),
-    )
-    .await;
-    assert_eq!(initial_status, StatusCode::OK, "{initial_body}");
-    assert_eq!(initial_body["key"], "knot_tutorial_disclaimer");
-    assert_eq!(initial_body["version"], "v1");
-    assert_eq!(initial_body["accepted"], false);
-    assert!(
-        initial_body["content"]
-            .as_str()
-            .unwrap()
-            .contains("仅用于一般绳结知识学习和非承重练习")
-    );
-    assert!(
-        initial_body["content"]
-            .as_str()
-            .unwrap()
-            .contains("法律另有规定或因本程序、开发者依法应承担责任的除外")
-    );
-    assert!(
-        !initial_body["content"]
-            .as_str()
-            .unwrap()
-            .contains("本程序及其开发者、运营者不承担责任")
-    );
-
-    let (accepted_status, accepted_body) = request_json_body(
-        &app.router,
-        "POST",
-        "/api/v1/me/skills/knots/disclaimer/acceptance",
-        Some(&token),
-        json!({
-            "client_platform": "wechat_miniprogram",
-            "client_version": "1.0.0",
-            "device_model": "iPhone 15"
-        }),
-    )
-    .await;
-    assert_eq!(accepted_status, StatusCode::OK, "{accepted_body}");
-    assert_eq!(accepted_body["accepted"], true);
-    assert!(accepted_body["accepted_at"].as_str().is_some());
-
-    let (read_status, read_body) = request_json(
-        &app.router,
-        "GET",
-        "/api/v1/me/skills/knots/disclaimer",
-        Some(&token),
-    )
-    .await;
-    assert_eq!(read_status, StatusCode::OK, "{read_body}");
-    assert_eq!(read_body["accepted"], true);
-    assert_eq!(read_body["accepted_at"], accepted_body["accepted_at"]);
-}
-
-#[tokio::test]
-async fn knot_disclaimer_acceptance_is_idempotent_and_refreshes_client_metadata() {
-    let app = seeded_app().await;
-    let token = create_test_session(&app, "knot-disclaimer-repeat").await;
-
-    for version in ["1.0.0", "1.0.1"] {
-        let (status, body) = request_json_body(
-            &app.router,
-            "POST",
-            "/api/v1/me/skills/knots/disclaimer/acceptance",
-            Some(&token),
-            json!({
-                "client_platform": "wechat_miniprogram",
-                "client_version": version,
-                "device_model": "iPhone 15"
-            }),
-        )
-        .await;
-        assert_eq!(status, StatusCode::OK, "{body}");
-        assert_eq!(body["accepted"], true);
-    }
-
-    let row = app
-        .db
-        .query_one(Statement::from_string(
-            app.db.get_database_backend(),
-            "SELECT COUNT(*) AS count, MAX(client_version) AS client_version \
-             FROM user_disclaimer_acceptances \
-             WHERE disclaimer_key = 'knot_tutorial_disclaimer' AND version = 'v1'",
-        ))
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(row.try_get::<i64>("", "count").unwrap(), 1);
-    assert_eq!(
-        row.try_get::<String>("", "client_version").unwrap(),
-        "1.0.1"
-    );
 }
 
 #[tokio::test]
@@ -693,6 +550,185 @@ async fn knots_list_rejects_removed_difficulty_filter() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(body["code"], "unsupported_query_parameter");
     assert_eq!(body["parameter"], "difficulty");
+}
+
+#[tokio::test]
+async fn favorite_skill_routes_require_authentication() {
+    let app = seeded_filter_app().await;
+
+    for (method, uri) in [
+        ("GET", "/api/v1/me/skills/favorites"),
+        (
+            "GET",
+            "/api/v1/me/skills/favorites/knots/adjustable-grip-hitch-knot",
+        ),
+        (
+            "PUT",
+            "/api/v1/me/skills/favorites/knots/adjustable-grip-hitch-knot",
+        ),
+        (
+            "DELETE",
+            "/api/v1/me/skills/favorites/knots/adjustable-grip-hitch-knot",
+        ),
+    ] {
+        let (status, body) = request_json(&app.router, method, uri, None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{method} {uri}");
+        assert_eq!(body["code"], "unauthorized", "{method} {uri}");
+    }
+}
+
+#[tokio::test]
+async fn favorite_skill_routes_soft_delete_and_restore_user_knot_favorites() {
+    let app = seeded_filter_app().await;
+    let user_a_token = create_test_session(&app, "trail-alice").await;
+    let user_b_token = create_test_session(&app, "trail-bob").await;
+
+    let (status, body) = request_json(
+        &app.router,
+        "PUT",
+        "/api/v1/me/skills/favorites/knots/figure-eight-knot",
+        Some(&user_a_token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["is_favorited"], true);
+    assert_eq!(body["skill_category"], "knots");
+
+    let (status, body) = request_json(
+        &app.router,
+        "PUT",
+        "/api/v1/me/skills/favorites/knots/adjustable-grip-hitch-knot",
+        Some(&user_a_token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["is_favorited"], true);
+
+    let (status, body) = request_json(
+        &app.router,
+        "DELETE",
+        "/api/v1/me/skills/favorites/knots/adjustable-grip-hitch-knot",
+        Some(&user_a_token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["is_favorited"], false);
+    assert_eq!(body["favorited_at"], Value::Null);
+
+    let row = app
+        .db
+        .query_one(Statement::from_sql_and_values(
+            app.db.get_database_backend(),
+            "SELECT is_deleted FROM user_knot_favorites WHERE knot_id = ?",
+            vec!["adjustable-grip-hitch-knot".into()],
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(row.try_get::<bool>("", "is_deleted").unwrap());
+
+    app.db
+        .execute(Statement::from_sql_and_values(
+            app.db.get_database_backend(),
+            "UPDATE user_knot_favorites SET favorited_at = ? WHERE knot_id = ?",
+            vec![
+                "2000-01-01T00:00:00Z".into(),
+                "adjustable-grip-hitch-knot".into(),
+            ],
+        ))
+        .await
+        .unwrap();
+    app.db
+        .execute(Statement::from_sql_and_values(
+            app.db.get_database_backend(),
+            "UPDATE user_knot_favorites SET favorited_at = ? WHERE knot_id = ?",
+            vec!["2001-01-01T00:00:00Z".into(), "figure-eight-knot".into()],
+        ))
+        .await
+        .unwrap();
+
+    let (status, body) = request_json(
+        &app.router,
+        "PUT",
+        "/api/v1/me/skills/favorites/knots/adjustable-grip-hitch-knot",
+        Some(&user_a_token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["is_favorited"], true);
+
+    let (status, _headers, body) = json_response(
+        &app.router,
+        Request::builder()
+            .method("GET")
+            .uri("/api/v1/me/skills/favorites?skill_category=knots&offset=0&limit=10")
+            .header(header::AUTHORIZATION, format!("Bearer {user_a_token}"))
+            .header("X-StellarTrail-Locale", "en")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["locale"], "en");
+    assert_eq!(body["filters"][0]["id"], "all");
+    assert_eq!(body["filters"][0]["count"], 2);
+    assert_eq!(body["filters"][1]["id"], "knots");
+    assert_eq!(body["filters"][1]["count"], 2);
+    assert_eq!(body["items"].as_array().unwrap().len(), 2);
+    assert_eq!(body["items"][0]["knot"]["id"], "adjustable-grip-hitch-knot");
+    assert_eq!(body["items"][0]["skill_category"], "knots");
+    assert!(body["items"][0]["favorited_at"].is_string());
+    assert_eq!(body["page"]["next_offset"], Value::Null);
+
+    let (status, body) = request_json(
+        &app.router,
+        "GET",
+        "/api/v1/me/skills/favorites",
+        Some(&user_b_token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body["items"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn favorite_skill_routes_report_status_and_validate_knot_ids() {
+    let app = seeded_filter_app().await;
+    let token = create_test_session(&app, "trail-cora").await;
+
+    let (status, body) = request_json(
+        &app.router,
+        "GET",
+        "/api/v1/me/skills/favorites/knots/figure-eight-knot",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["is_favorited"], false);
+    assert_eq!(body["favorited_at"], Value::Null);
+
+    for method in ["GET", "PUT", "DELETE"] {
+        let (status, body) = request_json(
+            &app.router,
+            method,
+            "/api/v1/me/skills/favorites/knots/missing-knot",
+            Some(&token),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{method}: {body}");
+        assert_eq!(body["code"], "not_found");
+    }
+
+    let (status, body) = request_json(
+        &app.router,
+        "GET",
+        "/api/v1/me/skills/favorites?skill_category=routes",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["code"], "invalid_query_parameter");
+    assert_eq!(body["parameter"], "skill_category");
 }
 
 #[tokio::test]
@@ -805,6 +841,7 @@ async fn knots_list_uses_offset_pagination_and_hides_source_slugs() {
     assert!(!serialized.contains("english_slug"));
     assert!(!serialized.contains("source_slug_zh"));
     assert!(!serialized.contains("source_slug_en"));
+    assert!(!serialized.contains("is_favorited"));
 }
 
 #[tokio::test]

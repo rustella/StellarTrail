@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use sea_orm::DatabaseConnection;
 use stellartrail_db::repositories::{
-    DisclaimerAcceptanceRepository, GearTemplateRepository, KnotRepository,
+    GearTemplateRepository, KnotRepository, SkillFavoriteRepository,
 };
 
 use crate::{
@@ -33,8 +33,8 @@ struct AppStateInner {
     cache: Cache,
     object_store: Arc<dyn ObjectStore>,
     email_sender: Arc<dyn EmailSender>,
-    disclaimer_acceptance_repository: DisclaimerAcceptanceRepository,
     knot_repository: KnotRepository,
+    skill_favorite_repository: SkillFavoriteRepository,
     gear_template_repository: GearTemplateRepository,
     rate_limiter: InMemoryRateLimiter,
     public_response_cache: InMemoryPublicResponseCache,
@@ -135,8 +135,8 @@ impl AppState {
         object_store: Arc<dyn ObjectStore>,
         email_sender: Arc<dyn EmailSender>,
     ) -> Self {
-        let disclaimer_acceptance_repository = DisclaimerAcceptanceRepository::new(db.clone());
         let knot_repository = KnotRepository::new(db.clone());
+        let skill_favorite_repository = SkillFavoriteRepository::new(db.clone());
         let gear_template_repository = GearTemplateRepository::new(db.clone());
         let api_usage_reporter = ApiUsageReporter::new(db.clone());
         Self {
@@ -147,8 +147,8 @@ impl AppState {
                 cache,
                 object_store,
                 email_sender,
-                disclaimer_acceptance_repository,
                 knot_repository,
+                skill_favorite_repository,
                 gear_template_repository,
                 rate_limiter: InMemoryRateLimiter::default(),
                 public_response_cache: InMemoryPublicResponseCache::default(),
@@ -187,14 +187,14 @@ impl AppState {
         Arc::clone(&self.inner.email_sender)
     }
 
-    /// Returns the DB-backed current-user disclaimer acceptance repository.
-    pub fn disclaimer_acceptance_repository(&self) -> &DisclaimerAcceptanceRepository {
-        &self.inner.disclaimer_acceptance_repository
-    }
-
     /// Returns the DB-backed public knot repository.
     pub fn knot_repository(&self) -> &KnotRepository {
         &self.inner.knot_repository
+    }
+
+    /// Returns the DB-backed current-user skill favorite repository.
+    pub fn skill_favorite_repository(&self) -> &SkillFavoriteRepository {
+        &self.inner.skill_favorite_repository
     }
 
     /// Returns the DB-backed public gear template repository.

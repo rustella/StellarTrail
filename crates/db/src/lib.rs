@@ -8,6 +8,7 @@ pub use config::{DatabaseConfig, DatabaseConfigError, DatabaseKind};
 pub use connection::connect_database;
 pub use repositories::{
     ApiUsageIncrement, ApiUsageQuery, ApiUsageRecord, ApiUsageRepository, AuthRepository,
-    GearRepository, GearTemplateRepository, KnotRepository, ListGearOptions, UserRecord,
+    GearRepository, GearTemplateRepository, KnotFavoriteListEntry, KnotFavoriteStatus,
+    KnotRepository, ListGearOptions, SkillFavoriteCounts, SkillFavoriteRepository, UserRecord,
     hash_token,
 };
