@@ -8,6 +8,8 @@ import {
   hasAccessToken,
   isLoginRequiredError,
   isNotFoundApiError,
+  listClientVersions,
+  type ClientVersion,
   uploadFeedbackImage,
   uploadWechatAvatar,
 } from "../../utils/api-profile";
@@ -37,6 +39,13 @@ const PROFILE_SOFT_REFRESH_MS = 60_000;
 let lastProfileRefreshAt = 0;
 let lastProfileRefreshUserId = "";
 const MAX_FEEDBACK_IMAGE_COUNT = 6;
+const FEEDBACK_SUCCESS_MESSAGE =
+  "感谢你的反馈。反馈内容会进入后台处理，我们会及时查看并持续改进。你的建议会让寻径星野变得更好。";
+const FEEDBACK_SUCCESS_VISIBLE_MS = 10_000;
+const FEEDBACK_SUCCESS_TICK_MS = 1_000;
+const FEEDBACK_SUCCESS_VISIBLE_SECONDS =
+  FEEDBACK_SUCCESS_VISIBLE_MS / FEEDBACK_SUCCESS_TICK_MS;
+let feedbackSuccessTimer: ReturnType<typeof setTimeout> | null = null;
 
 const FEEDBACK_CATEGORY_OPTIONS: Array<{
   value: FeedbackCategory;
@@ -54,6 +63,10 @@ interface FeedbackImageItem {
   sizeText: string;
 }
 
+interface ClientVersionView extends ClientVersion {
+  publishedAtText: string;
+}
+
 Page({
   data: {
     title: "我的寻径星野",
@@ -69,8 +82,15 @@ Page({
     feedbackModalVisible: false,
     feedbackLoading: false,
     feedbackError: "",
+    feedbackSuccessVisible: false,
+    feedbackSuccessMessage: FEEDBACK_SUCCESS_MESSAGE,
+    feedbackSuccessSecondsRemaining: 0,
     aboutModalVisible: false,
-    aboutInfo: buildAboutInfo(),
+    versionInfoDesc: "点击查看版本更新",
+    versionModalVisible: false,
+    versionLoading: false,
+    versionError: "",
+    clientVersions: [] as ClientVersionView[],
     cachedKnotsModalVisible: false,
     cachedKnots: [] as CachedKnotPreview[],
     cachedKnotsInfo: buildCachedKnotsInfo(
@@ -87,6 +107,15 @@ Page({
     void this.refreshAccountState({
       force: consumeProfileShouldRefresh(),
     });
+    void this.refreshClientVersionSummary();
+  },
+
+  onHide() {
+    this.hideFeedbackSuccess();
+  },
+
+  onUnload() {
+    this.hideFeedbackSuccess();
   },
 
   async refreshAccountState(options: { force?: boolean } = {}) {
@@ -302,6 +331,7 @@ Page({
   },
 
   openFeedbackModal() {
+    this.hideFeedbackSuccess();
     if (!this.data.loggedIn) {
       wx.showModal({
         title: "登录后反馈",
@@ -511,7 +541,7 @@ Page({
         feedbackCanAddImage: true,
         feedbackError: "",
       });
-      wx.showToast({ title: "反馈已提交", icon: "success" });
+      this.showFeedbackSuccess();
     } catch (error) {
       if (isLoginRequiredError(error)) {
         this.resetLoggedOutAccountState();
@@ -538,18 +568,119 @@ Page({
     return imageIds;
   },
 
-  openAboutModal() {
+  showFeedbackSuccess() {
+    this.clearFeedbackSuccessTimer();
     this.setData({
-      aboutModalVisible: true,
-      aboutInfo: buildAboutInfo(),
+      feedbackSuccessVisible: true,
+      feedbackSuccessMessage: FEEDBACK_SUCCESS_MESSAGE,
+      feedbackSuccessSecondsRemaining: FEEDBACK_SUCCESS_VISIBLE_SECONDS,
     });
+    this.scheduleFeedbackSuccessCountdown();
+  },
+
+  scheduleFeedbackSuccessCountdown() {
+    this.clearFeedbackSuccessTimer();
+    feedbackSuccessTimer = setTimeout(() => {
+      feedbackSuccessTimer = null;
+      const nextSeconds = this.data.feedbackSuccessSecondsRemaining - 1;
+      if (nextSeconds <= 0) {
+        this.hideFeedbackSuccess();
+        return;
+      }
+      this.setData({ feedbackSuccessSecondsRemaining: nextSeconds });
+      this.scheduleFeedbackSuccessCountdown();
+    }, FEEDBACK_SUCCESS_TICK_MS);
+  },
+
+  closeFeedbackSuccess() {
+    this.hideFeedbackSuccess();
+  },
+
+  hideFeedbackSuccess() {
+    this.clearFeedbackSuccessTimer();
+    if (
+      this.data.feedbackSuccessVisible ||
+      this.data.feedbackSuccessSecondsRemaining
+    ) {
+      this.setData({
+        feedbackSuccessVisible: false,
+        feedbackSuccessSecondsRemaining: 0,
+      });
+    }
+  },
+
+  clearFeedbackSuccessTimer() {
+    if (feedbackSuccessTimer) {
+      clearTimeout(feedbackSuccessTimer);
+      feedbackSuccessTimer = null;
+    }
+  },
+
+  openAboutModal() {
+    this.setData({ aboutModalVisible: true });
   },
 
   closeAboutModal() {
     this.setData({ aboutModalVisible: false });
   },
 
+  openVersionInfoModal() {
+    this.setData({ versionModalVisible: true });
+    if (!this.data.clientVersions.length && !this.data.versionLoading) {
+      void this.loadClientVersions();
+    }
+  },
+
+  closeVersionInfoModal() {
+    this.setData({ versionModalVisible: false });
+  },
+
+  retryClientVersions() {
+    void this.loadClientVersions();
+  },
+
+  async refreshClientVersionSummary() {
+    try {
+      const response = await listClientVersions("wechat_miniprogram", {
+        limit: 1,
+      });
+      const latest = response.items[0];
+      if (latest) {
+        this.setData({
+          versionInfoDesc: `客户端版本 ${latest.version}`,
+        });
+      }
+    } catch {
+      this.setData({ versionInfoDesc: "点击查看版本更新" });
+    }
+  },
+
+  async loadClientVersions() {
+    this.setData({ versionLoading: true, versionError: "" });
+    try {
+      const response = await listClientVersions("wechat_miniprogram", {
+        limit: 20,
+      });
+      const versions = response.items.map(versionToView);
+      this.setData({
+        clientVersions: versions,
+        versionInfoDesc: versions[0]
+          ? `客户端版本 ${versions[0].version}`
+          : "暂无版本信息",
+        versionError: "",
+      });
+    } catch (error) {
+      this.setData({
+        versionError: getErrorMessage(error),
+        versionInfoDesc: "点击查看版本更新",
+      });
+    } finally {
+      this.setData({ versionLoading: false });
+    }
+  },
+
   resetLoggedOutAccountState() {
+    this.clearFeedbackSuccessTimer();
     this.setData({
       loggedIn: false,
       accountProfile: buildAccountProfile(false),
@@ -560,6 +691,8 @@ Page({
       feedbackImages: [],
       feedbackCanAddImage: true,
       feedbackError: "",
+      feedbackSuccessVisible: false,
+      feedbackSuccessSecondsRemaining: 0,
       accountError: "",
     });
     lastProfileRefreshAt = 0;
@@ -585,6 +718,20 @@ function buildCachedKnotsInfo(inventory: KnotOfflineCacheInventory): {
   };
 }
 
+function versionToView(version: ClientVersion): ClientVersionView {
+  return {
+    ...version,
+    publishedAtText: formatVersionDate(version.published_at),
+  };
+}
+
+function formatVersionDate(value?: string | null): string {
+  if (!value) {
+    return "发布时间待定";
+  }
+  return value.slice(0, 10);
+}
+
 function currentPagePath(): string {
   const pages = getCurrentPages();
   const current = pages[pages.length - 1];
@@ -606,33 +753,12 @@ function miniProgramVersion(): string {
   return info?.miniProgram?.version || "dev";
 }
 
-function buildAboutInfo(): {
-  envText: string;
-  versionText: string;
-} {
-  const miniProgram = safeAccountInfo()?.miniProgram;
-  return {
-    envText: envVersionText(miniProgram?.envVersion),
-    versionText: miniProgram?.version || "dev",
-  };
-}
-
 function safeAccountInfo(): WechatMiniprogram.AccountInfo | undefined {
   try {
     return wx.getAccountInfoSync();
   } catch {
     return undefined;
   }
-}
-
-function envVersionText(value?: string): string {
-  if (value === "release") {
-    return "正式版";
-  }
-  if (value === "trial") {
-    return "体验版";
-  }
-  return "开发版";
 }
 
 function deviceModel(): string | null {
