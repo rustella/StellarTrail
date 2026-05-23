@@ -19,7 +19,7 @@ use stellartrail_api::{
 };
 use stellartrail_db::{
     DatabaseConfig, connect_database,
-    repositories::{AdminRoleRepository, AuthRepository},
+    repositories::{AdminRoleRepository, AuthRepository, UploadImageDraft, UploadImageRepository},
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -38,6 +38,17 @@ struct TestApp {
 }
 
 async fn test_app(max_images_per_window: u64) -> TestApp {
+    test_app_with_upload_config(UploadConfig {
+        max_image_bytes: 8_000_000,
+        rate_limit_window_seconds: 3600,
+        max_images_per_window,
+        max_total_images_per_user: 100,
+        max_total_bytes_per_user: 200_000_000,
+    })
+    .await
+}
+
+async fn test_app_with_upload_config(upload: UploadConfig) -> TestApp {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
@@ -54,11 +65,7 @@ async fn test_app(max_images_per_window: u64) -> TestApp {
         wechat_app_id: None,
         wechat_app_secret: None,
         redis_cache: RedisCacheConfig::disabled(),
-        upload: UploadConfig {
-            max_image_bytes: 8_000_000,
-            rate_limit_window_seconds: 3600,
-            max_images_per_window,
-        },
+        upload,
         minio: Default::default(),
         object_storage: ObjectStorageConfig {
             bucket: "test-uploads".to_owned(),
@@ -183,6 +190,41 @@ async fn register_password_user(app: &Router, suffix: &str) -> String {
     .await;
     assert_eq!(register_status, StatusCode::OK, "{register_value}");
     register_value["access_token"].as_str().unwrap().to_owned()
+}
+
+async fn register_password_user_with_id(app: &TestApp, suffix: &str) -> (String, String) {
+    let token = register_password_user(&app.router, suffix).await;
+    let username = format!("upload_{suffix}");
+    let user = AuthRepository::new(app.db.clone())
+        .find_user_by_username(&username)
+        .await
+        .unwrap()
+        .expect("registered test user should exist");
+    (token, user.id)
+}
+
+async fn seed_upload_records(
+    app: &TestApp,
+    user_id: &str,
+    purpose: &str,
+    count: usize,
+    size_bytes: i64,
+) {
+    let repo = UploadImageRepository::new(app.db.clone());
+    for index in 0..count {
+        let draft = UploadImageDraft {
+            purpose: purpose.to_owned(),
+            original_filename: format!("seed-{index}.png"),
+            bucket: "test-uploads".to_owned(),
+            object_key: format!("seed/{user_id}/{purpose}/{index}.png"),
+            image_type: "png".to_owned(),
+            content_type: "image/png".to_owned(),
+            size_bytes,
+            sha256: format!("seed-sha256-{purpose}-{index}"),
+            etag: None,
+        };
+        repo.create(user_id, &draft).await.unwrap();
+    }
 }
 
 async fn grant_admin_role(app: &TestApp, suffix: &str) -> String {
@@ -540,6 +582,156 @@ async fn upload_rate_limit_is_per_user() {
         upload_image(&app.router, Some(&token_b), "two.png", "image/png", PNG_1X1).await;
 
     assert_eq!(second_status, StatusCode::CREATED, "{second}");
+}
+
+#[tokio::test]
+async fn upload_allows_final_feedback_image_before_count_quota_then_rejects_next() {
+    let app = test_app_with_upload_config(UploadConfig {
+        max_image_bytes: 8_000_000,
+        rate_limit_window_seconds: 3600,
+        max_images_per_window: 200,
+        max_total_images_per_user: 100,
+        max_total_bytes_per_user: 200_000_000,
+    })
+    .await;
+    let (token, user_id) = register_password_user_with_id(&app, "count_quota").await;
+    seed_upload_records(&app, &user_id, "feedback", 99, PNG_1X1.len() as i64).await;
+
+    let (final_status, final_value) =
+        upload_image(&app.router, Some(&token), "final.png", "image/png", PNG_1X1).await;
+    assert_eq!(final_status, StatusCode::CREATED, "{final_value}");
+    assert_eq!(app.object_store.object_count(), 1);
+    let usage_before_reject = UploadImageRepository::new(app.db.clone())
+        .usage_for_user(&user_id, "feedback")
+        .await
+        .unwrap();
+
+    let before_reject_objects = app.object_store.object_count();
+    let (reject_status, reject_value) = upload_image(
+        &app.router,
+        Some(&token),
+        "too-many.png",
+        "image/png",
+        PNG_1X1,
+    )
+    .await;
+
+    assert_eq!(
+        reject_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{reject_value}"
+    );
+    assert_eq!(reject_value["code"], "validation_failed");
+    assert_eq!(reject_value["fields"][0]["field"], "image_quota");
+    assert_eq!(
+        reject_value["fields"][0]["message"],
+        "反馈图片已达到 100 张上限"
+    );
+    assert_eq!(app.object_store.object_count(), before_reject_objects);
+    let usage_after_reject = UploadImageRepository::new(app.db.clone())
+        .usage_for_user(&user_id, "feedback")
+        .await
+        .unwrap();
+    assert_eq!(usage_after_reject, usage_before_reject);
+}
+
+#[tokio::test]
+async fn upload_rejects_feedback_image_when_total_byte_quota_would_be_exceeded() {
+    let max_total_bytes = PNG_1X1.len() as u64 + 10;
+    let app = test_app_with_upload_config(UploadConfig {
+        max_image_bytes: 8_000_000,
+        rate_limit_window_seconds: 3600,
+        max_images_per_window: 30,
+        max_total_images_per_user: 100,
+        max_total_bytes_per_user: max_total_bytes,
+    })
+    .await;
+    let (token, user_id) = register_password_user_with_id(&app, "byte_quota").await;
+    seed_upload_records(&app, &user_id, "feedback", 1, 10).await;
+
+    let (first_status, first_value) = upload_image(
+        &app.router,
+        Some(&token),
+        "within.png",
+        "image/png",
+        PNG_1X1,
+    )
+    .await;
+    assert_eq!(first_status, StatusCode::CREATED, "{first_value}");
+    let before_reject_objects = app.object_store.object_count();
+    let usage_before_reject = UploadImageRepository::new(app.db.clone())
+        .usage_for_user(&user_id, "feedback")
+        .await
+        .unwrap();
+
+    let (reject_status, reject_value) =
+        upload_image(&app.router, Some(&token), "over.png", "image/png", PNG_1X1).await;
+
+    assert_eq!(
+        reject_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{reject_value}"
+    );
+    assert_eq!(reject_value["code"], "validation_failed");
+    assert_eq!(reject_value["fields"][0]["field"], "image_quota");
+    assert_eq!(
+        reject_value["fields"][0]["message"],
+        format!("反馈图片总大小已达到 {max_total_bytes} bytes 上限")
+    );
+    assert_eq!(app.object_store.object_count(), before_reject_objects);
+    let usage_after_reject = UploadImageRepository::new(app.db.clone())
+        .usage_for_user(&user_id, "feedback")
+        .await
+        .unwrap();
+    assert_eq!(usage_after_reject, usage_before_reject);
+}
+
+#[tokio::test]
+async fn upload_total_quota_is_per_user_and_feedback_purpose_only() {
+    let app = test_app_with_upload_config(UploadConfig {
+        max_image_bytes: 8_000_000,
+        rate_limit_window_seconds: 3600,
+        max_images_per_window: 30,
+        max_total_images_per_user: 1,
+        max_total_bytes_per_user: 200_000_000,
+    })
+    .await;
+    let (token_a, user_a) = register_password_user_with_id(&app, "quota_user_a").await;
+    let (token_b, _user_b) = register_password_user_with_id(&app, "quota_user_b").await;
+    seed_upload_records(&app, &user_a, "feedback", 1, PNG_1X1.len() as i64).await;
+    seed_upload_records(&app, &user_a, "other", 3, PNG_1X1.len() as i64).await;
+
+    let (status_a, value_a) = upload_image(
+        &app.router,
+        Some(&token_a),
+        "user-a.png",
+        "image/png",
+        PNG_1X1,
+    )
+    .await;
+    assert_eq!(status_a, StatusCode::UNPROCESSABLE_ENTITY, "{value_a}");
+
+    let (status_b, value_b) = upload_image(
+        &app.router,
+        Some(&token_b),
+        "user-b.png",
+        "image/png",
+        PNG_1X1,
+    )
+    .await;
+    assert_eq!(status_b, StatusCode::CREATED, "{value_b}");
+
+    let (token_c, user_c) = register_password_user_with_id(&app, "quota_user_c").await;
+    seed_upload_records(&app, &user_c, "other", 3, PNG_1X1.len() as i64).await;
+    let (status_c, value_c) = upload_image(
+        &app.router,
+        Some(&token_c),
+        "purpose.png",
+        "image/png",
+        PNG_1X1,
+    )
+    .await;
+    assert_eq!(status_c, StatusCode::CREATED, "{value_c}");
 }
 
 #[tokio::test]

@@ -417,6 +417,8 @@ GET /api/v1/admin/api-usage?from=2026-05-01&to=2026-05-18&method=GET&route=/api/
 
 ## Admin feedback
 
+用户反馈图片通过 `POST /api/v1/me/uploads` 上传后，再把返回的 `id` 放进 `POST /api/v1/me/feedback` 的 `image_ids`。服务端对反馈图片同时执行四层保护：单张图片大小 `upload.max_image_bytes`、固定窗口上传张数 `upload.max_images_per_window`、用户累计反馈图片张数 `upload.max_total_images_per_user`、用户累计反馈图片大小 `upload.max_total_bytes_per_user`。累计配额默认是每个用户 `100` 张、`200000000` bytes；超过累计配额时返回 `422 validation_failed`，字段为 `image_quota`。
+
 ```http
 GET /api/v1/admin/feedback?status=open&limit=50&cursor=0
 Authorization: Bearer <admin-token>

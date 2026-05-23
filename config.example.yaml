@@ -28,6 +28,8 @@ upload:
   max_image_bytes: 8000000
   rate_limit_window_seconds: 3600
   max_images_per_window: 30
+  max_total_images_per_user: 100
+  max_total_bytes_per_user: 200000000
 
 # Shared MinIO/S3-compatible connection used by private feedback uploads and
 # public Knots3D media buckets.

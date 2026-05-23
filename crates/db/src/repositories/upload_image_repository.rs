@@ -37,6 +37,13 @@ pub struct UploadImageRecord {
     pub created_at: String,
 }
 
+/// Aggregate upload usage for one user and upload purpose.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct UploadImageUsage {
+    pub count: i64,
+    pub total_size_bytes: i64,
+}
+
 /// Repository for upload image metadata.
 #[derive(Clone)]
 pub struct UploadImageRepository {
@@ -159,6 +166,32 @@ impl UploadImageRepository {
             .map(|row| row.try_get("", "count"))
             .transpose()?
             .unwrap_or(0))
+    }
+
+    /// Returns cumulative owner-scoped upload usage for a single business purpose.
+    pub async fn usage_for_user(
+        &self,
+        user_id: &str,
+        purpose: &str,
+    ) -> Result<UploadImageUsage, DbErr> {
+        let row = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                "SELECT COUNT(*) AS count, COALESCE(SUM(size_bytes), 0) AS total_size_bytes FROM upload_images WHERE user_id = ? AND purpose = ?",
+                vec![user_id.to_owned().into(), purpose.to_owned().into()],
+            ))
+            .await?;
+        Ok(match row {
+            Some(row) => UploadImageUsage {
+                count: row.try_get("", "count")?,
+                total_size_bytes: row.try_get("", "total_size_bytes")?,
+            },
+            None => UploadImageUsage {
+                count: 0,
+                total_size_bytes: 0,
+            },
+        })
     }
 }
 
