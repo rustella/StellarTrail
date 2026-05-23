@@ -900,8 +900,7 @@ dd {
 }
 
 .atlas-card-meta,
-.atlas-card-desc,
-.atlas-source-text {
+.atlas-card-desc {
   color: var(--muted-color);
   line-height: 1.45;
 }

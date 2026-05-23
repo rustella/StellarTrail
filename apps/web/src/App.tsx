@@ -2501,6 +2501,10 @@ function AtlasReviewPage({
                       <dd>{atlasSourceLabel(selected.source_type)}</dd>
                     </div>
                     <div>
+                      <dt>来源摘要</dt>
+                      <dd>{atlasSourceAuditSummary(selected)}</dd>
+                    </div>
+                    <div>
                       <dt>来源装备</dt>
                       <dd>{selected.source_user_gear_id || "手动投稿"}</dd>
                     </div>
@@ -4076,6 +4080,12 @@ function atlasRatingSummary(item: GearAtlasSubmission): string {
       ? ` / ${item.source_rating_count} 条`
       : "";
   return `${item.source_rating_score.toFixed(1)} 分${count}`;
+}
+
+function atlasSourceAuditSummary(item: GearAtlasSubmission): string {
+  const source = item.source_name || atlasSourceLabel(item.source_type);
+  const rating = atlasRatingSummary(item);
+  return rating === "—" ? source : `${source} · ${rating}`;
 }
 
 function formatAtlasPrice(
