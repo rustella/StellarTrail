@@ -16,6 +16,7 @@ import type {
   GearSpecs,
   GearVariant,
   ListGearAtlasRequest,
+  UpdateGearAtlasSubmissionRequest,
 } from "@stellartrail/shared-types";
 
 import type { WebGearApi } from "./api";
@@ -49,7 +50,15 @@ type AtlasCategoryFilterId = "all" | GearCategory;
 type GearAtlasApi = Pick<
   WebGearApi,
   "listGearAtlas" | "getGearAtlasItem" | "createGearAtlasSubmission"
->;
+> &
+  Partial<
+    Pick<
+      WebGearApi,
+      | "listAdminGearAtlasSubmissions"
+      | "getAdminGearAtlasSubmission"
+      | "updateAdminGearAtlasSubmission"
+    >
+  >;
 
 interface GearAtlasPageProps {
   api: GearAtlasApi;
@@ -106,6 +115,14 @@ export default function GearAtlasPage({
     useState<AtlasSubmissionFormState>(emptyAtlasForm);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [canAdminEdit, setCanAdminEdit] = useState(false);
+  const [isAdminEditOpen, setIsAdminEditOpen] = useState(false);
+  const [adminEditItem, setAdminEditItem] =
+    useState<GearAtlasPublicItem | null>(null);
+  const [adminEditForm, setAdminEditForm] =
+    useState<AtlasSubmissionFormState>(emptyAtlasForm);
+  const [adminEditError, setAdminEditError] = useState<string | null>(null);
+  const [adminEditing, setAdminEditing] = useState(false);
   const listRequestRef = useRef(0);
   const loadMoreInFlightRef = useRef(false);
   const detailRequestRef = useRef(0);
@@ -227,6 +244,36 @@ export default function GearAtlasPage({
     setDetailLoading(false);
   }, [initialDetailId, openDetail]);
 
+  useEffect(() => {
+    if (
+      !session ||
+      !api.listAdminGearAtlasSubmissions ||
+      !api.getAdminGearAtlasSubmission ||
+      !api.updateAdminGearAtlasSubmission
+    ) {
+      setCanAdminEdit(false);
+      return;
+    }
+
+    let cancelled = false;
+    api
+      .listAdminGearAtlasSubmissions({ limit: 1 })
+      .then(() => {
+        if (!cancelled) {
+          setCanAdminEdit(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCanAdminEdit(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, session]);
+
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextQuery = query.trim();
@@ -298,9 +345,76 @@ export default function GearAtlasPage({
     }
   }
 
+  async function openAdminEdit(item: GearAtlasPublicItem) {
+    if (
+      !session ||
+      !canAdminEdit ||
+      !api.getAdminGearAtlasSubmission ||
+      !api.updateAdminGearAtlasSubmission
+    ) {
+      return;
+    }
+
+    setAdminEditItem(item);
+    setAdminEditForm(atlasFormFromItem(item));
+    setAdminEditError(null);
+    setIsAdminEditOpen(true);
+    setAdminEditing(true);
+    try {
+      const adminItem = await api.getAdminGearAtlasSubmission(item.id);
+      setAdminEditItem(adminItem);
+      setAdminEditForm(atlasFormFromItem(adminItem));
+    } catch (err) {
+      setAdminEditError(errorMessage(err));
+    } finally {
+      setAdminEditing(false);
+    }
+  }
+
+  async function submitAdminEditForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!adminEditItem || !api.updateAdminGearAtlasSubmission) {
+      return;
+    }
+
+    let payload: UpdateGearAtlasSubmissionRequest;
+    try {
+      payload = atlasFormToPayload(adminEditForm);
+    } catch (err) {
+      setAdminEditError(errorMessage(err));
+      return;
+    }
+
+    setAdminEditing(true);
+    setAdminEditError(null);
+    try {
+      const updated = await api.updateAdminGearAtlasSubmission(
+        adminEditItem.id,
+        payload,
+      );
+      setItems((current) => replaceAtlasItem(current, updated));
+      setDetail((current) =>
+        current?.id === updated.id ? { ...current, ...updated } : current,
+      );
+      setAdminEditItem(updated);
+      setAdminEditForm(atlasFormFromItem(updated));
+      setIsAdminEditOpen(false);
+      setNotice("图鉴信息已保存。");
+    } catch (err) {
+      setAdminEditError(errorMessage(err));
+    } finally {
+      setAdminEditing(false);
+    }
+  }
+
   const specFields = useMemo(
     () => getGearAtlasSpecFieldViews(submitForm.category, submitForm.specs),
     [submitForm.category, submitForm.specs],
+  );
+  const adminEditSpecFields = useMemo(
+    () =>
+      getGearAtlasSpecFieldViews(adminEditForm.category, adminEditForm.specs),
+    [adminEditForm.category, adminEditForm.specs],
   );
 
   return (
@@ -461,10 +575,20 @@ export default function GearAtlasPage({
         </div>
       ) : null}
       {detail ? (
-        <AtlasDetailDrawer item={detail} onClose={closeDetail} />
+        <AtlasDetailDrawer
+          item={detail}
+          canAdminEdit={canAdminEdit}
+          onAdminEdit={openAdminEdit}
+          onClose={closeDetail}
+        />
       ) : null}
       {isSubmitOpen ? (
         <AtlasSubmitModal
+          title="投稿到装备图鉴"
+          description="只填写适合公开展示的信息，审核通过后会出现在装备图鉴。"
+          submitLabel="提交审核"
+          submittingLabel="提交中..."
+          ariaLabel="投稿装备图鉴"
           form={submitForm}
           specFields={specFields}
           submitting={submitting}
@@ -472,6 +596,25 @@ export default function GearAtlasPage({
           onClose={() => setIsSubmitOpen(false)}
           onSubmit={submitAtlasForm}
           onChange={setSubmitForm}
+        />
+      ) : null}
+      {isAdminEditOpen ? (
+        <AtlasSubmitModal
+          title="编辑图鉴装备"
+          description="管理员可直接修改已公开图鉴的公共字段，保存后会立即更新公开页面。"
+          submitLabel="保存图鉴"
+          submittingLabel="保存中..."
+          ariaLabel="编辑图鉴装备"
+          form={adminEditForm}
+          specFields={adminEditSpecFields}
+          submitting={adminEditing}
+          error={adminEditError}
+          onClose={() => {
+            setIsAdminEditOpen(false);
+            setAdminEditError(null);
+          }}
+          onSubmit={submitAdminEditForm}
+          onChange={setAdminEditForm}
         />
       ) : null}
     </section>
@@ -527,9 +670,13 @@ function AtlasCard({
 
 function AtlasDetailDrawer({
   item,
+  canAdminEdit,
+  onAdminEdit,
   onClose,
 }: {
   item: GearAtlasPublicItem;
+  canAdminEdit: boolean;
+  onAdminEdit(item: GearAtlasPublicItem): Promise<void> | void;
   onClose(): void;
 }) {
   const specs = Object.entries(item.specs ?? {});
@@ -548,7 +695,18 @@ function AtlasDetailDrawer({
         {item.category_label || categoryLabel(item.category)}
       </p>
       <h2>{joinGearName(item)}</h2>
-      <span className="status-pill">已收录</span>
+      <div className="atlas-detail-actions">
+        <span className="status-pill">已收录</span>
+        {canAdminEdit ? (
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => void onAdminEdit(item)}
+          >
+            编辑图鉴
+          </button>
+        ) : null}
+      </div>
       <section className="atlas-detail-section">
         <h3>公开信息</h3>
         <dl>
@@ -637,6 +795,11 @@ function AtlasDetailDrawer({
 }
 
 function AtlasSubmitModal({
+  title,
+  description,
+  submitLabel,
+  submittingLabel,
+  ariaLabel,
   form,
   specFields,
   submitting,
@@ -645,6 +808,11 @@ function AtlasSubmitModal({
   onSubmit,
   onChange,
 }: {
+  title: string;
+  description: string;
+  submitLabel: string;
+  submittingLabel: string;
+  ariaLabel: string;
   form: AtlasSubmissionFormState;
   specFields: ReturnType<typeof getGearAtlasSpecFieldViews>;
   submitting: boolean;
@@ -702,12 +870,12 @@ function AtlasSubmitModal({
       <form
         className="gear-modal atlas-submit-modal"
         onSubmit={onSubmit}
-        aria-label="投稿装备图鉴"
+        aria-label={ariaLabel}
       >
         <header>
           <div>
-            <h2>投稿到装备图鉴</h2>
-            <p>只填写适合公开展示的信息，审核通过后会出现在装备图鉴。</p>
+            <h2>{title}</h2>
+            <p>{description}</p>
           </div>
           <button
             type="button"
@@ -957,7 +1125,7 @@ function AtlasSubmitModal({
             className="primary-button"
             disabled={submitting}
           >
-            {submitting ? "提交中..." : "提交审核"}
+            {submitting ? submittingLabel : submitLabel}
           </button>
         </footer>
       </form>
@@ -988,6 +1156,29 @@ function atlasFormToPayload(
   };
 }
 
+function atlasFormFromItem(
+  item: GearAtlasPublicItem,
+): AtlasSubmissionFormState {
+  return {
+    category: item.category,
+    name: item.name,
+    brand: item.brand ?? "",
+    model: item.model ?? "",
+    description: item.description ?? "",
+    weightG: item.weight_g?.toString() ?? "",
+    officialPrice: priceInputValue(item.official_price_cents),
+    officialPriceCurrency: currencyForForm(item.official_price_currency),
+    variants: (item.variants ?? []).map((variant) => ({ ...variant })),
+    specs: { ...(item.specs ?? {}) },
+  };
+}
+
+function currencyForForm(currency?: string | null): GearCurrency {
+  return CURRENCY_OPTIONS.includes(currency as GearCurrency)
+    ? (currency as GearCurrency)
+    : "CNY";
+}
+
 function mergeAtlasItems(
   current: GearAtlasPublicItem[],
   next: GearAtlasPublicItem[],
@@ -1003,6 +1194,15 @@ function mergeAtlasItems(
       return true;
     }),
   ];
+}
+
+function replaceAtlasItem(
+  current: GearAtlasPublicItem[],
+  updated: GearAtlasPublicItem,
+): GearAtlasPublicItem[] {
+  return current.map((item) =>
+    item.id === updated.id ? { ...item, ...updated } : item,
+  );
 }
 
 function brandModelText(item: GearAtlasPublicItem): string {
