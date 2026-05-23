@@ -2,6 +2,7 @@ export {
   archiveGear,
   consumeOfflineCacheNotice,
   createGear,
+  deleteGear,
   getErrorMessage,
   getGear,
   getGearOverview,
@@ -15,5 +16,6 @@ export {
   listGears,
   restoreGear,
   submitGearToAtlas,
+  undeleteGear,
   updateGear,
 } from "./api";

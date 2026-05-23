@@ -119,6 +119,13 @@ class GearListViewModelTest {
         override suspend fun archive(id: String) {
             privateGearCalls += 1
         }
+        override suspend fun delete(id: String) {
+            privateGearCalls += 1
+        }
+        override suspend fun undelete(id: String): GearItem {
+            privateGearCalls += 1
+            error("unused")
+        }
         override suspend fun restore(id: String): GearItem {
             privateGearCalls += 1
             error("unused")

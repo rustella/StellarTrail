@@ -116,12 +116,16 @@ export interface WebGearApi {
   createGear(request: CreateGearRequest): Promise<GearItem>;
   updateGear(id: string, request: UpdateGearRequest): Promise<GearItem>;
   archiveGear(id: string): Promise<void>;
+  deleteGear(id: string): Promise<void>;
+  undeleteGear(id: string): Promise<GearItem>;
   restoreGear(id: string): Promise<GearItem>;
   exportGearsCsv(tab?: "available" | "history"): Promise<string>;
   importGears(request: ImportGearsRequest): Promise<ImportGearsResponse>;
   listAdminFeedback(
     request?: ListAdminFeedbackRequest,
   ): Promise<ListAdminFeedbackResponse>;
+  deleteAdminFeedback(id: string): Promise<void>;
+  restoreAdminFeedback(id: string): Promise<void>;
   listAdminClientVersions(
     request?: ListClientVersionsRequest,
   ): Promise<ListClientVersionsResponse>;
@@ -141,6 +145,8 @@ export interface WebGearApi {
     request: UpdateGearAtlasSubmissionRequest,
   ): Promise<GearAtlasSubmission>;
   approveGearAtlasSubmission(id: string): Promise<GearAtlasSubmission>;
+  deleteAdminGearAtlasSubmission(id: string): Promise<void>;
+  restoreAdminGearAtlasSubmission(id: string): Promise<GearAtlasSubmission>;
   rejectGearAtlasSubmission(
     id: string,
     request: RejectGearAtlasSubmissionRequest,

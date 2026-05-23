@@ -111,6 +111,14 @@ enum GearTab: String, Codable, CaseIterable, Identifiable {
     var label: String { self == .available ? "可用" : "历史" }
 }
 
+enum DeletedFilter: String, Codable, CaseIterable, Identifiable {
+    case active
+    case deleted
+    case all
+
+    var id: String { rawValue }
+}
+
 enum GearSort: String, Codable, CaseIterable, Identifiable {
     case createdAtDesc = "created_at_desc"
     case createdAtAsc = "created_at_asc"
@@ -197,9 +205,16 @@ enum GearAtlasStatus: String, Codable, CaseIterable, Identifiable {
 enum GearAtlasSourceType: String, Codable, CaseIterable, Identifiable {
     case manual
     case userGear = "user_gear"
+    case externalImport = "external_import"
 
     var id: String { rawValue }
-    var label: String { self == .manual ? "手动投稿" : "来自我的装备" }
+    var label: String {
+        switch self {
+        case .manual: return "手动投稿"
+        case .userGear: return "来自我的装备"
+        case .externalImport: return "外部导入"
+        }
+    }
 }
 
 enum GearAtlasSort: String, Codable, CaseIterable, Identifiable {
@@ -342,6 +357,7 @@ struct GearItem: Codable, Equatable, Identifiable {
     let shareStatus: GearShareStatus
     let notes: String?
     let archivedAt: String?
+    let isDeleted: Bool
     let createdAt: String
     let updatedAt: String
 
@@ -373,6 +389,7 @@ struct GearSummary: Codable, Equatable, Identifiable {
     let specs: GearSpecs?
     let tags: [String]
     let tagColors: GearTagColorMap?
+    let isDeleted: Bool
     let createdAt: String
     let updatedAt: String
 
@@ -400,6 +417,7 @@ struct GearSummary: Codable, Equatable, Identifiable {
         specs: GearSpecs? = nil,
         tags: [String] = [],
         tagColors: GearTagColorMap? = nil,
+        isDeleted: Bool = false,
         createdAt: String,
         updatedAt: String
     ) {
@@ -420,12 +438,13 @@ struct GearSummary: Codable, Equatable, Identifiable {
         self.specs = specs
         self.tags = tags
         self.tagColors = tagColors
+        self.isDeleted = isDeleted
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, category, categoryLabel, name, brand, model, status, statusLabel, weightG, officialPriceCents, officialPriceCurrency, purchasePriceCents, purchasePriceCurrency, purchaseDate, specs, tags, tagColors, createdAt, updatedAt
+        case id, category, categoryLabel, name, brand, model, status, statusLabel, weightG, officialPriceCents, officialPriceCurrency, purchasePriceCents, purchasePriceCurrency, purchaseDate, specs, tags, tagColors, isDeleted, createdAt, updatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -450,6 +469,7 @@ struct GearSummary: Codable, Equatable, Identifiable {
             specs: try container.decodeIfPresent(GearSpecs.self, forKey: .specs),
             tags: try container.decodeIfPresent([String].self, forKey: .tags) ?? [],
             tagColors: try container.decodeIfPresent(GearTagColorMap.self, forKey: .tagColors),
+            isDeleted: try container.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false,
             createdAt: try container.decode(String.self, forKey: .createdAt),
             updatedAt: try container.decode(String.self, forKey: .updatedAt)
         )
@@ -530,6 +550,7 @@ struct ListGearsRequest: Equatable {
     var tab: GearTab = .available
     var category: GearCategory?
     var status: GearStatus?
+    var deleted: DeletedFilter = .active
     var q: String?
     var sort: GearSort = .createdAtDesc
     var limit: Int = 20
@@ -538,6 +559,7 @@ struct ListGearsRequest: Equatable {
     var queryItems: [URLQueryItem] {
         var items = [
             URLQueryItem(name: "tab", value: tab.rawValue),
+            URLQueryItem(name: "deleted", value: deleted.rawValue),
             URLQueryItem(name: "sort", value: sort.rawValue),
             URLQueryItem(name: "limit", value: String(limit))
         ]
@@ -583,6 +605,7 @@ struct GearAtlasPublicItem: Codable, Equatable, Identifiable {
     let officialPriceCurrency: String?
     let specs: GearSpecs?
     let approvedAt: String?
+    let isDeleted: Bool
     let createdAt: String
     let updatedAt: String
 
@@ -604,6 +627,7 @@ struct GearAtlasSubmission: Codable, Equatable, Identifiable {
     let officialPriceCurrency: String?
     let specs: GearSpecs?
     let approvedAt: String?
+    let isDeleted: Bool
     let createdAt: String
     let updatedAt: String
     let sourceType: GearAtlasSourceType
@@ -656,6 +680,7 @@ struct ListGearAtlasResponse: Codable, Equatable {
 struct ListGearAtlasSubmissionsRequest: Equatable {
     var status: GearAtlasStatus?
     var category: GearCategory?
+    var deleted: DeletedFilter = .active
     var q: String?
     var limit: Int = 20
     var cursor: String?
@@ -664,6 +689,7 @@ struct ListGearAtlasSubmissionsRequest: Equatable {
         var items = [URLQueryItem(name: "limit", value: String(limit))]
         if let status { items.append(URLQueryItem(name: "status", value: status.rawValue)) }
         if let category { items.append(URLQueryItem(name: "category", value: category.rawValue)) }
+        items.append(URLQueryItem(name: "deleted", value: deleted.rawValue))
         if let q = q?.nilIfBlank { items.append(URLQueryItem(name: "q", value: q)) }
         if let cursor { items.append(URLQueryItem(name: "cursor", value: cursor)) }
         return items
@@ -1113,6 +1139,7 @@ extension GearItem {
             specs: specs,
             tags: tags,
             tagColors: tagColors,
+            isDeleted: isDeleted,
             createdAt: createdAt,
             updatedAt: updatedAt
         )

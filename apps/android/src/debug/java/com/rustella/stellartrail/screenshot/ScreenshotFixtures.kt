@@ -179,6 +179,8 @@ private class FixtureGearRepository : GearRepositoryContract {
     override suspend fun create(request: CreateGearRequest): GearItem = gears.first().copy(id = "fixture-created", name = request.name)
     override suspend fun update(id: String, request: UpdateGearRequest): GearItem = get(id).copy(name = request.name ?: get(id).name)
     override suspend fun archive(id: String) = Unit
+    override suspend fun delete(id: String) = Unit
+    override suspend fun undelete(id: String): GearItem = get(id).copy(isDeleted = false)
     override suspend fun restore(id: String): GearItem = get(id).copy(status = GearStatus.AVAILABLE, archivedAt = null)
 }
 

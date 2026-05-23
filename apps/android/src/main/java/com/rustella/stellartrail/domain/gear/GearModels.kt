@@ -46,6 +46,13 @@ enum class GearTab {
 }
 
 @Serializable
+enum class DeletedFilter {
+    @SerialName("active") ACTIVE,
+    @SerialName("deleted") DELETED,
+    @SerialName("all") ALL,
+}
+
+@Serializable
 enum class GearSort {
     @SerialName("created_at_desc") CREATED_AT_DESC,
     @SerialName("created_at_asc") CREATED_AT_ASC,
@@ -87,6 +94,7 @@ data class GearItem(
     @SerialName("share_status") val shareStatus: GearShareStatus,
     val notes: String? = null,
     @SerialName("archived_at") val archivedAt: String? = null,
+    @SerialName("is_deleted") val isDeleted: Boolean = false,
     @SerialName("created_at") val createdAt: String,
     @SerialName("updated_at") val updatedAt: String,
 )
@@ -110,6 +118,7 @@ data class GearSummary(
     val specs: Map<String, String>? = null,
     val tags: List<String> = emptyList(),
     @SerialName("tag_colors") val tagColors: Map<String, String>? = null,
+    @SerialName("is_deleted") val isDeleted: Boolean = false,
     @SerialName("created_at") val createdAt: String,
     @SerialName("updated_at") val updatedAt: String,
 )
@@ -239,6 +248,7 @@ data class ListGearsRequest(
     val tab: GearTab = GearTab.AVAILABLE,
     val category: GearCategory? = null,
     val status: GearStatus? = null,
+    val deleted: DeletedFilter = DeletedFilter.ACTIVE,
     val query: String? = null,
     val sort: GearSort = GearSort.CREATED_AT_DESC,
     val limit: Int = 20,
@@ -248,6 +258,12 @@ data class ListGearsRequest(
 fun GearTab.apiValue(): String = when (this) {
     GearTab.AVAILABLE -> "available"
     GearTab.HISTORY -> "history"
+}
+
+fun DeletedFilter.apiValue(): String = when (this) {
+    DeletedFilter.ACTIVE -> "active"
+    DeletedFilter.DELETED -> "deleted"
+    DeletedFilter.ALL -> "all"
 }
 
 fun GearSort.apiValue(): String = when (this) {

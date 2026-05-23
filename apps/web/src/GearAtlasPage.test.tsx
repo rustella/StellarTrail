@@ -43,6 +43,7 @@ function buildItem(
     source_url: "https://example.test/gear",
     source_rating_score: 4.8,
     source_rating_count: 12,
+    is_deleted: false,
     created_at: "2026-01-23T00:00:00Z",
     updated_at: "2026-01-24T00:00:00Z",
     ...overrides,

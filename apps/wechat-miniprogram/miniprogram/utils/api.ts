@@ -173,6 +173,7 @@ export interface FeedbackResponse {
   device_model?: string | null;
   status: string;
   images: unknown[];
+  is_deleted: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -186,6 +187,7 @@ export interface UploadImageResponse {
   size_bytes: number;
   sha256: string;
   download_url: string;
+  is_deleted: boolean;
   created_at: string;
 }
 
@@ -835,6 +837,20 @@ export async function updateGear(
 export async function archiveGear(id: string): Promise<void> {
   await requestJson<void>(`/api/v1/me/gears/${encodeURIComponent(id)}`, {
     method: "DELETE",
+    auth: true,
+  });
+}
+
+export async function deleteGear(id: string): Promise<void> {
+  await requestJson<void>(`/api/v1/me/gears/${encodeURIComponent(id)}/delete`, {
+    method: "POST",
+    auth: true,
+  });
+}
+
+export async function undeleteGear(id: string): Promise<GearItem> {
+  return requestJson(`/api/v1/me/gears/${encodeURIComponent(id)}/undelete`, {
+    method: "POST",
     auth: true,
   });
 }

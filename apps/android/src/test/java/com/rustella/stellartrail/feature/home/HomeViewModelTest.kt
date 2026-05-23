@@ -117,6 +117,8 @@ class HomeViewModelTest {
         override suspend fun create(request: CreateGearRequest): GearItem = error("unused")
         override suspend fun update(id: String, request: UpdateGearRequest): GearItem = error("unused")
         override suspend fun archive(id: String) = Unit
+        override suspend fun delete(id: String) = Unit
+        override suspend fun undelete(id: String): GearItem = error("unused")
         override suspend fun restore(id: String): GearItem = error("unused")
     }
 

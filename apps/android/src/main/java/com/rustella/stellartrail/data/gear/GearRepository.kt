@@ -19,6 +19,8 @@ interface GearRepositoryContract {
     suspend fun create(request: CreateGearRequest): GearItem
     suspend fun update(id: String, request: UpdateGearRequest): GearItem
     suspend fun archive(id: String)
+    suspend fun delete(id: String)
+    suspend fun undelete(id: String): GearItem
     suspend fun restore(id: String): GearItem
 }
 
@@ -31,5 +33,7 @@ class GearRepository(private val api: GearApi) : GearRepositoryContract {
     override suspend fun create(request: CreateGearRequest): GearItem = api.create(request)
     override suspend fun update(id: String, request: UpdateGearRequest): GearItem = api.update(id, request)
     override suspend fun archive(id: String) = api.archive(id)
+    override suspend fun delete(id: String) = api.delete(id)
+    override suspend fun undelete(id: String): GearItem = api.undelete(id)
     override suspend fun restore(id: String): GearItem = api.restore(id)
 }
