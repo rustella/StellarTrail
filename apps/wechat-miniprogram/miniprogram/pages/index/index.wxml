@@ -55,21 +55,6 @@
           </view>
         </block>
       </view>
-
-      <view wx:if="{{!gearLoading && recentGears.length}}" class="recent-list">
-        <block wx:for="{{recentGears}}" wx:key="id">
-          <view class="recent-item">
-            <view>
-              <view class="recent-name">{{item.name}}</view>
-              <view class="recent-meta">{{item.brandModelText}}</view>
-            </view>
-            <view class="recent-weight">{{item.weightText}}</view>
-          </view>
-        </block>
-      </view>
-      <view wx:elif="{{!gearLoading && isLoggedIn}}" class="empty-inline">
-        还没有装备记录，先添加第一件户外装备吧。
-      </view>
     </block>
   </view>
 

@@ -59,6 +59,25 @@ ${ts}`;
   assert.match(pageSource, /WECHAT_PROFILE_PROMPT_PENDING_KEY/);
 });
 
+test("home page gear overview renders stats without concrete gear rows", () => {
+  const wxml = read("pages/index/index.wxml");
+  const wxss = read("pages/index/index.wxss");
+  const ts = read("pages/index/index.ts");
+  const pageSource = `${wxml}
+${ts}`;
+
+  assert.match(wxml, /gearStatCards/);
+  assert.match(pageSource, /getGearStats\("available"\)/);
+  assert.doesNotMatch(pageSource, /getGearOverview/);
+  assert.doesNotMatch(pageSource, /recentGears/);
+  assert.doesNotMatch(pageSource, /mapHomeGearCard/);
+  assert.doesNotMatch(wxml, /recent-list/);
+  assert.doesNotMatch(wxml, /recent-item/);
+  assert.doesNotMatch(wxml, /brandModelText/);
+  assert.doesNotMatch(wxml, /还没有装备记录，先添加第一件户外装备吧。/);
+  assert.doesNotMatch(wxss, /\.recent-/);
+});
+
 test("profile page renders stored WeChat nickname and avatar", () => {
   const wxml = read("pages/profile/index.wxml");
   const wxss = read("pages/profile/index.wxss");
