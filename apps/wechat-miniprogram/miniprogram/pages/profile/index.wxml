@@ -73,6 +73,16 @@
       </view>
       <view class="settings-chevron">›</view>
     </view>
+    <view class="settings-row" bindtap="openRoadmap">
+      <view class="settings-icon">图</view>
+      <view class="settings-copy">
+        <view class="settings-title">产品路线图</view>
+        <view class="settings-desc"
+          >查看后续功能计划，投票或订阅你关心的方向。</view
+        >
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
     <view class="settings-row" bindtap="openVersionInfoModal">
       <view class="settings-icon">版</view>
       <view class="settings-copy">

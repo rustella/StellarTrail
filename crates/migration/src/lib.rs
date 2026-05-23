@@ -33,6 +33,7 @@ mod m20260523_000003_add_upload_images_user_purpose_index;
 mod m20260523_000004_add_soft_delete_flags;
 mod m20260524_000001_create_gear_packing_lists;
 mod m20260524_000004_add_gear_quantities;
+mod m20260524_000005_create_roadmap;
 
 /// Concrete SeaORM migrator used by the API server and test suites.
 ///
@@ -76,6 +77,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260523_000004_add_soft_delete_flags::Migration),
             Box::new(m20260524_000001_create_gear_packing_lists::Migration),
             Box::new(m20260524_000004_add_gear_quantities::Migration),
+            Box::new(m20260524_000005_create_roadmap::Migration),
         ]
     }
 }

@@ -11,6 +11,7 @@ pub mod gear_repository;
 pub mod gear_template_repository;
 pub mod knot_repository;
 pub mod media_resource_repository;
+pub mod roadmap_repository;
 pub mod upload_image_repository;
 
 pub use admin_role_repository::{
@@ -39,6 +40,9 @@ pub use gear_template_repository::GearTemplateRepository;
 pub use knot_repository::KnotRepository;
 pub use media_resource_repository::{
     KnotMediaLinkDraft, MediaResourceDraft, MediaResourceRecord, MediaResourceRepository,
+};
+pub use roadmap_repository::{
+    ListRoadmapOptions, RoadmapItemRecord, RoadmapListEntry, RoadmapRepository,
 };
 pub use upload_image_repository::{UploadImageDraft, UploadImageRecord, UploadImageRepository};
 

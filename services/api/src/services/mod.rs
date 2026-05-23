@@ -9,5 +9,6 @@ pub mod knot_media_upload_service;
 pub mod profile_service;
 pub mod public_response_cache;
 pub mod rate_limit_service;
+pub mod roadmap_service;
 pub mod upload_service;
 pub mod wechat;

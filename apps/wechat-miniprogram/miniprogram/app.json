@@ -14,6 +14,7 @@
     "pages/skills/index",
     "pages/skills/detail/index",
     "pages/profile/index",
+    "pages/profile/roadmap/index",
     "pages/profile/settings/index",
     "pages/register/index",
     "pages/login/index"

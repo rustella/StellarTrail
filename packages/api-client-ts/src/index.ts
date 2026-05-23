@@ -42,6 +42,8 @@ import type {
   KnotMediaUploadResponse,
   KnotOfflineManifestResponse,
   ListKnotsRequest,
+  ListRoadmapRequest,
+  ListRoadmapResponse,
   ImportGearsRequest,
   ImportGearsResponse,
   ListGearAtlasRequest,
@@ -62,6 +64,9 @@ import type {
   RefreshTokenRequest,
   RegisterRequest,
   RejectGearAtlasSubmissionRequest,
+  RoadmapInteractionStatusResponse,
+  RoadmapItem,
+  RoadmapItemRequest,
   SkillCategoriesResponse,
   SkillLocale,
   UpdateGearAtlasSubmissionRequest,
@@ -261,6 +266,95 @@ export class StellarTrailApiClient {
     return this.patch(
       `/admin/client-versions/${encodeURIComponent(id)}`,
       request,
+      true,
+    );
+  }
+
+  async listRoadmap(
+    request: ListRoadmapRequest = {},
+  ): Promise<ListRoadmapResponse> {
+    return this.get(`/roadmap${queryString(request)}`);
+  }
+
+  async listMyRoadmap(
+    request: ListRoadmapRequest = {},
+  ): Promise<ListRoadmapResponse> {
+    return this.get(`/me/roadmap${queryString(request)}`, true);
+  }
+
+  async voteRoadmapItem(id: string): Promise<RoadmapInteractionStatusResponse> {
+    return this.putRoadmapInteraction(id, "vote");
+  }
+
+  async unvoteRoadmapItem(
+    id: string,
+  ): Promise<RoadmapInteractionStatusResponse> {
+    return this.deleteRoadmapInteraction(id, "vote");
+  }
+
+  async subscribeRoadmapItem(
+    id: string,
+  ): Promise<RoadmapInteractionStatusResponse> {
+    return this.putRoadmapInteraction(id, "subscription");
+  }
+
+  async unsubscribeRoadmapItem(
+    id: string,
+  ): Promise<RoadmapInteractionStatusResponse> {
+    return this.deleteRoadmapInteraction(id, "subscription");
+  }
+
+  private async putRoadmapInteraction(
+    id: string,
+    action: "vote" | "subscription",
+  ): Promise<RoadmapInteractionStatusResponse> {
+    const response = await this.request(
+      `/me/roadmap/${encodeURIComponent(id)}/${action}`,
+      { method: "PUT" },
+      true,
+    );
+    return response.json() as Promise<RoadmapInteractionStatusResponse>;
+  }
+
+  private async deleteRoadmapInteraction(
+    id: string,
+    action: "vote" | "subscription",
+  ): Promise<RoadmapInteractionStatusResponse> {
+    const response = await this.request(
+      `/me/roadmap/${encodeURIComponent(id)}/${action}`,
+      { method: "DELETE" },
+      true,
+    );
+    return response.json() as Promise<RoadmapInteractionStatusResponse>;
+  }
+
+  async listAdminRoadmap(
+    request: ListRoadmapRequest = {},
+  ): Promise<ListRoadmapResponse> {
+    return this.get(`/admin/roadmap${queryString(request)}`, true);
+  }
+
+  async createAdminRoadmapItem(
+    request: RoadmapItemRequest,
+  ): Promise<RoadmapItem> {
+    return this.post("/admin/roadmap", request, true);
+  }
+
+  async updateAdminRoadmapItem(
+    id: string,
+    request: RoadmapItemRequest,
+  ): Promise<RoadmapItem> {
+    return this.patch(
+      `/admin/roadmap/${encodeURIComponent(id)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteAdminRoadmapItem(id: string): Promise<void> {
+    await this.request(
+      `/admin/roadmap/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
       true,
     );
   }
