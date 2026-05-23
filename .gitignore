@@ -31,6 +31,9 @@ build/
 coverage/
 .miniprogram-ci/
 
+# Swift Package Manager
+packages/apple/StellarTrailKit/.build/
+
 # WeChat developer tool generated local files
 apps/wechat-miniprogram/project.private.config.json
 apps/wechat-miniprogram/private.*.key
