@@ -5,7 +5,7 @@ import {
   isOfflineCacheMissError,
   listKnots,
   resolveAssetUrl,
-} from "../../utils/api";
+} from "../../utils/api-skills";
 import {
   mapSkillCard,
   type KnotDetail,
@@ -23,6 +23,7 @@ import {
 } from "../../utils/knot-offline-cache";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import { resolveCachedMediaUrl } from "../../utils/media-cache";
+import { delayNextTick, indexedAppendData } from "../../utils/page-data";
 
 type SkillsMode = "catalog" | "knots";
 
@@ -238,6 +239,7 @@ Page({
         return;
       }
       const allKnots = appendUniqueKnots(this.data.allKnots, nextKnots);
+      const addedKnots = allKnots.slice(this.data.allKnots.length);
       const nextPageOffset = response.page.next_offset ?? null;
       const listState = buildKnotListState(
         allKnots,
@@ -248,8 +250,17 @@ Page({
       );
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
-        allKnots,
-        ...listState,
+        ...indexedAppendData("allKnots", this.data.allKnots.length, addedKnots),
+        ...indexedAppendData(
+          "knots",
+          this.data.knots.length,
+          filterKnots(
+            addedKnots,
+            this.data.selectedCategoryId,
+            this.data.searchQuery,
+          ),
+        ),
+        ...withoutKnotItems(listState),
         nextOffset: nextPageOffset,
         ...(offlineNotice ? { offlineNotice } : {}),
       });
@@ -303,7 +314,13 @@ Page({
         onProgress: updateCacheProgress,
       });
       updateCacheProgress.flush();
-      const allKnots = await Promise.all(result.items.map(mapKnotListCard));
+      this.setData({
+        allKnots: [] as KnotListCard[],
+        knots: [] as KnotListCard[],
+        nextOffset: null,
+        cacheProgressText: "正在整理离线绳结列表 0/" + result.items.length,
+      });
+      const allKnots = await mapKnotListCardsInBatches(this, result.items);
       const listState = buildKnotListState(
         allKnots,
         this.data.selectedCategoryId,
@@ -313,8 +330,7 @@ Page({
       );
       const cacheSummaryText = formatKnotCacheResult(result);
       this.setData({
-        allKnots,
-        ...listState,
+        ...withoutKnotItems(listState),
         nextOffset: null,
         preparingKnotCache: false,
         cachingKnots: false,
@@ -700,4 +716,51 @@ function listResultText(
   }
   const totalText = hasMore ? `已加载 ${loadedCount}` : `${loadedCount}`;
   return `已筛出 ${filteredCount} / ${totalText} 个绳结`;
+}
+
+function withoutKnotItems(
+  state: ReturnType<typeof buildKnotListState>,
+): Omit<ReturnType<typeof buildKnotListState>, "knots"> {
+  const { knots: _knots, ...meta } = state;
+  return meta;
+}
+
+async function mapKnotListCardsInBatches(
+  page: {
+    data: {
+      allKnots: KnotListCard[];
+      knots: KnotListCard[];
+      selectedCategoryId: string;
+      searchQuery: string;
+    };
+    setData(data: Record<string, unknown>): void;
+  },
+  items: KnotDetail[],
+): Promise<KnotListCard[]> {
+  const batchSize = 24;
+  const allCards: KnotListCard[] = [];
+  let allStartIndex = page.data.allKnots.length;
+  let visibleStartIndex = page.data.knots.length;
+  for (let offset = 0; offset < items.length; offset += batchSize) {
+    const batch = items.slice(offset, offset + batchSize);
+    const cards = await Promise.all(batch.map(mapKnotListCard));
+    const visibleCards = filterKnots(
+      cards,
+      page.data.selectedCategoryId,
+      page.data.searchQuery,
+    );
+    allCards.push(...cards);
+    page.setData({
+      ...indexedAppendData("allKnots", allStartIndex, cards),
+      ...indexedAppendData("knots", visibleStartIndex, visibleCards),
+      cacheProgressText: `正在整理离线绳结列表 ${Math.min(
+        offset + batch.length,
+        items.length,
+      )}/${items.length}`,
+    });
+    allStartIndex += cards.length;
+    visibleStartIndex += visibleCards.length;
+    await delayNextTick();
+  }
+  return allCards;
 }

@@ -9,7 +9,7 @@ import {
   isLoginRequiredError,
   listGears,
   restoreGear,
-} from "../../utils/api";
+} from "../../utils/api-gears";
 import {
   categoryFilterItems,
   formatGearPrice,
@@ -39,6 +39,7 @@ import {
   isOffline,
   showOfflineWriteBlockedToast,
 } from "../../utils/network-state";
+import { indexedAppendData } from "../../utils/page-data";
 
 interface GearCard extends GearSummary {
   categoryText: string;
@@ -207,8 +208,9 @@ Page({
         return;
       }
       const offlineNotice = consumeOfflineCacheNotice();
+      const cards = response.items.map(mapGearCard);
       this.setData({
-        gears: [...this.data.gears, ...response.items.map(mapGearCard)],
+        ...indexedAppendData("gears", this.data.gears.length, cards),
         nextCursor: response.next_cursor ?? null,
         ...(offlineNotice ? { offlineNotice } : {}),
       });

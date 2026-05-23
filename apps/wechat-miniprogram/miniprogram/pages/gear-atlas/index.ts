@@ -6,7 +6,7 @@ import {
   isOfflineCacheMissError,
   isNotFoundApiError,
   listGearAtlas,
-} from "../../utils/api";
+} from "../../utils/api-atlas";
 import {
   formatGearPrice,
   formatGearWeight,
@@ -19,6 +19,7 @@ import {
   isOffline,
   showOfflineWriteBlockedToast,
 } from "../../utils/network-state";
+import { indexedAppendData } from "../../utils/page-data";
 
 interface AtlasCategoryChip {
   id: "all" | GearCategory;
@@ -130,8 +131,9 @@ Page({
         return;
       }
       const offlineNotice = consumeOfflineCacheNotice();
+      const cards = response.items.map(mapAtlasCard);
       this.setData({
-        items: [...this.data.items, ...response.items.map(mapAtlasCard)],
+        ...indexedAppendData("items", this.data.items.length, cards),
         nextCursor: response.next_cursor ?? null,
         ...(offlineNotice ? { offlineNotice } : {}),
       });

@@ -4,11 +4,13 @@ const assert = require("node:assert/strict");
 function installWxMock(handler, uploadHandler, extraHandlers = {}) {
   clearCompiledUtilityModules();
   const storage = new Map();
+  const globalData = {
+    apiBaseUrl: "https://api.example.test",
+    assetsBaseUrl: "https://assets.example.test",
+    ...(extraHandlers.globalData ?? {}),
+  };
   global.getApp = () => ({
-    globalData: {
-      apiBaseUrl: "https://api.example.test",
-      assetsBaseUrl: "https://assets.example.test",
-    },
+    globalData,
   });
   global.wx = {
     getStorageSync(key) {
@@ -83,6 +85,26 @@ function loginResponse(accessToken, refreshToken) {
     refresh_expires_at: "2026-07-01T00:00:00Z",
     user: { id: "u1", nickname: "小程序用户", avatar_url: null },
   };
+}
+
+function productionDomainCandidates() {
+  return [
+    {
+      id: "stellartrail",
+      apiBaseUrl: "https://api.example.invalid",
+      assetsBaseUrl: "https://assets.example.invalid",
+    },
+    {
+      id: "stellaris",
+      apiBaseUrl: "https://api-alt1.example.invalid",
+      assetsBaseUrl: "https://assets-alt1.example.invalid",
+    },
+    {
+      id: "iwx",
+      apiBaseUrl: "https://api-alt2.example.invalid",
+      assetsBaseUrl: "https://assets-alt2.example.invalid",
+    },
+  ];
 }
 
 test("loginWithWechat persists access and refresh tokens", async () => {
@@ -224,6 +246,22 @@ test("stored offline state is not treated as current before system confirmation"
   clearCompiledUtilityModules();
 });
 
+test("profile refresh marker is consumed once", () => {
+  const storage = installWxMock(() => {
+    throw new Error("unexpected wx.request call");
+  });
+  const {
+    consumeProfileShouldRefresh,
+    markProfileShouldRefresh,
+  } = require("../.tmp-test/utils/profile-refresh.js");
+
+  assert.equal(consumeProfileShouldRefresh(), false);
+  markProfileShouldRefresh();
+  assert.equal(storage.get("stellartrail_profile_should_refresh"), true);
+  assert.equal(consumeProfileShouldRefresh(), true);
+  assert.equal(consumeProfileShouldRefresh(), false);
+});
+
 test("stale local API base URL is ignored for login requests", async () => {
   const storage = installWxMock((options) => {
     assert.equal(
@@ -245,6 +283,186 @@ test("stale local API base URL is ignored for login requests", async () => {
   await assert.doesNotReject(loginWithWechat());
   assert.equal(storage.get("stellartrail_api_base_url"), undefined);
   clearCompiledUtilityModules();
+});
+
+test("production domain probe keeps the first healthy domain family", async () => {
+  const calls = [];
+  const storage = installWxMock(
+    (options) => {
+      calls.push(options.url);
+      if (options.url === "https://api.example.invalid/healthz") {
+        options.success({ statusCode: 200, data: { status: "ok" } });
+        return;
+      }
+      assert.equal(options.url, "https://api.example.invalid/api/v1/skills");
+      options.success({ statusCode: 200, data: { items: [] } });
+    },
+    null,
+    {
+      globalData: {
+        domainCandidates: productionDomainCandidates(),
+      },
+    },
+  );
+  const {
+    getApiBaseUrl,
+    getAssetsBaseUrl,
+    listSkills,
+  } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(listSkills());
+
+  assert.deepEqual(calls, [
+    "https://api.example.invalid/healthz",
+    "https://api.example.invalid/api/v1/skills",
+  ]);
+  assert.equal(getApiBaseUrl(), "https://api.example.invalid");
+  assert.equal(getAssetsBaseUrl(), "https://assets.example.invalid");
+  assert.equal(
+    storage.get("stellartrail_api_base_url"),
+    "https://api.example.invalid",
+  );
+  assert.equal(
+    storage.get("stellartrail_assets_base_url"),
+    "https://assets.example.invalid",
+  );
+});
+
+test("production domain probe uses the next healthy family and rewrites known asset urls", async () => {
+  const calls = [];
+  installWxMock(
+    (options) => {
+      calls.push(options.url);
+      if (options.url === "https://api.example.invalid/healthz") {
+        options.success({ statusCode: 503, data: {} });
+        return;
+      }
+      if (options.url === "https://api-alt1.example.invalid/healthz") {
+        options.success({ statusCode: 200, data: { status: "ok" } });
+        return;
+      }
+      assert.equal(
+        options.url,
+        "https://api-alt1.example.invalid/api/v1/skills",
+      );
+      options.success({ statusCode: 200, data: { items: [] } });
+    },
+    null,
+    {
+      globalData: {
+        domainCandidates: productionDomainCandidates(),
+      },
+    },
+  );
+  const {
+    getApiBaseUrl,
+    getAssetsBaseUrl,
+    listSkills,
+    resolveAssetUrl,
+  } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(listSkills());
+
+  assert.deepEqual(calls, [
+    "https://api.example.invalid/healthz",
+    "https://api-alt1.example.invalid/healthz",
+    "https://api-alt1.example.invalid/api/v1/skills",
+  ]);
+  assert.equal(getApiBaseUrl(), "https://api-alt1.example.invalid");
+  assert.equal(getAssetsBaseUrl(), "https://assets-alt1.example.invalid");
+  assert.equal(
+    resolveAssetUrl("https://assets.example.invalid/knots/bowline.png"),
+    "https://assets-alt1.example.invalid/knots/bowline.png",
+  );
+  assert.equal(
+    resolveAssetUrl("https://cdn.example.test/knots/bowline.png"),
+    "https://cdn.example.test/knots/bowline.png",
+  );
+});
+
+test("production domain probe falls back to the first family when all health checks fail", async () => {
+  const calls = [];
+  installWxMock(
+    (options) => {
+      calls.push(options.url);
+      if (options.url.endsWith("/healthz")) {
+        options.fail({ errMsg: "request:fail timeout" });
+        return;
+      }
+      assert.equal(
+        options.url,
+        "https://api.example.invalid/api/v1/auth/wechat-login",
+      );
+      options.success({
+        statusCode: 200,
+        data: loginResponse("access-fallback", "refresh-fallback"),
+      });
+    },
+    null,
+    {
+      globalData: {
+        domainCandidates: productionDomainCandidates(),
+      },
+    },
+  );
+  const { loginWithWechat } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(loginWithWechat());
+
+  assert.deepEqual(calls, [
+    "https://api.example.invalid/healthz",
+    "https://api-alt1.example.invalid/healthz",
+    "https://api-alt2.example.invalid/healthz",
+    "https://api.example.invalid/api/v1/auth/wechat-login",
+  ]);
+});
+
+test("production domain probe is shared by concurrent GET requests", async () => {
+  const calls = [];
+  const pendingHealth = [];
+  installWxMock(
+    (options) => {
+      calls.push(options.url);
+      if (options.url === "https://api.example.invalid/healthz") {
+        pendingHealth.push(options);
+        return;
+      }
+      if (options.url === "https://api.example.invalid/api/v1/skills") {
+        options.success({ statusCode: 200, data: { items: [] } });
+        return;
+      }
+      assert.equal(
+        options.url,
+        "https://api.example.invalid/api/v1/skills/knots/filters",
+      );
+      options.success({
+        statusCode: 200,
+        data: { categories: [], types: [], total_count: 0 },
+      });
+    },
+    null,
+    {
+      globalData: {
+        domainCandidates: productionDomainCandidates(),
+      },
+    },
+  );
+  const {
+    getKnotFilters,
+    listSkills,
+  } = require("../.tmp-test/utils/api.js");
+
+  const requests = Promise.all([listSkills(), getKnotFilters()]);
+  await Promise.resolve();
+  assert.equal(pendingHealth.length, 1);
+  pendingHealth[0].success({ statusCode: 200, data: { status: "ok" } });
+  await assert.doesNotReject(requests);
+
+  assert.equal(
+    calls.filter((url) => url === "https://api.example.invalid/healthz")
+      .length,
+    1,
+  );
 });
 
 test("domain allowlist request failures use a safe connection message", async () => {
@@ -665,6 +883,49 @@ test("getGearTagSuggestions calls authenticated suggestion endpoint", async () =
       url: "https://api.example.test/api/v1/me/gears/tag-suggestions?limit=12",
       authorization: "Bearer access-old",
     },
+  ]);
+});
+
+test("gear form caches spec rankings and tag suggestions briefly", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    const path = options.url.replace("https://api.example.test", "");
+    calls.push(path);
+    if (path.includes("/me/gears/spec-key-rankings")) {
+      options.success({
+        statusCode: 200,
+        data: { keys: ["battery_capacity"] },
+      });
+      return;
+    }
+    if (path.includes("/me/gears/tag-suggestions")) {
+      options.success({
+        statusCode: 200,
+        data: { items: [{ tag: "冬季", color: "blue" }] },
+      });
+      return;
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_user", { id: "u-cache", nickname: "星" });
+  const {
+    clearGearFormSuggestionCaches,
+    getCachedGearSpecKeyRankings,
+    getCachedGearTagSuggestions,
+  } = require("../.tmp-test/utils/gear-form-cache.js");
+
+  await getCachedGearSpecKeyRankings("electronics_system");
+  await getCachedGearSpecKeyRankings("electronics_system");
+  await getCachedGearTagSuggestions(20);
+  await getCachedGearTagSuggestions(20);
+  clearGearFormSuggestionCaches();
+  await getCachedGearTagSuggestions(20);
+
+  assert.deepEqual(calls, [
+    "/api/v1/me/gears/spec-key-rankings?category=electronics_system",
+    "/api/v1/me/gears/tag-suggestions?limit=20",
+    "/api/v1/me/gears/tag-suggestions?limit=20",
   ]);
 });
 
@@ -1114,6 +1375,97 @@ test("media cache removes stale entries when the saved file is missing", async (
     await resolveCachedMediaUrl("https://assets.example.test/knot.gif"),
     "https://assets.example.test/knot.gif",
   );
+});
+
+test("opportunistic media cache queues downloads with concurrency and dedupe", async () => {
+  const downloads = [];
+  installWxMock(
+    () => {
+      throw new Error("unexpected wx.request call");
+    },
+    undefined,
+    {
+      downloadFile(options) {
+        downloads.push(options);
+      },
+      saveFile(options) {
+        options.success({ savedFilePath: `wxfile://saved/${downloads.length}` });
+      },
+      getFileInfo(options) {
+        options.fail({ errMsg: "missing" });
+      },
+    },
+  );
+  const { cacheMediaUrl } = require("../.tmp-test/utils/media-cache.js");
+  require("../.tmp-test/utils/network-state.js").initNetworkState();
+
+  cacheMediaUrl("https://assets.example.test/a.gif");
+  cacheMediaUrl("https://assets.example.test/b.gif");
+  cacheMediaUrl("https://assets.example.test/a.gif");
+  cacheMediaUrl("https://assets.example.test/c.gif");
+  cacheMediaUrl("https://assets.example.test/d.gif");
+
+  assert.deepEqual(
+    downloads.map((item) => item.url),
+    ["https://assets.example.test/a.gif", "https://assets.example.test/b.gif"],
+  );
+
+  downloads[0].success({ statusCode: 200, tempFilePath: "/tmp/a.gif" });
+  downloads[0].complete?.();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(
+    downloads.map((item) => item.url),
+    [
+      "https://assets.example.test/a.gif",
+      "https://assets.example.test/b.gif",
+      "https://assets.example.test/c.gif",
+    ],
+  );
+});
+
+test("media cache filters and removes cached urls with one index pass", () => {
+  const storage = installWxMock(
+    () => {
+      throw new Error("unexpected wx.request call");
+    },
+    undefined,
+    {
+      removeSavedFile(options) {
+        storage.set(`removed:${options.filePath}`, true);
+        options.complete?.();
+      },
+    },
+  );
+  const urls = [
+    "https://assets.example.test/a.gif",
+    "https://assets.example.test/b.gif",
+  ];
+  storage.set("stellartrail_media_cache_index_v1", urls);
+  urls.forEach((url, index) => {
+    storage.set(`stellartrail_media_cache_v1:${encodeURIComponent(url)}`, {
+      url,
+      filePath: `wxfile://saved/${index}`,
+      cachedAt: "2026-05-19T00:00:00.000Z",
+    });
+  });
+  const {
+    filterUncachedMediaUrls,
+    removeCachedMediaUrls,
+  } = require("../.tmp-test/utils/media-cache.js");
+
+  assert.deepEqual(
+    filterUncachedMediaUrls([
+      "https://assets.example.test/a.gif",
+      "https://assets.example.test/c.gif",
+      "https://assets.example.test/c.gif",
+    ]),
+    ["https://assets.example.test/c.gif"],
+  );
+  assert.equal(removeCachedMediaUrls(urls), 2);
+  assert.deepEqual(storage.get("stellartrail_media_cache_index_v1"), []);
+  assert.equal(storage.get("removed:wxfile://saved/0"), true);
+  assert.equal(storage.get("removed:wxfile://saved/1"), true);
 });
 
 test("cacheAllKnotsForOffline stores paged lists, details, and media resources", async () => {

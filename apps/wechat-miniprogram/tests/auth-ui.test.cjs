@@ -308,7 +308,7 @@ test("gear form offers colored tag chips and suggestions", () => {
   assert.match(wxml, /随机/);
   assert.doesNotMatch(wxml, /data-field="tagsText"/);
   assert.doesNotMatch(wxml, /用逗号分隔/);
-  assert.match(ts, /getGearTagSuggestions/);
+  assert.match(ts, /getCachedGearTagSuggestions/);
   assert.match(ts, /selectTagSuggestion/);
   assert.match(ts, /saveCustomTag/);
   assert.match(ts, /removeTag/);

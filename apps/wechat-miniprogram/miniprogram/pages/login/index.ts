@@ -10,7 +10,7 @@ import {
   resetPassword,
   sendEmailLoginCode,
   sendPasswordResetCode,
-} from "../../utils/api";
+} from "../../utils/api-auth";
 import { decodeRedirect, navigateToRedirect } from "../../utils/navigation";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import {

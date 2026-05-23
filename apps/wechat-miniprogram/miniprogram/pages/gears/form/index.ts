@@ -3,12 +3,15 @@ import {
   createGear,
   getErrorMessage,
   getGear,
-  getGearSpecKeyRankings,
-  getGearTagSuggestions,
   hasAccessToken,
   isLoginRequiredError,
   updateGear,
-} from "../../../utils/api";
+} from "../../../utils/api-gears";
+import {
+  clearGearFormSuggestionCaches,
+  getCachedGearSpecKeyRankings,
+  getCachedGearTagSuggestions,
+} from "../../../utils/gear-form-cache";
 import {
   addGearTagViews,
   buildGearPayload,
@@ -34,7 +37,7 @@ import {
   type GearTagSuggestionView,
   type GearTagView,
   type GearWeightUnit,
-} from "../../../utils/gear-utils";
+} from "../../../utils/gear-form";
 import {
   getDefaultLoginPrompt,
   hideLoginPrompt,
@@ -177,7 +180,7 @@ Page({
       return;
     }
     try {
-      const response = await getGearSpecKeyRankings(category);
+      const response = await getCachedGearSpecKeyRankings(category);
       if (this.data.form.category !== category) {
         return;
       }
@@ -315,7 +318,7 @@ Page({
       return;
     }
     try {
-      const response = await getGearTagSuggestions(20);
+      const response = await getCachedGearTagSuggestions(20);
       this.setData({
         tagSuggestions: createGearTagSuggestionViews(response.items),
       });
@@ -410,12 +413,9 @@ Page({
       [key]: combineSpecValue(value, unit),
     };
     this.setData({
-      "form.specs": specs,
-      specFields: getGearSpecFieldViews(
-        this.data.form.category,
-        specs,
-        this.data.specRankedKeys,
-      ),
+      [`form.specs.${key}`]: specs[key],
+      [`specFields[${index}].valueText`]: value,
+      [`specFields[${index}].unitLabel`]: unit,
     });
   },
 
@@ -430,12 +430,9 @@ Page({
       [key]: combineSpecValue(field?.valueText ?? "", unit),
     };
     this.setData({
-      "form.specs": specs,
-      specFields: getGearSpecFieldViews(
-        this.data.form.category,
-        specs,
-        this.data.specRankedKeys,
-      ),
+      [`form.specs.${key}`]: specs[key],
+      [`specFields[${fieldIndex}].unitIndex`]: unitIndex,
+      [`specFields[${fieldIndex}].unitLabel`]: unit,
     });
   },
 
@@ -473,6 +470,7 @@ Page({
           ? await updateGear(this.data.id, payload)
           : await createGear(payload);
       wx.setStorageSync("stellartrail_gears_should_refresh", true);
+      clearGearFormSuggestionCaches();
       wx.showToast({
         title: this.data.mode === "edit" ? "已保存" : "已添加",
         icon: "success",
