@@ -2,6 +2,7 @@ import { getThemeViewData, syncPageTheme } from "../../../utils/theme";
 import {
   archiveGear,
   consumeOfflineCacheNotice,
+  deleteGear,
   getErrorMessage,
   getGear,
   hasAccessToken,
@@ -226,6 +227,51 @@ Page({
       }
       wx.showToast({ title: getErrorMessage(error), icon: "none" });
     }
+  },
+
+  deleteItem() {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以真正删除历史装备。",
+        redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+      })
+    ) {
+      return;
+    }
+    wx.showModal({
+      title: "删除这件装备？",
+      content: "该装备会从历史装备中移除，不再出现在装备列表。",
+      confirmText: "删除",
+      confirmColor: "#dc2626",
+      success: async (result) => {
+        if (!result.confirm) {
+          return;
+        }
+        try {
+          await deleteGear(this.data.id);
+          wx.setStorageSync("stellartrail_gears_should_refresh", true);
+          wx.showToast({ title: "已删除", icon: "success" });
+          if (getCurrentPages().length > 1) {
+            wx.navigateBack();
+          } else {
+            wx.switchTab({ url: "/pages/gears/index" });
+          }
+        } catch (error) {
+          if (isLoginRequiredError(error)) {
+            showLoginPrompt(this, {
+              message: "登录状态已过期，请重新登录后删除装备。",
+              redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+            });
+            return;
+          }
+          wx.showToast({ title: getErrorMessage(error), icon: "none" });
+        }
+      },
+    });
   },
 
   submitToAtlas() {

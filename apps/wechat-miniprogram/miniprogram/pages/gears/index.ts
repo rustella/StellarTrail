@@ -2,6 +2,7 @@ import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import {
   archiveGear,
   consumeOfflineCacheNotice,
+  deleteGear,
   getErrorMessage,
   getGearOverview,
   hasAccessToken,
@@ -161,7 +162,7 @@ Page({
         nextCursor: overview.list.next_cursor ?? null,
         emptyText:
           tab === "history"
-            ? "历史装备为空，删除后的装备会出现在这里"
+            ? "历史装备为空，归档后的装备会出现在这里"
             : "还没有装备，先添加第一件户外装备吧",
         ...(offlineNotice ? { offlineNotice } : {}),
       });
@@ -488,6 +489,47 @@ Page({
       }
       wx.showToast({ title: getErrorMessage(error), icon: "none" });
     }
+  },
+
+  deleteItem(event: WechatMiniprogram.BaseEvent) {
+    if (isOffline()) {
+      showOfflineWriteBlockedToast();
+      return;
+    }
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以真正删除历史装备。",
+        redirectUrl: "/pages/gears/index",
+      })
+    ) {
+      return;
+    }
+    const id = event.currentTarget.dataset.id as string;
+    wx.showModal({
+      title: "删除这件装备？",
+      content: "该装备会从历史装备中移除，不再出现在装备列表。",
+      confirmText: "删除",
+      confirmColor: "#dc2626",
+      success: async (result) => {
+        if (!result.confirm) {
+          return;
+        }
+        try {
+          await deleteGear(id);
+          wx.showToast({ title: "已删除", icon: "success" });
+          this.refreshPage();
+        } catch (error) {
+          if (isLoginRequiredError(error)) {
+            showLoginPrompt(this, {
+              message: "登录状态已过期，请重新登录后删除装备。",
+              redirectUrl: "/pages/gears/index",
+            });
+            return;
+          }
+          wx.showToast({ title: getErrorMessage(error), icon: "none" });
+        }
+      },
+    });
   },
 
   loginPromptClose() {

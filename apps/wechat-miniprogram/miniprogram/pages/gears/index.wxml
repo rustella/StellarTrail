@@ -179,6 +179,14 @@
               >
                 恢复
               </button>
+              <button
+                wx:if="{{tab === 'history'}}"
+                class="danger"
+                catchtap="deleteItem"
+                data-id="{{item.id}}"
+              >
+                删除
+              </button>
             </view>
           </view>
         </block>
