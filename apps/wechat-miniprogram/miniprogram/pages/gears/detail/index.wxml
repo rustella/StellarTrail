@@ -58,6 +58,9 @@
         移入历史
       </button>
       <button wx:else class="restore" bindtap="restoreItem">恢复可用</button>
+      <button wx:if="{{tab === 'history'}}" class="danger" bindtap="deleteItem">
+        删除
+      </button>
     </view>
 
     <view class="atlas-submit-card">

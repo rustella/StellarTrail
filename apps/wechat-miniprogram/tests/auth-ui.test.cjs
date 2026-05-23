@@ -320,6 +320,22 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
   assert.match(metricValueBlock, /color: var\(--text-color\)/);
 });
 
+test("archived gear views expose real soft delete action", () => {
+  const listWxml = read("pages/gears/index.wxml");
+  const listTs = read("pages/gears/index.ts");
+  const detailWxml = read("pages/gears/detail/index.wxml");
+  const detailTs = read("pages/gears/detail/index.ts");
+
+  assert.match(listWxml, /wx:if="\{\{tab === 'history'\}\}"/);
+  assert.match(listWxml, /catchtap="deleteItem"/);
+  assert.match(detailWxml, /wx:if="\{\{tab === 'history'\}\}"/);
+  assert.match(detailWxml, /bindtap="deleteItem"/);
+  assert.match(listTs, /deleteGear/);
+  assert.match(detailTs, /deleteGear/);
+  assert.match(listTs, /真正删除历史装备/);
+  assert.match(detailTs, /真正删除历史装备/);
+});
+
 test("gear form cancel falls back when there is no previous page", () => {
   const wxml = read("pages/gears/form/index.wxml");
   const wxss = read("pages/gears/form/index.wxss");
