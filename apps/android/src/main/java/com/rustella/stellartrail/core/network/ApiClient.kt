@@ -25,6 +25,9 @@ import io.ktor.http.isSuccess
 import io.ktor.http.takeFrom
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import okhttp3.Call
@@ -35,6 +38,7 @@ import java.io.IOException
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Proxy
+import java.net.URI
 
 /** Thin HTTP boundary around the existing StellarTrail Rust JSON API. */
 class ApiClient(
@@ -46,7 +50,13 @@ class ApiClient(
     @PublishedApi internal val httpClient: HttpClient = defaultHttpClient(),
     @PublishedApi internal val json: Json = defaultJson,
 ) {
-    val baseUrl: String get() = configProvider().baseUrl
+    private val domainProbeMutex = Mutex()
+    @Volatile
+    private var domainProbeCompletedForBaseUrl: String? = null
+    @Volatile
+    private var selectedDomainConfig: AppConfig? = null
+
+    val baseUrl: String get() = activeConfig().baseUrl
 
     suspend inline fun <reified Response> get(
         path: String,
@@ -83,7 +93,7 @@ class ApiClient(
         locale: SkillLocale? = null,
         crossinline configure: HttpRequestBuilder.() -> Unit = {},
     ): Response {
-        val requestUrl = buildUrl(path, query)
+        val requestUrl = buildUrl(configForRequest(path), path, query)
         try {
             var response = httpClient.prepareRequest(requestUrl) {
                 this.method = method
@@ -120,13 +130,24 @@ class ApiClient(
     }
 
     fun resolveAssetUrl(pathOrUrl: String): String {
-        if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) return pathOrUrl
-        return configProvider().assetsBaseUrl.trimEnd('/') + "/" + pathOrUrl.trimStart('/')
+        if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
+            return normalizeKnownAssetUrl(pathOrUrl)
+        }
+        return activeConfig().assetsBaseUrl.trimEnd('/') + "/" + pathOrUrl.trimStart('/')
     }
 
     @PublishedApi
     internal fun buildUrl(path: String, query: Map<String, String?> = emptyMap()): String {
-        val builder = URLBuilder().takeFrom(baseUrl)
+        return buildUrl(activeConfig(), path, query)
+    }
+
+    @PublishedApi
+    internal fun buildUrl(
+        config: AppConfig,
+        path: String,
+        query: Map<String, String?> = emptyMap(),
+    ): String {
+        val builder = URLBuilder().takeFrom(config.baseUrl)
         val cleanPath = versionedApiPath(path).trimStart('/')
         if (cleanPath.isNotEmpty()) {
             builder.appendPathSegments(cleanPath.split('/'))
@@ -135,6 +156,83 @@ class ApiClient(
             if (!value.isNullOrBlank()) builder.parameters.append(key, value)
         }
         return builder.buildString()
+    }
+
+    @PublishedApi
+    internal suspend fun configForRequest(path: String): AppConfig {
+        if (path != HEALTH_PATH) {
+            ensureProductionDomainSelected()
+        }
+        return activeConfig()
+    }
+
+    private fun activeConfig(): AppConfig {
+        val current = configProvider()
+        return if (domainProbeCompletedForBaseUrl == current.baseUrl) {
+            selectedDomainConfig ?: current
+        } else {
+            current
+        }
+    }
+
+    private suspend fun ensureProductionDomainSelected() {
+        val current = configProvider()
+        if (!shouldProbeProductionDomains(current.baseUrl)) {
+            selectedDomainConfig = null
+            domainProbeCompletedForBaseUrl = current.baseUrl
+            return
+        }
+        if (domainProbeCompletedForBaseUrl == current.baseUrl) return
+        domainProbeMutex.withLock {
+            val latest = configProvider()
+            if (!shouldProbeProductionDomains(latest.baseUrl)) {
+                selectedDomainConfig = null
+                domainProbeCompletedForBaseUrl = latest.baseUrl
+                return
+            }
+            if (domainProbeCompletedForBaseUrl == latest.baseUrl) return
+            for (candidate in PRODUCTION_DOMAIN_CANDIDATES) {
+                if (probeHealthz(candidate.apiBaseUrl)) {
+                    selectedDomainConfig = AppConfig(
+                        baseUrl = candidate.apiBaseUrl,
+                        assetsBaseUrl = candidate.assetsBaseUrl,
+                    )
+                    domainProbeCompletedForBaseUrl = latest.baseUrl
+                    return
+                }
+            }
+            val fallback = PRODUCTION_DOMAIN_CANDIDATES.first()
+            selectedDomainConfig = AppConfig(
+                baseUrl = fallback.apiBaseUrl,
+                assetsBaseUrl = fallback.assetsBaseUrl,
+            )
+            domainProbeCompletedForBaseUrl = latest.baseUrl
+        }
+    }
+
+    private suspend fun probeHealthz(apiBaseUrl: String): Boolean {
+        val response = withTimeoutOrNull(API_DOMAIN_HEALTH_TIMEOUT_MS) {
+            runCatching {
+                httpClient.prepareRequest(apiBaseUrl.trimEnd('/') + HEALTH_PATH) {
+                    method = HttpMethod.Get
+                    accept(ContentType.Application.Json)
+                }.execute()
+            }.getOrNull()
+        } ?: return false
+        return response.status.isSuccess()
+    }
+
+    private fun shouldProbeProductionDomains(apiBaseUrl: String): Boolean =
+        PRODUCTION_DOMAIN_CANDIDATES.any { it.apiBaseUrl == sanitizeComparableBaseUrl(apiBaseUrl) }
+
+    private fun normalizeKnownAssetUrl(url: String): String {
+        val parsed = runCatching { URI(url) }.getOrNull() ?: return url
+        val host = parsed.host?.lowercase() ?: return url
+        if (!KNOWN_ASSETS_HOSTS.contains(host)) return url
+        val rawPath = parsed.rawPath.orEmpty()
+        val rawQuery = parsed.rawQuery?.let { "?$it" }.orEmpty()
+        val rawFragment = parsed.rawFragment?.let { "#$it" }.orEmpty()
+        return activeConfig().assetsBaseUrl.trimEnd('/') + rawPath + rawQuery + rawFragment
     }
 
     @PublishedApi
@@ -192,8 +290,39 @@ internal const val NETWORK_LOG_TAG = "StellarTrailApi"
 internal const val API_PREFIX = "/api/v1"
 
 @PublishedApi
+internal const val HEALTH_PATH = "/healthz"
+
+private const val API_DOMAIN_HEALTH_TIMEOUT_MS = 3_000L
+
+private data class ProductionDomainCandidate(
+    val apiBaseUrl: String,
+    val assetsBaseUrl: String,
+)
+
+private val PRODUCTION_DOMAIN_CANDIDATES = listOf(
+    ProductionDomainCandidate(
+        apiBaseUrl = "https://api.example.invalid",
+        assetsBaseUrl = "https://assets.example.invalid",
+    ),
+    ProductionDomainCandidate(
+        apiBaseUrl = "https://api-alt1.example.invalid",
+        assetsBaseUrl = "https://assets-alt1.example.invalid",
+    ),
+    ProductionDomainCandidate(
+        apiBaseUrl = "https://api-alt2.example.invalid",
+        assetsBaseUrl = "https://assets-alt2.example.invalid",
+    ),
+)
+
+private val KNOWN_ASSETS_HOSTS = PRODUCTION_DOMAIN_CANDIDATES
+    .mapNotNull { runCatching { URI(it.assetsBaseUrl).host?.lowercase() }.getOrNull() }
+    .toSet()
+
+private fun sanitizeComparableBaseUrl(baseUrl: String): String = baseUrl.trim().trimEnd('/')
+
+@PublishedApi
 internal fun versionedApiPath(path: String): String {
-    if (path == "/healthz" || path.startsWith("$API_PREFIX/")) return path
+    if (path == HEALTH_PATH || path.startsWith("$API_PREFIX/")) return path
     val normalized = if (path.startsWith('/')) path else "/$path"
     return API_PREFIX + normalized
 }

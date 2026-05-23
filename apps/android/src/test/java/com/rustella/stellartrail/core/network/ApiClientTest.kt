@@ -42,6 +42,96 @@ class ApiClientTest {
     }
 
     @Test
+    fun productionDomainProbeKeepsFirstHealthyDomainFamily() = runTest {
+        val requests = mutableListOf<io.ktor.client.request.HttpRequestData>()
+        val engine = MockEngine { request ->
+            requests += request
+            when (request.url.host to request.url.encodedPath) {
+                "api.example.invalid" to "/healthz" -> respondJson("""{"status":"ok"}""")
+                "api.example.invalid" to "/api/v1/me/gears/categories" -> respondJson("""{"status":"ok"}""")
+                else -> error("unexpected request ${request.url}")
+            }
+        }
+        val client = ApiClient(
+            configProvider = { AppConfig("https://api.example.invalid") },
+            httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+        )
+
+        val response = client.get<HealthResponse>("/me/gears/categories")
+
+        assertEquals("ok", response.status)
+        assertEquals(
+            listOf(
+                "api.example.invalid/healthz",
+                "api.example.invalid/api/v1/me/gears/categories",
+            ),
+            requests.map { "${it.url.host}${it.url.encodedPath}" },
+        )
+        assertEquals(
+            "https://assets.example.invalid/stellartrail-knots-media/knot.webp",
+            client.resolveAssetUrl("https://assets-alt2.example.invalid/stellartrail-knots-media/knot.webp"),
+        )
+    }
+
+    @Test
+    fun productionDomainProbeFallsThroughToSecondHealthyDomainFamily() = runTest {
+        val requests = mutableListOf<io.ktor.client.request.HttpRequestData>()
+        val engine = MockEngine { request ->
+            requests += request
+            when (request.url.host to request.url.encodedPath) {
+                "api.example.invalid" to "/healthz" -> respondJson(
+                    """{"status":"down"}""",
+                    HttpStatusCode.ServiceUnavailable,
+                )
+                "api-alt1.example.invalid" to "/healthz" -> respondJson("""{"status":"ok"}""")
+                "api-alt1.example.invalid" to "/api/v1/me/gears/categories" -> respondJson("""{"status":"ok"}""")
+                else -> error("unexpected request ${request.url}")
+            }
+        }
+        val client = ApiClient(
+            configProvider = { AppConfig("https://api.example.invalid") },
+            httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+        )
+
+        val response = client.get<HealthResponse>("/me/gears/categories")
+
+        assertEquals("ok", response.status)
+        assertEquals(
+            listOf(
+                "api.example.invalid/healthz",
+                "api-alt1.example.invalid/healthz",
+                "api-alt1.example.invalid/api/v1/me/gears/categories",
+            ),
+            requests.map { "${it.url.host}${it.url.encodedPath}" },
+        )
+        assertEquals(
+            "https://assets-alt1.example.invalid/stellartrail-knots-media/knot.webp",
+            client.resolveAssetUrl("https://assets.example.invalid/stellartrail-knots-media/knot.webp"),
+        )
+    }
+
+    @Test
+    fun customNonProductionBaseUrlSkipsProductionDomainProbe() = runTest {
+        val requests = mutableListOf<io.ktor.client.request.HttpRequestData>()
+        val engine = MockEngine { request ->
+            requests += request
+            respondJson("""{"status":"ok"}""")
+        }
+        val client = ApiClient(
+            configProvider = { AppConfig("http://10.0.2.2:8080") },
+            httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+        )
+
+        val response = client.get<HealthResponse>("/me/gears/categories")
+
+        assertEquals("ok", response.status)
+        assertEquals(
+            listOf("10.0.2.2/api/v1/me/gears/categories"),
+            requests.map { "${it.url.host}${it.url.encodedPath}" },
+        )
+    }
+
+    @Test
     fun nonSuccessResponseThrowsApiExceptionWithParsedMessage() = runTest {
         val engine = MockEngine {
             respond(
@@ -123,4 +213,9 @@ class ApiClientTest {
         assertEquals("new-refresh-token", refreshToken)
     }
 
+    private fun respondJson(content: String, status: HttpStatusCode = HttpStatusCode.OK) = respond(
+        content = content,
+        status = status,
+        headers = headersOf(HttpHeaders.ContentType, "application/json"),
+    )
 }
