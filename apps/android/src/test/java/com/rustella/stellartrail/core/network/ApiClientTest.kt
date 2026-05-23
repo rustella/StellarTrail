@@ -5,6 +5,7 @@ import com.rustella.stellartrail.core.config.AppDomainCandidate
 import com.rustella.stellartrail.domain.common.HealthResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.http.HttpHeaders
@@ -214,7 +215,10 @@ class ApiClientTest {
         assertEquals("new-refresh-token", refreshToken)
     }
 
-    private fun respondJson(content: String, status: HttpStatusCode = HttpStatusCode.OK) = respond(
+    private fun MockRequestHandleScope.respondJson(
+        content: String,
+        status: HttpStatusCode = HttpStatusCode.OK,
+    ) = respond(
         content = content,
         status = status,
         headers = headersOf(HttpHeaders.ContentType, "application/json"),
