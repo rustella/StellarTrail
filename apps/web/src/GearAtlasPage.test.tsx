@@ -12,7 +12,15 @@ import type { WebSession } from "./session";
 type GearAtlasApi = Pick<
   WebGearApi,
   "listGearAtlas" | "getGearAtlasItem" | "createGearAtlasSubmission"
->;
+> &
+  Partial<
+    Pick<
+      WebGearApi,
+      | "listAdminGearAtlasSubmissions"
+      | "getAdminGearAtlasSubmission"
+      | "updateAdminGearAtlasSubmission"
+    >
+  >;
 
 const session: WebSession = {
   accessToken: "token",
@@ -319,6 +327,65 @@ describe("GearAtlasPage", () => {
     });
     expect(
       await screen.findByText("已提交审核，管理员通过后会进入公开图鉴。"),
+    ).toBeInTheDocument();
+  });
+
+  it("lets admins edit public atlas items from the detail drawer", async () => {
+    const api = {
+      ...buildApi(),
+      listAdminGearAtlasSubmissions: vi.fn().mockResolvedValue({
+        next_cursor: null,
+        items: [],
+      }),
+      getAdminGearAtlasSubmission: vi.fn().mockResolvedValue(
+        buildSubmission({
+          id: "atlas-1",
+          status: "approved",
+          name: "测试头灯",
+        }),
+      ),
+      updateAdminGearAtlasSubmission: vi.fn().mockResolvedValue(
+        buildSubmission({
+          id: "atlas-1",
+          status: "approved",
+          name: "测试头灯 Pro",
+        }),
+      ),
+    } satisfies GearAtlasApi;
+
+    render(<GearAtlasPage api={api} session={session} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /测试头灯/ }));
+
+    expect(await screen.findByLabelText("图鉴详情")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "编辑图鉴" }));
+
+    expect(api.getAdminGearAtlasSubmission).toHaveBeenCalledWith("atlas-1");
+    expect(await screen.findByLabelText("编辑图鉴装备")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "保存图鉴" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("装备名称 *"), {
+      target: { value: "测试头灯 Pro" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存图鉴" }));
+
+    await waitFor(() => {
+      expect(api.updateAdminGearAtlasSubmission).toHaveBeenCalledWith(
+        "atlas-1",
+        expect.objectContaining({
+          category: "lighting_system",
+          name: "测试头灯 Pro",
+          brand: "NITECORE",
+          model: "NU25",
+          specs: { max_brightness: "450 lm" },
+        }),
+      );
+    });
+    expect(await screen.findByText("图鉴信息已保存。")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /测试头灯 Pro/ }),
     ).toBeInTheDocument();
   });
 });

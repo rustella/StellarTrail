@@ -944,6 +944,13 @@ dd {
   width: min(460px, 100vw);
 }
 
+.atlas-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .atlas-detail-section {
   display: grid;
   gap: 12px;
