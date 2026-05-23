@@ -50,6 +50,7 @@ class ApiClient(
     @PublishedApi internal val sessionExpiredHandler: () -> Unit = {},
     @PublishedApi internal val httpClient: HttpClient = defaultHttpClient(),
     @PublishedApi internal val json: Json = defaultJson,
+    private val domainProbeTimeoutMillis: Long? = API_DOMAIN_HEALTH_TIMEOUT_MS,
 ) {
     private val domainProbeMutex = Mutex()
     @Volatile
@@ -120,10 +121,11 @@ class ApiClient(
                 return Unit as Response
             }
             return json.decodeFromString(text)
+        } catch (error: ApiException) {
+            throw error
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
-            Log.w(
-                NETWORK_LOG_TAG,
+            logNetworkWarning(
                 "${method.value} ${requestUrl.substringBefore('?')} failed: ${error::class.java.name}: ${error.message}",
             )
             throw error
@@ -214,16 +216,20 @@ class ApiClient(
     }
 
     private suspend fun probeHealthz(apiBaseUrl: String): Boolean {
-        val response = withTimeoutOrNull(API_DOMAIN_HEALTH_TIMEOUT_MS) {
-            runCatching {
-                httpClient.prepareRequest(apiBaseUrl.trimEnd('/') + HEALTH_PATH) {
-                    method = HttpMethod.Get
-                    accept(ContentType.Application.Json)
-                }.execute()
-            }.getOrNull()
+        val response = if (domainProbeTimeoutMillis == null) {
+            executeHealthzProbe(apiBaseUrl)
+        } else {
+            withTimeoutOrNull(domainProbeTimeoutMillis) { executeHealthzProbe(apiBaseUrl) }
         } ?: return false
         return response.status.isSuccess()
     }
+
+    private suspend fun executeHealthzProbe(apiBaseUrl: String) = runCatching {
+        httpClient.prepareRequest(apiBaseUrl.trimEnd('/') + HEALTH_PATH) {
+            method = HttpMethod.Get
+            accept(ContentType.Application.Json)
+        }.execute()
+    }.getOrNull()
 
     private fun shouldProbeProductionDomains(apiBaseUrl: String, candidates: List<AppDomainCandidate>): Boolean =
         candidates.any { it.apiBaseUrl == sanitizeComparableBaseUrl(apiBaseUrl) }
@@ -297,6 +303,10 @@ internal const val API_PREFIX = "/api/v1"
 internal const val HEALTH_PATH = "/healthz"
 
 private const val API_DOMAIN_HEALTH_TIMEOUT_MS = 3_000L
+
+private fun logNetworkWarning(message: String) {
+    runCatching { Log.w(NETWORK_LOG_TAG, message) }
+}
 
 private fun sanitizeComparableBaseUrl(baseUrl: String): String = baseUrl.trim().trimEnd('/')
 
