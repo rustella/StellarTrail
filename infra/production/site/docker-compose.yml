@@ -7,14 +7,14 @@ services:
     labels:
       traefik.enable: "true"
       traefik.docker.network: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
-      traefik.http.routers.site.rule: Host(`site.example.invalid`)
+      traefik.http.routers.site.rule: Host(`site.example.invalid`) || Host(`site-alt1.example.invalid`) || Host(`site-alt2.example.invalid`)
       traefik.http.routers.site.entrypoints: websecure
-      traefik.http.routers.site.tls.certresolver: letsencrypt
+      traefik.http.routers.site.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
       traefik.http.routers.site.middlewares: security-headers@file
       traefik.http.routers.site.service: site
       traefik.http.routers.site-www.rule: Host(`www.example.invalid`)
       traefik.http.routers.site-www.entrypoints: websecure
-      traefik.http.routers.site-www.tls.certresolver: letsencrypt
+      traefik.http.routers.site-www.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
       traefik.http.routers.site-www.middlewares: redirect-www-to-apex@file,security-headers@file
       traefik.http.routers.site-www.service: site
       traefik.http.services.site.loadbalancer.server.port: "80"
