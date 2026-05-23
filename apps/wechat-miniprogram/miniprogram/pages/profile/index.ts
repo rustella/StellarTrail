@@ -217,6 +217,10 @@ Page({
     wx.navigateTo({ url: "/pages/profile/settings/index" });
   },
 
+  openRoadmap() {
+    wx.navigateTo({ url: "/pages/profile/roadmap/index" });
+  },
+
   logout() {
     wx.showModal({
       title: "退出登录？",

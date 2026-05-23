@@ -1092,6 +1092,93 @@ test("gear packing list API utilities call authenticated endpoints", async () =>
   );
 });
 
+test("roadmap API utilities call public and authenticated endpoints", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    const path = options.url.replace("https://api.example.test", "");
+    calls.push({
+      path,
+      method: options.method || "GET",
+      authorization: options.header && options.header.authorization,
+    });
+    options.success({
+      statusCode: 200,
+      data: {
+        items: [
+          {
+            id: "smart-packing-template",
+            client_key: "wechat_miniprogram",
+            title: "智能打包清单模板",
+            summary: "按路线和历史习惯生成建议清单",
+            category: "gear",
+            status: "planned",
+            priority: 100,
+            sort_order: 10,
+            is_published: true,
+            vote_count: 1,
+            subscription_count: 0,
+            is_voted: path.includes("/me/roadmap"),
+            is_subscribed: false,
+            created_at: "2026-05-24T00:00:00Z",
+            updated_at: "2026-05-24T00:00:00Z",
+          },
+        ],
+        next_cursor: null,
+      },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_user", { id: "u-roadmap", nickname: "星" });
+  const {
+    listMyRoadmap,
+    listRoadmap,
+    subscribeRoadmapItem,
+    unsubscribeRoadmapItem,
+    unvoteRoadmapItem,
+    voteRoadmapItem,
+  } = require("../.tmp-test/utils/api.js");
+
+  await listRoadmap({ client_key: "wechat_miniprogram", status: "planned" });
+  await listMyRoadmap({ client_key: "wechat_miniprogram" });
+  await voteRoadmapItem("smart-packing-template");
+  await unvoteRoadmapItem("smart-packing-template");
+  await subscribeRoadmapItem("smart-packing-template");
+  await unsubscribeRoadmapItem("smart-packing-template");
+
+  assert.deepEqual(calls, [
+    {
+      path: "/api/v1/roadmap?client_key=wechat_miniprogram&status=planned",
+      method: "GET",
+      authorization: undefined,
+    },
+    {
+      path: "/api/v1/me/roadmap?client_key=wechat_miniprogram",
+      method: "GET",
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/roadmap/smart-packing-template/vote",
+      method: "PUT",
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/roadmap/smart-packing-template/vote",
+      method: "DELETE",
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/roadmap/smart-packing-template/subscription",
+      method: "PUT",
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/roadmap/smart-packing-template/subscription",
+      method: "DELETE",
+      authorization: "Bearer access-old",
+    },
+  ]);
+});
+
 test("identical GET requests share one in-flight wx.request", async () => {
   let requestCount = 0;
   const storage = installWxMock((options) => {

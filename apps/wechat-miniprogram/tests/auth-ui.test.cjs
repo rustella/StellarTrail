@@ -106,6 +106,10 @@ ${ts}`;
   assert.match(wxml, /设置与帮助/);
   assert.match(wxml, /绳结离线缓存/);
   assert.match(wxml, /意见反馈/);
+  assert.match(wxml, /产品路线图/);
+  assert.match(wxml, /bindtap="openRoadmap"/);
+  assert.match(pageSource, /openRoadmap/);
+  assert.match(pageSource, /\/pages\/profile\/roadmap\/index/);
   assert.match(wxml, /版本信息/);
   assert.match(wxml, /versionInfoDesc/);
   assert.match(wxml, /bindtap="openVersionInfoModal"/);
@@ -240,6 +244,36 @@ ${ts}`;
     pageSource,
     /wx\.navigateTo\(\{ url: "\/pages\/profile\/settings\/index" \}\)/,
   );
+});
+
+test("profile roadmap page is registered and supports voting subscriptions", () => {
+  const config = JSON.parse(read("app.json"));
+  const wxml = read("pages/profile/roadmap/index.wxml");
+  const wxss = read("pages/profile/roadmap/index.wxss");
+  const ts = read("pages/profile/roadmap/index.ts");
+  const pageSource = `${wxml}
+${ts}`;
+
+  assert.ok(config.pages.includes("pages/profile/roadmap/index"));
+  assert.match(wxml, /产品路线图/);
+  assert.match(wxml, /statusFilterLabels/);
+  assert.match(wxml, /bindchange="onStatusFilterChange"/);
+  assert.match(wxml, /bindtap="toggleVote"/);
+  assert.match(wxml, /bindtap="toggleSubscription"/);
+  assert.match(wxml, /loginPrompt\.visible/);
+  assert.match(pageSource, /listRoadmap/);
+  assert.match(pageSource, /listMyRoadmap/);
+  assert.match(pageSource, /voteRoadmapItem/);
+  assert.match(pageSource, /unvoteRoadmapItem/);
+  assert.match(pageSource, /subscribeRoadmapItem/);
+  assert.match(pageSource, /unsubscribeRoadmapItem/);
+  assert.match(pageSource, /showOfflineWriteBlockedToast/);
+  assert.match(
+    pageSource,
+    /smart-packing-template|智能打包清单模板|RoadmapItem/,
+  );
+  assert.match(wxss, /\.roadmap-card/);
+  assert.match(wxss, /\.roadmap-action-button/);
 });
 
 test("profile settings page owns account identity and password actions", () => {

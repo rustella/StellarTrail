@@ -49,6 +49,67 @@ export interface ClientVersionRequest {
   status: ClientVersionStatus;
 }
 
+export type RoadmapStatus =
+  | "planned"
+  | "designing"
+  | "building"
+  | "preview"
+  | "shipped";
+
+export type RoadmapCategory =
+  | "gear"
+  | "skills"
+  | "routes"
+  | "offline"
+  | "safety"
+  | "community";
+
+export interface RoadmapItem {
+  id: string;
+  client_key: ClientKey;
+  title: string;
+  summary: string;
+  details?: string | null;
+  category: RoadmapCategory | string;
+  status: RoadmapStatus | string;
+  priority: number;
+  sort_order: number;
+  is_published: boolean;
+  vote_count: number;
+  subscription_count: number;
+  is_voted: boolean;
+  is_subscribed: boolean;
+  published_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListRoadmapRequest {
+  client_key?: ClientKey;
+  status?: RoadmapStatus;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListRoadmapResponse {
+  items: RoadmapItem[];
+  next_cursor?: string | null;
+}
+
+export interface RoadmapItemRequest {
+  client_key: ClientKey;
+  title: string;
+  summary: string;
+  details?: string | null;
+  category: RoadmapCategory;
+  status: RoadmapStatus;
+  priority: number;
+  sort_order: number;
+  is_published: boolean;
+}
+
+export type RoadmapInteractionStatusResponse = RoadmapItem;
+
 export interface ContentListResponse<T> {
   items: T[];
 }

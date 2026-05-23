@@ -9,6 +9,7 @@ pub mod gear_packing;
 pub mod gear_template;
 pub mod locale;
 pub mod pagination;
+pub mod roadmap;
 pub mod skill;
 pub mod upload;
 pub mod user;

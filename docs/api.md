@@ -407,6 +407,52 @@ npm run knots:upload-media -- --dry-run
 npm run knots:upload-media -- --verify-only
 ```
 
+## Roadmap
+
+Roadmap 是 DB-backed 产品计划展示，不代表对应功能已经实现。第一版用于微信小程序“我的”页展示后续规划，并支持登录用户投票和站内订阅；订阅只记录数据库状态，不发送微信订阅消息、邮件或推送。`route-encyclopedia` 只作为路线百科规划项出现，本次不会注册 `/api/v1/routes*` 或路线内容表。
+
+```http
+GET /api/v1/roadmap?client_key=wechat_miniprogram&status=planned&limit=50&cursor=0
+GET /api/v1/me/roadmap?client_key=wechat_miniprogram&status=planned&limit=50&cursor=0
+PUT /api/v1/me/roadmap/:id/vote
+DELETE /api/v1/me/roadmap/:id/vote
+PUT /api/v1/me/roadmap/:id/subscription
+DELETE /api/v1/me/roadmap/:id/subscription
+GET /api/v1/admin/roadmap?client_key=wechat_miniprogram&status=planned&limit=50&cursor=0
+POST /api/v1/admin/roadmap
+PATCH /api/v1/admin/roadmap/:id
+DELETE /api/v1/admin/roadmap/:id
+```
+
+公开接口只返回 `is_published=true` 且 `is_deleted=false` 的条目；`/me/roadmap` 需要 Bearer Token，并额外返回当前用户的 `is_voted` 和 `is_subscribed`。投票和订阅都是幂等操作，取消时软删除用户态记录并保留历史行。管理员接口需要 `admin` 或 `super_admin`，`DELETE` 对 Roadmap 条目执行软删除。
+
+支持的 `status` 为 `planned`、`designing`、`building`、`preview`、`shipped`；支持的 `category` 为 `gear`、`skills`、`routes`、`offline`、`safety`、`community`。初始 seed 包含：
+
+- `smart-packing-template`：按路线/目的地、天数和季节，根据个人装备和历史打包习惯生成打包清单模板。
+- `knot-scenario-videos`：绳结增加实际使用场景的视频演示。
+- `route-encyclopedia`：路线百科，展示路线难度、季节、风险、交通和准备要点。
+- `skill-scenario-index`：按扎营固定、收纳、连接、应急等场景查找绳结和技能。
+- `gear-maintenance-reminders`：装备保养、充电、耗材补充和有效期提醒。
+- `offline-trip-pack`：一键缓存出行前需要的技能、清单、装备和安全资料。
+- `safety-weather-precheck`：出发前天气、风险和急救检查清单。
+- `learning-progress`：技能学习进度、已掌握标记和复习提醒。
+
+管理员创建或更新请求：
+
+```json
+{
+  "client_key": "wechat_miniprogram",
+  "title": "智能打包清单模板",
+  "summary": "按路线或目的地、天数和季节，结合个人装备和历史打包习惯生成建议清单。",
+  "details": "本次 Roadmap 只记录规划，不实现推荐算法。",
+  "category": "gear",
+  "status": "planned",
+  "priority": 100,
+  "sort_order": 10,
+  "is_published": true
+}
+```
+
 ## Admin API usage statistics
 
 ```http

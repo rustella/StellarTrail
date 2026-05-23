@@ -85,7 +85,7 @@ let cachedRefreshToken: string | null | undefined;
 let cachedUser: WechatLoginResponse["user"] | null | undefined;
 const pendingGetRequests = new Map<string, Promise<unknown>>();
 interface ApiRequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   data?: unknown;
   auth?: boolean;
   locale?: SkillLocale;
@@ -218,6 +218,55 @@ export interface ListClientVersionsResponse {
   items: ClientVersion[];
   next_cursor?: string | null;
 }
+
+export type RoadmapStatus =
+  | "planned"
+  | "designing"
+  | "building"
+  | "preview"
+  | "shipped";
+
+export type RoadmapCategory =
+  | "gear"
+  | "skills"
+  | "routes"
+  | "offline"
+  | "safety"
+  | "community";
+
+export interface RoadmapItem {
+  id: string;
+  client_key: ClientKey;
+  title: string;
+  summary: string;
+  details?: string | null;
+  category: RoadmapCategory | string;
+  status: RoadmapStatus | string;
+  priority: number;
+  sort_order: number;
+  is_published: boolean;
+  vote_count: number;
+  subscription_count: number;
+  is_voted: boolean;
+  is_subscribed: boolean;
+  published_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListRoadmapRequest {
+  client_key?: ClientKey;
+  status?: RoadmapStatus;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListRoadmapResponse {
+  items: RoadmapItem[];
+  next_cursor?: string | null;
+}
+
+export type RoadmapInteractionStatusResponse = RoadmapItem;
 
 export interface RegisterRequest {
   username: string;
@@ -1012,6 +1061,66 @@ export async function listClientVersions(
   );
 }
 
+export async function listRoadmap(
+  request: ListRoadmapRequest = {},
+): Promise<ListRoadmapResponse> {
+  return requestJson(`/api/v1/roadmap${queryString(request)}`);
+}
+
+export async function listMyRoadmap(
+  request: ListRoadmapRequest = {},
+): Promise<ListRoadmapResponse> {
+  return requestJson(`/api/v1/me/roadmap${queryString(request)}`, {
+    auth: true,
+  });
+}
+
+export async function voteRoadmapItem(
+  id: string,
+): Promise<RoadmapInteractionStatusResponse> {
+  return requestJson(`/api/v1/me/roadmap/${encodeURIComponent(id)}/vote`, {
+    method: "PUT",
+    auth: true,
+    cache: false,
+  });
+}
+
+export async function unvoteRoadmapItem(
+  id: string,
+): Promise<RoadmapInteractionStatusResponse> {
+  return requestJson(`/api/v1/me/roadmap/${encodeURIComponent(id)}/vote`, {
+    method: "DELETE",
+    auth: true,
+    cache: false,
+  });
+}
+
+export async function subscribeRoadmapItem(
+  id: string,
+): Promise<RoadmapInteractionStatusResponse> {
+  return requestJson(
+    `/api/v1/me/roadmap/${encodeURIComponent(id)}/subscription`,
+    {
+      method: "PUT",
+      auth: true,
+      cache: false,
+    },
+  );
+}
+
+export async function unsubscribeRoadmapItem(
+  id: string,
+): Promise<RoadmapInteractionStatusResponse> {
+  return requestJson(
+    `/api/v1/me/roadmap/${encodeURIComponent(id)}/subscription`,
+    {
+      method: "DELETE",
+      auth: true,
+      cache: false,
+    },
+  );
+}
+
 export function knotListPath(request: ListKnotsRequest = {}): string {
   return `/api/v1/skills/knots/list${queryString(request)}`;
 }
@@ -1300,6 +1409,8 @@ function isPublicCacheablePath(path: string): boolean {
   return (
     path === "/api/v1/skills" ||
     path.startsWith("/api/v1/skills/") ||
+    path === "/api/v1/roadmap" ||
+    path.startsWith("/api/v1/roadmap?") ||
     path === "/api/v1/gear-templates" ||
     path.startsWith("/api/v1/gear-templates/") ||
     path === "/api/v1/gear-atlas" ||
@@ -1316,6 +1427,8 @@ function isUserCacheablePath(path: string): boolean {
     path === "/api/v1/me/packing-lists" ||
     path.startsWith("/api/v1/me/packing-lists?") ||
     path.startsWith("/api/v1/me/packing-lists/") ||
+    path === "/api/v1/me/roadmap" ||
+    path.startsWith("/api/v1/me/roadmap?") ||
     path === "/api/v1/me/gear-atlas-submissions" ||
     path.startsWith("/api/v1/me/gear-atlas-submissions?")
   );

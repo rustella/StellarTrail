@@ -14,6 +14,7 @@ mod health;
 mod localization;
 mod meta;
 mod profile;
+mod roadmap;
 mod skills;
 mod uploads;
 
@@ -80,6 +81,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(gear_packing::routes())
         .merge(gears::routes())
         .merge(profile::routes())
+        .merge(roadmap::routes())
         .merge(uploads::routes())
         .merge(feedback::routes());
     Router::new()
