@@ -96,9 +96,6 @@
   <view wx:if="{{versionModalVisible}}" class="profile-modal-mask">
     <view class="profile-modal-card version-modal-card">
       <view class="profile-modal-title">版本信息</view>
-      <view class="profile-modal-desc"
-        >客户端版本更新由后台发布，这里只显示微信小程序版本。</view
-      >
       <view wx:if="{{versionLoading}}" class="version-loading"
         >正在加载版本信息...</view
       >
