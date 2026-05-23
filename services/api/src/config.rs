@@ -67,6 +67,8 @@ struct FileUploadConfig {
     max_image_bytes: Option<u64>,
     rate_limit_window_seconds: Option<u64>,
     max_images_per_window: Option<u64>,
+    max_total_images_per_user: Option<u64>,
+    max_total_bytes_per_user: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -264,6 +266,8 @@ pub struct UploadConfig {
     pub max_image_bytes: u64,
     pub rate_limit_window_seconds: u64,
     pub max_images_per_window: u64,
+    pub max_total_images_per_user: u64,
+    pub max_total_bytes_per_user: u64,
 }
 
 impl Default for UploadConfig {
@@ -272,6 +276,8 @@ impl Default for UploadConfig {
             max_image_bytes: 8_000_000,
             rate_limit_window_seconds: 3600,
             max_images_per_window: 30,
+            max_total_images_per_user: 100,
+            max_total_bytes_per_user: 200_000_000,
         }
     }
 }
@@ -484,6 +490,16 @@ impl ApiConfig {
                 file_upload.max_images_per_window,
                 30,
             )?,
+            max_total_images_per_user: config_u64_env(
+                "UPLOAD_MAX_TOTAL_IMAGES_PER_USER",
+                file_upload.max_total_images_per_user,
+                100,
+            )?,
+            max_total_bytes_per_user: config_u64_env(
+                "UPLOAD_MAX_TOTAL_BYTES_PER_USER",
+                file_upload.max_total_bytes_per_user,
+                200_000_000,
+            )?,
         };
         if upload.max_image_bytes == 0 {
             anyhow::bail!("UPLOAD_MAX_IMAGE_BYTES must be greater than 0");
@@ -493,6 +509,12 @@ impl ApiConfig {
         }
         if upload.max_images_per_window == 0 {
             anyhow::bail!("UPLOAD_MAX_IMAGES_PER_WINDOW must be greater than 0");
+        }
+        if upload.max_total_images_per_user == 0 {
+            anyhow::bail!("UPLOAD_MAX_TOTAL_IMAGES_PER_USER must be greater than 0");
+        }
+        if upload.max_total_bytes_per_user == 0 {
+            anyhow::bail!("UPLOAD_MAX_TOTAL_BYTES_PER_USER must be greater than 0");
         }
         let default_minio = MinioConfig::default();
         let minio = MinioConfig {
@@ -1138,6 +1160,8 @@ upload:
   max_image_bytes: 111111
   rate_limit_window_seconds: 120
   max_images_per_window: 8
+  max_total_images_per_user: 88
+  max_total_bytes_per_user: 999999
 minio:
   endpoint: http://minio.example.invalid
   region: us-east-1
@@ -1209,6 +1233,8 @@ mail:
         assert_eq!(config.wechat_app_secret.as_deref(), Some("x"));
         assert_eq!(config.redis_cache.key_prefix, "yaml-prefix");
         assert_eq!(config.upload.max_image_bytes, 111111);
+        assert_eq!(config.upload.max_total_images_per_user, 88);
+        assert_eq!(config.upload.max_total_bytes_per_user, 999999);
         assert_eq!(config.minio.endpoint, "http://minio.example.invalid");
         assert_eq!(config.object_storage.bucket, "yaml-uploads");
         assert_eq!(config.avatar_storage.bucket, "yaml-avatars");
@@ -1316,6 +1342,8 @@ public_api:
             env::set_var("UPLOAD_MAX_IMAGE_BYTES", "123456");
             env::set_var("UPLOAD_RATE_LIMIT_WINDOW_SECONDS", "60");
             env::set_var("UPLOAD_MAX_IMAGES_PER_WINDOW", "7");
+            env::set_var("UPLOAD_MAX_TOTAL_IMAGES_PER_USER", "11");
+            env::set_var("UPLOAD_MAX_TOTAL_BYTES_PER_USER", "654321");
             env::set_var("MINIO_ENDPOINT", " http://minio:9000 ");
             env::set_var("MINIO_REGION", " us-east-1 ");
             env::set_var("MINIO_ACCESS_KEY_ID", " local-key ");
@@ -1338,6 +1366,8 @@ public_api:
                 max_image_bytes: 123456,
                 rate_limit_window_seconds: 60,
                 max_images_per_window: 7,
+                max_total_images_per_user: 11,
+                max_total_bytes_per_user: 654321,
             },
         );
         assert_eq!(config.minio.endpoint, "http://minio:9000");
@@ -1490,6 +1520,41 @@ public_api:
     }
 
     #[test]
+    fn from_env_rejects_zero_upload_total_quota() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("UPLOAD_MAX_TOTAL_IMAGES_PER_USER", "0");
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(
+            error.contains("UPLOAD_MAX_TOTAL_IMAGES_PER_USER"),
+            "{error}"
+        );
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_rejects_zero_upload_total_byte_quota() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("UPLOAD_MAX_TOTAL_BYTES_PER_USER", "0");
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(error.contains("UPLOAD_MAX_TOTAL_BYTES_PER_USER"), "{error}");
+        restore_env(saved);
+    }
+
+    #[test]
     fn from_env_reads_mail_config_from_environment() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = snapshot_env(CONFIG_KEYS);
@@ -1557,6 +1622,8 @@ public_api:
         "UPLOAD_MAX_IMAGE_BYTES",
         "UPLOAD_RATE_LIMIT_WINDOW_SECONDS",
         "UPLOAD_MAX_IMAGES_PER_WINDOW",
+        "UPLOAD_MAX_TOTAL_IMAGES_PER_USER",
+        "UPLOAD_MAX_TOTAL_BYTES_PER_USER",
         "MINIO_ENDPOINT",
         "MINIO_REGION",
         "MINIO_ACCESS_KEY_ID",

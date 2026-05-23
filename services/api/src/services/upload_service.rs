@@ -30,6 +30,7 @@ pub async fn upload_feedback_image(
     let size_bytes = i64::try_from(bytes.len()).map_err(ApiError::internal)?;
     let validated = validate_image_upload(original_filename, declared_content_type, &bytes)?;
     enforce_upload_rate_limit(state, user_id).await?;
+    enforce_upload_total_quota(state, user_id, size_bytes).await?;
 
     let sha256 = sha256_hex(&bytes);
     let object_key = format!(
@@ -84,6 +85,34 @@ pub async fn get_upload_for_user(
         .await?)
 }
 
+async fn enforce_upload_total_quota(
+    state: &AppState,
+    user_id: &str,
+    next_size_bytes: i64,
+) -> Result<(), ApiError> {
+    let usage = UploadImageRepository::new(state.db().clone())
+        .usage_for_user(user_id, PURPOSE_FEEDBACK)
+        .await?;
+    let current_count = u64::try_from(usage.count.max(0)).unwrap_or(u64::MAX);
+    let current_size = u64::try_from(usage.total_size_bytes.max(0)).unwrap_or(u64::MAX);
+    let next_size = u64::try_from(next_size_bytes.max(0)).unwrap_or(u64::MAX);
+    let upload_config = &state.config().upload;
+
+    if current_count.saturating_add(1) > upload_config.max_total_images_per_user {
+        return Err(image_quota_error(format!(
+            "反馈图片已达到 {} 张上限",
+            upload_config.max_total_images_per_user
+        )));
+    }
+    if current_size.saturating_add(next_size) > upload_config.max_total_bytes_per_user {
+        return Err(image_quota_error(format!(
+            "反馈图片总大小已达到 {} 上限",
+            format_decimal_bytes(upload_config.max_total_bytes_per_user)
+        )));
+    }
+    Ok(())
+}
+
 async fn enforce_upload_rate_limit(state: &AppState, user_id: &str) -> Result<(), ApiError> {
     let window_seconds = state.config().upload.rate_limit_window_seconds;
     let max_images = state.config().upload.max_images_per_window;
@@ -130,6 +159,20 @@ fn retry_after_seconds(window_seconds: u64) -> u64 {
     let now = OffsetDateTime::now_utc().unix_timestamp().max(0) as u64;
     let remaining = window_seconds - (now % window_seconds);
     remaining.max(1)
+}
+
+fn image_quota_error(message: String) -> ApiError {
+    ApiError::Validation(vec![FieldViolation::new("image_quota", message)])
+}
+
+fn format_decimal_bytes(bytes: u64) -> String {
+    if bytes >= 1_000_000 && bytes % 1_000_000 == 0 {
+        return format!("{}MB", bytes / 1_000_000);
+    }
+    if bytes >= 1_000 && bytes % 1_000 == 0 {
+        return format!("{}KB", bytes / 1_000);
+    }
+    format!("{bytes} bytes")
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
