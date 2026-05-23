@@ -8,6 +8,7 @@ mod client_versions;
 mod content;
 mod feedback;
 mod gear_atlas;
+mod gear_packing;
 mod gears;
 mod health;
 mod localization;
@@ -76,6 +77,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(content::routes())
         .merge(skills::routes())
         .merge(gear_atlas::routes())
+        .merge(gear_packing::routes())
         .merge(gears::routes())
         .merge(profile::routes())
         .merge(uploads::routes())

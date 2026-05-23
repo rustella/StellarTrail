@@ -16,6 +16,7 @@ import type {
   ClientVersionRequest,
   ContentListResponse,
   CreateGearAtlasSubmissionRequest,
+  CreateGearPackingListRequest,
   CreateGearRequest,
   EmailLoginCodeRequest,
   EmailLoginRequest,
@@ -27,6 +28,7 @@ import type {
   GearCategory,
   GearOverviewRequest,
   GearOverviewResponse,
+  GearPackingListDetail,
   GearTemplate,
   GearItem,
   GearSpecKeyRankingsResponse,
@@ -46,6 +48,8 @@ import type {
   ListGearAtlasResponse,
   ListGearAtlasSubmissionsRequest,
   ListGearAtlasSubmissionsResponse,
+  ListGearPackingListsRequest,
+  ListGearPackingListsResponse,
   ListClientVersionsRequest,
   ListClientVersionsResponse,
   ListGearsRequest,
@@ -61,6 +65,8 @@ import type {
   SkillCategoriesResponse,
   SkillLocale,
   UpdateGearAtlasSubmissionRequest,
+  UpdateGearPackingItemRequest,
+  UpdateGearPackingListRequest,
   UpdateGearRequest,
   WechatLoginRequest,
   WechatLoginResponse,
@@ -613,6 +619,76 @@ export class StellarTrailApiClient {
 
   async importGears(request: ImportGearsRequest): Promise<ImportGearsResponse> {
     return this.post("/me/gears/import", request, true);
+  }
+
+  async listGearPackingLists(
+    request: ListGearPackingListsRequest = {},
+  ): Promise<ListGearPackingListsResponse> {
+    return this.get(`/me/packing-lists${queryString(request)}`, true);
+  }
+
+  async createGearPackingList(
+    request: CreateGearPackingListRequest,
+  ): Promise<GearPackingListDetail> {
+    return this.post("/me/packing-lists", request, true);
+  }
+
+  async getGearPackingList(id: string): Promise<GearPackingListDetail> {
+    return this.get(`/me/packing-lists/${encodeURIComponent(id)}`, true);
+  }
+
+  async updateGearPackingList(
+    id: string,
+    request: UpdateGearPackingListRequest,
+  ): Promise<GearPackingListDetail> {
+    return this.patch(
+      `/me/packing-lists/${encodeURIComponent(id)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteGearPackingList(id: string): Promise<void> {
+    await this.request(
+      `/me/packing-lists/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async addGearPackingItems(
+    id: string,
+    gearIds: string[],
+  ): Promise<GearPackingListDetail> {
+    return this.post(
+      `/me/packing-lists/${encodeURIComponent(id)}/items`,
+      { gear_ids: gearIds },
+      true,
+    );
+  }
+
+  async updateGearPackingItem(
+    id: string,
+    itemId: string,
+    request: UpdateGearPackingItemRequest,
+  ): Promise<GearPackingListDetail> {
+    return this.patch(
+      `/me/packing-lists/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`,
+      request,
+      true,
+    );
+  }
+
+  async removeGearPackingItem(
+    id: string,
+    itemId: string,
+  ): Promise<GearPackingListDetail> {
+    const response = await this.request(
+      `/me/packing-lists/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`,
+      { method: "DELETE" },
+      true,
+    );
+    return response.json() as Promise<GearPackingListDetail>;
   }
 
   private async get<T>(

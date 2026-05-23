@@ -7,6 +7,7 @@ pub mod client_version;
 pub mod feedback;
 pub mod gear;
 pub mod gear_atlas;
+pub mod gear_packing;
 pub mod profile;
 pub mod upload;
 

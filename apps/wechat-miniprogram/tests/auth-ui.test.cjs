@@ -339,6 +339,34 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
   assert.match(metricValueBlock, /color: var\(--text-color\)/);
 });
 
+test("packing lists pages expose create select and checklist flows", () => {
+  const appJson = read("app.json");
+  const gearListWxml = read("pages/gears/index.wxml");
+  const gearListTs = read("pages/gears/index.ts");
+  const packingIndexWxml = read("pages/packing-lists/index.wxml");
+  const packingIndexTs = read("pages/packing-lists/index.ts");
+  const packingFormTs = read("pages/packing-lists/form/index.ts");
+  const packingDetailWxml = read("pages/packing-lists/detail/index.wxml");
+  const packingDetailTs = read("pages/packing-lists/detail/index.ts");
+  const packingSelectWxml = read("pages/packing-lists/select-gears/index.wxml");
+  const packingSelectTs = read("pages/packing-lists/select-gears/index.ts");
+
+  assert.match(appJson, /pages\/packing-lists\/index/);
+  assert.match(appJson, /pages\/packing-lists\/select-gears\/index/);
+  assert.match(gearListWxml, /打包清单/);
+  assert.match(gearListTs, /goPackingLists/);
+  assert.match(packingIndexWxml, /新建第一份清单/);
+  assert.match(packingIndexTs, /listGearPackingLists/);
+  assert.match(packingFormTs, /createGearPackingList/);
+  assert.match(packingFormTs, /select-gears\/index\?id=/);
+  assert.match(packingDetailWxml, /bindtap="togglePacked"/);
+  assert.match(packingDetailWxml, /已打包/);
+  assert.match(packingDetailTs, /updateGearPackingItem/);
+  assert.match(packingSelectWxml, /加入 \{\{selectedIds\.length\}\} 件装备/);
+  assert.match(packingSelectTs, /addGearPackingItems/);
+  assert.match(packingSelectTs, /showOfflineWriteBlockedToast/);
+});
+
 test("archived gear views expose real soft delete action", () => {
   const listWxml = read("pages/gears/index.wxml");
   const listTs = read("pages/gears/index.ts");

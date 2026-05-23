@@ -351,6 +351,205 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
 }
 
 #[tokio::test]
+async fn gear_packing_lists_create_add_check_and_keep_unavailable_items_visible() {
+    let app = test_app().await;
+    let token = login(&app.router, "gear-packing-user").await;
+
+    let (backpack_status, backpack) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/gears",
+        Some(&token),
+        json!({"category": "backpack_system", "name": "轻量小包", "weight_g": 800}),
+    )
+    .await;
+    assert_eq!(backpack_status, StatusCode::CREATED, "{backpack}");
+    let backpack_id = backpack["id"].as_str().unwrap();
+    let (headlamp_status, headlamp) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/gears",
+        Some(&token),
+        json!({"category": "lighting_system", "name": "头灯", "weight_g": 90}),
+    )
+    .await;
+    assert_eq!(headlamp_status, StatusCode::CREATED, "{headlamp}");
+    let headlamp_id = headlamp["id"].as_str().unwrap();
+
+    let (unauth_status, unauth_body) =
+        send_empty(&app.router, "GET", "/api/v1/me/packing-lists", None).await;
+    assert_eq!(unauth_status, StatusCode::UNAUTHORIZED, "{unauth_body}");
+
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/packing-lists",
+        Some(&token),
+        json!({
+            "name": " 武功山一日 ",
+            "route_name": "武功山",
+            "duration_label": "一日"
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["name"], "武功山一日");
+    assert_eq!(created["stats"]["item_count"], 0);
+    let list_id = created["id"].as_str().unwrap();
+
+    let (add_status, added) = send_json(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/packing-lists/{list_id}/items"),
+        Some(&token),
+        json!({"gear_ids": [backpack_id, headlamp_id, backpack_id]}),
+    )
+    .await;
+    assert_eq!(add_status, StatusCode::OK, "{added}");
+    assert_eq!(added["stats"]["item_count"], 2);
+    assert_eq!(added["stats"]["total_weight_g"], 890);
+    let first_item_id = added["items"][0]["id"].as_str().unwrap();
+
+    let (packed_status, packed) = send_json(
+        &app.router,
+        "PATCH",
+        &format!("/api/v1/me/packing-lists/{list_id}/items/{first_item_id}"),
+        Some(&token),
+        json!({"packed": true}),
+    )
+    .await;
+    assert_eq!(packed_status, StatusCode::OK, "{packed}");
+    assert_eq!(packed["stats"]["packed_count"], 1);
+
+    let (list_status, list) =
+        send_empty(&app.router, "GET", "/api/v1/me/packing-lists", Some(&token)).await;
+    assert_eq!(list_status, StatusCode::OK, "{list}");
+    assert_eq!(list["items"][0]["id"], list_id);
+    assert_eq!(list["items"][0]["packed_count"], 1);
+
+    let (archive_status, archive_body) = send_empty(
+        &app.router,
+        "DELETE",
+        &format!("/api/v1/me/gears/{backpack_id}"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(archive_status, StatusCode::NO_CONTENT, "{archive_body}");
+    let (delete_status, delete_body) = send_empty(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/gears/{headlamp_id}/delete"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(delete_status, StatusCode::NO_CONTENT, "{delete_body}");
+
+    let (detail_status, detail) = send_empty(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/packing-lists/{list_id}"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(detail_status, StatusCode::OK, "{detail}");
+    let item_reasons = detail["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["unavailable_reason"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert!(item_reasons.contains(&"archived"));
+    assert!(item_reasons.contains(&"deleted"));
+
+    let (invalid_add_status, invalid_add) = send_json(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/packing-lists/{list_id}/items"),
+        Some(&token),
+        json!({"gear_ids": [backpack_id]}),
+    )
+    .await;
+    assert_eq!(
+        invalid_add_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{invalid_add}"
+    );
+    assert_eq!(invalid_add["code"], "validation_failed");
+
+    let item_to_remove = detail["items"][0]["id"].as_str().unwrap();
+    let (remove_status, removed) = send_empty(
+        &app.router,
+        "DELETE",
+        &format!("/api/v1/me/packing-lists/{list_id}/items/{item_to_remove}"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(remove_status, StatusCode::OK, "{removed}");
+    assert_eq!(removed["stats"]["item_count"], 1);
+
+    let (delete_list_status, delete_list_body) = send_empty(
+        &app.router,
+        "DELETE",
+        &format!("/api/v1/me/packing-lists/{list_id}"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(
+        delete_list_status,
+        StatusCode::NO_CONTENT,
+        "{delete_list_body}"
+    );
+    let (missing_status, missing) = send_empty(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/packing-lists/{list_id}"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(missing_status, StatusCode::NOT_FOUND, "{missing}");
+}
+
+#[tokio::test]
+async fn gear_packing_lists_reject_cross_user_gear() {
+    let app = test_app().await;
+    let owner_token = login(&app.router, "gear-packing-owner").await;
+    let other_token = login(&app.router, "gear-packing-other").await;
+
+    let (gear_status, gear) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/gears",
+        Some(&owner_token),
+        json!({"category": "backpack_system", "name": "所有者装备"}),
+    )
+    .await;
+    assert_eq!(gear_status, StatusCode::CREATED, "{gear}");
+    let owner_gear_id = gear["id"].as_str().unwrap();
+
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/packing-lists",
+        Some(&other_token),
+        json!({"name": "其它用户清单"}),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+    let other_list_id = created["id"].as_str().unwrap();
+
+    let (add_status, add_body) = send_json(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/packing-lists/{other_list_id}/items"),
+        Some(&other_token),
+        json!({"gear_ids": [owner_gear_id]}),
+    )
+    .await;
+    assert_eq!(add_status, StatusCode::UNPROCESSABLE_ENTITY, "{add_body}");
+    assert_eq!(add_body["code"], "validation_failed");
+}
+
+#[tokio::test]
 async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user() {
     let store = InMemoryCacheStore::default();
     let app = test_app_with_cache(Cache::with_store_for_tests(

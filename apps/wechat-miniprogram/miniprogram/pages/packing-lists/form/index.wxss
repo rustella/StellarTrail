@@ -1,0 +1,77 @@
+@import "../index.wxss";
+
+.form-card {
+  margin-top: 24rpx;
+  padding: 28rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.form-title {
+  color: var(--text-color);
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.form-subtitle {
+  margin-top: 10rpx;
+  color: var(--muted-color);
+  font-size: 25rpx;
+  line-height: 1.55;
+}
+
+.field {
+  margin-top: 28rpx;
+}
+
+.field-label {
+  color: var(--heading-muted-color);
+  font-size: 25rpx;
+  font-weight: 800;
+}
+
+.field-label.required::after {
+  margin-left: 6rpx;
+  color: #dc2626;
+  content: "*";
+}
+
+.field input {
+  height: 78rpx;
+  margin-top: 12rpx;
+  padding: 0 22rpx;
+  border: 1rpx solid var(--control-border);
+  border-radius: 20rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 27rpx;
+  box-sizing: border-box;
+}
+
+.form-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 18rpx;
+  margin-top: 24rpx;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.form-actions button {
+  margin: 0;
+  border-radius: 999rpx;
+  font-size: 27rpx;
+  font-weight: 800;
+  line-height: 82rpx;
+}
+
+.form-actions .secondary {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+}
+
+.form-actions .primary {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}

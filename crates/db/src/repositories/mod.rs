@@ -6,6 +6,7 @@ pub mod auth_repository;
 pub mod client_version_repository;
 pub mod feedback_repository;
 pub mod gear_atlas_repository;
+pub mod gear_packing_repository;
 pub mod gear_repository;
 pub mod gear_template_repository;
 pub mod knot_repository;
@@ -29,6 +30,9 @@ pub use feedback_repository::{
 pub use gear_atlas_repository::{
     GearAtlasExternalImportAction, GearAtlasExternalImportResult, GearAtlasRepository,
     ListGearAtlasAdminOptions, ListGearAtlasOptions,
+};
+pub use gear_packing_repository::{
+    AddGearPackingItemsResult, GearPackingRepository, ListGearPackingListsOptions,
 };
 pub use gear_repository::{GearRepository, ListGearOptions};
 pub use gear_template_repository::GearTemplateRepository;

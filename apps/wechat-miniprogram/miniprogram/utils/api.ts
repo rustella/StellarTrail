@@ -1,12 +1,14 @@
 import type {
   CreateGearRequest,
   CreateGearAtlasSubmissionRequest,
+  CreateGearPackingListRequest,
   GearCategoriesResponse,
   GearAtlasPublicItem,
   GearAtlasSubmission,
   GearCategory,
   GearItem,
   GearOverviewResponse,
+  GearPackingListDetail,
   GearSpecKeyRankingsResponse,
   GearStatsResponse,
   GearTagSuggestionsResponse,
@@ -15,8 +17,10 @@ import type {
   ListGearAtlasRequest,
   ListGearAtlasResponse,
   ListGearAtlasSubmissionsResponse,
+  ListGearPackingListsResponse,
   ListGearsRequest,
   ListGearsResponse,
+  UpdateGearPackingListRequest,
   UpdateGearRequest,
   WechatLoginResponse,
 } from "./gear-utils";
@@ -807,6 +811,95 @@ export async function listGears(
   return requestJson(`/api/v1/me/gears${queryString(request)}`, { auth: true });
 }
 
+export async function listGearPackingLists(
+  request: { limit?: number; cursor?: string } = {},
+): Promise<ListGearPackingListsResponse> {
+  return requestJson(`/api/v1/me/packing-lists${queryString(request)}`, {
+    auth: true,
+  });
+}
+
+export async function createGearPackingList(
+  request: CreateGearPackingListRequest,
+): Promise<GearPackingListDetail> {
+  return requestJson("/api/v1/me/packing-lists", {
+    method: "POST",
+    data: request,
+    auth: true,
+  });
+}
+
+export async function getGearPackingList(
+  id: string,
+): Promise<GearPackingListDetail> {
+  return requestJson(`/api/v1/me/packing-lists/${encodeURIComponent(id)}`, {
+    auth: true,
+  });
+}
+
+export async function updateGearPackingList(
+  id: string,
+  request: UpdateGearPackingListRequest,
+): Promise<GearPackingListDetail> {
+  return requestJson(`/api/v1/me/packing-lists/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    data: request,
+    auth: true,
+  });
+}
+
+export async function deleteGearPackingList(id: string): Promise<void> {
+  await requestJson<void>(
+    `/api/v1/me/packing-lists/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+      auth: true,
+    },
+  );
+}
+
+export async function addGearPackingItems(
+  id: string,
+  gearIds: string[],
+): Promise<GearPackingListDetail> {
+  return requestJson(
+    `/api/v1/me/packing-lists/${encodeURIComponent(id)}/items`,
+    {
+      method: "POST",
+      data: { gear_ids: gearIds },
+      auth: true,
+    },
+  );
+}
+
+export async function updateGearPackingItem(
+  id: string,
+  itemId: string,
+  packed: boolean,
+): Promise<GearPackingListDetail> {
+  return requestJson(
+    `/api/v1/me/packing-lists/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`,
+    {
+      method: "PATCH",
+      data: { packed },
+      auth: true,
+    },
+  );
+}
+
+export async function removeGearPackingItem(
+  id: string,
+  itemId: string,
+): Promise<GearPackingListDetail> {
+  return requestJson(
+    `/api/v1/me/packing-lists/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`,
+    {
+      method: "DELETE",
+      auth: true,
+    },
+  );
+}
+
 export async function getGear(id: string): Promise<GearItem> {
   return requestJson(`/api/v1/me/gears/${encodeURIComponent(id)}`, {
     auth: true,
@@ -1213,6 +1306,9 @@ function isUserCacheablePath(path: string): boolean {
     path === "/api/v1/me/gears" ||
     path.startsWith("/api/v1/me/gears?") ||
     path.startsWith("/api/v1/me/gears/") ||
+    path === "/api/v1/me/packing-lists" ||
+    path.startsWith("/api/v1/me/packing-lists?") ||
+    path.startsWith("/api/v1/me/packing-lists/") ||
     path === "/api/v1/me/gear-atlas-submissions" ||
     path.startsWith("/api/v1/me/gear-atlas-submissions?")
   );

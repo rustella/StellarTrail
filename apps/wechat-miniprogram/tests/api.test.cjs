@@ -935,6 +935,163 @@ test("getGearOverview calls the authenticated first-screen aggregate endpoint", 
   ]);
 });
 
+test("gear packing list API utilities call authenticated endpoints", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    const path = options.url.replace("https://api.example.test", "");
+    calls.push({
+      path,
+      method: options.method || "GET",
+      data: options.data,
+      authorization: options.header && options.header.authorization,
+    });
+    if (path === "/api/v1/me/packing-lists?limit=10") {
+      options.success({
+        statusCode: 200,
+        data: { items: [], next_cursor: null },
+      });
+      return;
+    }
+    if (path === "/api/v1/me/packing-lists" && options.method === "POST") {
+      options.success({
+        statusCode: 201,
+        data: {
+          id: "pack-1",
+          name: "武功山一日",
+          stats: { item_count: 0, packed_count: 0, total_weight_g: 0 },
+          items: [],
+          created_at: "2026-05-24T00:00:00Z",
+          updated_at: "2026-05-24T00:00:00Z",
+        },
+      });
+      return;
+    }
+    if (path === "/api/v1/me/packing-lists/pack-1") {
+      options.success({
+        statusCode: 200,
+        data: {
+          id: "pack-1",
+          name: "武功山一日",
+          stats: { item_count: 1, packed_count: 0, total_weight_g: 800 },
+          items: [],
+          created_at: "2026-05-24T00:00:00Z",
+          updated_at: "2026-05-24T00:00:00Z",
+        },
+      });
+      return;
+    }
+    if (path === "/api/v1/me/packing-lists/pack-1/items") {
+      options.success({
+        statusCode: 200,
+        data: {
+          id: "pack-1",
+          name: "武功山一日",
+          stats: { item_count: 1, packed_count: 0, total_weight_g: 800 },
+          items: [],
+          created_at: "2026-05-24T00:00:00Z",
+          updated_at: "2026-05-24T00:00:00Z",
+        },
+      });
+      return;
+    }
+    if (path === "/api/v1/me/packing-lists/pack-1/items/item-1") {
+      options.success({
+        statusCode: 200,
+        data: {
+          id: "pack-1",
+          name: "武功山一日",
+          stats: { item_count: 1, packed_count: 1, total_weight_g: 800 },
+          items: [],
+          created_at: "2026-05-24T00:00:00Z",
+          updated_at: "2026-05-24T00:00:00Z",
+        },
+      });
+      return;
+    }
+    options.success({ statusCode: 204, data: undefined });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_user", { id: "u-packing", nickname: "星" });
+  const {
+    addGearPackingItems,
+    createGearPackingList,
+    deleteGearPackingList,
+    getGearPackingList,
+    listGearPackingLists,
+    removeGearPackingItem,
+    updateGearPackingItem,
+  } = require("../.tmp-test/utils/api.js");
+
+  await listGearPackingLists({ limit: 10 });
+  await createGearPackingList({
+    name: "武功山一日",
+    route_name: "武功山",
+    duration_label: "一日",
+  });
+  await getGearPackingList("pack-1");
+  await addGearPackingItems("pack-1", ["gear-1"]);
+  await updateGearPackingItem("pack-1", "item-1", true);
+  await removeGearPackingItem("pack-1", "item-1");
+  await deleteGearPackingList("pack-1");
+
+  assert.deepEqual(
+    calls.map((call) => ({
+      path: call.path,
+      method: call.method,
+      data: call.data,
+      authorization: call.authorization,
+    })),
+    [
+      {
+        path: "/api/v1/me/packing-lists?limit=10",
+        method: "GET",
+        data: undefined,
+        authorization: "Bearer access-old",
+      },
+      {
+        path: "/api/v1/me/packing-lists",
+        method: "POST",
+        data: {
+          name: "武功山一日",
+          route_name: "武功山",
+          duration_label: "一日",
+        },
+        authorization: "Bearer access-old",
+      },
+      {
+        path: "/api/v1/me/packing-lists/pack-1",
+        method: "GET",
+        data: undefined,
+        authorization: "Bearer access-old",
+      },
+      {
+        path: "/api/v1/me/packing-lists/pack-1/items",
+        method: "POST",
+        data: { gear_ids: ["gear-1"] },
+        authorization: "Bearer access-old",
+      },
+      {
+        path: "/api/v1/me/packing-lists/pack-1/items/item-1",
+        method: "PATCH",
+        data: { packed: true },
+        authorization: "Bearer access-old",
+      },
+      {
+        path: "/api/v1/me/packing-lists/pack-1/items/item-1",
+        method: "DELETE",
+        data: undefined,
+        authorization: "Bearer access-old",
+      },
+      {
+        path: "/api/v1/me/packing-lists/pack-1",
+        method: "DELETE",
+        data: undefined,
+        authorization: "Bearer access-old",
+      },
+    ],
+  );
+});
+
 test("identical GET requests share one in-flight wx.request", async () => {
   let requestCount = 0;
   const storage = installWxMock((options) => {

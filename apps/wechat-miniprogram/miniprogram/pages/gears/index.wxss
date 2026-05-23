@@ -147,6 +147,26 @@
   font-weight: 900;
 }
 
+.packing-entry-card {
+  margin-top: 16rpx;
+}
+
+.packing-entry-icon {
+  color: var(--brand-soft-text);
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.packing-check {
+  display: grid;
+  width: 38rpx;
+  height: 38rpx;
+  place-items: center;
+  border: 3rpx solid var(--brand-soft-text);
+  border-radius: 50%;
+  line-height: 38rpx;
+}
+
 .tab-card,
 .search-card,
 .error-card,

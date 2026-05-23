@@ -481,6 +481,71 @@ export interface GearOverviewResponse {
   list: ListGearsResponse;
 }
 
+export interface GearPackingListStats {
+  item_count: number;
+  packed_count: number;
+  total_weight_g: number;
+}
+
+export interface GearPackingListSummary extends GearPackingListStats {
+  id: string;
+  name: string;
+  route_name?: string | null;
+  duration_label?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListGearPackingListsRequest {
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListGearPackingListsResponse {
+  items: GearPackingListSummary[];
+  next_cursor?: string | null;
+}
+
+export interface CreateGearPackingListRequest {
+  name: string;
+  route_name?: string | null;
+  duration_label?: string | null;
+}
+
+export type UpdateGearPackingListRequest = CreateGearPackingListRequest;
+
+export interface AddGearPackingItemsRequest {
+  gear_ids: string[];
+}
+
+export interface UpdateGearPackingItemRequest {
+  packed: boolean;
+}
+
+export type GearPackingUnavailableReason = "archived" | "deleted" | string;
+
+export interface GearPackingListItem {
+  id: string;
+  gear_id: string;
+  packed: boolean;
+  unavailable: boolean;
+  unavailable_reason?: GearPackingUnavailableReason | null;
+  gear: GearSummary;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GearPackingListDetail {
+  id: string;
+  name: string;
+  route_name?: string | null;
+  duration_label?: string | null;
+  stats: GearPackingListStats;
+  items: GearPackingListItem[];
+  created_at: string;
+  updated_at: string;
+}
+
 export type GearAtlasStatus = "pending" | "approved" | "rejected";
 
 export type GearAtlasSourceType = "manual" | "user_gear" | "external_import";
