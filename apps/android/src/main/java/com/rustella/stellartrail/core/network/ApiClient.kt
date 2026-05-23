@@ -304,7 +304,8 @@ internal const val HEALTH_PATH = "/healthz"
 
 private const val API_DOMAIN_HEALTH_TIMEOUT_MS = 3_000L
 
-private fun logNetworkWarning(message: String) {
+@PublishedApi
+internal fun logNetworkWarning(message: String) {
     runCatching { Log.w(NETWORK_LOG_TAG, message) }
 }
 
