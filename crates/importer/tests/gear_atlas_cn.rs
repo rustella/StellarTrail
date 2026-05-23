@@ -127,7 +127,7 @@ fn prefers_full_8264_title_when_mobile_namebox_is_truncated() {
     );
     assert_eq!(record.weight_g, Some(450));
     assert_eq!(record.variants[0].label, "120-140cm 携带长度40cm");
-    assert!(record.specs.get("size_or_length").is_none());
+    assert!(!record.specs.contains_key("size_or_length"));
     assert_eq!(
         record.specs.get("material").map(String::as_str),
         Some("铝合金")
@@ -211,7 +211,7 @@ fn parses_structured_8264_specs_into_supported_fields() {
             .collect::<Vec<_>>(),
         vec!["M 75*195", "L 80*205"]
     );
-    assert!(record.specs.get("size").is_none());
+    assert!(!record.specs.contains_key("size"));
     assert_eq!(
         record.specs.get("filling").map(String::as_str),
         Some("FP700+ 90% 白鹅绒")
