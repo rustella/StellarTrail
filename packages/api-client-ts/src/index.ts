@@ -11,6 +11,9 @@ import type {
   BindEmailResponse,
   CaptchaChallengeRequest,
   CaptchaChallengeResponse,
+  ClientKey,
+  ClientVersion,
+  ClientVersionRequest,
   ContentListResponse,
   CreateGearAtlasSubmissionRequest,
   CreateGearRequest,
@@ -43,6 +46,8 @@ import type {
   ListGearAtlasResponse,
   ListGearAtlasSubmissionsRequest,
   ListGearAtlasSubmissionsResponse,
+  ListClientVersionsRequest,
+  ListClientVersionsResponse,
   ListGearsRequest,
   ListGearsResponse,
   MetaResponse,
@@ -147,6 +152,21 @@ export class StellarTrailApiClient {
     return this.get("/meta");
   }
 
+  async getCurrentClientVersion(clientKey: ClientKey): Promise<ClientVersion> {
+    return this.get(
+      `/client-versions/current${queryString({ client_key: clientKey })}`,
+    );
+  }
+
+  async listClientVersions(
+    clientKey: ClientKey,
+    request: Pick<ListClientVersionsRequest, "limit" | "cursor"> = {},
+  ): Promise<ListClientVersionsResponse> {
+    return this.get(
+      `/client-versions${queryString({ ...request, client_key: clientKey })}`,
+    );
+  }
+
   async listSkills(locale?: SkillLocale): Promise<SkillCategoriesResponse> {
     return this.get("/skills", false, locale);
   }
@@ -198,6 +218,29 @@ export class StellarTrailApiClient {
     request: ListAdminFeedbackRequest = {},
   ): Promise<ListAdminFeedbackResponse> {
     return this.get(`/admin/feedback${queryString(request)}`, true);
+  }
+
+  async listAdminClientVersions(
+    request: ListClientVersionsRequest = {},
+  ): Promise<ListClientVersionsResponse> {
+    return this.get(`/admin/client-versions${queryString(request)}`, true);
+  }
+
+  async createAdminClientVersion(
+    request: ClientVersionRequest,
+  ): Promise<ClientVersion> {
+    return this.post("/admin/client-versions", request, true);
+  }
+
+  async updateAdminClientVersion(
+    id: string,
+    request: ClientVersionRequest,
+  ): Promise<ClientVersion> {
+    return this.patch(
+      `/admin/client-versions/${encodeURIComponent(id)}`,
+      request,
+      true,
+    );
   }
 
   async uploadKnotMedia(

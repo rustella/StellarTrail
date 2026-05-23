@@ -2,6 +2,7 @@
 
 pub mod admin_service;
 pub mod auth_service;
+pub mod client_version_service;
 pub mod feedback_service;
 pub mod gear_service;
 pub mod knot_media_upload_service;
