@@ -214,10 +214,10 @@ impl KnotRepository {
             .transpose()?
             .unwrap_or_default();
         let (title, summary) = match locale {
-            Locale::ZhCn => ("绳结", "户外、露营、钓鱼、航海等场景常用绳结技能。"),
+            Locale::ZhCn => ("绳结", "绳结结构与系法学习参考，适合离线查看和非承重练习。"),
             Locale::En => (
                 "Knots",
-                "Outdoor knots for camping, fishing, sailing, and field skills.",
+                "Knot structure and tying references for learning and non-load-bearing practice.",
             ),
         };
         Ok(vec![SkillCategorySummary {
@@ -569,7 +569,11 @@ async fn fetch_category_filter_option(
             return Ok(KnotFilterOption {
                 id: id.to_owned(),
                 slug: Some(row.try_get("", "slug")?),
-                title: row.try_get("", "title")?,
+                title: conservative_category_title(
+                    id,
+                    locale,
+                    &row.try_get::<String>("", "title")?,
+                ),
                 count: count.max(0) as u32,
             });
         }
@@ -650,7 +654,12 @@ async fn fetch_taxonomy(
                 items.push(KnotTaxonomyItem {
                     id: id.clone(),
                     slug: row.try_get("", "slug")?,
-                    title: row.try_get("", "title")?,
+                    title: taxonomy_title(
+                        localization_table,
+                        &id,
+                        locale,
+                        &row.try_get::<String>("", "title")?,
+                    ),
                 });
                 break;
             }
@@ -717,13 +726,48 @@ async fn fetch_all_taxonomy(
                     .push(KnotTaxonomyItem {
                         id: item_id.clone(),
                         slug: candidate.slug.clone(),
-                        title: candidate.title.clone(),
+                        title: taxonomy_title(
+                            localization_table,
+                            &item_id,
+                            locale,
+                            &candidate.title,
+                        ),
                     });
                 break;
             }
         }
     }
     Ok(grouped)
+}
+
+fn taxonomy_title(localization_table: &str, id: &str, locale: Locale, title: &str) -> String {
+    if localization_table == "knot_category_localizations" {
+        conservative_category_title(id, locale, title).to_owned()
+    } else {
+        title.to_owned()
+    }
+}
+
+fn conservative_category_title(id: &str, locale: Locale, fallback: &str) -> String {
+    match (locale, id) {
+        (Locale::ZhCn, "arborist-knots") => "树艺知识（仅供学习）".to_owned(),
+        (Locale::ZhCn, "boating-knots") => "船艇知识（仅供学习）".to_owned(),
+        (Locale::ZhCn, "caving-knots") => "探洞知识（仅供学习）".to_owned(),
+        (Locale::ZhCn, "climbing-knots") => "攀岩知识（仅供学习）".to_owned(),
+        (Locale::ZhCn, "diving-knots") => "潜水知识（仅供学习）".to_owned(),
+        (Locale::ZhCn, "fire-search-rescue-sar-knots") => "消防与救援知识（仅供学习）".to_owned(),
+        (Locale::ZhCn, "essential-knots") => "基础绳结".to_owned(),
+        (Locale::En, "arborist-knots") => "Arborist Knowledge (Learning Only)".to_owned(),
+        (Locale::En, "boating-knots") => "Boating Knowledge (Learning Only)".to_owned(),
+        (Locale::En, "caving-knots") => "Caving Knowledge (Learning Only)".to_owned(),
+        (Locale::En, "climbing-knots") => "Climbing Knowledge (Learning Only)".to_owned(),
+        (Locale::En, "diving-knots") => "Diving Knowledge (Learning Only)".to_owned(),
+        (Locale::En, "fire-search-rescue-sar-knots") => {
+            "Fire and Rescue Knowledge (Learning Only)".to_owned()
+        }
+        (Locale::En, "essential-knots") => "Basic Knots".to_owned(),
+        _ => fallback.to_owned(),
+    }
 }
 
 async fn fetch_media(db: &DatabaseConnection, knot_id: &str) -> Result<Vec<KnotMediaAsset>, DbErr> {

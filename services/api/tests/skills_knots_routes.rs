@@ -5,7 +5,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use sea_orm::{ConnectionTrait, Statement};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::time::Duration;
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
@@ -16,15 +16,20 @@ use stellartrail_api::{
     routes::build_router,
     state::AppState,
 };
-use stellartrail_db::{DatabaseConfig, connect_database, repositories::KnotRepository};
+use stellartrail_db::{
+    DatabaseConfig, connect_database,
+    repositories::{AuthRepository, KnotRepository, hash_token},
+};
 use stellartrail_domain::skill::{
     KnotCategorySeed, KnotLocalizationSeed, KnotMediaAssetSeed, KnotSeed, KnotTypeSeed, Locale,
 };
 use tempfile::TempDir;
+use time::{Duration as TimeDuration, OffsetDateTime};
 use tower::ServiceExt;
 
 struct TestApp {
     router: Router,
+    db: sea_orm::DatabaseConnection,
     _temp_dir: TempDir,
 }
 
@@ -282,7 +287,8 @@ async fn seeded_app_with_uploaded_media_cache(cache: Cache) -> TestApp {
     )
     .await;
     TestApp {
-        router: build_router(AppState::new_with_cache(config, db, cache)),
+        router: build_router(AppState::new_with_cache(config, db.clone(), cache)),
+        db,
         _temp_dir: temp_dir,
     }
 }
@@ -336,7 +342,8 @@ async fn seeded_app() -> TestApp {
         .await
         .expect("seed knots");
     TestApp {
-        router: build_router(AppState::new(config, db)),
+        router: build_router(AppState::new(config, db.clone())),
+        db,
         _temp_dir: temp_dir,
     }
 }
@@ -383,7 +390,8 @@ async fn seeded_filter_app() -> TestApp {
         .await
         .expect("seed knots");
     TestApp {
-        router: build_router(AppState::new(config, db)),
+        router: build_router(AppState::new(config, db.clone())),
+        db,
         _temp_dir: temp_dir,
     }
 }
@@ -403,6 +411,188 @@ async fn json_response(
         .to_bytes();
     let value = serde_json::from_slice::<Value>(&body).expect("json body");
     (status, headers, value)
+}
+
+async fn request_json(
+    app: &Router,
+    method: &str,
+    uri: &str,
+    token: Option<&str>,
+) -> (StatusCode, Value) {
+    let mut builder = Request::builder().method(method).uri(uri);
+    if let Some(token) = token {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let (status, _headers, body) = json_response(app, builder.body(Body::empty()).unwrap()).await;
+    (status, body)
+}
+
+async fn request_json_body(
+    app: &Router,
+    method: &str,
+    uri: &str,
+    token: Option<&str>,
+    body: Value,
+) -> (StatusCode, Value) {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json");
+    if let Some(token) = token {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let (status, _headers, body) = json_response(
+        app,
+        builder
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap(),
+    )
+    .await;
+    (status, body)
+}
+
+async fn create_test_session(app: &TestApp, username: &str) -> String {
+    let repository = AuthRepository::new(app.db.clone());
+    let user = repository
+        .create_password_user(
+            username,
+            &format!("{username}@example.test"),
+            "test-password-hash",
+        )
+        .await
+        .expect("create user");
+    let access_token = format!("access-token-{username}");
+    let refresh_token = format!("refresh-token-{username}");
+    repository
+        .create_session(
+            &user.id,
+            &hash_token(&access_token),
+            OffsetDateTime::now_utc() + TimeDuration::days(1),
+            &hash_token(&refresh_token),
+            OffsetDateTime::now_utc() + TimeDuration::days(30),
+        )
+        .await
+        .expect("create session");
+    access_token
+}
+
+#[tokio::test]
+async fn knot_disclaimer_requires_authenticated_user() {
+    let app = seeded_app().await;
+
+    let (status, body) = request_json(
+        &app.router,
+        "GET",
+        "/api/v1/me/skills/knots/disclaimer",
+        None,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["code"], "unauthorized");
+}
+
+#[tokio::test]
+async fn knot_disclaimer_can_be_accepted_and_read_back() {
+    let app = seeded_app().await;
+    let token = create_test_session(&app, "knot-disclaimer-user").await;
+
+    let (initial_status, initial_body) = request_json(
+        &app.router,
+        "GET",
+        "/api/v1/me/skills/knots/disclaimer",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(initial_status, StatusCode::OK, "{initial_body}");
+    assert_eq!(initial_body["key"], "knot_tutorial_disclaimer");
+    assert_eq!(initial_body["version"], "v1");
+    assert_eq!(initial_body["accepted"], false);
+    assert!(
+        initial_body["content"]
+            .as_str()
+            .unwrap()
+            .contains("仅用于一般绳结知识学习和非承重练习")
+    );
+    assert!(
+        initial_body["content"]
+            .as_str()
+            .unwrap()
+            .contains("法律另有规定或因本程序、开发者依法应承担责任的除外")
+    );
+    assert!(
+        !initial_body["content"]
+            .as_str()
+            .unwrap()
+            .contains("本程序及其开发者、运营者不承担责任")
+    );
+
+    let (accepted_status, accepted_body) = request_json_body(
+        &app.router,
+        "POST",
+        "/api/v1/me/skills/knots/disclaimer/acceptance",
+        Some(&token),
+        json!({
+            "client_platform": "wechat_miniprogram",
+            "client_version": "1.0.0",
+            "device_model": "iPhone 15"
+        }),
+    )
+    .await;
+    assert_eq!(accepted_status, StatusCode::OK, "{accepted_body}");
+    assert_eq!(accepted_body["accepted"], true);
+    assert!(accepted_body["accepted_at"].as_str().is_some());
+
+    let (read_status, read_body) = request_json(
+        &app.router,
+        "GET",
+        "/api/v1/me/skills/knots/disclaimer",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(read_status, StatusCode::OK, "{read_body}");
+    assert_eq!(read_body["accepted"], true);
+    assert_eq!(read_body["accepted_at"], accepted_body["accepted_at"]);
+}
+
+#[tokio::test]
+async fn knot_disclaimer_acceptance_is_idempotent_and_refreshes_client_metadata() {
+    let app = seeded_app().await;
+    let token = create_test_session(&app, "knot-disclaimer-repeat").await;
+
+    for version in ["1.0.0", "1.0.1"] {
+        let (status, body) = request_json_body(
+            &app.router,
+            "POST",
+            "/api/v1/me/skills/knots/disclaimer/acceptance",
+            Some(&token),
+            json!({
+                "client_platform": "wechat_miniprogram",
+                "client_version": version,
+                "device_model": "iPhone 15"
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["accepted"], true);
+    }
+
+    let row = app
+        .db
+        .query_one(Statement::from_string(
+            app.db.get_database_backend(),
+            "SELECT COUNT(*) AS count, MAX(client_version) AS client_version \
+             FROM user_disclaimer_acceptances \
+             WHERE disclaimer_key = 'knot_tutorial_disclaimer' AND version = 'v1'",
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.try_get::<i64>("", "count").unwrap(), 1);
+    assert_eq!(
+        row.try_get::<String>("", "client_version").unwrap(),
+        "1.0.1"
+    );
 }
 
 #[tokio::test]

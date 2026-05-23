@@ -364,6 +364,104 @@ async fn repository_lists_filter_options_and_filters_knots_by_category_and_query
 }
 
 #[tokio::test]
+async fn repository_uses_conservative_labels_for_high_risk_knot_categories() {
+    let config = DatabaseConfig::new(temp_db_url("safe-category-labels")).expect("db config");
+    let db = connect_database(&config).await.expect("connect");
+    Migrator::up(&db, None).await.expect("migrate");
+    let repo = KnotRepository::new(db.clone());
+    let mut risk_seed = seed();
+    risk_seed.categories = vec![
+        KnotCategorySeed {
+            id: "climbing-knots".to_owned(),
+            localizations: vec![
+                (
+                    Locale::En,
+                    "climbing-knots".to_owned(),
+                    "Climbing".to_owned(),
+                ),
+                (Locale::ZhCn, "pan-yan".to_owned(), "攀岩".to_owned()),
+            ],
+        },
+        KnotCategorySeed {
+            id: "fire-search-rescue-sar-knots".to_owned(),
+            localizations: vec![
+                (
+                    Locale::En,
+                    "fire-search-rescue-sar-knots".to_owned(),
+                    "Fire and Rescue".to_owned(),
+                ),
+                (
+                    Locale::ZhCn,
+                    "xiao-fang-yu-jiu-yuan".to_owned(),
+                    "消防与救援".to_owned(),
+                ),
+            ],
+        },
+        KnotCategorySeed {
+            id: "boating-knots".to_owned(),
+            localizations: vec![
+                (Locale::En, "boating-knots".to_owned(), "Boating".to_owned()),
+                (Locale::ZhCn, "chuan-ting".to_owned(), "船艇".to_owned()),
+            ],
+        },
+        KnotCategorySeed {
+            id: "essential-knots".to_owned(),
+            localizations: vec![
+                (
+                    Locale::En,
+                    "essential-knots".to_owned(),
+                    "Essential Knots".to_owned(),
+                ),
+                (
+                    Locale::ZhCn,
+                    "bi-bei-sheng-jie".to_owned(),
+                    "必备绳结".to_owned(),
+                ),
+            ],
+        },
+    ];
+    repo.replace_all_knots("unit-test", &[risk_seed])
+        .await
+        .expect("seed");
+
+    let detail = repo
+        .get_knot_detail("adjustable-grip-hitch-knot", Locale::ZhCn)
+        .await
+        .expect("query")
+        .expect("detail");
+    let labels = detail
+        .categories
+        .iter()
+        .map(|item| (item.id.as_str(), item.title.as_str()))
+        .collect::<Vec<_>>();
+    assert!(labels.contains(&("climbing-knots", "攀岩知识（仅供学习）")));
+    assert!(labels.contains(&("fire-search-rescue-sar-knots", "消防与救援知识（仅供学习）")));
+    assert!(labels.contains(&("boating-knots", "船艇知识（仅供学习）")));
+    assert!(labels.contains(&("essential-knots", "基础绳结")));
+    assert!(!labels.iter().any(|(_, title)| *title == "必备绳结"));
+
+    let filters = repo.list_knot_filters(Locale::ZhCn).await.expect("filters");
+    assert!(filters.categories.iter().any(|option| {
+        option.id == "fire-search-rescue-sar-knots" && option.title == "消防与救援知识（仅供学习）"
+    }));
+
+    let english = repo
+        .get_knot_detail("adjustable-grip-hitch-knot", Locale::En)
+        .await
+        .expect("query english")
+        .expect("english detail");
+    assert!(english.categories.iter().any(|item| {
+        item.id == "climbing-knots" && item.title == "Climbing Knowledge (Learning Only)"
+    }));
+    assert!(
+        english
+            .categories
+            .iter()
+            .any(|item| item.id == "essential-knots" && item.title == "Basic Knots")
+    );
+}
+
+#[tokio::test]
 async fn repository_ignores_legacy_knot_media_assets_when_no_media_resources_exist() {
     let config = DatabaseConfig::new(temp_db_url("legacy-media")).expect("db config");
     let db = connect_database(&config).await.expect("connect");

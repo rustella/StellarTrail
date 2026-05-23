@@ -4,6 +4,7 @@ import type {
   ApiUsageListRequest,
   ApiUsageListResponse,
   AppLocale,
+  AcceptKnotDisclaimerRequest,
   ListAdminFeedbackRequest,
   ListAdminFeedbackResponse,
   BindEmailCodeRequest,
@@ -41,6 +42,7 @@ import type {
   KnotMediaAssetId,
   KnotMediaUploadResponse,
   KnotOfflineManifestResponse,
+  KnotDisclaimerResponse,
   ListKnotsRequest,
   ListRoadmapRequest,
   ListRoadmapResponse,
@@ -205,6 +207,16 @@ export class StellarTrailApiClient {
     locale?: SkillLocale,
   ): Promise<KnotOfflineManifestResponse> {
     return this.get("/skills/knots/offline-manifest", false, locale);
+  }
+
+  async getKnotDisclaimer(): Promise<KnotDisclaimerResponse> {
+    return this.get("/me/skills/knots/disclaimer", true);
+  }
+
+  async acceptKnotDisclaimer(
+    request: AcceptKnotDisclaimerRequest = {},
+  ): Promise<KnotDisclaimerResponse> {
+    return this.post("/me/skills/knots/disclaimer/acceptance", request, true);
   }
 
   async listApiUsage(

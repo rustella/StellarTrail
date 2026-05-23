@@ -3,7 +3,9 @@
 use std::sync::Arc;
 
 use sea_orm::DatabaseConnection;
-use stellartrail_db::repositories::{GearTemplateRepository, KnotRepository};
+use stellartrail_db::repositories::{
+    DisclaimerAcceptanceRepository, GearTemplateRepository, KnotRepository,
+};
 
 use crate::{
     api_usage::ApiUsageReporter,
@@ -31,6 +33,7 @@ struct AppStateInner {
     cache: Cache,
     object_store: Arc<dyn ObjectStore>,
     email_sender: Arc<dyn EmailSender>,
+    disclaimer_acceptance_repository: DisclaimerAcceptanceRepository,
     knot_repository: KnotRepository,
     gear_template_repository: GearTemplateRepository,
     rate_limiter: InMemoryRateLimiter,
@@ -132,6 +135,7 @@ impl AppState {
         object_store: Arc<dyn ObjectStore>,
         email_sender: Arc<dyn EmailSender>,
     ) -> Self {
+        let disclaimer_acceptance_repository = DisclaimerAcceptanceRepository::new(db.clone());
         let knot_repository = KnotRepository::new(db.clone());
         let gear_template_repository = GearTemplateRepository::new(db.clone());
         let api_usage_reporter = ApiUsageReporter::new(db.clone());
@@ -143,6 +147,7 @@ impl AppState {
                 cache,
                 object_store,
                 email_sender,
+                disclaimer_acceptance_repository,
                 knot_repository,
                 gear_template_repository,
                 rate_limiter: InMemoryRateLimiter::default(),
@@ -180,6 +185,11 @@ impl AppState {
     /// Returns the transactional email sender.
     pub fn email_sender(&self) -> Arc<dyn EmailSender> {
         Arc::clone(&self.inner.email_sender)
+    }
+
+    /// Returns the DB-backed current-user disclaimer acceptance repository.
+    pub fn disclaimer_acceptance_repository(&self) -> &DisclaimerAcceptanceRepository {
+        &self.inner.disclaimer_acceptance_repository
     }
 
     /// Returns the DB-backed public knot repository.

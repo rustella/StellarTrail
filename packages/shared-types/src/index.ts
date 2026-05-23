@@ -221,6 +221,21 @@ export interface ListKnotsRequest {
   q?: string;
 }
 
+export interface KnotDisclaimerResponse {
+  key: string;
+  version: string;
+  title: string;
+  content: string;
+  accepted: boolean;
+  accepted_at?: string | null;
+}
+
+export interface AcceptKnotDisclaimerRequest {
+  client_platform?: string | null;
+  client_version?: string | null;
+  device_model?: string | null;
+}
+
 export type ApiUsageMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface ApiUsageListRequest {

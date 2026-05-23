@@ -862,6 +862,93 @@ test("authenticated requests refresh once on 401 and retry with the new access t
   assert.equal(storage.get("stellartrail_refresh_token"), "refresh-new");
 });
 
+test("knot disclaimer reads and writes authenticated acceptance", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      method: options.method,
+      authorization: options.header && options.header.authorization,
+      data: options.data,
+    });
+    if (options.url.endsWith("/api/v1/me/skills/knots/disclaimer")) {
+      options.success({
+        statusCode: 200,
+        data: {
+          key: "knot_tutorial_disclaimer",
+          version: "v1",
+          title: "绳结教程免责声明",
+          content: "仅供参考",
+          accepted: false,
+          accepted_at: null,
+        },
+      });
+      return;
+    }
+    if (
+      options.url.endsWith(
+        "/api/v1/me/skills/knots/disclaimer/acceptance",
+      )
+    ) {
+      options.success({
+        statusCode: 200,
+        data: {
+          key: "knot_tutorial_disclaimer",
+          version: "v1",
+          title: "绳结教程免责声明",
+          content: "仅供参考",
+          accepted: true,
+          accepted_at: "2026-05-24T00:00:00Z",
+        },
+      });
+      return;
+    }
+    options.success({ statusCode: 404, data: { message: "not found" } });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_user", { id: "u1" });
+  const {
+    acceptKnotDisclaimer,
+    getKnotDisclaimer,
+  } = require("../.tmp-test/utils/api.js");
+
+  const disclaimer = await getKnotDisclaimer();
+  const accepted = await acceptKnotDisclaimer({
+    client_platform: "wechat_miniprogram",
+    client_version: "dev",
+    device_model: "iPhone",
+  });
+
+  assert.equal(disclaimer.accepted, false);
+  assert.equal(accepted.accepted, true);
+  assert.deepEqual(
+    calls.map((call) => ({
+      path: call.url.replace("https://api.example.test", ""),
+      method: call.method,
+      authorization: call.authorization,
+      data: call.data,
+    })),
+    [
+      {
+        path: "/api/v1/me/skills/knots/disclaimer",
+        method: "GET",
+        authorization: "Bearer access-old",
+        data: undefined,
+      },
+      {
+        path: "/api/v1/me/skills/knots/disclaimer/acceptance",
+        method: "POST",
+        authorization: "Bearer access-old",
+        data: {
+          client_platform: "wechat_miniprogram",
+          client_version: "dev",
+          device_model: "iPhone",
+        },
+      },
+    ],
+  );
+});
+
 test("getGearSpecKeyRankings calls authenticated category endpoint", async () => {
   const calls = [];
   const storage = installWxMock((options) => {

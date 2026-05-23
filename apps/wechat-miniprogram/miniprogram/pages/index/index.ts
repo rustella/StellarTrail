@@ -1,6 +1,7 @@
 import { getGearStats } from "../../utils/api-gears";
 import {
   consumeOfflineCacheNotice,
+  getKnotDisclaimer,
   isOfflineCacheMissError,
   listKnots,
   resolveAssetUrl,
@@ -119,6 +120,7 @@ Page({
     gearError: "",
     skillLoading: false,
     skillError: "",
+    featuredSkillsGateChecked: false,
     offlineNotice: "",
     gearStatCards: INITIAL_LOGGED_IN
       ? buildGearStatCards(EMPTY_STATS)
@@ -157,7 +159,9 @@ Page({
       !options.force &&
       lastHomeDashboardLoginState === isLoggedIn &&
       now - lastHomeDashboardLoadedAt < HOME_SOFT_REFRESH_MS &&
-      (this.data.featuredSkills.length || this.data.skillError)
+      (this.data.featuredSkillsGateChecked ||
+        this.data.featuredSkills.length ||
+        this.data.skillError)
     ) {
       return;
     }
@@ -215,6 +219,20 @@ Page({
 
   async loadFeaturedSkills() {
     this.setData({ skillLoading: true, skillError: "" });
+    if (!hasAccessToken()) {
+      this.hideFeaturedSkills();
+      return;
+    }
+    try {
+      const disclaimer = await getKnotDisclaimer();
+      if (!disclaimer.accepted) {
+        this.hideFeaturedSkills();
+        return;
+      }
+    } catch {
+      this.hideFeaturedSkills();
+      return;
+    }
     try {
       const response = await listKnots({ offset: 0, limit: 3 });
       const featuredSkills = await Promise.all(
@@ -223,6 +241,7 @@ Page({
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         featuredSkills,
+        featuredSkillsGateChecked: true,
         skillLoading: false,
         ...(offlineNotice ? { offlineNotice } : {}),
       });
@@ -235,9 +254,19 @@ Page({
       this.setData({
         skillError: getErrorMessage(error),
         skillLoading: false,
+        featuredSkillsGateChecked: true,
         featuredSkills: [] as HomeSkillCard[],
       });
     }
+  },
+
+  hideFeaturedSkills() {
+    this.setData({
+      featuredSkills: [] as HomeSkillCard[],
+      featuredSkillsGateChecked: true,
+      skillLoading: false,
+      skillError: "",
+    });
   },
 
   showLoginForGearSummary() {
