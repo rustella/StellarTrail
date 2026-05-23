@@ -3,7 +3,7 @@ export interface WebClientConfig {
   assetsBaseUrl: string;
 }
 
-const DEFAULT_API_BASE_URL = "https://api.example.invalid";
+const DEFAULT_API_BASE_URL = "";
 const DEFAULT_ASSETS_BASE_URL = "https://assets.example.invalid";
 const LOCAL_DEV_API_BASE_URL = "";
 
