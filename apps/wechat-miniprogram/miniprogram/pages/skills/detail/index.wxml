@@ -64,8 +64,15 @@
       </view>
     </view>
 
+    <view class="safety-card">
+      <view class="section-title">安全提示</view>
+      <view class="paragraph"
+        >本内容仅供绳结知识学习和非承重练习，不得直接用于承载人体、攀登、救援、吊装、高空作业、航海安全等场景。实际使用前应接受专业训练，并由具备资质或充分经验的人员结合现场条件检查复核。</view
+      >
+    </view>
+
     <view wx:if="{{detail.description}}" class="info-card">
-      <view class="section-title">用途说明</view>
+      <view class="section-title">资料说明</view>
       <view class="paragraph">{{detail.description}}</view>
     </view>
   </block>

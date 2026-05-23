@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::validation::{
-    normalize_optional_text, normalize_required_text, FieldViolation, ValidationError,
+    FieldViolation, ValidationError, normalize_optional_text, normalize_required_text,
 };
 
 /// Writable packing-list metadata supplied by the current user.

@@ -14,6 +14,9 @@
     <button class="retry-button" bindtap="loadKnots">重试</button>
   </view>
 
+  <view wx:elif="{{checkingKnotDisclaimer}}" class="state-card"
+    >正在确认绳结免责声明...</view
+  >
 
   <block wx:else>
     <view wx:if="{{mode === 'catalog'}}" class="skill-category-list">
@@ -234,4 +237,33 @@
     </view>
   </view>
 
+  <view wx:if="{{knotDisclaimerVisible}}" class="disclaimer-mask">
+    <view class="disclaimer-card">
+      <view class="disclaimer-title">{{knotDisclaimerTitle}}</view>
+      <view class="disclaimer-version">版本 {{knotDisclaimerVersion}}</view>
+      <scroll-view scroll-y class="disclaimer-content">
+        <text>{{knotDisclaimerContent}}</text>
+      </scroll-view>
+      <view wx:if="{{knotDisclaimerError}}" class="disclaimer-error"
+        >{{knotDisclaimerError}}</view
+      >
+      <view class="disclaimer-actions">
+        <button
+          class="disclaimer-secondary"
+          disabled="{{acceptingKnotDisclaimer}}"
+          bindtap="rejectKnotDisclaimer"
+        >
+          拒绝并退出
+        </button>
+        <button
+          class="disclaimer-primary"
+          loading="{{acceptingKnotDisclaimer}}"
+          disabled="{{acceptingKnotDisclaimer}}"
+          bindtap="acceptKnotDisclaimer"
+        >
+          我已阅读并同意
+        </button>
+      </view>
+    </view>
+  </view>
 </view>

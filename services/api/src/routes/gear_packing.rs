@@ -1,10 +1,10 @@
 //! Gear packing-list routes for authenticated users preparing route-specific loadouts.
 
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     routing::get,
-    Json, Router,
 };
 use stellartrail_db::repositories::{GearPackingRepository, ListGearPackingListsOptions};
 use stellartrail_domain::{

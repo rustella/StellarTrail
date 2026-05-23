@@ -19,10 +19,6 @@ import {
 } from "../../utils/network-state";
 
 type LoginMode = "wechat" | "password" | "email" | "reset";
-const WECHAT_PROFILE_PROMPT_SEEN_KEY =
-  "stellartrail_wechat_profile_prompt_seen";
-const WECHAT_PROFILE_PROMPT_PENDING_KEY =
-  "stellartrail_wechat_profile_prompt_pending";
 
 Page({
   data: {
@@ -109,7 +105,6 @@ Page({
     this.setData({ loading: true, error: "", notice: "" });
     try {
       await loginWithWechat();
-      markWechatProfilePromptPending();
       this.afterLoginSuccess("/pages/index/index");
     } catch (error) {
       this.setData({ error: getErrorMessage(error) });
@@ -339,12 +334,6 @@ function buildUserDisplay(): string {
     return "未登录";
   }
   return user.nickname || user.username || user.email || "微信用户";
-}
-
-function markWechatProfilePromptPending(): void {
-  if (wx.getStorageSync(WECHAT_PROFILE_PROMPT_SEEN_KEY) !== true) {
-    wx.setStorageSync(WECHAT_PROFILE_PROMPT_PENDING_KEY, true);
-  }
 }
 
 function buildCodeNotice(): string {

@@ -1,12 +1,12 @@
 use std::time::Duration;
 
 use axum::{
-    body::{to_bytes, Body},
-    http::{header, HeaderMap, Request, StatusCode},
     Router,
+    body::{Body, to_bytes},
+    http::{HeaderMap, Request, StatusCode, header},
 };
 use sea_orm::{ConnectionTrait, Statement};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
     config::{ApiConfig, CorsConfig, RedisCacheConfig},
@@ -15,9 +15,8 @@ use stellartrail_api::{
     state::AppState,
 };
 use stellartrail_db::{
-    connect_database,
+    DatabaseConfig, connect_database,
     repositories::{AdminRoleRepository, GearAtlasRepository},
-    DatabaseConfig,
 };
 use stellartrail_domain::{
     gear::{GearCategory, GearSpecs},
@@ -702,10 +701,12 @@ async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user(
     .await;
     assert_eq!(ranking_status, StatusCode::OK, "{ranking}");
     assert_eq!(ranking["keys"][0], "battery_capacity");
-    assert!(ranking["keys"]
-        .as_array()
-        .unwrap()
-        .contains(&json!("output_power")));
+    assert!(
+        ranking["keys"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("output_power"))
+    );
     assert!(
         !ranking["keys"]
             .as_array()
@@ -744,10 +745,12 @@ async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user(
     .await;
     assert_eq!(updated_ranking_status, StatusCode::OK, "{updated_ranking}",);
     assert_eq!(updated_ranking["keys"][0], "battery_capacity");
-    assert!(updated_ranking["keys"]
-        .as_array()
-        .unwrap()
-        .contains(&json!("rated_energy")));
+    assert!(
+        updated_ranking["keys"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("rated_energy"))
+    );
 
     let other_token = login(&app.router, "spec-rank-other-user").await;
     let (other_status, other_ranking) = send_empty(
@@ -900,11 +903,13 @@ async fn tag_color_validation_and_disabled_cache_degrade_cleanly() {
         "{invalid}"
     );
     assert_eq!(invalid["code"], "validation_failed");
-    assert!(invalid["fields"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|field| field["field"] == "tag_colors.冬季"));
+    assert!(
+        invalid["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "tag_colors.冬季")
+    );
 
     let (create_status, created) = send_json(
         &app.router,
@@ -977,11 +982,13 @@ async fn backpack_specs_keep_back_length_and_reject_size_specs() {
         StatusCode::UNPROCESSABLE_ENTITY,
         "{old_backpack}"
     );
-    assert!(old_backpack["fields"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|field| field["field"] == "specs.backpack_size"));
+    assert!(
+        old_backpack["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "specs.backpack_size")
+    );
 }
 
 #[tokio::test]
@@ -1480,11 +1487,13 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
         StatusCode::UNPROCESSABLE_ENTITY,
         "{invalid}"
     );
-    assert!(invalid["fields"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|field| field["field"] == "specs.battery_capacity"));
+    assert!(
+        invalid["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "specs.battery_capacity")
+    );
     let (invalid_size_status, invalid_size) = send_json(
         &app.router,
         "POST",
@@ -1502,11 +1511,13 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
         StatusCode::UNPROCESSABLE_ENTITY,
         "{invalid_size}"
     );
-    assert!(invalid_size["fields"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|field| field["field"] == "specs.size"));
+    assert!(
+        invalid_size["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "specs.size")
+    );
 
     let (create_status, created) = send_json(
         &app.router,
@@ -1676,11 +1687,13 @@ async fn gear_atlas_admin_edits_are_reported_to_submitter_after_approval() {
     )
     .await;
     assert_eq!(mine_status, StatusCode::OK, "{mine}");
-    assert!(mine["items"][0]["review_changes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|change| change["field"] == "name"));
+    assert!(
+        mine["items"][0]["review_changes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|change| change["field"] == "name")
+    );
 
     let (public_status, public) = send_empty(&app.router, "GET", "/api/v1/gear-atlas", None).await;
     assert_eq!(public_status, StatusCode::OK, "{public}");
@@ -1794,21 +1807,27 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
         "{invalid}"
     );
     assert_eq!(invalid["code"], "validation_failed");
-    assert!(invalid["fields"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|field| field["field"] == "purchase_price_cents"));
-    assert!(invalid["fields"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|field| field["field"] == "purchase_price_currency"));
-    assert!(invalid["fields"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|field| field["field"] == "specs.opening_style"));
+    assert!(
+        invalid["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "purchase_price_cents")
+    );
+    assert!(
+        invalid["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "purchase_price_currency")
+    );
+    assert!(
+        invalid["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field["field"] == "specs.opening_style")
+    );
 
     let (update_status, updated) = send_json(
         &app.router,

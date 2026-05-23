@@ -134,69 +134,6 @@
     </block>
   </view>
 
-  <view wx:if="{{wechatProfilePromptVisible}}" class="login-prompt-mask">
-    <view class="login-prompt-card profile-import-card">
-      <view class="login-prompt-close" bindtap="skipWechatProfileImport"
-        >×</view
-      >
-      <view class="login-prompt-title">导入微信资料</view>
-      <view class="login-prompt-message"
-        >可以导入微信头像和昵称，跳过也不会影响使用。</view
-      >
-      <view wx:if="{{wechatProfileError}}" class="profile-import-error"
-        >{{wechatProfileError}}</view
-      >
-      <view class="profile-import-form">
-        <button
-          class="profile-avatar-button"
-          open-type="chooseAvatar"
-          bindchooseavatar="onChooseWechatAvatar"
-        >
-          <image
-            wx:if="{{wechatAvatarPath}}"
-            class="profile-avatar-preview"
-            src="{{wechatAvatarPath}}"
-            mode="aspectFill"
-            lazy-load
-          />
-          <view wx:else class="profile-avatar-placeholder">头像</view>
-        </button>
-        <input
-          class="profile-nickname-input"
-          type="nickname"
-          placeholder="微信昵称"
-          value="{{wechatNickname}}"
-          bindinput="onWechatNicknameInput"
-        />
-      </view>
-      <view class="login-prompt-actions">
-        <button
-          class="secondary"
-          loading="{{wechatProfileLoading}}"
-          bindtap="skipWechatProfileImport"
-        >
-          跳过
-        </button>
-        <button
-          wx:if="{{wechatProfilePromptCanRetry}}"
-          class="primary"
-          loading="{{wechatProfileLoading}}"
-          bindtap="retryWechatAvatarUpload"
-        >
-          重试保存
-        </button>
-        <button
-          wx:else
-          class="primary"
-          loading="{{wechatProfileLoading}}"
-          bindtap="importWechatProfile"
-        >
-          导入资料
-        </button>
-      </view>
-    </view>
-  </view>
-
   <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
     <view class="login-prompt-card">
       <view class="login-prompt-close" bindtap="loginPromptClose">×</view>

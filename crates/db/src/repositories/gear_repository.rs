@@ -8,8 +8,8 @@ use super::statement;
 use stellartrail_domain::{
     deletion::DeletedFilter,
     gear::{
-        now_rfc3339, GearCategory, GearCategoryCount, GearDraft, GearItem, GearShareStatus,
-        GearSort, GearSpecs, GearStats, GearStatus, GearStatusCount, GearTab,
+        GearCategory, GearCategoryCount, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs,
+        GearStats, GearStatus, GearStatusCount, GearTab, now_rfc3339,
     },
 };
 use uuid::Uuid;
@@ -1014,10 +1014,12 @@ mod tests {
         assert_eq!(second.id, first.id);
         assert_eq!(second.quantity, 3);
         assert_eq!(second.tags, vec!["电子", "备用"]);
-        assert!(second
-            .notes
-            .as_deref()
-            .is_some_and(|notes| notes.contains("天猫")));
+        assert!(
+            second
+                .notes
+                .as_deref()
+                .is_some_and(|notes| notes.contains("天猫"))
+        );
         let (items, _) = repo
             .list(user_id, &ListGearOptions::default())
             .await

@@ -318,6 +318,8 @@ GET /api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&q=wind
 GET /api/v1/skills/knots/filters
 GET /api/v1/skills/knots/offline-manifest
 GET /api/v1/skills/knots/detail/:id
+GET /api/v1/me/skills/knots/disclaimer
+POST /api/v1/me/skills/knots/disclaimer/acceptance
 GET /api/v1/gear-templates
 GET /api/v1/gear-templates/:id
 GET /api/v1/gear-atlas?category=lighting_system&q=headlamp&sort=name_asc&limit=20&cursor=0
@@ -345,6 +347,10 @@ X-StellarTrail-Locale: en
 核心媒体 `asset_id` / `media_type`：`thumbnail`、`preview`、`draw_gif`、`turntable_gif`、`draw_mp4`、`turntable_mp4`。Knots3D 全量一期验收目标为 `225 knots × 6 core media = 1350`。
 
 绳结分页参数为 `offset`/`limit`，筛选参数为 `category`，关键词为 `q`；响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`，也不再接受 `difficulty`。`/api/v1/skills/knots/filters` 返回当前语言下可选用途及数量。`/api/v1/skills/knots/offline-manifest` 不接受 query 参数，返回完整离线清单、`item_count`、去重后的 `media_count` 和 `estimated_bytes`，并复用 public response cache 与 `ETag`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
+
+微信端进入绳结列表和首页展示绳结精选前，必须用登录态确认当前账号已同意绳结教程免责声明。`GET /api/v1/me/skills/knots/disclaimer` 返回当前声明 `key`、`version`、`title`、`content`、`accepted` 和 `accepted_at`；`POST /api/v1/me/skills/knots/disclaimer/acceptance` 接受可选的 `client_platform`、`client_version`、`device_model`，幂等写入 `user_disclaimer_acceptances` 留档。同一账号同一声明版本只保存一条记录；声明版本升级后需要重新同意。当前 `v1` 声明按“个人兴趣免费整理、仅供学习和非承重练习、不得直接用于承载人体/攀登/救援/吊装/高空/航海安全等场景、法定责任除外”的保守口径提供；微信端绳结详情页也必须在来源说明前展示同一安全边界提示。
+
+公开绳结分类的 `id` 和 `slug` 保持 Knots3D 导入值不变，但高风险分类标题在 API 返回层使用保守展示名，例如 `climbing-knots` 显示为“攀岩知识（仅供学习）”、`fire-search-rescue-sar-knots` 显示为“消防与救援知识（仅供学习）”、`boating-knots` 显示为“船艇知识（仅供学习）”、`caving-knots` 显示为“探洞知识（仅供学习）”，`essential-knots` 显示为“基础绳结”。上线前可用 `npm run knots:audit-risk-copy -- --url https://api.example.invalid/api/v1/skills/knots/offline-manifest` 只读扫描公开绳结文案；加 `--fail-on-critical` 可在命中“救命”“救援安全带”“承载人体”“吊装”“系在攀岩安全带”等强适用文案时返回非零状态。
 
 登录用户可以通过 `/api/v1/me/skills/favorites` 管理收藏技能。第一期只支持绳结：`GET /api/v1/me/skills/favorites?skill_category=all|knots&offset=0&limit=20` 返回收藏清单和筛选计数，`GET /api/v1/me/skills/favorites/knots/:id` 返回单个绳结收藏状态，`PUT /api/v1/me/skills/favorites/knots/:id` 幂等收藏，`DELETE /api/v1/me/skills/favorites/knots/:id` 幂等软删除收藏记录并保留数据库行。公开绳结列表、详情和离线清单不包含 `is_favorited`，避免 public cache 混入用户态。
 

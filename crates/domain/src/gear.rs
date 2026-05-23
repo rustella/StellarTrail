@@ -3,10 +3,10 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use time::{format_description::well_known::Iso8601, Date, OffsetDateTime};
+use time::{Date, OffsetDateTime, format_description::well_known::Iso8601};
 
 use crate::validation::{
-    normalize_optional_text, normalize_required_text, FieldViolation, ValidationError,
+    FieldViolation, ValidationError, normalize_optional_text, normalize_required_text,
 };
 
 /// Stable enum boundary for `GearCategory`, exposed by or reused within this module.
