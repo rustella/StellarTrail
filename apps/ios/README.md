@@ -48,5 +48,6 @@ The iOS client defaults to the production endpoints:
 
 - API base URL: `https://api.example.invalid`
 - Image asset / CORS asset origin: `https://assets.example.invalid`
+- Production builds probe `api.example.invalid`, `api-alt1.example.invalid`, then `api-alt2.example.invalid` via `/healthz` before the first API request. The first healthy domain family is used for both API and asset URLs; local debug endpoints skip this probing.
 
 Copy `StellarTrail/Resources/ClientConfig.example.plist` to the Git-ignored `StellarTrail/Resources/ClientConfig.plist` when a build needs different endpoints. Users can still change the local connection address from the Profile page in debug builds.

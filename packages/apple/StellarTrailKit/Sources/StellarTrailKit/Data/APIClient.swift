@@ -2,6 +2,7 @@ import Foundation
 
 private let apiPrefix = "/api/v1"
 private let healthPath = "/healthz"
+private let domainHealthTimeout: TimeInterval = 3
 
 enum HTTPMethod: String {
     case get = "GET"
@@ -47,6 +48,9 @@ final class APIClient {
     private let settingsStore: AppSettingsStore
     private let sessionStore: SessionStore
     private let session: URLSession
+    private var selectedDomainConfig: ClientConfig?
+    private var domainProbeCompletedForBaseURLString: String?
+    private var domainProbeTask: Task<ClientConfig, Never>?
 
     init(settingsStore: AppSettingsStore, sessionStore: SessionStore, session: URLSession = .shared) {
         self.settingsStore = settingsStore
@@ -82,7 +86,7 @@ final class APIClient {
 
     private func uploadAvatarData(data: Data, fileName: String, mimeType: String, retryOnUnauthorized: Bool) async throws -> Data {
         let boundary = "Boundary-\(UUID().uuidString)"
-        let url = try buildURL(path: "/me/profile/avatar", queryItems: [])
+        let url = try await buildURL(path: "/me/profile/avatar", queryItems: [])
         var request = URLRequest(url: url)
         request.httpMethod = HTTPMethod.put.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -98,7 +102,7 @@ final class APIClient {
     }
 
     private func perform(_ request: APIRequest, requiresAuth: Bool, retryOnUnauthorized: Bool) async throws -> Data {
-        let urlRequest = try buildURLRequest(from: request, requiresAuth: requiresAuth)
+        let urlRequest = try await buildURLRequest(from: request, requiresAuth: requiresAuth)
         return try await performURLRequest(urlRequest, requiresAuth: requiresAuth, retryOnUnauthorized: retryOnUnauthorized) {
             try await self.perform(request, requiresAuth: requiresAuth, retryOnUnauthorized: false)
         }
@@ -123,8 +127,8 @@ final class APIClient {
         }
     }
 
-    private func buildURLRequest(from request: APIRequest, requiresAuth: Bool) throws -> URLRequest {
-        let url = try buildURL(path: request.path, queryItems: request.queryItems)
+    private func buildURLRequest(from request: APIRequest, requiresAuth: Bool) async throws -> URLRequest {
+        let url = try await buildURL(path: request.path, queryItems: request.queryItems)
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method.rawValue
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -142,9 +146,9 @@ final class APIClient {
 
     func resolveAssetURL(_ pathOrURL: String) -> URL? {
         if let absoluteURL = URL(string: pathOrURL), absoluteURL.scheme == "http" || absoluteURL.scheme == "https" {
-            return absoluteURL
+            return normalizedKnownAssetURL(absoluteURL)
         }
-        guard var components = URLComponents(url: settingsStore.assetsBaseURL, resolvingAgainstBaseURL: false) else {
+        guard var components = URLComponents(url: activeAssetsBaseURL, resolvingAgainstBaseURL: false) else {
             return nil
         }
         let basePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -153,8 +157,15 @@ final class APIClient {
         return components.url
     }
 
-    private func buildURL(path: String, queryItems: [URLQueryItem]) throws -> URL {
-        guard var components = URLComponents(url: settingsStore.baseURL, resolvingAgainstBaseURL: false) else {
+    private func buildURL(path: String, queryItems: [URLQueryItem]) async throws -> URL {
+        if path != healthPath {
+            await ensureProductionDomainSelected()
+        }
+        return try buildURL(baseURL: activeBaseURL, path: path, queryItems: queryItems)
+    }
+
+    private func buildURL(baseURL: URL, path: String, queryItems: [URLQueryItem]) throws -> URL {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw AppError.invalidURL
         }
         let basePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -163,6 +174,96 @@ final class APIClient {
         components.queryItems = queryItems.isEmpty ? nil : queryItems
         guard let url = components.url else { throw AppError.invalidURL }
         return url
+    }
+
+    private var activeBaseURL: URL {
+        let current = settingsStore.baseURLString
+        if domainProbeCompletedForBaseURLString == current,
+           let selected = selectedDomainConfig,
+           let url = URL(string: selected.apiBaseURLString) {
+            return url
+        }
+        return settingsStore.baseURL
+    }
+
+    private var activeAssetsBaseURL: URL {
+        let current = settingsStore.baseURLString
+        if domainProbeCompletedForBaseURLString == current,
+           let selected = selectedDomainConfig,
+           let url = URL(string: selected.assetsBaseURLString) {
+            return url
+        }
+        return settingsStore.assetsBaseURL
+    }
+
+    private func ensureProductionDomainSelected() async {
+        let currentBaseURLString = ClientConfig.sanitizeAPIBaseURL(
+            settingsStore.baseURLString,
+            fallback: ClientConfig.production.apiBaseURLString
+        )
+        guard shouldProbeProductionDomains(currentBaseURLString) else {
+            selectedDomainConfig = nil
+            domainProbeCompletedForBaseURLString = settingsStore.baseURLString
+            domainProbeTask = nil
+            return
+        }
+        if domainProbeCompletedForBaseURLString == settingsStore.baseURLString { return }
+        let task: Task<ClientConfig, Never>
+        if let existingTask = domainProbeTask {
+            task = existingTask
+        } else {
+            let session = session
+            task = Task {
+                await Self.probeProductionDomains(session: session)
+            }
+            domainProbeTask = task
+        }
+        let selected = await task.value
+        if shouldProbeProductionDomains(settingsStore.baseURLString) {
+            selectedDomainConfig = selected
+            domainProbeCompletedForBaseURLString = settingsStore.baseURLString
+        }
+        domainProbeTask = nil
+    }
+
+    nonisolated private static func probeProductionDomains(session: URLSession) async -> ClientConfig {
+        for candidate in ClientConfig.productionDomainCandidates {
+            if await probeHealthz(apiBaseURLString: candidate.apiBaseURLString, session: session) {
+                return candidate
+            }
+        }
+        return ClientConfig.productionDomainCandidates[0]
+    }
+
+    nonisolated private static func probeHealthz(apiBaseURLString: String, session: URLSession) async -> Bool {
+        guard let url = URL(string: apiBaseURLString + healthPath) else { return false }
+        var request = URLRequest(url: url)
+        request.httpMethod = HTTPMethod.get.rawValue
+        request.timeoutInterval = domainHealthTimeout
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        do {
+            let (_, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return false }
+            return (200..<300).contains(http.statusCode)
+        } catch {
+            return false
+        }
+    }
+
+    private func shouldProbeProductionDomains(_ apiBaseURLString: String) -> Bool {
+        ClientConfig.productionDomainCandidates.contains { $0.apiBaseURLString == ClientConfig.sanitizeAPIBaseURL(apiBaseURLString, fallback: ClientConfig.production.apiBaseURLString) }
+    }
+
+    private func normalizedKnownAssetURL(_ url: URL) -> URL {
+        guard let host = url.host?.lowercased(),
+              ClientConfig.knownAssetsHosts.contains(host),
+              var components = URLComponents(url: activeAssetsBaseURL, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+        components.path = url.path
+        components.query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.query
+        components.fragment = URLComponents(url: url, resolvingAgainstBaseURL: false)?.fragment
+        return components.url ?? url
     }
 
     private func refreshSession() async throws {

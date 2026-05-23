@@ -9,6 +9,27 @@ struct ClientConfig: Equatable {
         assetsBaseURLString: "https://assets.example.invalid"
     )
 
+    static let productionDomainCandidates = [
+        ClientConfig(
+            apiBaseURLString: "https://api.example.invalid",
+            assetsBaseURLString: "https://assets.example.invalid"
+        ),
+        ClientConfig(
+            apiBaseURLString: "https://api-alt1.example.invalid",
+            assetsBaseURLString: "https://assets-alt1.example.invalid"
+        ),
+        ClientConfig(
+            apiBaseURLString: "https://api-alt2.example.invalid",
+            assetsBaseURLString: "https://assets-alt2.example.invalid"
+        )
+    ]
+
+    static let knownAssetsHosts = Set(
+        productionDomainCandidates.compactMap {
+            URL(string: $0.assetsBaseURLString)?.host?.lowercased()
+        }
+    )
+
     private static let legacyMisspelledAPIBaseURLString = "https://api.example.invalid"
 
     static func load(from bundle: Bundle = .main) -> ClientConfig {

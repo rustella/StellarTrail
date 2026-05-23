@@ -6,6 +6,7 @@ import Foundation
 final class APIClientTests: XCTestCase {
     override func tearDown() {
         MockURLProtocol.requestHandler = nil
+        MockURLProtocol.automaticallyRespondsToHealthChecks = true
         super.tearDown()
     }
 
@@ -21,6 +22,96 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(client.resolveAssetURL("knots/bowline.png")?.absoluteString, "https://assets.example.invalid/knots/bowline.png")
         XCTAssertEqual(client.resolveAssetURL("/knots/bowline.png")?.absoluteString, "https://assets.example.invalid/knots/bowline.png")
         XCTAssertEqual(client.resolveAssetURL("https://cdn.example.invalid/knots/bowline.png")?.absoluteString, "https://cdn.example.invalid/knots/bowline.png")
+        XCTAssertEqual(client.resolveAssetURL("https://assets-alt2.example.invalid/knots/bowline.png")?.absoluteString, "https://assets.example.invalid/knots/bowline.png")
+    }
+
+    func testProductionDomainProbeKeepsFirstHealthyDomainFamily() async throws {
+        MockURLProtocol.automaticallyRespondsToHealthChecks = false
+        let settings = AppSettingsStore(defaults: .testSuite())
+        let sessionStore = SessionStore(keychainStore: InMemoryKeychainStore())
+        let client = APIClient(settingsStore: settings, sessionStore: sessionStore, session: .mocked)
+        var seenRequests: [String] = []
+
+        MockURLProtocol.requestHandler = { request in
+            let url = try XCTUnwrap(request.url)
+            seenRequests.append("\(urlHost(url) ?? "")\(url.path)")
+            switch (urlHost(url), url.path) {
+            case ("api.example.invalid", "/healthz"):
+                return jsonResponse(url: url, #"{"status":"ok"}"#)
+            case ("api.example.invalid", "/api/v1/gear-templates"):
+                return jsonResponse(url: url, #"{"items":[]}"#)
+            default:
+                XCTFail("Unexpected request: \(url.absoluteString)")
+                return jsonResponse(url: url, #"{}"#, statusCode: 500)
+            }
+        }
+
+        let _: GearTemplatesResponse = try await client.send(.get("/gear-templates"), requiresAuth: false)
+
+        XCTAssertEqual(seenRequests, [
+            "api.example.invalid/healthz",
+            "api.example.invalid/api/v1/gear-templates"
+        ])
+        XCTAssertEqual(
+            client.resolveAssetURL("https://assets-alt2.example.invalid/stellartrail-knots-media/knot.webp")?.absoluteString,
+            "https://assets.example.invalid/stellartrail-knots-media/knot.webp"
+        )
+    }
+
+    func testProductionDomainProbeFallsThroughToSecondHealthyDomainFamily() async throws {
+        MockURLProtocol.automaticallyRespondsToHealthChecks = false
+        let settings = AppSettingsStore(defaults: .testSuite())
+        let sessionStore = SessionStore(keychainStore: InMemoryKeychainStore())
+        let client = APIClient(settingsStore: settings, sessionStore: sessionStore, session: .mocked)
+        var seenRequests: [String] = []
+
+        MockURLProtocol.requestHandler = { request in
+            let url = try XCTUnwrap(request.url)
+            seenRequests.append("\(urlHost(url) ?? "")\(url.path)")
+            switch (urlHost(url), url.path) {
+            case ("api.example.invalid", "/healthz"):
+                return jsonResponse(url: url, #"{"status":"down"}"#, statusCode: 503)
+            case ("api-alt1.example.invalid", "/healthz"):
+                return jsonResponse(url: url, #"{"status":"ok"}"#)
+            case ("api-alt1.example.invalid", "/api/v1/gear-templates"):
+                return jsonResponse(url: url, #"{"items":[]}"#)
+            default:
+                XCTFail("Unexpected request: \(url.absoluteString)")
+                return jsonResponse(url: url, #"{}"#, statusCode: 500)
+            }
+        }
+
+        let _: GearTemplatesResponse = try await client.send(.get("/gear-templates"), requiresAuth: false)
+
+        XCTAssertEqual(seenRequests, [
+            "api.example.invalid/healthz",
+            "api-alt1.example.invalid/healthz",
+            "api-alt1.example.invalid/api/v1/gear-templates"
+        ])
+        XCTAssertEqual(
+            client.resolveAssetURL("https://assets.example.invalid/stellartrail-knots-media/knot.webp")?.absoluteString,
+            "https://assets-alt1.example.invalid/stellartrail-knots-media/knot.webp"
+        )
+    }
+
+    func testCustomNonProductionBaseURLSkipsProductionDomainProbe() async throws {
+        MockURLProtocol.automaticallyRespondsToHealthChecks = false
+        let defaults = UserDefaults.testSuite()
+        defaults.set("http://10.0.2.2:8080", forKey: "stellartrail.baseURLString")
+        let settings = AppSettingsStore(defaults: defaults)
+        let sessionStore = SessionStore(keychainStore: InMemoryKeychainStore())
+        let client = APIClient(settingsStore: settings, sessionStore: sessionStore, session: .mocked)
+        var seenRequests: [String] = []
+
+        MockURLProtocol.requestHandler = { request in
+            let url = try XCTUnwrap(request.url)
+            seenRequests.append("\(urlHost(url) ?? "")\(url.path)")
+            return jsonResponse(url: url, #"{"items":[]}"#)
+        }
+
+        let _: GearTemplatesResponse = try await client.send(.get("/gear-templates"), requiresAuth: false)
+
+        XCTAssertEqual(seenRequests, ["10.0.2.2/api/v1/gear-templates"])
     }
 
     func testPublicRequestDoesNotAttachAuthorizationHeader() async throws {
@@ -415,11 +506,20 @@ private extension URLSession {
 
 private final class MockURLProtocol: URLProtocol {
     static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    static var automaticallyRespondsToHealthChecks = true
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        if Self.automaticallyRespondsToHealthChecks,
+           request.url?.path == "/healthz",
+           let url = request.url {
+            client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data(#"{"status":"ok"}"#.utf8))
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
         guard let handler = Self.requestHandler else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return
