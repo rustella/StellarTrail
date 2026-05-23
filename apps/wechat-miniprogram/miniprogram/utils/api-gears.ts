@@ -6,6 +6,7 @@ export {
   getErrorMessage,
   getGear,
   getGearOverview,
+  getGearStats,
   getGearSpecKeyRankings,
   getGearTagSuggestions,
   hasAccessToken,

@@ -245,7 +245,6 @@
   line-height: 1.35;
 }
 
-.recent-list,
 .skill-list {
   display: flex;
   flex-direction: column;
@@ -298,28 +297,12 @@
   opacity: 0.82;
 }
 
-.recent-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-  padding: 22rpx;
-  border-radius: var(--card-inner-radius);
-  background: var(--control-bg);
-}
-
-.recent-name,
 .skill-title,
 .check-title {
   color: var(--text-color);
   font-weight: 900;
 }
 
-.recent-name {
-  font-size: 27rpx;
-}
-
-.recent-meta,
 .skill-summary,
 .check-desc,
 .empty-inline,
@@ -327,20 +310,6 @@
   color: var(--muted-color);
   font-size: 24rpx;
   line-height: 1.5;
-}
-
-.recent-meta {
-  margin-top: 6rpx;
-}
-
-.recent-weight {
-  flex: 0 0 auto;
-  padding: 10rpx 16rpx;
-  border-radius: 999rpx;
-  color: var(--brand-soft-text);
-  background: var(--brand-soft-bg);
-  font-size: 22rpx;
-  font-weight: 900;
 }
 
 .empty-inline,

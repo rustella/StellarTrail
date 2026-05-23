@@ -1,4 +1,4 @@
-import { getGearOverview } from "../../utils/api-gears";
+import { getGearStats } from "../../utils/api-gears";
 import {
   consumeOfflineCacheNotice,
   isOfflineCacheMissError,
@@ -16,7 +16,6 @@ import {
   formatGearPrice,
   formatGearWeight,
   type GearStatsResponse,
-  type GearSummary,
 } from "../../utils/gear-display";
 import {
   mapSkillCard,
@@ -37,13 +36,6 @@ interface HomeStatCard {
   label: string;
   value: string;
   hint: string;
-}
-
-interface HomeGearCard {
-  id: string;
-  name: string;
-  brandModelText: string;
-  weightText: string;
 }
 
 interface ChecklistItem {
@@ -131,7 +123,6 @@ Page({
     gearStatCards: INITIAL_LOGGED_IN
       ? buildGearStatCards(EMPTY_STATS)
       : LOCKED_GEAR_STATS,
-    recentGears: [] as HomeGearCard[],
     featuredSkills: [] as HomeSkillCard[],
     loginPrompt: getDefaultLoginPrompt(),
     wechatProfilePromptVisible: false,
@@ -186,7 +177,6 @@ Page({
         gearError: "",
         heroStatusText: "未登录也可先浏览",
         gearStatCards: LOCKED_GEAR_STATS,
-        recentGears: [] as HomeGearCard[],
       });
     }
     await Promise.all(tasks);
@@ -195,18 +185,12 @@ Page({
   async loadGearSummary() {
     this.setData({ gearLoading: true, gearError: "" });
     try {
-      const overview = await getGearOverview({
-        tab: "available",
-        limit: 2,
-        sort: "created_at_desc",
-      });
-      const stats = overview.stats;
+      const stats = await getGearStats("available");
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         isLoggedIn: true,
         heroStatusText: buildHeroStatusText(stats),
         gearStatCards: buildGearStatCards(stats),
-        recentGears: overview.list.items.map(mapHomeGearCard),
         gearLoading: false,
         ...(offlineNotice ? { offlineNotice } : {}),
       });
@@ -218,20 +202,13 @@ Page({
           gearLoading: false,
           heroStatusText: "未登录也可先浏览",
           gearStatCards: buildGearStatCards(EMPTY_STATS),
-          recentGears: [] as HomeGearCard[],
         });
-        return;
-      }
-      if (isOfflineCacheMissError(error) && this.data.recentGears.length) {
-        this.setData({ gearLoading: false });
-        wx.showToast({ title: getErrorMessage(error), icon: "none" });
         return;
       }
       this.setData({
         gearError: getErrorMessage(error),
         gearLoading: false,
         heroStatusText: "装备状态暂时不可用",
-        recentGears: [] as HomeGearCard[],
       });
     }
   },
@@ -440,16 +417,6 @@ function buildHeroStatusText(stats: GearStatsResponse): string {
     return `已归档装备 ${archivedCount} 件`;
   }
   return "还没有装备记录";
-}
-
-function mapHomeGearCard(item: GearSummary): HomeGearCard {
-  const brandModelText = [item.brand, item.model].filter(Boolean).join(" · ");
-  return {
-    id: item.id,
-    name: item.name,
-    brandModelText: brandModelText || "未记录品牌型号",
-    weightText: formatGearWeight(item.weight_g),
-  };
 }
 
 async function mapHomeSkillCard(item: KnotSummary): Promise<HomeSkillCard> {
