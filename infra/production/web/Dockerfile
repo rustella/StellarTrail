@@ -1,6 +1,7 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
-ARG VITE_STELLARTRAIL_API_BASE_URL=https://api.example.invalid
+ARG VITE_STELLARTRAIL_API_BASE_URL
+RUN test -n "$VITE_STELLARTRAIL_API_BASE_URL" || (echo "VITE_STELLARTRAIL_API_BASE_URL is required" >&2; exit 1)
 ENV VITE_STELLARTRAIL_API_BASE_URL=${VITE_STELLARTRAIL_API_BASE_URL}
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json

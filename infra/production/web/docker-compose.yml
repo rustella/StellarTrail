@@ -4,7 +4,7 @@ services:
       context: ../../..
       dockerfile: infra/production/web/Dockerfile
       args:
-        VITE_STELLARTRAIL_API_BASE_URL: ${VITE_STELLARTRAIL_API_BASE_URL:-https://api.example.invalid}
+        VITE_STELLARTRAIL_API_BASE_URL: ${VITE_STELLARTRAIL_API_BASE_URL:?set VITE_STELLARTRAIL_API_BASE_URL in the env file}
     image: ${STELLARTAIL_WEB_IMAGE:-ghcr.io/rustella/stellartrail-web:latest}
     restart: unless-stopped
     networks:
