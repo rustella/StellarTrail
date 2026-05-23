@@ -324,9 +324,9 @@ GET /api/v1/gear-atlas?category=lighting_system&q=headlamp&sort=name_asc&limit=2
 GET /api/v1/gear-atlas/:id
 ```
 
-`/api/v1/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不暴露 Markdown mock。`/api/v1/gear-templates` 和 `/api/v1/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。`/api/v1/gear-atlas` 和 `/api/v1/gear-atlas/:id` 返回已审核通过的公共装备图鉴，不包含用户个人购买、位置、标签、备注、拒绝原因、原始投稿快照或审核改动摘要字段。图鉴公共尺寸使用 `variants` 数组表示，每项包含 `key`、`label`，以及可选 `official_price_cents`、`official_price_currency`、`weight_g`；分类参数 `specs` 不再接受或返回 `size`、`backpack_size`、`size_or_length`。外部导入来源只暴露 `source_name`、`source_url`、`source_rating_score` 和 `source_rating_count` 等公开审计摘要，不暴露内部去重键、导入批次或授权备注。
+`/api/v1/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情走 DB-backed Knots3D metadata，不暴露 Markdown mock。`/api/v1/gear-templates` 和 `/api/v1/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。`/api/v1/gear-atlas` 和 `/api/v1/gear-atlas/:id` 返回已审核通过且 `is_deleted=false` 的公共装备图鉴，不包含用户个人购买、位置、标签、备注、拒绝原因、原始投稿快照或审核改动摘要字段；响应保留 `created_at`、`updated_at` 和 `is_deleted` 供客户端统一显示记录时间与可见性状态。图鉴公共尺寸使用 `variants` 数组表示，每项包含 `key`、`label`，以及可选 `official_price_cents`、`official_price_currency`、`weight_g`；分类参数 `specs` 不再接受或返回 `size`、`backpack_size`、`size_or_length`。外部导入来源只暴露 `source_name`、`source_url`、`source_rating_score` 和 `source_rating_count` 等公开审计摘要，不暴露内部去重键、导入批次或授权备注。
 
-用户自己的 `GET /api/v1/me/gear-atlas-submissions` 和管理员审核接口会返回投稿状态字段 `status`、可选 `rejection_reason`、以及审核通过时的 `review_changes`。`review_changes` 是数组，每项包含 `field`、中文 `label`、`before` 和 `after`，表示管理员按原始投稿快照和最终通过值生成的公共字段差异。管理员 `PATCH /api/v1/admin/gear-atlas-submissions/:id` 只能替换图鉴公共字段；`POST /api/v1/admin/gear-atlas-submissions/:id/reject` 必须提交非空 `reason`，空白原因返回 `422`。
+用户自己的 `GET /api/v1/me/gear-atlas-submissions` 和管理员审核接口会返回投稿状态字段 `status`、可选 `rejection_reason`、以及审核通过时的 `review_changes`。`review_changes` 是数组，每项包含 `field`、中文 `label`、`before` 和 `after`，表示管理员按原始投稿快照和最终通过值生成的公共字段差异。管理员列表默认只返回 `is_deleted=false`，可用 `deleted=active|deleted|all` 切换可见性。管理员 `PATCH /api/v1/admin/gear-atlas-submissions/:id` 只能替换图鉴公共字段；`DELETE /api/v1/admin/gear-atlas-submissions/:id` 会设置 `is_deleted=true`，`POST /api/v1/admin/gear-atlas-submissions/:id/restore` 会恢复；`POST /api/v1/admin/gear-atlas-submissions/:id/reject` 必须提交非空 `reason`，空白原因返回 `422`。
 
 公共内容语言不使用 query 参数，统一通过请求头：
 
@@ -352,7 +352,7 @@ X-StellarTrail-Locale: en
 
 ### Gear atlas external import POC
 
-`stellartrail-importer` 提供 `import-gear-atlas-cn` POC CLI，用于把人工挑选的 8264 移动装备详情页导入为待审核图鉴条目。该工具只接受显式 URL 或 URL 文件，不自动扫描全站；默认 dry-run 输出解析预览，真实写库必须传 `--write --submitter-user-id <existing-user-id>`。导入器只保存标题、类目、品牌/型号启发式拆分、重量、人民币价格、公共尺寸 `variants`、结构化 `specs`、评分汇总和来源链接；不复制第三方图片、介绍正文、用户点评正文或评测长文。`source_key` 用于幂等刷新同一来源条目，已审核条目不会被后续导入覆盖。
+`stellartrail-importer` 提供 `import-gear-atlas-cn` POC CLI，用于把人工挑选的 8264 移动装备详情页导入为待审核图鉴条目。该工具只接受显式 URL 或 URL 文件，不自动扫描全站；默认 dry-run 输出解析预览，真实写库必须传 `--write --submitter-user-id <existing-user-id>`。导入器只保存标题、类目、品牌/型号启发式拆分、重量、人民币价格、公共尺寸 `variants`、结构化 `specs`、评分汇总和来源链接；不复制第三方图片、介绍正文、用户点评正文或评测长文。`source_key` 用于幂等刷新同一来源条目，未删除的已审核条目不会被后续导入覆盖；如果同一 `source_key` 命中已删除条目，会复用原记录、清除 `is_deleted` 并刷新为待审核状态。
 
 ### Admin knot media upload
 
@@ -420,11 +420,13 @@ GET /api/v1/admin/api-usage?from=2026-05-01&to=2026-05-18&method=GET&route=/api/
 用户反馈图片通过 `POST /api/v1/me/uploads` 上传后，再把返回的 `id` 放进 `POST /api/v1/me/feedback` 的 `image_ids`。服务端对反馈图片同时执行四层保护：单张图片大小 `upload.max_image_bytes`、固定窗口上传张数 `upload.max_images_per_window`、用户累计反馈图片张数 `upload.max_total_images_per_user`、用户累计反馈图片大小 `upload.max_total_bytes_per_user`。累计配额默认是每个用户 `100` 张、`200000000` bytes；超过累计配额时返回 `422 validation_failed`，字段为 `image_quota`。
 
 ```http
-GET /api/v1/admin/feedback?status=open&limit=50&cursor=0
+GET /api/v1/admin/feedback?status=open&deleted=active&limit=50&cursor=0
+DELETE /api/v1/admin/feedback/:id
+POST /api/v1/admin/feedback/:id/restore
 Authorization: Bearer <admin-token>
 ```
 
-该接口需要 Bearer Token，且当前用户必须拥有数据库 `admin_roles` 中的 `admin` 或 `super_admin` 角色。返回用户提交的反馈内容、联系方式、页面、客户端环境、提交用户概要和已关联图片元数据。反馈图片仍是私有资源；管理员下载图片时使用返回的 `download_url` 并携带管理员 Bearer Token。
+该接口需要 Bearer Token，且当前用户必须拥有数据库 `admin_roles` 中的 `admin` 或 `super_admin` 角色。管理员反馈列表默认只返回 `is_deleted=false`，可用 `deleted=active|deleted|all` 切换可见性。返回用户提交的反馈内容、联系方式、页面、客户端环境、提交用户概要和已关联图片元数据。反馈图片仍是私有资源；管理员下载图片时使用返回的 `download_url` 并携带管理员 Bearer Token。已删除反馈或已删除图片都不能下载。
 
 ```json
 {
@@ -456,9 +458,11 @@ Authorization: Bearer <admin-token>
           "size_bytes": 1024,
           "sha256": "hex",
           "download_url": "/api/v1/admin/feedback-images/upload-uuid",
+          "is_deleted": false,
           "created_at": "2026-05-19T00:00:00Z"
         }
       ],
+      "is_deleted": false,
       "created_at": "2026-05-19T00:00:00Z",
       "updated_at": "2026-05-19T00:00:00Z"
     }
@@ -539,7 +543,7 @@ Authorization: Bearer <super-admin-token>
 
 ## Cache / performance
 
-服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/v1/me/gears`、`PATCH /api/v1/me/gears/:id`、`DELETE /api/v1/me/gears/:id`、`POST /api/v1/me/gears/:id/restore` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。公共读接口（装备图鉴、技能、绳结列表、筛选、详情、离线 manifest）也会缓存最终 JSON 响应和 ETag，Redis 不可用时退回 API 进程内存缓存。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境；公共接口 HTTP 缓存 TTL 由 `public_api.cache_ttl_seconds` 控制。装备 specs 字段频次只保存在 Redis sorted set 中，key 为 `<prefix>:gear:<user_id>:spec-keys:<category>`，member 只保存 spec key，不保存用户填写的具体值。用户标签建议也只保存在 Redis：标签频次 key 为 `<prefix>:gear:<user_id>:tags`，标签颜色偏好 hash key 为 `<prefix>:gear:<user_id>:tag-colors`。
+服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/v1/me/gears`、`PATCH /api/v1/me/gears/:id`、`DELETE /api/v1/me/gears/:id`、`POST /api/v1/me/gears/:id/delete`、`POST /api/v1/me/gears/:id/undelete`、`POST /api/v1/me/gears/:id/restore` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。公共读接口（装备图鉴、技能、绳结列表、筛选、详情、离线 manifest）也会缓存最终 JSON 响应和 ETag，Redis 不可用时退回 API 进程内存缓存；管理员删除/恢复图鉴会同步失效图鉴公共缓存。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境；公共接口 HTTP 缓存 TTL 由 `public_api.cache_ttl_seconds` 控制。装备 specs 字段频次只保存在 Redis sorted set 中，key 为 `<prefix>:gear:<user_id>:spec-keys:<category>`，member 只保存 spec key，不保存用户填写的具体值。用户标签建议也只保存在 Redis：标签频次 key 为 `<prefix>:gear:<user_id>:tags`，标签颜色偏好 hash key 为 `<prefix>:gear:<user_id>:tag-colors`。
 
 ## Gear inventory
 
@@ -554,6 +558,8 @@ POST /api/v1/me/gears
 GET /api/v1/me/gears/:id
 PATCH /api/v1/me/gears/:id
 DELETE /api/v1/me/gears/:id
+POST /api/v1/me/gears/:id/delete
+POST /api/v1/me/gears/:id/undelete
 POST /api/v1/me/gears/:id/restore
 GET /api/v1/me/gears/export?tab=available&format=csv
 POST /api/v1/me/gears/import
@@ -609,7 +615,7 @@ POST /api/v1/me/gears/import
 
 个人装备可以独立存在，不要求先关联装备图鉴。用户实际选择或手填的尺寸保存在 `selected_variant_label`，可选的稳定 key 保存在 `selected_variant_key`；当装备关联图鉴时，`atlas_item_id` 指向公开图鉴条目，客户端可读取该图鉴条目的 `variants` 作为“可选尺寸”。个人装备 `specs` 继续保存容量、背长、收纳尺寸等参数，但不再接受 `size`、`backpack_size`、`size_or_length`。
 
-删除接口是软删除：`DELETE /api/v1/me/gears/:id` 会进入 `tab=history`；`POST /api/v1/me/gears/:id/restore` 可恢复。
+装备响应包含 `created_at`、`updated_at` 和 `is_deleted`。`DELETE /api/v1/me/gears/:id` 只表示归档，会设置 `archived_at` 并进入 `tab=history`；`POST /api/v1/me/gears/:id/restore` 可从 history 恢复。真正软删除使用 `POST /api/v1/me/gears/:id/delete` 设置 `is_deleted=true`；默认列表、详情、统计、导出和导入去重都忽略已删除记录。`GET /api/v1/me/gears` 支持 `deleted=active|deleted|all`，默认 `active`；`POST /api/v1/me/gears/:id/undelete` 只恢复 `is_deleted=false`，不改变原来的 `archived_at`。
 
 ### Gear overview
 

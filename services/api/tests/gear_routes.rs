@@ -822,6 +822,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     assert_eq!(approve_status, StatusCode::OK, "{approved}");
     assert_eq!(approved["status"], "approved");
     assert!(!approved["approved_at"].is_null());
+    assert_eq!(approved["is_deleted"], false);
 
     let (fallback_status, fallback_headers, fallback_public) = send_empty_with_headers(
         &app.router,
@@ -861,6 +862,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     assert_eq!(public["items"].as_array().unwrap().len(), 1);
     assert_eq!(public["items"][0]["id"], submission_id);
     assert_eq!(public["items"][0]["name"], "公共充电宝");
+    assert_eq!(public["items"][0]["is_deleted"], false);
 
     let (english_public_status, english_headers, english_public) = send_empty_with_headers(
         &app.router,
@@ -892,6 +894,42 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     assert!(detail.get("storage_location").is_none());
     assert!(detail.get("notes").is_none());
     assert!(detail.get("tags").is_none());
+    assert_eq!(detail["is_deleted"], false);
+
+    let (delete_status, delete_body) = send_empty(
+        &app.router,
+        "DELETE",
+        &format!("/api/v1/admin/gear-atlas-submissions/{submission_id}"),
+        Some(admin_token.as_str()),
+    )
+    .await;
+    assert_eq!(delete_status, StatusCode::NO_CONTENT, "{delete_body}");
+
+    let (hidden_public_status, hidden_public) =
+        send_empty(&app.router, "GET", "/api/v1/gear-atlas", None).await;
+    assert_eq!(hidden_public_status, StatusCode::OK, "{hidden_public}");
+    assert_eq!(hidden_public["items"].as_array().unwrap().len(), 0);
+
+    let (deleted_admin_status, deleted_admin) = send_empty(
+        &app.router,
+        "GET",
+        "/api/v1/admin/gear-atlas-submissions?deleted=deleted",
+        Some(admin_token.as_str()),
+    )
+    .await;
+    assert_eq!(deleted_admin_status, StatusCode::OK, "{deleted_admin}");
+    assert_eq!(deleted_admin["items"].as_array().unwrap().len(), 1);
+    assert_eq!(deleted_admin["items"][0]["is_deleted"], true);
+
+    let (restore_status, restored_atlas) = send_empty(
+        &app.router,
+        "POST",
+        &format!("/api/v1/admin/gear-atlas-submissions/{submission_id}/restore"),
+        Some(admin_token.as_str()),
+    )
+    .await;
+    assert_eq!(restore_status, StatusCode::OK, "{restored_atlas}");
+    assert_eq!(restored_atlas["is_deleted"], false);
 
     let (english_detail_status, english_detail_headers, english_detail) = send_empty_with_headers(
         &app.router,
@@ -1411,6 +1449,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     assert_eq!(created["purchase_price_currency"], "CNY");
     assert_eq!(created["selected_variant_label"], "标准版");
     assert_eq!(created["specs"]["battery_capacity"], "20000 mAh");
+    assert_eq!(created["is_deleted"], false);
 
     let (stats_status, stats) =
         send_empty(&app.router, "GET", "/api/v1/me/gears/stats", Some(&token)).await;
@@ -1444,6 +1483,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     assert_eq!(list["items"][0]["official_price_cents"], 69900);
     assert_eq!(list["items"][0]["purchase_price_currency"], "CNY");
     assert_eq!(list["items"][0]["selected_variant_label"], "标准版");
+    assert_eq!(list["items"][0]["is_deleted"], false);
 
     let (invalid_status, invalid) = send_json(
         &app.router,
@@ -1523,6 +1563,64 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     .await;
     assert_eq!(history_status, StatusCode::OK, "{history}");
     assert_eq!(history["items"].as_array().unwrap().len(), 1);
+
+    let (soft_delete_status, soft_delete_body) = send_empty(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/gears/{gear_id}/delete"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(
+        soft_delete_status,
+        StatusCode::NO_CONTENT,
+        "{soft_delete_body}"
+    );
+
+    let (deleted_detail_status, deleted_detail) = send_empty(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/gears/{gear_id}"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(
+        deleted_detail_status,
+        StatusCode::NOT_FOUND,
+        "{deleted_detail}"
+    );
+
+    let (hidden_history_status, hidden_history) = send_empty(
+        &app.router,
+        "GET",
+        "/api/v1/me/gears?tab=history",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(hidden_history_status, StatusCode::OK, "{hidden_history}");
+    assert_eq!(hidden_history["items"].as_array().unwrap().len(), 0);
+
+    let (deleted_history_status, deleted_history) = send_empty(
+        &app.router,
+        "GET",
+        "/api/v1/me/gears?tab=history&deleted=deleted",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(deleted_history_status, StatusCode::OK, "{deleted_history}");
+    assert_eq!(deleted_history["items"].as_array().unwrap().len(), 1);
+    assert_eq!(deleted_history["items"][0]["is_deleted"], true);
+
+    let (undelete_status, undeleted) = send_empty(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/gears/{gear_id}/undelete"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(undelete_status, StatusCode::OK, "{undeleted}");
+    assert_eq!(undeleted["is_deleted"], false);
+    assert!(!undeleted["archived_at"].is_null());
 
     let (restore_status, restored) = send_empty(
         &app.router,

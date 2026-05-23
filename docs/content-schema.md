@@ -44,11 +44,11 @@ Repo-local `content/` seed folders have been removed. API startup no longer read
 
 ## Gear atlas
 
-装备图鉴公共浏览读取 `gear_atlas_items` 中已审核通过的公共字段。`name` 和 `description` 可通过 `gear_atlas_item_localizations` 返回不同语言；新用户投稿默认只写入原文和 `zh-CN` 本地化行，不做自动翻译。`category_label` 来自 `gear_category_localizations`，`brand`、`model`、`specs`、价格和重量等事实字段不做翻译。
+装备图鉴公共浏览读取 `gear_atlas_items` 中已审核通过且 `is_deleted=false` 的公共字段。`name` 和 `description` 可通过 `gear_atlas_item_localizations` 返回不同语言；新用户投稿默认只写入原文和 `zh-CN` 本地化行，不做自动翻译。`category_label` 来自 `gear_category_localizations`，`brand`、`model`、`specs`、价格和重量等事实字段不做翻译。
 
 图鉴投稿会在 `submitted_snapshot_json` 中保存创建时的公共字段快照。管理员审核时可修改公共字段；通过审核时服务端比较原始快照与最终公开字段，把差异写入 `review_changes_json` 供投稿用户查看。拒绝原因保存在 `rejection_reason`，只返回给投稿用户和管理员；公开图鉴接口不返回快照、拒绝原因或审核修改摘要。
 
-外部装备来源导入目前只作为 POC 审核入口：`import-gear-atlas-cn` 支持人工提供的 8264 移动装备详情页 URL，导入标题、类目、品牌/型号启发式拆分、重量、人民币价格、结构化 `specs`、评分汇总和来源链接，并写入 `source_key`、`source_name`、`source_url`、`source_license_note`、`import_batch_id`、`imported_at`、`source_rating_score` 和 `source_rating_count`。公开 API 只返回来源名称、来源链接和评分汇总，不返回内部去重键、批次或授权备注。导入器不保存第三方图片、介绍正文、用户点评正文或评测长文；所有导入条目先进入 `pending` 审核状态。
+外部装备来源导入目前只作为 POC 审核入口：`import-gear-atlas-cn` 支持人工提供的 8264 移动装备详情页 URL，导入标题、类目、品牌/型号启发式拆分、重量、人民币价格、结构化 `specs`、评分汇总和来源链接，并写入 `source_key`、`source_name`、`source_url`、`source_license_note`、`import_batch_id`、`imported_at`、`source_rating_score` 和 `source_rating_count`。公开 API 只返回来源名称、来源链接和评分汇总，不返回内部去重键、批次或授权备注。导入器不保存第三方图片、介绍正文、用户点评正文或评测长文；所有导入条目先进入 `pending` 审核状态。同一 `source_key` 命中已删除记录时会复用原记录并清除 `is_deleted`，避免唯一键冲突和重复条目。
 
 ## Removed route families
 

@@ -5,9 +5,12 @@ use std::collections::HashMap;
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Value};
 
 use super::statement;
-use stellartrail_domain::gear::{
-    GearCategory, GearCategoryCount, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs,
-    GearStats, GearStatus, GearStatusCount, GearTab, now_rfc3339,
+use stellartrail_domain::{
+    deletion::DeletedFilter,
+    gear::{
+        GearCategory, GearCategoryCount, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs,
+        GearStats, GearStatus, GearStatusCount, GearTab, now_rfc3339,
+    },
 };
 use uuid::Uuid;
 
@@ -17,6 +20,7 @@ pub struct ListGearOptions {
     pub tab: GearTab,
     pub category: Option<GearCategory>,
     pub status: Option<GearStatus>,
+    pub deleted: DeletedFilter,
     pub q: Option<String>,
     pub sort: GearSort,
     pub limit: u64,
@@ -30,6 +34,7 @@ impl Default for ListGearOptions {
             tab: GearTab::Available,
             category: None,
             status: None,
+            deleted: DeletedFilter::Active,
             q: None,
             sort: GearSort::CreatedAtDesc,
             limit: 20,
@@ -81,7 +86,7 @@ impl GearRepository {
             .db
             .query_one(statement(
                 self.db.get_database_backend(),
-                gear_select_sql("WHERE user_id = ? AND id = ?"),
+                gear_select_sql("WHERE user_id = ? AND id = ? AND is_deleted = FALSE"),
                 vec![user_id.to_owned().into(), id.to_owned().into()],
             ))
             .await?;
@@ -137,7 +142,7 @@ impl GearRepository {
                     status = ?, storage_location = ?, atlas_item_id = ?, selected_variant_key = ?,
                     selected_variant_label = ?, specs_json = ?, tags_json = ?, share_enabled = ?,
                     share_status = ?, notes = ?, updated_at = ?
-                   WHERE user_id = ? AND id = ?"#,
+                   WHERE user_id = ? AND id = ? AND is_deleted = FALSE"#,
                 values,
             ))
             .await?;
@@ -163,6 +168,7 @@ impl GearRepository {
             GearTab::Available => clauses.push("archived_at IS NULL".to_owned()),
             GearTab::History => clauses.push("archived_at IS NOT NULL".to_owned()),
         }
+        apply_deleted_filter(&mut clauses, options.deleted);
         if let Some(category) = options.category {
             clauses.push("category = ?".to_owned());
             values.push(category.as_str().to_owned().into());
@@ -211,7 +217,7 @@ impl GearRepository {
             .db
             .execute(statement(
                 self.db.get_database_backend(),
-                "UPDATE user_gear_items SET archived_at = ?, updated_at = ? WHERE user_id = ? AND id = ? AND archived_at IS NULL",
+                "UPDATE user_gear_items SET archived_at = ?, updated_at = ? WHERE user_id = ? AND id = ? AND archived_at IS NULL AND is_deleted = FALSE",
                 vec![now.clone().into(), now.into(), user_id.to_owned().into(), id.to_owned().into()],
             ))
             .await?;
@@ -225,7 +231,39 @@ impl GearRepository {
             .db
             .execute(statement(
                 self.db.get_database_backend(),
-                "UPDATE user_gear_items SET archived_at = NULL, updated_at = ? WHERE user_id = ? AND id = ?",
+                "UPDATE user_gear_items SET archived_at = NULL, updated_at = ? WHERE user_id = ? AND id = ? AND is_deleted = FALSE",
+                vec![now.into(), user_id.to_owned().into(), id.to_owned().into()],
+            ))
+            .await?;
+        if result.rows_affected() == 0 {
+            Ok(None)
+        } else {
+            self.get(user_id, id).await
+        }
+    }
+
+    /// Soft-deletes an item without changing archive state.
+    pub async fn soft_delete(&self, user_id: &str, id: &str) -> Result<bool, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "UPDATE user_gear_items SET is_deleted = TRUE, updated_at = ? WHERE user_id = ? AND id = ? AND is_deleted = FALSE",
+                vec![now.into(), user_id.to_owned().into(), id.to_owned().into()],
+            ))
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Restores a soft-deleted item while preserving whether it was archived.
+    pub async fn undelete(&self, user_id: &str, id: &str) -> Result<Option<GearItem>, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "UPDATE user_gear_items SET is_deleted = FALSE, updated_at = ? WHERE user_id = ? AND id = ? AND is_deleted = TRUE",
                 vec![now.into(), user_id.to_owned().into(), id.to_owned().into()],
             ))
             .await?;
@@ -247,7 +285,7 @@ impl GearRepository {
             .db
             .query_all(statement(
                 self.db.get_database_backend(),
-                format!("SELECT category, COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND {archived_clause} GROUP BY category"),
+                format!("SELECT category, COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY category"),
                 vec![user_id.to_owned().into()],
             ))
             .await?;
@@ -280,7 +318,7 @@ impl GearRepository {
                     "SELECT COUNT(*) AS count, \
                      CAST(COALESCE(SUM(CASE WHEN purchase_price_currency = 'CNY' THEN purchase_price_cents ELSE 0 END), 0) AS BIGINT) AS total_value_cents, \
                      CAST(COALESCE(SUM(weight_g), 0) AS BIGINT) AS total_weight_g \
-                     FROM user_gear_items WHERE user_id = ? AND {archived_clause}"
+                     FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause}"
                 ),
                 vec![user_id.to_owned().into()],
             ))
@@ -290,7 +328,7 @@ impl GearRepository {
             .db
             .query_one(statement(
                 self.db.get_database_backend(),
-                "SELECT COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND archived_at IS NOT NULL",
+                "SELECT COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND archived_at IS NOT NULL",
                 vec![user_id.to_owned().into()],
             ))
             .await?
@@ -319,7 +357,7 @@ impl GearRepository {
             .db
             .query_all(statement(
                 self.db.get_database_backend(),
-                format!("SELECT status, COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND {archived_clause} GROUP BY status"),
+                format!("SELECT status, COUNT(*) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY status"),
                 vec![user_id.to_owned().into()],
             ))
             .await?;
@@ -394,8 +432,16 @@ fn gear_select_columns() -> &'static str {
         purchase_date, purchase_price_cents, purchase_price_currency,
         purchase_location, status, storage_location, atlas_item_id, selected_variant_key,
         selected_variant_label, tags_json,
-        specs_json, share_enabled, share_status, notes, archived_at, created_at, updated_at
+        specs_json, share_enabled, share_status, notes, archived_at, is_deleted, created_at, updated_at
        FROM user_gear_items"#
+}
+
+fn apply_deleted_filter(clauses: &mut Vec<String>, deleted: DeletedFilter) {
+    match deleted {
+        DeletedFilter::Active => clauses.push("is_deleted = FALSE".to_owned()),
+        DeletedFilter::Deleted => clauses.push("is_deleted = TRUE".to_owned()),
+        DeletedFilter::All => {}
+    }
 }
 
 /// Runs the `order by` server-side flow while preserving input validation, error propagation, and state invariants.
@@ -488,6 +534,7 @@ fn map_gear(row: &sea_orm::QueryResult) -> Result<GearItem, DbErr> {
             .ok_or_else(|| DbErr::Custom(format!("invalid share status: {share_status_raw}")))?,
         notes: row.try_get("", "notes")?,
         archived_at: row.try_get("", "archived_at")?,
+        is_deleted: row.try_get("", "is_deleted")?,
         created_at: row.try_get("", "created_at")?,
         updated_at: row.try_get("", "updated_at")?,
     })
@@ -498,6 +545,7 @@ mod tests {
     use super::*;
     use crate::repositories::AuthRepository;
     use sea_orm_migration::prelude::MigratorTrait;
+    use stellartrail_domain::deletion::DeletedFilter;
     use stellartrail_migration::Migrator;
 
     /// Runs the `draft` server-side flow while preserving input validation, error propagation, and state invariants.
@@ -588,5 +636,38 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(available.len(), 2);
+
+        assert!(repo.archive(user_id, &created.id).await.unwrap());
+        assert!(repo.soft_delete(user_id, &created.id).await.unwrap());
+        assert!(repo.get(user_id, &created.id).await.unwrap().is_none());
+        let stats = repo.stats(user_id, GearTab::History).await.unwrap();
+        assert_eq!(stats.archived_count, 0);
+        let (deleted_history, _) = repo
+            .list(
+                user_id,
+                &ListGearOptions {
+                    tab: GearTab::History,
+                    deleted: DeletedFilter::Deleted,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(deleted_history.len(), 1);
+        assert!(deleted_history[0].archived_at.is_some());
+        let undeleted = repo.undelete(user_id, &created.id).await.unwrap().unwrap();
+        assert!(undeleted.archived_at.is_some());
+        assert!(!undeleted.is_deleted);
+        let (history, _) = repo
+            .list(
+                user_id,
+                &ListGearOptions {
+                    tab: GearTab::History,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(history.len(), 1);
     }
 }

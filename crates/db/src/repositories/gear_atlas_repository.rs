@@ -10,6 +10,7 @@ use sea_orm::{
     ConnectionTrait, DatabaseBackend, DatabaseConnection, DbErr, TransactionTrait, Value,
 };
 use stellartrail_domain::{
+    deletion::DeletedFilter,
     gear::{GearCategory, GearSpecs, GearVariants},
     gear_atlas::{
         GearAtlasDraft, GearAtlasExternalImportDraft, GearAtlasItem, GearAtlasPublicSnapshot,
@@ -49,6 +50,7 @@ impl Default for ListGearAtlasOptions {
 pub struct ListGearAtlasAdminOptions {
     pub status: Option<GearAtlasStatus>,
     pub category: Option<GearCategory>,
+    pub deleted: DeletedFilter,
     pub q: Option<String>,
     pub limit: u64,
     pub cursor: Option<String>,
@@ -59,6 +61,7 @@ impl Default for ListGearAtlasAdminOptions {
         Self {
             status: Some(GearAtlasStatus::Pending),
             category: None,
+            deleted: DeletedFilter::Active,
             q: None,
             limit: 20,
             cursor: None,
@@ -158,7 +161,7 @@ impl GearAtlasRepository {
         draft: &GearAtlasExternalImportDraft,
     ) -> Result<GearAtlasExternalImportResult, DbErr> {
         if let Some(existing) = self.find_by_source_key(&draft.source_key).await? {
-            if existing.status == GearAtlasStatus::Approved {
+            if existing.status == GearAtlasStatus::Approved && !existing.is_deleted {
                 return Ok(GearAtlasExternalImportResult {
                     action: GearAtlasExternalImportAction::SkippedApproved,
                     item: existing,
@@ -227,7 +230,10 @@ impl GearAtlasRepository {
         let limit = options.limit.clamp(1, 100);
         let offset = parse_cursor(options.cursor.as_deref())?;
         let mut values: Vec<Value> = Vec::new();
-        let mut clauses = vec!["status = 'approved'".to_owned()];
+        let mut clauses = vec![
+            "status = 'approved'".to_owned(),
+            "is_deleted = FALSE".to_owned(),
+        ];
         if let Some(category) = options.category {
             clauses.push("category = ?".to_owned());
             values.push(category.as_str().to_owned().into());
@@ -257,7 +263,7 @@ impl GearAtlasRepository {
             .query_one(statement(
                 self.db.get_database_backend(),
                 format!(
-                    "{} WHERE id = ? AND status = 'approved' LIMIT 1",
+                    "{} WHERE id = ? AND status = 'approved' AND is_deleted = FALSE LIMIT 1",
                     atlas_select_columns()
                 ),
                 vec![id.to_owned().into()],
@@ -345,7 +351,8 @@ impl GearAtlasRepository {
                 self.db.get_database_backend(),
                 format!(
                     "{} WHERE submitted_by_user_id = ? AND source_user_gear_id = ? \
-                     AND status IN ('pending', 'approved') ORDER BY created_at DESC, id DESC LIMIT 1",
+                     AND is_deleted = FALSE AND status IN ('pending', 'approved') \
+                     ORDER BY created_at DESC, id DESC LIMIT 1",
                     atlas_select_columns()
                 ),
                 vec![
@@ -372,7 +379,7 @@ impl GearAtlasRepository {
             offset.into(),
         ];
         let sql = format!(
-            "{} WHERE submitted_by_user_id = ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+            "{} WHERE submitted_by_user_id = ? AND is_deleted = FALSE ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
             atlas_select_columns()
         );
         page_items(self.query_items(sql, values).await?, limit, offset)
@@ -391,6 +398,7 @@ impl GearAtlasRepository {
             clauses.push("status = ?".to_owned());
             values.push(status.as_str().to_owned().into());
         }
+        apply_deleted_filter(&mut clauses, options.deleted);
         apply_common_filters(
             &mut clauses,
             &mut values,
@@ -442,7 +450,7 @@ impl GearAtlasRepository {
                    SET category = ?, name = ?, brand = ?, model = ?, description = ?,
                        weight_g = ?, official_price_cents = ?, official_price_currency = ?,
                        variants_json = ?, specs_json = ?, updated_at = ?
-                   WHERE id = ?"#,
+                   WHERE id = ? AND is_deleted = FALSE"#,
                 vec![
                     draft.category.as_str().to_owned().into(),
                     draft.name.clone().into(),
@@ -484,6 +492,9 @@ impl GearAtlasRepository {
         let Some(existing) = self.get_any(id).await? else {
             return Ok(None);
         };
+        if existing.is_deleted {
+            return Ok(None);
+        }
         let review_changes = review_changes_between(
             &existing.submitted_snapshot,
             &GearAtlasPublicSnapshot::from_item(&existing),
@@ -536,7 +547,7 @@ impl GearAtlasRepository {
                 "UPDATE gear_atlas_items SET status = ?, rejection_reason = ?, \
                  reviewed_by_user_id = ?, reviewed_at = ?, approved_at = ?, \
                  review_changes_json = ?, updated_at = ? \
-                 WHERE id = ?",
+                 WHERE id = ? AND is_deleted = FALSE",
                 vec![
                     status.as_str().to_owned().into(),
                     rejection_reason.into(),
@@ -589,7 +600,7 @@ impl GearAtlasRepository {
                    reviewed_by_user_id = NULL, reviewed_at = NULL, approved_at = NULL,
                    source_key = ?, source_name = ?, source_url = ?,
                    source_license_note = ?, import_batch_id = ?, imported_at = ?,
-                   source_rating_score = ?, source_rating_count = ?, updated_at = ?
+                   source_rating_score = ?, source_rating_count = ?, is_deleted = FALSE, updated_at = ?
                WHERE id = ?"#,
             vec![
                 draft.category.as_str().to_owned().into(),
@@ -634,6 +645,38 @@ impl GearAtlasRepository {
         self.get_any(id)
             .await?
             .ok_or_else(|| DbErr::Custom("updated gear atlas import not found".to_owned()))
+    }
+
+    /// Soft-deletes a submission or public atlas record.
+    pub async fn soft_delete(&self, id: &str) -> Result<bool, DbErr> {
+        let now = now_atlas_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "UPDATE gear_atlas_items SET is_deleted = TRUE, updated_at = ? WHERE id = ? AND is_deleted = FALSE",
+                vec![now.into(), id.to_owned().into()],
+            ))
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Restores a previously soft-deleted atlas record.
+    pub async fn restore_deleted(&self, id: &str) -> Result<Option<GearAtlasItem>, DbErr> {
+        let now = now_atlas_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "UPDATE gear_atlas_items SET is_deleted = FALSE, updated_at = ? WHERE id = ? AND is_deleted = TRUE",
+                vec![now.into(), id.to_owned().into()],
+            ))
+            .await?;
+        if result.rows_affected() == 0 {
+            Ok(None)
+        } else {
+            self.get_any(id).await
+        }
     }
 
     async fn query_items(
@@ -739,7 +782,7 @@ fn atlas_select_columns() -> &'static str {
         rejection_reason, reviewed_by_user_id, reviewed_at, approved_at,
         source_key, source_name, source_url, source_license_note, import_batch_id,
         imported_at, source_rating_score, source_rating_count,
-        created_at, updated_at
+        is_deleted, created_at, updated_at
        FROM gear_atlas_items"#
 }
 
@@ -763,6 +806,14 @@ async fn upsert_zh_localization(
     ))
     .await?;
     Ok(())
+}
+
+fn apply_deleted_filter(clauses: &mut Vec<String>, deleted: DeletedFilter) {
+    match deleted {
+        DeletedFilter::Active => clauses.push("is_deleted = FALSE".to_owned()),
+        DeletedFilter::Deleted => clauses.push("is_deleted = TRUE".to_owned()),
+        DeletedFilter::All => {}
+    }
 }
 
 fn apply_common_filters(
@@ -1001,6 +1052,7 @@ fn map_atlas_item(row: &sea_orm::QueryResult) -> Result<GearAtlasItem, DbErr> {
         imported_at: row.try_get("", "imported_at")?,
         source_rating_score: row.try_get("", "source_rating_score")?,
         source_rating_count: row.try_get("", "source_rating_count")?,
+        is_deleted: row.try_get("", "is_deleted")?,
         created_at: row.try_get("", "created_at")?,
         updated_at: row.try_get("", "updated_at")?,
     })

@@ -14,6 +14,7 @@ pub struct UploadImageResponse {
     pub size_bytes: i64,
     pub sha256: String,
     pub download_url: String,
+    pub is_deleted: bool,
     pub created_at: String,
 }
 
@@ -39,6 +40,7 @@ impl UploadImageResponse {
             size_bytes: record.size_bytes,
             sha256: record.sha256.clone(),
             download_url,
+            is_deleted: record.is_deleted,
             created_at: record.created_at.clone(),
         }
     }

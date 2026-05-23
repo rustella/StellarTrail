@@ -3,9 +3,12 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use stellartrail_domain::gear::{
-    GearCategory, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs, GearStats, GearStatus,
-    GearTab,
+use stellartrail_domain::{
+    deletion::DeletedFilter,
+    gear::{
+        GearCategory, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs, GearStats,
+        GearStatus, GearTab,
+    },
 };
 
 /// Stable data boundary for `ListGearQuery`, exposed by or reused within this module.
@@ -15,6 +18,8 @@ pub struct ListGearQuery {
     pub tab: GearTab,
     pub category: Option<GearCategory>,
     pub status: Option<GearStatus>,
+    #[serde(default)]
+    pub deleted: DeletedFilter,
     pub q: Option<String>,
     #[serde(default)]
     pub sort: GearSort,
@@ -214,6 +219,7 @@ pub struct GearSummaryResponse {
     pub specs: GearSpecs,
     pub tags: Vec<String>,
     pub tag_colors: HashMap<String, String>,
+    pub is_deleted: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -242,6 +248,7 @@ impl From<&GearItem> for GearSummaryResponse {
             specs: item.specs.clone(),
             tags: item.tags.clone(),
             tag_colors: HashMap::new(),
+            is_deleted: item.is_deleted,
             created_at: item.created_at.clone(),
             updated_at: item.updated_at.clone(),
         }
@@ -272,6 +279,7 @@ impl GearSummaryResponse {
             specs: item.specs.clone(),
             tags: item.tags.clone(),
             tag_colors: tag_colors_for_tags(&item.tags, all_tag_colors),
+            is_deleted: item.is_deleted,
             created_at: item.created_at.clone(),
             updated_at: item.updated_at.clone(),
         }

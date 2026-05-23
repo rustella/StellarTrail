@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Value};
-use stellartrail_domain::{feedback::FeedbackDraft, gear::now_rfc3339};
+use stellartrail_domain::{deletion::DeletedFilter, feedback::FeedbackDraft, gear::now_rfc3339};
 use uuid::Uuid;
 
 use super::{statement, upload_image_repository::UploadImageRecord};
@@ -22,6 +22,7 @@ pub struct FeedbackRecord {
     pub device_model: Option<String>,
     pub status: String,
     pub images: Vec<UploadImageRecord>,
+    pub is_deleted: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -47,6 +48,7 @@ pub struct AdminFeedbackRecord {
 #[derive(Clone, Debug)]
 pub struct ListAdminFeedbackOptions {
     pub status: Option<String>,
+    pub deleted: DeletedFilter,
     pub limit: u64,
     pub cursor: Option<String>,
 }
@@ -55,6 +57,7 @@ impl Default for ListAdminFeedbackOptions {
     fn default() -> Self {
         Self {
             status: None,
+            deleted: DeletedFilter::Active,
             limit: 50,
             cursor: None,
         }
@@ -137,8 +140,8 @@ impl FeedbackRepository {
             .query_one(statement(
                 self.db.get_database_backend(),
                 r#"SELECT id, user_id, category, content, contact, page, client_platform,
-                    client_version, device_model, status, created_at, updated_at
-                   FROM user_feedback WHERE user_id = ? AND id = ? LIMIT 1"#,
+                    client_version, device_model, status, is_deleted, created_at, updated_at
+                   FROM user_feedback WHERE user_id = ? AND id = ? AND is_deleted = FALSE LIMIT 1"#,
                 vec![user_id.to_owned().into(), id.to_owned().into()],
             ))
             .await?;
@@ -154,16 +157,22 @@ impl FeedbackRepository {
         let limit = options.limit.clamp(1, 100);
         let offset = parse_cursor(options.cursor.as_deref())?;
         let mut values: Vec<Value> = Vec::new();
-        let mut where_clause = String::new();
+        let mut clauses = Vec::new();
+        apply_deleted_filter(&mut clauses, options.deleted);
         if let Some(status) = options
             .status
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
         {
-            where_clause = " WHERE f.status = ?".to_owned();
+            clauses.push("f.status = ?".to_owned());
             values.push(status.to_owned().into());
         }
+        let where_clause = if clauses.is_empty() {
+            String::new()
+        } else {
+            format!(" WHERE {}", clauses.join(" AND "))
+        };
         values.push((limit as i64 + 1).into());
         values.push(offset.into());
         let rows = self
@@ -173,7 +182,7 @@ impl FeedbackRepository {
                 format!(
                     r#"SELECT f.id, f.user_id, f.category, f.content, f.contact, f.page,
                         f.client_platform, f.client_version, f.device_model, f.status,
-                        f.created_at, f.updated_at,
+                        f.is_deleted, f.created_at, f.updated_at,
                         u.username AS author_username,
                         u.email AS author_email,
                         u.nickname AS author_nickname,
@@ -221,7 +230,9 @@ impl FeedbackRepository {
             .query_one(statement(
                 self.db.get_database_backend(),
                 format!(
-                    "{} INNER JOIN user_feedback_images fi ON fi.upload_image_id = upload_images.id WHERE upload_images.id = ? LIMIT 1",
+                    "{} INNER JOIN user_feedback_images fi ON fi.upload_image_id = upload_images.id \
+                       INNER JOIN user_feedback f ON f.id = fi.feedback_id \
+                       WHERE upload_images.id = ? AND upload_images.is_deleted = FALSE AND f.is_deleted = FALSE LIMIT 1",
                     upload_select_columns()
                 ),
                 vec![upload_image_id.to_owned().into()],
@@ -250,10 +261,11 @@ impl FeedbackRepository {
                             upload_images.bucket, upload_images.object_key,
                             upload_images.image_type, upload_images.content_type,
                             upload_images.size_bytes, upload_images.sha256,
-                            upload_images.etag, upload_images.created_at
+                            upload_images.etag, upload_images.is_deleted,
+                            upload_images.created_at
                            FROM user_feedback_images fi
                            INNER JOIN upload_images ON upload_images.id = fi.upload_image_id
-                           WHERE fi.feedback_id IN ({placeholders})
+                           WHERE fi.feedback_id IN ({placeholders}) AND upload_images.is_deleted = FALSE
                            ORDER BY fi.feedback_id, fi.sort_order"#
                     ),
                     chunk.iter().cloned().map(Into::into).collect(),
@@ -268,6 +280,34 @@ impl FeedbackRepository {
             }
         }
         Ok(images_by_feedback)
+    }
+
+    /// Soft-deletes a feedback row without removing image associations.
+    pub async fn soft_delete(&self, id: &str) -> Result<bool, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "UPDATE user_feedback SET is_deleted = TRUE, updated_at = ? WHERE id = ? AND is_deleted = FALSE",
+                vec![now.into(), id.to_owned().into()],
+            ))
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Restores a previously soft-deleted feedback row.
+    pub async fn restore_deleted(&self, id: &str) -> Result<bool, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "UPDATE user_feedback SET is_deleted = FALSE, updated_at = ? WHERE id = ? AND is_deleted = TRUE",
+                vec![now.into(), id.to_owned().into()],
+            ))
+            .await?;
+        Ok(result.rows_affected() > 0)
     }
 }
 
@@ -287,6 +327,7 @@ fn map_feedback(
         device_model: row.try_get("", "device_model")?,
         status: row.try_get("", "status")?,
         images,
+        is_deleted: row.try_get("", "is_deleted")?,
         created_at: row.try_get("", "created_at")?,
         updated_at: row.try_get("", "updated_at")?,
     })
@@ -311,8 +352,16 @@ fn upload_select_columns() -> &'static str {
     r#"SELECT upload_images.id, upload_images.user_id, upload_images.purpose,
         upload_images.original_filename, upload_images.bucket, upload_images.object_key,
         upload_images.image_type, upload_images.content_type, upload_images.size_bytes,
-        upload_images.sha256, upload_images.etag, upload_images.created_at
+        upload_images.sha256, upload_images.etag, upload_images.is_deleted, upload_images.created_at
        FROM upload_images"#
+}
+
+fn apply_deleted_filter(clauses: &mut Vec<String>, deleted: DeletedFilter) {
+    match deleted {
+        DeletedFilter::Active => clauses.push("f.is_deleted = FALSE".to_owned()),
+        DeletedFilter::Deleted => clauses.push("f.is_deleted = TRUE".to_owned()),
+        DeletedFilter::All => {}
+    }
 }
 
 fn map_upload_image(row: &sea_orm::QueryResult) -> Result<UploadImageRecord, DbErr> {
@@ -328,6 +377,7 @@ fn map_upload_image(row: &sea_orm::QueryResult) -> Result<UploadImageRecord, DbE
         size_bytes: row.try_get("", "size_bytes")?,
         sha256: row.try_get("", "sha256")?,
         etag: row.try_get("", "etag")?,
+        is_deleted: row.try_get("", "is_deleted")?,
         created_at: row.try_get("", "created_at")?,
     })
 }
