@@ -760,6 +760,50 @@ test("createFeedback posts authenticated user feedback", async () => {
   ]);
 });
 
+test("listClientVersions fetches public WeChat version history", async () => {
+  const calls = [];
+  installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      method: options.method,
+      authorization: options.header && options.header.authorization,
+    });
+    options.success({
+      statusCode: 200,
+      data: {
+        next_cursor: null,
+        items: [
+          {
+            id: "version-1",
+            client_key: "wechat_miniprogram",
+            version: "0.1.0",
+            title: "0.1.0 初始版本",
+            release_notes: ["装备库上线"],
+            status: "published",
+            published_at: "2026-05-23T00:00:00Z",
+            created_at: "2026-05-23T00:00:00Z",
+            updated_at: "2026-05-23T00:00:00Z",
+          },
+        ],
+      },
+    });
+  });
+  const { listClientVersions } = require("../.tmp-test/utils/api.js");
+
+  const response = await listClientVersions("wechat_miniprogram", {
+    limit: 20,
+  });
+
+  assert.equal(response.items[0].version, "0.1.0");
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.example.test/api/v1/client-versions?limit=20&client_key=wechat_miniprogram",
+      method: "GET",
+      authorization: undefined,
+    },
+  ]);
+});
+
 test("authenticated requests refresh once on 401 and retry with the new access token", async () => {
   const calls = [];
   const storage = installWxMock((options) => {

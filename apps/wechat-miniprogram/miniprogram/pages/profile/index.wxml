@@ -73,15 +73,87 @@
       </view>
       <view class="settings-chevron">›</view>
     </view>
+    <view class="settings-row" bindtap="openVersionInfoModal">
+      <view class="settings-icon">版</view>
+      <view class="settings-copy">
+        <view class="settings-title">版本信息</view>
+        <view class="settings-desc">{{versionInfoDesc}}</view>
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
     <view class="settings-row" bindtap="openAboutModal">
       <view class="settings-icon">星</view>
       <view class="settings-copy">
         <view class="settings-title">关于寻径星野</view>
         <view class="settings-desc"
-          >{{aboutInfo.envText}} · {{aboutInfo.versionText}}</view
+          >为户外爱好者准备的出行、装备与技能工具。</view
         >
       </view>
       <view class="settings-chevron">›</view>
+    </view>
+  </view>
+
+  <view wx:if="{{versionModalVisible}}" class="profile-modal-mask">
+    <view class="profile-modal-card version-modal-card">
+      <view class="profile-modal-title">版本信息</view>
+      <view class="profile-modal-desc"
+        >客户端版本更新由后台发布，这里只显示微信小程序版本。</view
+      >
+      <view wx:if="{{versionLoading}}" class="version-loading"
+        >正在加载版本信息...</view
+      >
+      <view wx:elif="{{versionError}}" class="profile-modal-error"
+        >{{versionError}}</view
+      >
+      <scroll-view
+        wx:elif="{{clientVersions.length}}"
+        class="version-list"
+        scroll-y
+      >
+        <view
+          wx:for="{{clientVersions}}"
+          wx:key="id"
+          class="version-card {{index === 0 ? 'latest' : ''}}"
+        >
+          <view class="version-card-head">
+            <view>
+              <view class="version-title">{{item.title}}</view>
+              <view class="version-meta"
+                >{{item.version}} · {{item.publishedAtText}}</view
+              >
+            </view>
+            <view wx:if="{{index === 0}}" class="version-latest-badge"
+              >最新</view
+            >
+          </view>
+          <view class="version-notes">
+            <view
+              wx:for="{{item.release_notes}}"
+              wx:for-item="note"
+              wx:key="*this"
+              class="version-note"
+              >{{note}}</view
+            >
+          </view>
+        </view>
+      </scroll-view>
+      <view wx:else class="profile-modal-desc">暂无版本信息。</view>
+      <view class="profile-modal-actions">
+        <button
+          wx:if="{{versionError}}"
+          class="account-inline-button profile-modal-action-button"
+          loading="{{versionLoading}}"
+          bindtap="retryClientVersions"
+        >
+          重试
+        </button>
+        <button
+          class="account-inline-button muted profile-modal-action-button"
+          bindtap="closeVersionInfoModal"
+        >
+          关闭
+        </button>
+      </view>
     </view>
   </view>
 
@@ -173,9 +245,6 @@
   <view wx:if="{{feedbackModalVisible}}" class="profile-modal-mask">
     <view class="profile-modal-card">
       <view class="profile-modal-title">意见反馈</view>
-      <view class="profile-modal-desc"
-        >你的反馈会进入后台处理，我们会优先看问题和内容纠错。</view
-      >
       <view class="profile-feedback-form">
         <picker
           value="{{feedbackCategoryIndex}}"
@@ -271,24 +340,67 @@
     </view>
   </view>
 
+  <view wx:if="{{feedbackSuccessVisible}}" class="feedback-success-layer">
+    <view class="feedback-success-card">
+      <view class="feedback-success-icon">✓</view>
+      <view class="feedback-success-title">反馈已提交</view>
+      <view class="feedback-success-message">{{feedbackSuccessMessage}}</view>
+      <view class="feedback-success-countdown"
+        >{{feedbackSuccessSecondsRemaining}} 秒后自动关闭</view
+      >
+      <button
+        class="feedback-success-button"
+        bindtap="closeFeedbackSuccess"
+        aria-label="关闭反馈提交提示"
+      >
+        我知道了
+      </button>
+    </view>
+  </view>
+
   <view wx:if="{{aboutModalVisible}}" class="profile-modal-mask">
-    <view class="profile-modal-card">
-      <view class="profile-modal-title">关于寻径星野</view>
-      <view class="about-row">
-        <text>运行版本</text>
-        <text>{{aboutInfo.envText}}</text>
+    <view class="profile-modal-card about-modal-card">
+      <view class="about-hero">
+        <view class="about-eyebrow">🏕️ 寻径星野</view>
+        <view class="about-title">关于寻径星野</view>
+        <view class="about-subtitle">把每次出发前的准备，整理得更安心。</view>
       </view>
-      <view class="about-row">
-        <text>版本号</text>
-        <text>{{aboutInfo.versionText}}</text>
-      </view>
-      <view class="profile-modal-actions">
-        <button
-          class="account-inline-button profile-modal-action-button"
-          bindtap="closeAboutModal"
-        >
-          知道了
-        </button>
+      <view class="about-body">
+        <view class="about-copy">
+          <view class="about-icon">🧭</view>
+          <view class="about-copy-main">
+            <view class="about-copy-title">出发准备</view>
+            <view class="about-copy-text"
+              >寻径星野是一个面向户外爱好者的个人工具，希望把出发前准备、装备管理、装备图鉴、户外技能复习和离线可用的知识内容慢慢整理到一起。</view
+            >
+          </view>
+        </view>
+        <view class="about-copy">
+          <view class="about-icon">🎒</view>
+          <view class="about-copy-main">
+            <view class="about-copy-title">山野陪伴</view>
+            <view class="about-copy-text"
+              >它不只服务某一次路线或某一类装备，而是想陪伴每一次走向山野之前的准备过程：少一点遗漏，多一点安心。</view
+            >
+          </view>
+        </view>
+        <view class="about-copy">
+          <view class="about-icon">✨</view>
+          <view class="about-copy-main">
+            <view class="about-copy-title">作者的话</view>
+            <view class="about-copy-text"
+              >这个项目由作者在业余时间出于爱好开发，也会按自己的使用感受持续打磨。寻径星野会永久免费，无广告，不做打扰用户的商业化设计。</view
+            >
+          </view>
+        </view>
+        <view class="profile-modal-actions about-actions">
+          <button
+            class="account-inline-button profile-modal-action-button"
+            bindtap="closeAboutModal"
+          >
+            知道了
+          </button>
+        </view>
       </view>
     </view>
   </view>

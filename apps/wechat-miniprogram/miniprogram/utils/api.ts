@@ -189,6 +189,30 @@ export interface UploadImageResponse {
   created_at: string;
 }
 
+export type ClientKey =
+  | "wechat_miniprogram"
+  | "web"
+  | "android"
+  | "ios"
+  | "macos";
+
+export interface ClientVersion {
+  id: string;
+  client_key: ClientKey;
+  version: string;
+  title: string;
+  release_notes: string[];
+  status: "draft" | "published";
+  published_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListClientVersionsResponse {
+  items: ClientVersion[];
+  next_cursor?: string | null;
+}
+
 export interface RegisterRequest {
   username: string;
   email: string;
@@ -857,6 +881,19 @@ export async function getKnotOfflineManifest(
     locale,
     cache: false,
   });
+}
+
+export async function listClientVersions(
+  clientKey: ClientKey,
+  options: { limit?: number; cursor?: string } = {},
+): Promise<ListClientVersionsResponse> {
+  return requestJson(
+    `/api/v1/client-versions${queryString({
+      ...options,
+      client_key: clientKey,
+    })}`,
+    { cache: false },
+  );
 }
 
 export function knotListPath(request: ListKnotsRequest = {}): string {

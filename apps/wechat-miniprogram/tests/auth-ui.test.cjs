@@ -87,6 +87,9 @@ ${ts}`;
   assert.match(wxml, /设置与帮助/);
   assert.match(wxml, /绳结离线缓存/);
   assert.match(wxml, /意见反馈/);
+  assert.match(wxml, /版本信息/);
+  assert.match(wxml, /versionInfoDesc/);
+  assert.match(wxml, /bindtap="openVersionInfoModal"/);
   assert.match(wxml, /关于寻径星野/);
   assert.match(wxml, /已缓存绳结/);
   assert.match(wxml, /已缓存/);
@@ -103,6 +106,11 @@ ${ts}`;
   assert.match(wxml, /bindtap="clearCachedKnots"/);
   assert.match(wxml, /bindtap="closeCachedKnotsModal"/);
   assert.match(wxml, /bindtap="openFeedbackModal"/);
+  assert.match(wxml, /versionModalVisible/);
+  assert.match(wxml, /clientVersions/);
+  assert.match(wxml, /最新/);
+  assert.match(wxml, /bindtap="retryClientVersions"/);
+  assert.match(wxml, /bindtap="closeVersionInfoModal"/);
   assert.match(wxml, /bindtap="openAboutModal"/);
   assert.match(wxml, /bindchange="onFeedbackCategoryChange"/);
   assert.match(wxml, /图片附件/);
@@ -112,8 +120,61 @@ ${ts}`;
   assert.match(wxml, /bindtap="previewFeedbackImage"/);
   assert.match(wxml, /catchtap="removeFeedbackImage"/);
   assert.match(wxml, /bindtap="submitFeedback"/);
-  assert.match(wxml, /aboutInfo\.envText/);
-  assert.match(wxml, /aboutInfo\.versionText/);
+  assert.match(wxml, /feedbackSuccessVisible/);
+  assert.match(wxml, /feedback-success-card/);
+  assert.match(wxml, /feedbackSuccessMessage/);
+  assert.match(wxml, /feedbackSuccessSecondsRemaining/);
+  assert.match(wxml, /秒后自动关闭/);
+  assert.match(wxml, /bindtap="closeFeedbackSuccess"/);
+  assert.match(wxml, /我知道了/);
+  assert.doesNotMatch(
+    wxml,
+    /你的反馈会进入后台处理，我们会优先看问题和内容纠错。/,
+  );
+  assert.match(
+    pageSource,
+    /感谢你的反馈。反馈内容会进入后台处理，我们会及时查看并持续改进。你的建议会让寻径星野变得更好。/,
+  );
+  assert.match(pageSource, /FEEDBACK_SUCCESS_VISIBLE_MS = 10_000/);
+  assert.match(pageSource, /FEEDBACK_SUCCESS_TICK_MS = 1_000/);
+  assert.match(pageSource, /feedbackSuccessTimer/);
+  assert.match(pageSource, /feedbackSuccessSecondsRemaining/);
+  assert.match(pageSource, /showFeedbackSuccess/);
+  assert.match(pageSource, /scheduleFeedbackSuccessCountdown/);
+  assert.match(pageSource, /closeFeedbackSuccess/);
+  assert.match(pageSource, /hideFeedbackSuccess/);
+  assert.match(pageSource, /clearFeedbackSuccessTimer/);
+  assert.match(pageSource, /setTimeout/);
+  assert.match(pageSource, /onHide\(\)/);
+  assert.match(pageSource, /onUnload\(\)/);
+  assert.doesNotMatch(pageSource, /wx\.showToast\(\{ title: "反馈已提交"/);
+  assert.match(wxml, /为户外爱好者准备的出行、装备与技能工具。/);
+  assert.match(wxml, /about-modal-card/);
+  assert.match(wxml, /about-hero/);
+  assert.match(wxml, /🏕️ 寻径星野/);
+  assert.match(wxml, /把每次出发前的准备，整理得更安心。/);
+  assert.match(wxml, /🧭/);
+  assert.match(wxml, /出发准备/);
+  assert.match(
+    wxml,
+    /寻径星野是一个面向户外爱好者的个人工具，希望把出发前准备、装备管理、装备图鉴、户外技能复习和离线可用的知识内容慢慢整理到一起。/,
+  );
+  assert.match(wxml, /🎒/);
+  assert.match(wxml, /山野陪伴/);
+  assert.match(
+    wxml,
+    /它不只服务某一次路线或某一类装备，而是想陪伴每一次走向山野之前的准备过程：少一点遗漏，多一点安心。/,
+  );
+  assert.match(wxml, /✨/);
+  assert.match(wxml, /作者的话/);
+  assert.match(
+    wxml,
+    /这个项目由作者在业余时间出于爱好开发，也会按自己的使用感受持续打磨。寻径星野会永久免费，无广告，不做打扰用户的商业化设计。/,
+  );
+  assert.doesNotMatch(wxml, /运行版本/);
+  assert.doesNotMatch(wxml, /版本号/);
+  assert.doesNotMatch(wxml, /aboutInfo\.envText/);
+  assert.doesNotMatch(wxml, /aboutInfo\.versionText/);
   assert.doesNotMatch(wxml, /点这里后，在下方选择“用微信昵称”/);
   assert.doesNotMatch(wxml, /导入微信名称/);
   assert.doesNotMatch(wxml, /使用自定义名称/);
@@ -131,6 +192,10 @@ ${ts}`;
   assert.doesNotMatch(pageSource, /nicknameEditMode/);
   assert.doesNotMatch(pageSource, /saveNicknameValue/);
   assert.match(pageSource, /uploadWechatAvatar/);
+  assert.match(pageSource, /listClientVersions\("wechat_miniprogram"/);
+  assert.match(pageSource, /refreshClientVersionSummary/);
+  assert.match(pageSource, /openVersionInfoModal/);
+  assert.match(pageSource, /loadClientVersions/);
   assert.match(pageSource, /uploadFeedbackImage/);
   assert.match(pageSource, /chooseMedia/);
   assert.match(pageSource, /wx\.chooseImage/);
