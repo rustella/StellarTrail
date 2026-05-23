@@ -13,6 +13,7 @@ import {
 } from "../../utils/api-gears";
 import {
   categoryFilterItems,
+  formatGearQuantity,
   formatGearPrice,
   formatGearWeight,
   GEAR_SORT_OPTIONS,
@@ -50,6 +51,8 @@ interface GearCard extends GearSummary {
   priceText: string;
   purchaseDateText: string;
   brandModelText: string;
+  quantityText: string;
+  showQuantityBadge: boolean;
 }
 
 interface StatCard {
@@ -439,9 +442,9 @@ Page({
     }
     const id = event.currentTarget.dataset.id as string;
     wx.showModal({
-      title: "移入历史装备？",
-      content: "该装备会从可用列表移入历史装备，可在历史装备中恢复。",
-      confirmText: "移入历史",
+      title: "归档装备？",
+      content: "归档后不会出现在可用装备列表，可在历史装备中恢复。",
+      confirmText: "归档",
       confirmColor: "#dc2626",
       success: async (result) => {
         if (!result.confirm) {
@@ -552,6 +555,8 @@ function mapGearCard(item: GearSummary): GearCard {
     categoryText: item.category_label || getGearCategoryLabel(item.category),
     statusText: item.status_label || getGearStatusLabel(item.status),
     statusTone: getStatusTone(item.status),
+    quantityText: formatGearQuantity(item.quantity),
+    showQuantityBadge: (item.quantity ?? 1) > 1,
     weightText: formatGearWeight(item.weight_g),
     priceText: formatGearPrice(
       item.purchase_price_cents,

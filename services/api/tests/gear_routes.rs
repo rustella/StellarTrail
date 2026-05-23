@@ -1,12 +1,12 @@
 use std::time::Duration;
 
 use axum::{
+    body::{to_bytes, Body},
+    http::{header, HeaderMap, Request, StatusCode},
     Router,
-    body::{Body, to_bytes},
-    http::{HeaderMap, Request, StatusCode, header},
 };
 use sea_orm::{ConnectionTrait, Statement};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use stellartrail_api::{
     cache::{Cache, InMemoryCacheStore},
     config::{ApiConfig, CorsConfig, RedisCacheConfig},
@@ -15,8 +15,9 @@ use stellartrail_api::{
     state::AppState,
 };
 use stellartrail_db::{
-    DatabaseConfig, connect_database,
+    connect_database,
     repositories::{AdminRoleRepository, GearAtlasRepository},
+    DatabaseConfig,
 };
 use stellartrail_domain::{
     gear::{GearCategory, GearSpecs},
@@ -351,6 +352,71 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
 }
 
 #[tokio::test]
+async fn gear_create_merges_same_item_and_stats_count_physical_quantity() {
+    let app = test_app().await;
+    let token = login(&app.router, "gear-quantity-user").await;
+
+    let create_body = json!({
+        "category": "electronics_system",
+        "name": "华为 12000mAh 充电宝",
+        "brand": "华为",
+        "model": "12000mAh",
+        "weight_g": 220,
+        "purchase_price_cents": 19900,
+        "specs": {"battery_capacity": "12000 mAh"},
+        "tags": ["电子"]
+    });
+    let (first_status, first) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/gears",
+        Some(&token),
+        create_body.clone(),
+    )
+    .await;
+    assert_eq!(first_status, StatusCode::CREATED, "{first}");
+    let gear_id = first["id"].as_str().unwrap();
+    assert_eq!(first["quantity"], 1);
+
+    let mut second_body = create_body;
+    second_body["quantity"] = json!(1);
+    second_body["tags"] = json!(["备用"]);
+    second_body["purchase_location"] = json!("天猫");
+    let (second_status, second) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/gears",
+        Some(&token),
+        second_body,
+    )
+    .await;
+    assert_eq!(second_status, StatusCode::CREATED, "{second}");
+    assert_eq!(second["id"], gear_id);
+    assert_eq!(second["quantity"], 2);
+    assert_eq!(second["tags"], json!(["电子", "备用"]));
+    assert!(
+        second["notes"]
+            .as_str()
+            .is_some_and(|notes| notes.contains("天猫")),
+        "merge note should preserve incoming differing purchase data: {second}"
+    );
+
+    let (list_status, list) =
+        send_empty(&app.router, "GET", "/api/v1/me/gears", Some(&token)).await;
+    assert_eq!(list_status, StatusCode::OK, "{list}");
+    assert_eq!(list["items"].as_array().unwrap().len(), 1);
+    assert_eq!(list["items"][0]["quantity"], 2);
+
+    let (stats_status, stats) =
+        send_empty(&app.router, "GET", "/api/v1/me/gears/stats", Some(&token)).await;
+    assert_eq!(stats_status, StatusCode::OK, "{stats}");
+    assert_eq!(stats["current_count"], 2);
+    assert_eq!(stats["total_weight_g"], 440);
+    assert_eq!(stats["total_value_cents"], 39800);
+    assert_eq!(stats["by_category"][7]["count"], 2);
+}
+
+#[tokio::test]
 async fn gear_packing_lists_create_add_check_and_keep_unavailable_items_visible() {
     let app = test_app().await;
     let token = login(&app.router, "gear-packing-user").await;
@@ -360,7 +426,7 @@ async fn gear_packing_lists_create_add_check_and_keep_unavailable_items_visible(
         "POST",
         "/api/v1/me/gears",
         Some(&token),
-        json!({"category": "backpack_system", "name": "轻量小包", "weight_g": 800}),
+        json!({"category": "backpack_system", "name": "轻量小包", "weight_g": 800, "quantity": 2}),
     )
     .await;
     assert_eq!(backpack_status, StatusCode::CREATED, "{backpack}");
@@ -408,18 +474,33 @@ async fn gear_packing_lists_create_add_check_and_keep_unavailable_items_visible(
     assert_eq!(add_status, StatusCode::OK, "{added}");
     assert_eq!(added["stats"]["item_count"], 2);
     assert_eq!(added["stats"]["total_weight_g"], 890);
+    assert_eq!(added["items"][0]["planned_quantity"], 1);
+    assert_eq!(added["items"][0]["gear"]["quantity"], 2);
     let first_item_id = added["items"][0]["id"].as_str().unwrap();
+
+    let (planned_status, planned) = send_json(
+        &app.router,
+        "PATCH",
+        &format!("/api/v1/me/packing-lists/{list_id}/items/{first_item_id}"),
+        Some(&token),
+        json!({"planned_quantity": 2}),
+    )
+    .await;
+    assert_eq!(planned_status, StatusCode::OK, "{planned}");
+    assert_eq!(planned["stats"]["item_count"], 3);
+    assert_eq!(planned["stats"]["total_weight_g"], 1690);
 
     let (packed_status, packed) = send_json(
         &app.router,
         "PATCH",
         &format!("/api/v1/me/packing-lists/{list_id}/items/{first_item_id}"),
         Some(&token),
-        json!({"packed": true}),
+        json!({"packed_quantity": 1}),
     )
     .await;
     assert_eq!(packed_status, StatusCode::OK, "{packed}");
     assert_eq!(packed["stats"]["packed_count"], 1);
+    assert_eq!(packed["items"][0]["packed"], false);
 
     let (list_status, list) =
         send_empty(&app.router, "GET", "/api/v1/me/packing-lists", Some(&token)).await;
@@ -621,12 +702,10 @@ async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user(
     .await;
     assert_eq!(ranking_status, StatusCode::OK, "{ranking}");
     assert_eq!(ranking["keys"][0], "battery_capacity");
-    assert!(
-        ranking["keys"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("output_power"))
-    );
+    assert!(ranking["keys"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("output_power")));
     assert!(
         !ranking["keys"]
             .as_array()
@@ -665,12 +744,10 @@ async fn spec_key_rankings_track_keys_in_redis_without_values_and_scope_by_user(
     .await;
     assert_eq!(updated_ranking_status, StatusCode::OK, "{updated_ranking}",);
     assert_eq!(updated_ranking["keys"][0], "battery_capacity");
-    assert!(
-        updated_ranking["keys"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("rated_energy"))
-    );
+    assert!(updated_ranking["keys"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("rated_energy")));
 
     let other_token = login(&app.router, "spec-rank-other-user").await;
     let (other_status, other_ranking) = send_empty(
@@ -823,13 +900,11 @@ async fn tag_color_validation_and_disabled_cache_degrade_cleanly() {
         "{invalid}"
     );
     assert_eq!(invalid["code"], "validation_failed");
-    assert!(
-        invalid["fields"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|field| field["field"] == "tag_colors.冬季")
-    );
+    assert!(invalid["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|field| field["field"] == "tag_colors.冬季"));
 
     let (create_status, created) = send_json(
         &app.router,
@@ -902,13 +977,11 @@ async fn backpack_specs_keep_back_length_and_reject_size_specs() {
         StatusCode::UNPROCESSABLE_ENTITY,
         "{old_backpack}"
     );
-    assert!(
-        old_backpack["fields"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|field| field["field"] == "specs.backpack_size")
-    );
+    assert!(old_backpack["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|field| field["field"] == "specs.backpack_size"));
 }
 
 #[tokio::test]
@@ -1407,13 +1480,11 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
         StatusCode::UNPROCESSABLE_ENTITY,
         "{invalid}"
     );
-    assert!(
-        invalid["fields"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|field| field["field"] == "specs.battery_capacity")
-    );
+    assert!(invalid["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|field| field["field"] == "specs.battery_capacity"));
     let (invalid_size_status, invalid_size) = send_json(
         &app.router,
         "POST",
@@ -1431,13 +1502,11 @@ async fn gear_atlas_manual_submissions_validate_specs_and_rejections_stay_privat
         StatusCode::UNPROCESSABLE_ENTITY,
         "{invalid_size}"
     );
-    assert!(
-        invalid_size["fields"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|field| field["field"] == "specs.size")
-    );
+    assert!(invalid_size["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|field| field["field"] == "specs.size"));
 
     let (create_status, created) = send_json(
         &app.router,
@@ -1607,13 +1676,11 @@ async fn gear_atlas_admin_edits_are_reported_to_submitter_after_approval() {
     )
     .await;
     assert_eq!(mine_status, StatusCode::OK, "{mine}");
-    assert!(
-        mine["items"][0]["review_changes"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|change| change["field"] == "name")
-    );
+    assert!(mine["items"][0]["review_changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|change| change["field"] == "name"));
 
     let (public_status, public) = send_empty(&app.router, "GET", "/api/v1/gear-atlas", None).await;
     assert_eq!(public_status, StatusCode::OK, "{public}");
@@ -1668,6 +1735,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     assert_eq!(created["official_price_currency"], "CNY");
     assert_eq!(created["purchase_price_currency"], "CNY");
     assert_eq!(created["selected_variant_label"], "标准版");
+    assert_eq!(created["quantity"], 1);
     assert_eq!(created["specs"]["battery_capacity"], "20000 mAh");
     assert_eq!(created["is_deleted"], false);
 
@@ -1703,6 +1771,7 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     assert_eq!(list["items"][0]["official_price_cents"], 69900);
     assert_eq!(list["items"][0]["purchase_price_currency"], "CNY");
     assert_eq!(list["items"][0]["selected_variant_label"], "标准版");
+    assert_eq!(list["items"][0]["quantity"], 1);
     assert_eq!(list["items"][0]["is_deleted"], false);
 
     let (invalid_status, invalid) = send_json(
@@ -1725,27 +1794,21 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
         "{invalid}"
     );
     assert_eq!(invalid["code"], "validation_failed");
-    assert!(
-        invalid["fields"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|field| field["field"] == "purchase_price_cents")
-    );
-    assert!(
-        invalid["fields"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|field| field["field"] == "purchase_price_currency")
-    );
-    assert!(
-        invalid["fields"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|field| field["field"] == "specs.opening_style")
-    );
+    assert!(invalid["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|field| field["field"] == "purchase_price_cents"));
+    assert!(invalid["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|field| field["field"] == "purchase_price_currency"));
+    assert!(invalid["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|field| field["field"] == "specs.opening_style"));
 
     let (update_status, updated) = send_json(
         &app.router,
@@ -1910,7 +1973,7 @@ async fn gear_import_dry_run_and_export_csv_are_supported() {
             .to_vec(),
     )
     .unwrap();
-    assert!(csv.contains("category,name,brand,model"));
+    assert!(csv.contains("category,name,brand,model,description,quantity"));
     assert!(csv.contains("lighting_system,头灯"));
 }
 

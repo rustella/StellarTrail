@@ -344,6 +344,7 @@ export interface GearItem {
   atlas_item_id?: string | null;
   selected_variant_key?: string | null;
   selected_variant_label?: string | null;
+  quantity: number;
   specs?: GearSpecs | null;
   tags: string[];
   tag_colors?: GearTagColorMap | null;
@@ -374,6 +375,7 @@ export interface GearSummary {
   atlas_item_id?: string | null;
   selected_variant_key?: string | null;
   selected_variant_label?: string | null;
+  quantity: number;
   specs?: GearSpecs | null;
   tags: string[];
   tag_colors?: GearTagColorMap | null;
@@ -400,6 +402,7 @@ export interface CreateGearRequest {
   atlas_item_id?: string | null;
   selected_variant_key?: string | null;
   selected_variant_label?: string | null;
+  quantity?: number | null;
   specs?: GearSpecs | null;
   tags?: string[];
   tag_colors?: GearTagColorMap | null;
@@ -519,7 +522,9 @@ export interface AddGearPackingItemsRequest {
 }
 
 export interface UpdateGearPackingItemRequest {
-  packed: boolean;
+  packed?: boolean;
+  planned_quantity?: number | null;
+  packed_quantity?: number | null;
 }
 
 export type GearPackingUnavailableReason = "archived" | "deleted" | string;
@@ -527,6 +532,8 @@ export type GearPackingUnavailableReason = "archived" | "deleted" | string;
 export interface GearPackingListItem {
   id: string;
   gear_id: string;
+  planned_quantity: number;
+  packed_quantity: number;
   packed: boolean;
   unavailable: boolean;
   unavailable_reason?: GearPackingUnavailableReason | null;

@@ -102,6 +102,37 @@
   gap: 12rpx;
 }
 
+.quantity-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10rpx;
+  margin-top: 12rpx;
+  color: var(--heading-muted-color);
+  font-size: 23rpx;
+  font-weight: 800;
+}
+
+.quantity-button {
+  display: grid;
+  width: 44rpx;
+  height: 44rpx;
+  margin: 0;
+  padding: 0;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 26rpx;
+  font-weight: 900;
+  line-height: 44rpx;
+}
+
+.quantity-button[disabled] {
+  color: var(--muted-color);
+  background: var(--soft-control-bg);
+}
+
 .unavailable-text {
   color: #dc2626;
 }

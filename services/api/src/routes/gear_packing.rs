@@ -1,10 +1,10 @@
 //! Gear packing-list routes for authenticated users preparing route-specific loadouts.
 
 use axum::{
-    Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     routing::get,
+    Json, Router,
 };
 use stellartrail_db::repositories::{GearPackingRepository, ListGearPackingListsOptions};
 use stellartrail_domain::{
@@ -156,9 +156,17 @@ async fn update_item(
     Path((id, item_id)): Path<(String, String)>,
     Json(payload): Json<UpdateGearPackingItemRequest>,
 ) -> Result<Json<GearPackingListDetailResponse>, ApiError> {
+    payload.validate()?;
     let repo = GearPackingRepository::new(state.db().clone());
     let detail = repo
-        .update_item_packed(&user.id, &id, &item_id, payload.packed)
+        .update_item_quantities(
+            &user.id,
+            &id,
+            &item_id,
+            payload.planned_quantity,
+            payload.packed_quantity,
+            payload.packed,
+        )
         .await?
         .ok_or(ApiError::NotFound)?;
     Ok(Json(

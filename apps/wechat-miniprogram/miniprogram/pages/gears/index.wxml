@@ -158,7 +158,12 @@
                 >{{item.statusText}}</view
               >
             </view>
-            <view class="gear-name">{{item.name}}</view>
+            <view class="gear-title-row">
+              <view class="gear-name">{{item.name}}</view>
+              <view wx:if="{{item.showQuantityBadge}}" class="quantity-badge"
+                >{{item.quantityText}}</view
+              >
+            </view>
             <view class="gear-meta">{{item.brandModelText}}</view>
             <view class="metrics-row">
               <view class="metric">
@@ -182,7 +187,7 @@
                 catchtap="archiveItem"
                 data-id="{{item.id}}"
               >
-                移入历史
+                归档
               </button>
               <button
                 wx:else

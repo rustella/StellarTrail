@@ -547,6 +547,8 @@ Authorization: Bearer <super-admin-token>
 
 ## Gear inventory
 
+个人装备使用顶层 `quantity` 表示同款同规格库存数量，默认 `1`，最小值 `1`。`weight_g`、`official_price_cents`、`purchase_price_cents` 仍表示单件数据；分类计数、状态计数、`current_count`、总重量和总价值都会按 `quantity` 乘算。`specs.quantity` 不再表示个人拥有数量；旧请求里可解析的 `specs.quantity` 会被折入顶层 `quantity`，响应和导出以顶层字段为准。创建装备时若命中同款同规格的现有可用记录，会返回已有记录并递增 `quantity`，不会创建重复行。
+
 ```http
 GET /api/v1/me/gears/categories?tab=available
 GET /api/v1/me/gears/stats?tab=available
@@ -590,7 +592,7 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
 }
 ```
 
-清单列表返回每份清单的件数、已打包数和总重量：
+清单列表返回每份清单的计划携带数量、已打包数量和按计划数量计算的总重量：
 
 ```json
 {
@@ -638,6 +640,8 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
     {
       "id": "packing-item-id",
       "gear_id": "gear-id-1",
+      "planned_quantity": 1,
+      "packed_quantity": 1,
       "packed": true,
       "unavailable": false,
       "unavailable_reason": null,
@@ -650,6 +654,7 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
         "model": null,
         "status": "available",
         "status_label": "可用",
+        "quantity": 2,
         "weight_g": 800,
         "tags": [],
         "tag_colors": {},
@@ -666,11 +671,12 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
 }
 ```
 
-勾选/取消勾选：
+更新打包状态可继续只传兼容字段 `packed`，也可以传 `planned_quantity` 或 `packed_quantity`。服务端会限制 `planned_quantity` 不超过当前库存数量，并用 `packed_quantity >= planned_quantity` 推导完成状态。
 
 ```json
 {
-  "packed": true
+  "planned_quantity": 2,
+  "packed_quantity": 1
 }
 ```
 
@@ -706,6 +712,7 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
   "atlas_item_id": null,
   "selected_variant_key": "standard",
   "selected_variant_label": "标准版",
+  "quantity": 2,
   "specs": {
     "battery_capacity": "20000 mAh",
     "rated_energy": "74 Wh"

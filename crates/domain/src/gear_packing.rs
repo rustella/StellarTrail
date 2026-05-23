@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::validation::{
-    FieldViolation, ValidationError, normalize_optional_text, normalize_required_text,
+    normalize_optional_text, normalize_required_text, FieldViolation, ValidationError,
 };
 
 /// Writable packing-list metadata supplied by the current user.
@@ -71,6 +71,8 @@ pub struct GearPackingListItem {
     pub packing_list_id: String,
     pub user_id: String,
     pub gear_id: String,
+    pub planned_quantity: i32,
+    pub packed_quantity: i32,
     pub packed: bool,
     pub created_at: String,
     pub updated_at: String,

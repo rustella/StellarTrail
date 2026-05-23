@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use stellartrail_domain::{
     gear::GearItem,
     gear_packing::{
-        GearPackingListDetail, GearPackingListDraft, GearPackingListItem, GearPackingListStats,
-        GearPackingListSummary, normalize_gear_ids,
+        normalize_gear_ids, GearPackingListDetail, GearPackingListDraft, GearPackingListItem,
+        GearPackingListStats, GearPackingListSummary,
     },
-    validation::ValidationError,
+    validation::{FieldViolation, ValidationError},
 };
 
 use crate::dto::gear::GearSummaryResponse;
@@ -62,7 +62,48 @@ impl AddGearPackingItemsRequest {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateGearPackingItemRequest {
-    pub packed: bool,
+    pub packed: Option<bool>,
+    pub planned_quantity: Option<i32>,
+    pub packed_quantity: Option<i32>,
+}
+
+impl UpdateGearPackingItemRequest {
+    /// Validates quantity bounds and requires at least one updated field.
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        let mut errors = Vec::new();
+        if self.packed.is_none()
+            && self.planned_quantity.is_none()
+            && self.packed_quantity.is_none()
+        {
+            errors.push(FieldViolation::new(
+                "item",
+                "must include packed, planned_quantity, or packed_quantity",
+            ));
+        }
+        if self
+            .planned_quantity
+            .is_some_and(|value| !(1..=9_999).contains(&value))
+        {
+            errors.push(FieldViolation::new(
+                "planned_quantity",
+                "must be between 1 and 9999",
+            ));
+        }
+        if self
+            .packed_quantity
+            .is_some_and(|value| !(0..=9_999).contains(&value))
+        {
+            errors.push(FieldViolation::new(
+                "packed_quantity",
+                "must be between 0 and 9999",
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ValidationError::new(errors))
+        }
+    }
 }
 
 /// Packing-list aggregate counters flattened for API clients.
@@ -125,6 +166,8 @@ pub struct ListGearPackingListsResponse {
 pub struct GearPackingListItemResponse {
     pub id: String,
     pub gear_id: String,
+    pub planned_quantity: i32,
+    pub packed_quantity: i32,
     pub packed: bool,
     pub unavailable: bool,
     pub unavailable_reason: Option<String>,
@@ -150,6 +193,8 @@ impl GearPackingListItemResponse {
         Self {
             id: item.id,
             gear_id: item.gear_id,
+            planned_quantity: item.planned_quantity,
+            packed_quantity: item.packed_quantity,
             packed: item.packed,
             unavailable: unavailable_reason.is_some(),
             unavailable_reason,

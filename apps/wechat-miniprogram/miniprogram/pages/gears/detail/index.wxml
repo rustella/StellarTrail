@@ -38,6 +38,10 @@
           <view class="summary-label">重量</view>
         </view>
         <view class="summary-item">
+          <view class="summary-value">{{quantityText}}</view>
+          <view class="summary-label">数量</view>
+        </view>
+        <view class="summary-item">
           <view class="summary-value">{{priceText}}</view>
           <view class="summary-label">价格</view>
         </view>
@@ -55,7 +59,7 @@
         class="danger"
         bindtap="archiveItem"
       >
-        移入历史
+        归档
       </button>
       <button wx:else class="restore" bindtap="restoreItem">恢复可用</button>
       <button wx:if="{{tab === 'history'}}" class="danger" bindtap="deleteItem">

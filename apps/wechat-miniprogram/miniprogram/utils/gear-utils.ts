@@ -112,6 +112,7 @@ export interface GearItem {
   purchase_location?: string | null;
   status: GearStatus;
   storage_location?: string | null;
+  quantity: number;
   specs?: GearSpecs | null;
   tags: string[];
   tag_colors?: GearTagColorMap | null;
@@ -133,6 +134,7 @@ export interface GearSummary {
   model?: string | null;
   status: GearStatus;
   status_label?: string;
+  quantity: number;
   weight_g?: number | null;
   official_price_cents?: number | null;
   official_price_currency?: GearCurrency | string | null;
@@ -226,6 +228,7 @@ export interface CreateGearRequest {
   purchase_location?: string | null;
   status?: GearStatus | null;
   storage_location?: string | null;
+  quantity?: number | null;
   specs?: GearSpecs | null;
   tags?: string[];
   tag_colors?: GearTagColorMap | null;
@@ -315,6 +318,8 @@ export type UpdateGearPackingListRequest = CreateGearPackingListRequest;
 export interface GearPackingListItem {
   id: string;
   gear_id: string;
+  planned_quantity: number;
+  packed_quantity: number;
   packed: boolean;
   unavailable: boolean;
   unavailable_reason?: "archived" | "deleted" | string | null;
@@ -376,6 +381,7 @@ export interface GearFormData {
   brand: string;
   model: string;
   description: string;
+  quantityText: string;
   weightText: string;
   weightUnit: GearWeightUnit;
   purchaseDate: string;
@@ -661,7 +667,6 @@ export const GEAR_SPEC_FIELDS: Record<GearCategory, GearSpecField[]> = {
       "number",
       CONSUMABLE_CONTENT_UNITS,
     ),
-    spec("quantity", "数量", "例如 2", "number", ["件", "个", "包"]),
     spec("expiry_date", "有效期", "例如 2027-05"),
     spec("storage_condition", "储存条件", "例如 阴凉干燥"),
     spec("restock_threshold", "补货阈值", "例如 1", "number", [
@@ -679,6 +684,7 @@ export function createDefaultGearFormData(): GearFormData {
     brand: "",
     model: "",
     description: "",
+    quantityText: "1",
     weightText: "",
     weightUnit: "kg",
     purchaseDate: "",
@@ -703,6 +709,7 @@ export function gearToFormData(item: GearItem): GearFormData {
     brand: item.brand ?? "",
     model: item.model ?? "",
     description: item.description ?? "",
+    quantityText: String(item.quantity || 1),
     weightText:
       item.weight_g === undefined || item.weight_g === null
         ? ""
@@ -743,6 +750,7 @@ export function buildGearPayload(
     brand: nullableText(form.brand),
     model: nullableText(form.model),
     description: nullableText(form.description),
+    quantity: quantityFromText(form.quantityText),
     weight_g: weightToGrams(form.weightText, form.weightUnit),
     purchase_date: nullableText(form.purchaseDate),
     official_price_cents: priceToMinorUnits(
@@ -945,6 +953,11 @@ export function formatGearWeight(value?: number | null): string {
     return `${trimTrailingZeros((value / 1000).toFixed(2))} kg`;
   }
   return `${value} g`;
+}
+
+export function formatGearQuantity(value?: number | null): string {
+  const quantity = Math.max(1, Math.trunc(value ?? 1));
+  return `x${quantity}`;
 }
 
 export function formatGearPrice(
@@ -1157,6 +1170,21 @@ function requiredText(value: string | undefined, message: string): string {
     throw new Error(message);
   }
   return text;
+}
+
+function quantityFromText(value?: string): number {
+  const text = value?.trim() ?? "";
+  if (!text) {
+    return 1;
+  }
+  if (!/^\d+$/.test(text)) {
+    throw new Error("数量必须是正整数");
+  }
+  const numberValue = Number(text);
+  if (numberValue < 1 || numberValue > 9999) {
+    throw new Error("数量必须在 1 到 9999 之间");
+  }
+  return numberValue;
 }
 
 function weightToGrams(value?: string, unit?: GearWeightUnit): number | null {

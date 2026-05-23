@@ -47,6 +47,17 @@
           bindinput="onInput"
         />
       </view>
+      <view class="field">
+        <view class="field-label required">数量</view>
+        <input
+          value="{{form.quantityText}}"
+          data-field="quantityText"
+          type="number"
+          placeholder="1"
+          bindinput="onInput"
+        />
+        <view class="field-hint">同款同规格多件装备可合并为一条记录。</view>
+      </view>
       <view class="two-column">
         <view class="field compact">
           <view class="field-label">品牌</view>

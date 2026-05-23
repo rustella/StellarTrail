@@ -83,6 +83,11 @@ export function formatGearWeight(value?: number | null): string {
   return `${value} g`;
 }
 
+export function formatGearQuantity(value?: number | null): string {
+  const quantity = Math.max(1, Math.trunc(value ?? 1));
+  return `x${quantity}`;
+}
+
 export function formatGearPrice(
   value?: number | null,
   currency?: string | null,
