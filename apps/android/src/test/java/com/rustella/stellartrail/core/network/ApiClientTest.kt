@@ -57,6 +57,7 @@ class ApiClientTest {
         val client = ApiClient(
             configProvider = { AppConfig("https://api.example.invalid", domainCandidates = domainCandidates) },
             httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+            domainProbeTimeoutMillis = null,
         )
 
         val response = client.get<HealthResponse>("/me/gears/categories")
@@ -93,6 +94,7 @@ class ApiClientTest {
         val client = ApiClient(
             configProvider = { AppConfig("https://api.example.invalid", domainCandidates = domainCandidates) },
             httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+            domainProbeTimeoutMillis = null,
         )
 
         val response = client.get<HealthResponse>("/me/gears/categories")
