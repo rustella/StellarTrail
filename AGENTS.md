@@ -13,7 +13,7 @@ This repository uses a layered agent context architecture. Any AI agent or colla
 
 ## Current local development constraint
 
-If `.agent/local/AGENTS.md` exists, follow its temporary branch policy first. During the initial MVP phase, code development should default to the `wx/chore/initial-mvp` worktree. Resume the normal branch and MR workflow only after that branch is merged or no longer exists locally and remotely.
+If `.agent/local/AGENTS.md` exists, follow its temporary branch or worktree policy first.
 
 ## Conventions
 
