@@ -1,0 +1,53 @@
+<view class="atlas-detail-page {{themeClass}}">
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
+  <view wx:if="{{error}}" class="state-card error">
+    <view>{{error}}</view>
+    <button bindtap="loadDetail">重试</button>
+  </view>
+
+  <view wx:elif="{{loading && !item}}" class="state-card"
+    >正在加载图鉴详情...</view
+  >
+
+  <view wx:elif="{{!item}}" class="state-card">暂无图鉴详情</view>
+
+  <block wx:else>
+    <view class="detail-hero">
+      <view class="badge-row">
+        <view class="category-badge">{{categoryText}}</view>
+        <view class="atlas-status">已收录</view>
+      </view>
+      <view class="detail-title">{{item.name}}</view>
+      <view class="detail-subtitle">{{brandModelText}}</view>
+      <view class="summary-grid">
+        <view class="summary-item">
+          <view class="summary-value">{{weightText}}</view>
+          <view class="summary-label">重量</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-value">{{officialPriceText}}</view>
+          <view class="summary-label">官方价</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-value">{{approvedAtText}}</view>
+          <view class="summary-label">收录时间</view>
+        </view>
+      </view>
+    </view>
+
+    <block wx:for="{{groups}}" wx:key="title">
+      <view class="info-card">
+        <view class="section-title">{{item.title}}</view>
+        <block wx:for="{{item.items}}" wx:key="label" wx:for-item="row">
+          <view class="info-row">
+            <view class="info-label">{{row.label}}</view>
+            <view class="info-value">{{row.value}}</view>
+          </view>
+        </block>
+      </view>
+    </block>
+  </block>
+</view>

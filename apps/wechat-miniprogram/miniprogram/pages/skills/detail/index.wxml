@@ -1,0 +1,92 @@
+<view class="skill-detail-page {{themeClass}}">
+  <view wx:if="{{offlineNotice}}" class="offline-notice">{{offlineNotice}}</view>
+
+  <view wx:if="{{error}}" class="state-card error">
+    <view>{{error}}</view>
+    <button class="retry-button" bindtap="loadDetail">重试</button>
+  </view>
+
+  <view wx:elif="{{loading && !detail}}" class="state-card">正在加载绳结详情...</view>
+
+  <view wx:elif="{{!detail}}" class="state-card">暂无绳结详情</view>
+
+  <block wx:else>
+    <view class="detail-hero">
+      <view class="media-stage">
+        <view class="media-frame">
+          <image
+            wx:if="{{activeMedia && activeMedia.resolvedUrl}}"
+            class="stage-image"
+            mode="aspectFit"
+            src="{{activeMedia.resolvedUrl}}"
+            lazy-load
+          />
+          <view wx:else class="stage-placeholder">暂无演示图</view>
+        </view>
+
+        <view wx:if="{{media.length}}" class="media-toolbar">
+          <block wx:for="{{media}}" wx:key="id">
+            <button
+              class="media-control {{activeMediaIndex === index ? 'active' : ''}}"
+              data-index="{{index}}"
+              bindtap="selectMedia"
+            >
+              <text class="media-control-icon">{{item.icon}}</text>
+              <text class="media-control-label">{{item.mediaTypeText}}</text>
+            </button>
+          </block>
+        </view>
+
+        <view wx:if="{{activeMedia}}" class="media-help">
+          <text class="media-help-name">{{activeMedia.mediaTypeText}}</text>
+          <text>{{mediaHelpText}}</text>
+        </view>
+      </view>
+
+      <view class="detail-summary-panel">
+        <view class="detail-copy">
+          <view class="detail-title">{{detail.title}}</view>
+          <view wx:if="{{detailAliasText}}" class="detail-alias">{{detailAliasText}}</view>
+          <view class="detail-summary">{{detail.summary}}</view>
+          <view wx:if="{{detailTags.length}}" class="tag-row">
+            <block wx:for="{{detailTags}}" wx:key="*this">
+              <text class="tag">{{item}}</text>
+            </block>
+          </view>
+          <view class="detail-meta">{{mediaCredit}}</view>
+        </view>
+        <button
+          class="favorite-detail-button {{isFavorited ? 'active' : ''}}"
+          loading="{{favoriteLoading}}"
+          bindtap="toggleFavorite"
+        >
+          {{isFavorited ? '★ 已收藏' : '☆ 收藏'}}
+        </button>
+      </view>
+    </view>
+
+    <view class="safety-card">
+      <view class="section-title">安全提示</view>
+      <view class="paragraph"
+        >本内容仅供绳结知识学习和非承重练习，不得直接用于承载人体、攀登、救援、吊装、高空作业、航海安全等场景。实际使用前应接受专业训练，并由具备资质或充分经验的人员结合现场条件检查复核。</view
+      >
+    </view>
+
+    <view wx:if="{{detail.description}}" class="info-card">
+      <view class="section-title">资料说明</view>
+      <view class="paragraph">{{detail.description}}</view>
+    </view>
+  </block>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">暂不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

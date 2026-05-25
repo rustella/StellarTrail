@@ -1,0 +1,206 @@
+<view class="login-page {{themeClass}}">
+  <view class="login-card hero">
+    <view class="eyebrow">寻径星野账号</view>
+    <view class="title">登录后保存个人装备</view>
+    <view class="subtitle"
+      >不登录也可以先看装备图鉴和绳结教学；要保存自己的装备时再登录。</view
+    >
+  </view>
+
+  <view class="login-card">
+    <view class="status-row">
+      <view>
+        <view class="status-title">当前状态</view>
+        <view class="status-desc">{{userDisplay}}</view>
+      </view>
+      <view class="status-badge {{loggedIn ? 'success' : ''}}"
+        >{{loggedIn ? '已登录' : '未登录'}}</view
+      >
+    </view>
+  </view>
+
+  <view class="login-card auth-card">
+    <view class="section-title">选择登录方式</view>
+    <view class="auth-tabs" aria-label="选择登录方式">
+      <button
+        class="auth-tab {{loginMode === 'wechat' ? 'active' : ''}}"
+        bindtap="switchToWechat"
+      >
+        微信登录
+      </button>
+      <button
+        class="auth-tab {{loginMode === 'password' ? 'active' : ''}}"
+        bindtap="switchToPassword"
+      >
+        账号登录
+      </button>
+      <button
+        class="auth-tab {{loginMode === 'email' ? 'active' : ''}}"
+        bindtap="switchToEmail"
+      >
+        邮箱登录
+      </button>
+    </view>
+
+    <view wx:if="{{error}}" class="error-text">{{error}}</view>
+    <view wx:if="{{notice}}" class="notice-text">{{notice}}</view>
+
+    <view wx:if="{{loginMode === 'wechat'}}" class="auth-panel">
+      <button class="primary" loading="{{loading}}" bindtap="loginWechat">
+        {{loggedIn ? '重新登录' : '微信登录'}}
+      </button>
+    </view>
+
+    <view wx:elif="{{loginMode === 'password'}}" class="auth-panel">
+      <label class="field-label">账号或邮箱</label>
+      <input
+        class="field-input"
+        placeholder="账号或邮箱"
+        value="{{account}}"
+        data-field="account"
+        bindinput="onFieldInput"
+      />
+      <label class="field-label">密码</label>
+      <input
+        class="field-input"
+        placeholder="密码"
+        password="{{true}}"
+        value="{{password}}"
+        data-field="password"
+        bindinput="onFieldInput"
+      />
+
+      <view wx:if="{{captchaTicket}}" class="captcha-box">
+        <view class="captcha-head">
+          <view class="field-label">图形验证码</view>
+          <button
+            class="text-button"
+            loading="{{captchaLoading}}"
+            bindtap="refreshCaptcha"
+          >
+            换一张
+          </button>
+        </view>
+        <image
+          class="captcha-image"
+          src="{{captchaImageSrc}}"
+          mode="aspectFit"
+        />
+        <input
+          class="field-input"
+          placeholder="图形验证码"
+          value="{{captchaAnswer}}"
+          data-field="captchaAnswer"
+          bindinput="onFieldInput"
+        />
+      </view>
+
+      <button class="primary" loading="{{loading}}" bindtap="loginWithAccount">
+        账号登录
+      </button>
+      <view class="action-row">
+        <button class="link-button" bindtap="switchToEmail">邮箱登录</button>
+        <button class="link-button" bindtap="switchToReset">找回密码</button>
+        <button class="link-button" bindtap="goRegister">注册账号</button>
+      </view>
+    </view>
+
+    <view wx:elif="{{loginMode === 'email'}}" class="auth-panel">
+      <view class="panel-desc">收取邮箱验证码，不输入密码也能进入。</view>
+      <label class="field-label">邮箱</label>
+      <input
+        class="field-input"
+        placeholder="邮箱"
+        value="{{email}}"
+        data-field="email"
+        bindinput="onFieldInput"
+      />
+      <label class="field-label">邮箱验证码</label>
+      <view class="code-row">
+        <input
+          class="field-input code-input"
+          placeholder="邮箱验证码"
+          value="{{emailCode}}"
+          data-field="emailCode"
+          bindinput="onFieldInput"
+        />
+        <button
+          class="code-button"
+          loading="{{codeLoading}}"
+          bindtap="sendLoginCode"
+        >
+          获取验证码
+        </button>
+      </view>
+      <button
+        class="primary"
+        loading="{{loading}}"
+        bindtap="loginWithEmailCode"
+      >
+        邮箱登录
+      </button>
+      <button class="link-button" bindtap="switchToPassword">
+        返回账号登录
+      </button>
+    </view>
+
+    <view wx:else class="auth-panel">
+      <view class="panel-desc">收取邮箱验证码，确认后设置新密码。</view>
+      <label class="field-label">邮箱</label>
+      <input
+        class="field-input"
+        placeholder="邮箱"
+        value="{{email}}"
+        data-field="email"
+        bindinput="onFieldInput"
+      />
+      <label class="field-label">邮箱验证码</label>
+      <view class="code-row">
+        <input
+          class="field-input code-input"
+          placeholder="邮箱验证码"
+          value="{{emailCode}}"
+          data-field="emailCode"
+          bindinput="onFieldInput"
+        />
+        <button
+          class="code-button"
+          loading="{{codeLoading}}"
+          bindtap="sendResetCode"
+        >
+          获取验证码
+        </button>
+      </view>
+      <label class="field-label">新密码</label>
+      <input
+        class="field-input"
+        placeholder="新密码"
+        password="{{true}}"
+        value="{{resetPassword}}"
+        data-field="resetPassword"
+        bindinput="onFieldInput"
+      />
+      <label class="field-label">确认新密码</label>
+      <input
+        class="field-input"
+        placeholder="确认新密码"
+        password="{{true}}"
+        value="{{resetConfirmPassword}}"
+        data-field="resetConfirmPassword"
+        bindinput="onFieldInput"
+      />
+      <button
+        class="primary"
+        loading="{{loading}}"
+        bindtap="submitPasswordReset"
+      >
+        重设密码并登录
+      </button>
+      <button class="link-button" bindtap="switchToPassword">
+        返回账号登录
+      </button>
+    </view>
+
+    <button class="secondary" bindtap="skip">暂不登录</button>
+  </view>
+</view>

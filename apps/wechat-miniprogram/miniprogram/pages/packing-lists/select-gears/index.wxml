@@ -1,0 +1,122 @@
+<view class="packing-page {{themeClass}}">
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
+  <view class="select-header">
+    <view>
+      <view class="eyebrow">挑选个人装备</view>
+      <view class="hero-title">加入打包清单</view>
+      <view class="hero-subtitle"
+        >只显示可用装备，可按分类、状态、关键词筛选。</view
+      >
+    </view>
+    <view class="selected-count">{{selectedIds.length}}</view>
+  </view>
+
+  <view class="search-card">
+    <input
+      class="search-input"
+      value="{{q}}"
+      placeholder="搜索装备名、品牌、型号"
+      confirm-type="search"
+      bindinput="onSearchInput"
+      bindconfirm="submitSearch"
+    />
+    <button class="search-button" bindtap="submitSearch">搜索</button>
+    <button wx:if="{{q}}" class="clear-button" bindtap="clearSearch">
+      清除
+    </button>
+  </view>
+
+  <scroll-view class="category-scroll" scroll-x enable-flex>
+    <block wx:for="{{categoryOptions}}" wx:key="id">
+      <view
+        class="category-chip {{selectedCategory === item.id ? 'active' : ''}}"
+        data-id="{{item.id}}"
+        bindtap="selectCategory"
+      >
+        {{item.label}}
+      </view>
+    </block>
+  </scroll-view>
+
+  <view class="filter-row">
+    <picker
+      value="{{selectedStatusIndex}}"
+      range="{{statusLabels}}"
+      bindchange="onStatusChange"
+    >
+      <view class="filter-pill">{{statusLabels[selectedStatusIndex]}}</view>
+    </picker>
+    <picker
+      value="{{selectedSortIndex}}"
+      range="{{sortLabels}}"
+      bindchange="onSortChange"
+    >
+      <view class="filter-pill">{{sortLabels[selectedSortIndex]}}</view>
+    </picker>
+  </view>
+
+  <view wx:if="{{error}}" class="state-card error">
+    <view>{{error}}</view>
+    <button bindtap="refreshPage">重试</button>
+  </view>
+
+  <view wx:elif="{{loading}}" class="state-card">正在加载装备...</view>
+
+  <view wx:elif="{{!gears.length}}" class="state-card empty">
+    <view class="state-title">没有符合条件的可用装备</view>
+    <view class="state-desc">可以先回到装备页添加装备，再加入清单。</view>
+  </view>
+
+  <view wx:else class="gear-list">
+    <block wx:for="{{gears}}" wx:key="id">
+      <view
+        class="gear-select-card"
+        data-id="{{item.id}}"
+        bindtap="toggleSelect"
+      >
+        <view class="select-dot {{item.selected ? 'active' : ''}}">
+          {{item.selected ? '✓' : ''}}
+        </view>
+        <view class="gear-main">
+          <view class="gear-name">{{item.name}}</view>
+          <view class="gear-meta">{{item.brandModelText}}</view>
+          <view class="gear-tags">
+            <text>{{item.categoryText}}</text>
+            <text>{{item.statusText}}</text>
+            <text wx:if="{{item.showQuantityBadge}}"
+              >{{item.quantityText}}</text
+            >
+            <text>{{item.weightText}}</text>
+            <text>{{item.priceText}}</text>
+          </view>
+        </view>
+      </view>
+    </block>
+  </view>
+
+  <view wx:if="{{loadingMore}}" class="load-more">继续加载...</view>
+  <view wx:elif="{{gears.length && !nextCursor}}" class="load-more muted"
+    >没有更多装备了</view
+  >
+
+  <view class="submit-bar">
+    <button class="primary" loading="{{submitting}}" bindtap="submitSelection">
+      加入 {{selectedIds.length}} 件装备
+    </button>
+  </view>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">暂不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

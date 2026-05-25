@@ -1,0 +1,415 @@
+<view class="form-page {{themeClass}}">
+  <view wx:if="{{requiresLogin}}" class="state-card login-required-card">
+    <view class="login-required-title"
+      >登录后{{mode === 'edit' ? '编辑装备' : '添加装备'}}</view
+    >
+    <view class="login-required-desc"
+      >添加或修改装备会保存到你的个人清单，请先登录。</view
+    >
+    <button bindtap="loginPromptGoLogin">去登录</button>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{error}}" class="error-card">{{error}}</view>
+    <view wx:if="{{loading}}" class="state-card">正在加载装备信息...</view>
+
+    <view class="intro-card">
+      <view class="intro-title"
+        >{{mode === 'edit' ? '编辑装备信息' : '添加一件装备'}}</view
+      >
+      <view class="intro-subtitle"
+        >先填写最关键的信息，重量、价格和存放位置之后也能随时补充。</view
+      >
+    </view>
+
+    <view class="form-card">
+      <view class="section-title">基本信息</view>
+      <picker
+        value="{{categoryIndex}}"
+        range="{{categoryLabels}}"
+        bindchange="onCategoryChange"
+      >
+        <view class="picker-row">
+          <view>
+            <view class="field-label required">装备分类</view>
+            <view class="field-value">{{categoryLabels[categoryIndex]}}</view>
+            <view class="field-hint">{{categoryHints[categoryIndex]}}</view>
+          </view>
+          <view class="chevron">›</view>
+        </view>
+      </picker>
+      <view class="field">
+        <view class="field-label required">装备名称</view>
+        <input
+          value="{{form.name}}"
+          data-field="name"
+          placeholder="例如 NITECORE 头灯"
+          bindinput="onInput"
+        />
+      </view>
+      <view class="field">
+        <view class="field-label required">数量</view>
+        <input
+          value="{{form.quantityText}}"
+          data-field="quantityText"
+          type="number"
+          placeholder="1"
+          bindinput="onInput"
+        />
+        <view class="field-hint">同款同规格多件装备可合并为一条记录。</view>
+      </view>
+      <view class="two-column">
+        <view class="field compact">
+          <view class="field-label">品牌</view>
+          <input
+            value="{{form.brand}}"
+            data-field="brand"
+            placeholder="品牌"
+            bindinput="onInput"
+          />
+        </view>
+        <view class="field compact">
+          <view class="field-label">型号</view>
+          <input
+            value="{{form.model}}"
+            data-field="model"
+            placeholder="型号"
+            bindinput="onInput"
+          />
+        </view>
+      </view>
+      <view class="field">
+        <view class="field-label">装备描述</view>
+        <textarea
+          value="{{form.description}}"
+          data-field="description"
+          placeholder="记录用途、亮点或适用场景"
+          bindinput="onInput"
+        />
+      </view>
+    </view>
+
+    <view class="form-card">
+      <view class="section-title">重量与详细信息</view>
+      <view class="field">
+        <view class="field-label">重量</view>
+        <view class="spec-input-row">
+          <input
+            value="{{form.weightText}}"
+            data-field="weightText"
+            type="digit"
+            placeholder="例如 0.315"
+            bindinput="onInput"
+          />
+          <picker
+            value="{{weightUnitIndex}}"
+            range="{{weightUnitLabels}}"
+            bindchange="onWeightUnitChange"
+          >
+            <view class="unit-picker"
+              >{{weightUnitOptions[weightUnitIndex].label}} ›</view
+            >
+          </picker>
+        </view>
+        <view class="field-hint">选择单位后保存为克，例如 0.315 kg。</view>
+      </view>
+      <view class="spec-grid">
+        <view wx:for="{{specFields}}" wx:key="key" class="field spec-field">
+          <view class="field-label">{{item.label}}</view>
+          <view class="spec-input-row">
+            <input
+              wx:if="{{!item.choiceOnly}}"
+              value="{{item.valueText}}"
+              data-key="{{item.key}}"
+              data-index="{{index}}"
+              type="{{item.inputType === 'number' ? 'digit' : 'text'}}"
+              placeholder="{{item.placeholder}}"
+              bindinput="onSpecInput"
+            />
+            <view
+              wx:else
+              class="choice-value {{item.unitLabel ? '' : 'placeholder'}}"
+              >{{item.unitLabel || item.placeholder}}</view
+            >
+            <picker
+              wx:if="{{item.units && item.units.length > 0}}"
+              value="{{item.unitIndex}}"
+              range="{{item.unitLabels}}"
+              data-key="{{item.key}}"
+              data-index="{{index}}"
+              bindchange="onSpecUnitChange"
+            >
+              <view class="unit-picker"
+                >{{item.choiceOnly ? (item.unitLabel || '选择') :
+                (item.unitLabel || '无单位')}} ›</view
+              >
+            </picker>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="form-card">
+      <view class="section-title">购买与存放</view>
+      <view class="two-column price-pair">
+        <view class="field compact">
+          <view class="field-label">官方价格</view>
+          <view class="price-input-row">
+            <input
+              value="{{form.officialPriceText}}"
+              data-field="officialPriceText"
+              type="digit"
+              placeholder="699"
+              bindinput="onInput"
+            />
+            <picker
+              value="{{officialPriceCurrencyIndex}}"
+              range="{{currencyLabels}}"
+              bindchange="onOfficialPriceCurrencyChange"
+            >
+              <view class="currency-picker"
+                >{{currencyOptions[officialPriceCurrencyIndex].value}} ›</view
+              >
+            </picker>
+          </view>
+        </view>
+        <view class="field compact">
+          <view class="field-label">购入价格</view>
+          <view class="price-input-row">
+            <input
+              value="{{form.purchasePriceText}}"
+              data-field="purchasePriceText"
+              type="digit"
+              placeholder="639.50"
+              bindinput="onInput"
+            />
+            <picker
+              value="{{purchasePriceCurrencyIndex}}"
+              range="{{currencyLabels}}"
+              bindchange="onPurchasePriceCurrencyChange"
+            >
+              <view class="currency-picker"
+                >{{currencyOptions[purchasePriceCurrencyIndex].value}} ›</view
+              >
+            </picker>
+          </view>
+        </view>
+      </view>
+      <view class="two-column">
+        <picker
+          mode="date"
+          value="{{form.purchaseDate}}"
+          start="2000-01-01"
+          end="2099-12-31"
+          bindchange="onPurchaseDateChange"
+        >
+          <view class="field compact date-picker-field">
+            <view class="field-label">购买日期</view>
+            <view class="picker-value-row">
+              <view
+                class="field-value {{form.purchaseDate ? '' : 'placeholder'}}"
+                >{{form.purchaseDate || '选择购买日期'}}</view
+              >
+              <view class="mini-chevron">›</view>
+            </view>
+          </view>
+        </picker>
+        <view
+          class="field compact purchase-location-field"
+          bindtap="openPurchaseLocationSheet"
+        >
+          <view class="field-label">购买渠道</view>
+          <view class="picker-value-row">
+            <view
+              class="field-value {{form.purchaseLocation ? '' : 'placeholder'}}"
+              >{{form.purchaseLocation || '选择或输入购买渠道'}}</view
+            >
+            <view class="mini-chevron">›</view>
+          </view>
+        </view>
+      </view>
+      <picker
+        value="{{statusIndex}}"
+        range="{{statusLabels}}"
+        bindchange="onStatusChange"
+      >
+        <view class="picker-row">
+          <view>
+            <view class="field-label">装备状态</view>
+            <view class="field-value">{{statusLabels[statusIndex]}}</view>
+          </view>
+          <view class="chevron">›</view>
+        </view>
+      </picker>
+      <view class="field">
+        <view class="field-label">存放位置</view>
+        <input
+          value="{{form.storageLocation}}"
+          data-field="storageLocation"
+          placeholder="例如 装备柜 A1"
+          bindinput="onInput"
+        />
+      </view>
+    </view>
+
+    <view class="form-card">
+      <view class="section-title">标签与备注</view>
+      <view class="tag-editor">
+        <view class="tag-editor-head">
+          <view>
+            <view class="field-label">标签</view>
+            <view class="field-hint">用几个关键词记录场景、季节或用途。</view>
+          </view>
+          <button class="add-tag-button" bindtap="openTagSheet">
+            + 添加标签
+          </button>
+        </view>
+        <view wx:if="{{form.tags.length}}" class="tag-chip-list">
+          <block wx:for="{{form.tags}}" wx:key="name">
+            <view class="tag-chip {{item.colorClass}}">
+              <text>{{item.name}}</text>
+              <text
+                class="tag-remove"
+                data-index="{{index}}"
+                catchtap="removeTag"
+                >×</text
+              >
+            </view>
+          </block>
+        </view>
+        <view wx:else class="empty-tags">还没有标签</view>
+      </view>
+      <view class="field">
+        <view class="field-label">备注</view>
+        <textarea
+          value="{{form.notes}}"
+          data-field="notes"
+          placeholder="保养、充电、耗材补充等提醒"
+          bindinput="onInput"
+        />
+      </view>
+    </view>
+
+    <view wx:if="{{tagSheetVisible}}" class="tag-mask" bindtap="closeTagSheet">
+      <view class="tag-sheet" catchtap="stopTap">
+        <view class="sheet-title">添加标签</view>
+        <view wx:if="{{tagSuggestions.length}}" class="sheet-subtitle">
+          常用标签
+        </view>
+        <view wx:if="{{tagSuggestions.length}}" class="tag-suggestion-list">
+          <button
+            wx:for="{{tagSuggestions}}"
+            wx:key="name"
+            class="tag-suggestion {{item.colorClass}}"
+            data-name="{{item.name}}"
+            data-color="{{item.color}}"
+            bindtap="selectTagSuggestion"
+          >
+            {{item.name}}
+          </button>
+        </view>
+        <view class="custom-tag-field">
+          <view class="field-label">自定义标签</view>
+          <input
+            value="{{tagInputText}}"
+            placeholder="例如 冬季、通勤、电子"
+            focus="{{true}}"
+            bindinput="onTagInput"
+          />
+        </view>
+        <view class="sheet-subtitle">标签颜色</view>
+        <view class="tag-color-grid">
+          <button
+            class="tag-color-option random {{selectedTagColor ? '' : 'selected'}}"
+            bindtap="clearTagColor"
+          >
+            随机
+          </button>
+          <button
+            wx:for="{{tagColorOptions}}"
+            wx:key="value"
+            class="tag-color-option {{item.colorClass}} {{selectedTagColor === item.value ? 'selected' : ''}}"
+            data-value="{{item.value}}"
+            bindtap="selectTagColor"
+          >
+            {{item.label}}
+          </button>
+        </view>
+        <view class="custom-location-actions">
+          <button class="sheet-cancel" bindtap="closeTagSheet">取消</button>
+          <button class="sheet-action" bindtap="saveCustomTag">保存</button>
+        </view>
+      </view>
+    </view>
+
+    <view class="form-actions">
+      <button class="secondary" bindtap="cancel">取消</button>
+      <button class="primary" loading="{{submitting}}" bindtap="submitForm">
+        {{mode === 'edit' ? '保存' : '添加'}}
+      </button>
+    </view>
+
+    <view
+      wx:if="{{purchaseLocationSheetVisible}}"
+      class="purchase-location-mask"
+      bindtap="closePurchaseLocationSheet"
+    >
+      <view class="purchase-location-sheet" catchtap="stopTap">
+        <view class="sheet-title">选择购买渠道</view>
+        <view class="purchase-location-options">
+          <button
+            wx:for="{{purchaseLocationOptions}}"
+            wx:key="*this"
+            class="purchase-location-option {{form.purchaseLocation === item ? 'selected' : ''}}"
+            data-value="{{item}}"
+            bindtap="selectPurchaseLocation"
+          >
+            {{item}}
+          </button>
+        </view>
+        <button class="sheet-action" bindtap="openCustomPurchaseLocation">
+          自定义输入
+        </button>
+        <button class="sheet-cancel" bindtap="closePurchaseLocationSheet">
+          取消
+        </button>
+      </view>
+    </view>
+
+    <view
+      wx:if="{{customPurchaseLocationVisible}}"
+      class="purchase-location-mask"
+      bindtap="cancelCustomPurchaseLocation"
+    >
+      <view class="custom-location-modal" catchtap="stopTap">
+        <view class="sheet-title">自定义购买渠道</view>
+        <input
+          value="{{customPurchaseLocationText}}"
+          placeholder="例如 山野仓库"
+          focus="{{true}}"
+          bindinput="onCustomPurchaseLocationInput"
+        />
+        <view class="custom-location-actions">
+          <button class="sheet-cancel" bindtap="cancelCustomPurchaseLocation">
+            取消
+          </button>
+          <button class="sheet-action" bindtap="saveCustomPurchaseLocation">
+            保存
+          </button>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">暂不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

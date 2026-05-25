@@ -3,7 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "check": "tsc --noEmit -p tsconfig.json"
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test:gear-utils": "rm -rf .tmp-test && tsc -p tsconfig.test.json && node --test tests/gear-utils.test.cjs tests/auth-guest-mode.test.cjs tests/api.test.cjs tests/auth-ui.test.cjs tests/card-style.test.cjs; status=$?; rm -rf .tmp-test; exit $status"
   },
   "devDependencies": {
     "miniprogram-api-typings": "^4.0.6"

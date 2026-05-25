@@ -1,0 +1,183 @@
+version: 1
+topics:
+  architecture:
+    summary: Load when understanding product scope, service layering, data flow, and module boundaries.
+    read:
+      - .agent/knowledge/architecture.md
+      - .agent/knowledge/codebase_map.md
+      - docs/architecture.md
+      - README.md
+  backend_api:
+    summary: Load when changing Rust API routes, authentication, gear APIs, skills APIs, error responses, or startup behavior.
+    read:
+      - .agent/knowledge/architecture.md
+      - .agent/commands.yaml
+      - docs/api.md
+      - services/api/src/main.rs
+      - services/api/src/state.rs
+      - services/api/src/routes/mod.rs
+  db_and_migration:
+    summary: Load when changing database configuration, repositories, schema migrations, or persistence tests.
+    read:
+      - .agent/knowledge/architecture.md
+      - crates/db/src/lib.rs
+      - crates/migration/src/lib.rs
+      - crates/migration/src/lib.rs
+  domain_model:
+    summary: Load when changing gear, gear-template, skill, user, or validation models.
+    read:
+      - crates/domain/src/lib.rs
+      - crates/domain/src/gear.rs
+      - docs/api.md
+  android_client:
+    summary: Load when changing the Android Kotlin/Compose app, Android API client, Android tests, or Gradle configuration.
+    read:
+      - apps/android/build.gradle.kts
+      - apps/android/src/main/java/com/rustella/stellartrail/MainActivity.kt
+      - packages/shared-types/src/index.ts
+      - docs/api.md
+      - .agent/commands.yaml
+  wechat_miniprogram:
+    summary: Load when changing Mini Program pages, tabs, styles, or client calls.
+    read:
+      - .agent/knowledge/codebase_map.md
+      - apps/wechat-miniprogram/miniprogram/app.json
+      - packages/api-client-ts/src/index.ts
+      - packages/shared-types/src/index.ts
+  ios_client:
+    summary: Load when changing the iOS SwiftUI app, iOS DTOs, repositories, XcodeGen project definition, tests, or screenshot flows.
+    read:
+      - apps/ios/README.md
+      - apps/ios/project.yml
+      - apps/ios/StellarTrail/App/StellarTrailApp.swift
+      - packages/shared-types/src/index.ts
+      - docs/api.md
+      - .agent/commands.yaml
+  public_data_import:
+    summary: Load when changing gear-template DB seed, public data docs, Knots3D metadata import, or media object-storage behavior.
+    read:
+      - docs/content-schema.md
+      - crates/domain/src/gear_template.rs
+      - crates/importer/src/lib.rs
+      - crates/db/src/repositories/gear_template_repository.rs
+  testing_and_ci:
+    summary: Load when confirming validation commands, CI rules, or test entry points.
+    read:
+      - .agent/commands.yaml
+      - .github/workflows/rust-ci.yml
+      - .github/workflows/frontend-ci.yml
+  infra_deployment:
+    summary: Load when changing Docker Compose, Dockerfiles, Traefik routing, production domains, or deployment config.
+    read:
+      - .agent/commands.yaml
+      - .agent/knowledge/production_deployment.md
+      - infra/test/docker-compose.yml
+      - infra/production/domains.example.yaml
+      - infra/production/traefik/docker-compose.yml
+      - infra/production/api/docker-compose.yml
+  agent_context:
+    summary: Load when changing .agent, AGENTS.md, CLAUDE.md, or context indexes.
+    read:
+      - .agent/AGENTS.md
+      - .agent/manifest.yaml
+      - .agent/context-index.yaml
+      - .agent/checklists/doc-sync.md
+
+tasks:
+  understand_repo:
+    keywords: [overview, architecture, modules, codebase, map]
+    read:
+      - .agent/knowledge/architecture.md
+      - .agent/knowledge/codebase_map.md
+    checklist: .agent/checklists/preflight.md
+  android_feature_or_bugfix:
+    keywords: [android, kotlin, compose, gradle, mobile]
+    read:
+      - apps/android/build.gradle.kts
+      - apps/android/src/main/java/com/rustella/stellartrail/MainActivity.kt
+      - packages/shared-types/src/index.ts
+      - docs/api.md
+      - .agent/commands.yaml
+    related_topics:
+      - android_client
+      - domain_model
+      - testing_and_ci
+    checklist: .agent/checklists/self-review.md
+  ios_feature_or_bugfix:
+    keywords: [ios, swift, swiftui, xcode, xcodegen, simulator, screenshot]
+    read:
+      - apps/ios/README.md
+      - apps/ios/project.yml
+      - apps/ios/StellarTrail/App/StellarTrailApp.swift
+      - packages/shared-types/src/index.ts
+      - docs/api.md
+      - .agent/commands.yaml
+    related_topics:
+      - ios_client
+      - domain_model
+      - testing_and_ci
+    checklist: .agent/checklists/self-review.md
+  backend_feature_or_bugfix:
+    keywords: [api, auth, gear, skills, rust, axum, bugfix]
+    read:
+      - .agent/knowledge/architecture.md
+      - docs/api.md
+      - .agent/commands.yaml
+    related_topics:
+      - backend_api
+      - domain_model
+      - db_and_migration
+    checklist: .agent/checklists/self-review.md
+  db_schema_change:
+    keywords: [migration, schema, repository, seaorm, sqlite, postgres]
+    read:
+      - .agent/knowledge/architecture.md
+      - crates/migration/src/lib.rs
+      - crates/db/src/lib.rs
+      - .agent/commands.yaml
+    checklist: .agent/checklists/self-review.md
+  frontend_change:
+    keywords: [miniprogram, wechat, web, tab, typescript, client]
+    read:
+      - .agent/knowledge/codebase_map.md
+      - apps/wechat-miniprogram/miniprogram/app.json
+      - .agent/commands.yaml
+    checklist: .agent/checklists/self-review.md
+  public_data_or_importer_change:
+    keywords: [public-data, gear-template, knots, importer, seed, object-storage]
+    read:
+      - docs/content-schema.md
+      - crates/importer/src/lib.rs
+      - crates/domain/src/gear_template.rs
+      - crates/db/src/repositories/gear_template_repository.rs
+      - .agent/commands.yaml
+    checklist: .agent/checklists/doc-sync.md
+  code_review:
+    keywords: [review, pr, mr, self-review]
+    read:
+      - .agent/agents/code-reviewer.md
+      - .agent/checklists/self-review.md
+      - .agent/knowledge/codebase_map.md
+  refactor_planning:
+    keywords: [refactor, planning, plan, rfc, split]
+    read:
+      - .agent/agents/refactor-planner.md
+      - .agent/knowledge/architecture.md
+      - .agent/knowledge/codebase_map.md
+    checklist: .agent/checklists/preflight.md
+  doc_sync:
+    keywords: [docs, readme, sync, drift, agent]
+    read:
+      - .agent/checklists/doc-sync.md
+      - .agent/knowledge/README.md
+      - .agent/commands.yaml
+  infra_change:
+    keywords: [infra, docker, compose, traefik, production, deployment]
+    read:
+      - .agent/commands.yaml
+      - .agent/knowledge/production_deployment.md
+      - README.md
+      - README.en.md
+      - infra/test/docker-compose.yml
+      - infra/production/domains.example.yaml
+    checklist: .agent/checklists/doc-sync.md

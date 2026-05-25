@@ -1,23 +1,20 @@
-mod config;
-mod error;
-mod routes;
-mod state;
+//! API service binary entrypoint that initializes configuration, logging, routes, and graceful shutdown.
 
 use anyhow::Context;
-use config::ApiConfig;
-use routes::build_router;
-use state::AppState;
+use stellartrail_api::{build_state, config::ApiConfig, routes::build_router};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::info;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
+/// Runs the `main` server-side flow while preserving input validation, error propagation, and state invariants.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    dotenvy::dotenv().ok();
     init_tracing();
 
     let config = ApiConfig::from_env()?;
-    let state = AppState::new(config.clone());
+    let state = build_state(config.clone()).await?;
     let app = build_router(state).layer(TraceLayer::new_for_http());
 
     let listener = TcpListener::bind(config.bind_addr())
@@ -26,12 +23,17 @@ async fn main() -> anyhow::Result<()> {
 
     info!(addr = %config.bind_addr(), "StellarTrail API listening");
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .context("api server failed")
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    // Use graceful shutdown so container stops or Ctrl-C can finish accepted requests where possible.
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .context("api server failed")
 }
 
+/// Runs the `init tracing` server-side flow while preserving input validation, error propagation, and state invariants.
 fn init_tracing() {
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("stellartrail_api=debug,tower_http=debug,info"));
@@ -42,6 +44,7 @@ fn init_tracing() {
         .init();
 }
 
+/// Runs the `shutdown signal` server-side flow while preserving input validation, error propagation, and state invariants.
 async fn shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c()

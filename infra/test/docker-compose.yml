@@ -1,0 +1,147 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    network_mode: bridge
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stellartrail}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stellartrail}
+      POSTGRES_DB: ${POSTGRES_DB:-stellartrail}
+    ports:
+      - "${POSTGRES_HOST_PORT:-15432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER:-stellartrail} -d $${POSTGRES_DB:-stellartrail}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    network_mode: bridge
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_HOST_PORT:-16379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    network_mode: bridge
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-stellartrail-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-stellartrail-local-secret}
+    ports:
+      - "${MINIO_API_HOST_PORT:-19000}:9000"
+      - "${MINIO_CONSOLE_HOST_PORT:-19001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    network_mode: bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-stellartrail-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-stellartrail-local-secret}
+      MINIO_API_HOST_PORT: ${MINIO_API_HOST_PORT:-19000}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-stellartrail-uploads}
+      AVATAR_STORAGE_BUCKET: ${AVATAR_STORAGE_BUCKET:-stellartrail-avatars}
+      KNOTS_MEDIA_BUCKET: ${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mc alias set local "http://host.docker.internal:$${MINIO_API_HOST_PORT}" "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
+        mc mb -p "local/$${OBJECT_STORAGE_BUCKET}" || true
+        mc anonymous set none "local/$${OBJECT_STORAGE_BUCKET}"
+        mc mb -p "local/$${AVATAR_STORAGE_BUCKET}" || true
+        mc anonymous set download "local/$${AVATAR_STORAGE_BUCKET}"
+        mc mb -p "local/$${KNOTS_MEDIA_BUCKET}" || true
+        mc anonymous set download "local/$${KNOTS_MEDIA_BUCKET}"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/production/api/Dockerfile
+    network_mode: bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      APP_ENV: local
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      RUST_LOG: stellartrail_api=debug,tower_http=debug,info
+      DATABASE_URL: postgres://${POSTGRES_USER:-stellartrail}:${POSTGRES_PASSWORD:-stellartrail}@host.docker.internal:${POSTGRES_HOST_PORT:-15432}/${POSTGRES_DB:-stellartrail}
+      REDIS_URL: redis://host.docker.internal:${REDIS_HOST_PORT:-16379}/0
+      REDIS_KEY_PREFIX: stellartrail-compose
+      REDIS_GEAR_CACHE_TTL_SECONDS: 30
+      PUBLIC_API_RATE_LIMIT_ENABLED: ${PUBLIC_API_RATE_LIMIT_ENABLED:-true}
+      PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS: ${PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS:-60}
+      PUBLIC_API_RATE_LIMIT_MAX_REQUESTS_PER_IP: ${PUBLIC_API_RATE_LIMIT_MAX_REQUESTS_PER_IP:-120}
+      PUBLIC_API_CACHE_TTL_SECONDS: ${PUBLIC_API_CACHE_TTL_SECONDS:-300}
+      PUBLIC_API_CACHE_STALE_SECONDS: ${PUBLIC_API_CACHE_STALE_SECONDS:-600}
+      PUBLIC_API_MAX_LIST_LIMIT: ${PUBLIC_API_MAX_LIST_LIMIT:-100}
+      PUBLIC_API_MAX_SEARCH_QUERY_CHARS: ${PUBLIC_API_MAX_SEARCH_QUERY_CHARS:-64}
+      PUBLIC_API_MAX_OFFSET: ${PUBLIC_API_MAX_OFFSET:-10000}
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
+      WECHAT_MOCK_LOGIN: "false"
+      WECHAT_APP_ID: ${WECHAT_APP_ID:-}
+      WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
+      UPLOAD_MAX_IMAGE_BYTES: ${UPLOAD_MAX_IMAGE_BYTES:-8000000}
+      UPLOAD_RATE_LIMIT_WINDOW_SECONDS: ${UPLOAD_RATE_LIMIT_WINDOW_SECONDS:-3600}
+      UPLOAD_MAX_IMAGES_PER_WINDOW: ${UPLOAD_MAX_IMAGES_PER_WINDOW:-30}
+      UPLOAD_MAX_TOTAL_IMAGES_PER_USER: ${UPLOAD_MAX_TOTAL_IMAGES_PER_USER:-100}
+      UPLOAD_MAX_TOTAL_BYTES_PER_USER: ${UPLOAD_MAX_TOTAL_BYTES_PER_USER:-200000000}
+      MINIO_ENDPOINT: http://host.docker.internal:${MINIO_API_HOST_PORT:-19000}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      MINIO_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY_ID:-stellartrail-local}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_SECRET_ACCESS_KEY:-stellartrail-local-secret}
+      MINIO_FORCE_PATH_STYLE: "true"
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-stellartrail-uploads}
+      AVATAR_STORAGE_BUCKET: ${AVATAR_STORAGE_BUCKET:-stellartrail-avatars}
+      AVATAR_STORAGE_PUBLIC_BASE_URL: http://127.0.0.1:${MINIO_API_HOST_PORT:-19000}/${AVATAR_STORAGE_BUCKET:-stellartrail-avatars}
+      AVATAR_STORAGE_MAX_IMAGE_BYTES: ${AVATAR_STORAGE_MAX_IMAGE_BYTES:-2000000}
+      KNOTS_MEDIA_STORAGE_PROFILE: ${KNOTS_MEDIA_STORAGE_PROFILE:-knots-public}
+      KNOTS_MEDIA_BUCKET: ${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
+      KNOTS_MEDIA_PUBLIC_BASE_URL: http://127.0.0.1:${MINIO_API_HOST_PORT:-19000}/${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
+      KNOTS_MEDIA_MAX_IMAGE_BYTES: ${KNOTS_MEDIA_MAX_IMAGE_BYTES:-32000000}
+      KNOTS_MEDIA_MAX_VIDEO_BYTES: ${KNOTS_MEDIA_MAX_VIDEO_BYTES:-80000000}
+    ports:
+      - "${API_HOST_PORT:-18080}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

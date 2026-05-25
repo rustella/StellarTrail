@@ -1,0 +1,239 @@
+<view class="profile-settings-page container {{themeClass}}">
+  <view class="card settings-hero">
+    <view class="settings-avatar">
+      <image
+        wx:if="{{accountProfile.avatarUrl}}"
+        class="settings-avatar-image"
+        src="{{accountProfile.avatarUrl}}"
+        mode="aspectFill"
+        lazy-load
+      />
+      <text wx:else>{{accountProfile.avatarInitial}}</text>
+    </view>
+    <view class="settings-hero-copy">
+      <view class="title">用户设置</view>
+      <view class="subtitle"
+        >管理名称、邮箱和密码。头像可回到“我的”页点击头像修改。</view
+      >
+    </view>
+  </view>
+
+  <view wx:if="{{!loggedIn}}" class="card account-empty-card">
+    <view class="settings-section-title">还没有登录</view>
+    <view class="settings-section-desc">登录后才能管理账号资料。</view>
+    <button class="primary-button" bindtap="goLogin">登录 / 注册</button>
+  </view>
+
+  <view wx:else class="card settings-card">
+    <view class="settings-section-title">账号资料</view>
+    <view class="settings-row" bindtap="openNicknameModal">
+      <view class="settings-icon">名</view>
+      <view class="settings-copy">
+        <view class="settings-title">修改名称</view>
+        <view class="settings-desc">{{accountProfile.displayName}}</view>
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+    <view class="settings-row" bindtap="openEmailBindingModal">
+      <view class="settings-icon">邮</view>
+      <view class="settings-copy">
+        <view class="settings-title"
+          >{{accountProfile.hasEmail ? '修改邮箱' : '绑定邮箱'}}</view
+        >
+        <view class="settings-desc">{{accountProfile.emailText}}</view>
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+    <view class="settings-row" bindtap="openPasswordModal">
+      <view class="settings-icon">密</view>
+      <view class="settings-copy">
+        <view class="settings-title">修改密码</view>
+        <view class="settings-desc"
+          >{{accountProfile.hasEmail ? '通过邮箱验证码更新密码' :
+          '需要先绑定邮箱'}}</view
+        >
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+    <view wx:if="{{accountError}}" class="settings-error"
+      >{{accountError}}</view
+    >
+  </view>
+
+  <view wx:if="{{nicknameModalVisible}}" class="settings-modal-mask">
+    <view class="settings-modal-card">
+      <view class="settings-modal-title">修改名称</view>
+      <form class="settings-form" bindsubmit="saveWechatNickname">
+        <input
+          class="settings-input"
+          name="nickname"
+          type="nickname"
+          placeholder="点这里后，在下方选择“用微信昵称”"
+          value="{{nicknameDraft}}"
+          disabled="{{nicknameLoading}}"
+          confirm-type="done"
+          bindinput="onNicknameInput"
+          bindnicknamereview="onWechatNicknameReview"
+        />
+        <view wx:if="{{accountError}}" class="settings-modal-error"
+          >{{accountError}}</view
+        >
+        <view class="settings-modal-actions">
+          <button
+            class="primary-pill"
+            loading="{{nicknameLoading}}"
+            form-type="submit"
+          >
+            保存
+          </button>
+          <button
+            class="secondary-pill"
+            disabled="{{nicknameLoading}}"
+            bindtap="closeNicknameModal"
+          >
+            取消
+          </button>
+        </view>
+      </form>
+    </view>
+  </view>
+
+  <view wx:if="{{emailBindingModalVisible}}" class="settings-modal-mask">
+    <view class="settings-modal-card">
+      <view class="settings-modal-title"
+        >{{accountProfile.hasEmail ? '修改邮箱' : '绑定邮箱'}}</view
+      >
+      <view class="settings-modal-desc"
+        >{{accountProfile.hasEmail ? '输入新的邮箱地址，并用验证码确认。' :
+        '绑定后可用邮箱登录，也可以找回密码。'}}</view
+      >
+      <view class="settings-form">
+        <input
+          class="settings-input"
+          type="text"
+          placeholder="邮箱"
+          value="{{emailBindingEmail}}"
+          data-field="emailBindingEmail"
+          disabled="{{emailCodeLoading || emailBindingLoading}}"
+          confirm-type="next"
+          bindinput="onEmailBindingInput"
+        />
+        <view class="settings-code-row">
+          <input
+            class="settings-input settings-code-input"
+            type="text"
+            placeholder="邮箱验证码"
+            value="{{emailBindingCode}}"
+            data-field="emailBindingCode"
+            disabled="{{emailBindingLoading}}"
+            confirm-type="done"
+            bindinput="onEmailBindingInput"
+          />
+          <button
+            class="secondary-pill"
+            loading="{{emailCodeLoading}}"
+            disabled="{{emailBindingLoading}}"
+            bindtap="sendEmailBindingCode"
+          >
+            获取验证码
+          </button>
+        </view>
+        <view wx:if="{{emailBindingNotice}}" class="settings-modal-notice"
+          >{{emailBindingNotice}}</view
+        >
+        <view wx:if="{{accountError}}" class="settings-modal-error"
+          >{{accountError}}</view
+        >
+        <view class="settings-modal-actions">
+          <button
+            class="primary-pill"
+            loading="{{emailBindingLoading}}"
+            bindtap="submitEmailBinding"
+          >
+            确定
+          </button>
+          <button
+            class="secondary-pill"
+            disabled="{{emailCodeLoading || emailBindingLoading}}"
+            bindtap="closeEmailBindingModal"
+          >
+            取消
+          </button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{passwordModalVisible}}" class="settings-modal-mask">
+    <view class="settings-modal-card">
+      <view class="settings-modal-title">修改密码</view>
+      <view class="settings-modal-desc"
+        >验证码会发送到 {{accountProfile.email}}。</view
+      >
+      <view class="settings-form">
+        <view class="settings-code-row">
+          <input
+            class="settings-input settings-code-input"
+            type="text"
+            placeholder="邮箱验证码"
+            value="{{passwordCode}}"
+            data-field="passwordCode"
+            disabled="{{passwordLoading}}"
+            confirm-type="next"
+            bindinput="onPasswordInput"
+          />
+          <button
+            class="secondary-pill"
+            loading="{{passwordCodeLoading}}"
+            disabled="{{passwordLoading}}"
+            bindtap="sendPasswordCode"
+          >
+            获取验证码
+          </button>
+        </view>
+        <input
+          class="settings-input"
+          password="{{true}}"
+          placeholder="新密码，至少 8 位"
+          value="{{passwordValue}}"
+          data-field="passwordValue"
+          disabled="{{passwordLoading}}"
+          confirm-type="next"
+          bindinput="onPasswordInput"
+        />
+        <input
+          class="settings-input"
+          password="{{true}}"
+          placeholder="再次输入新密码"
+          value="{{passwordConfirm}}"
+          data-field="passwordConfirm"
+          disabled="{{passwordLoading}}"
+          confirm-type="done"
+          bindinput="onPasswordInput"
+        />
+        <view wx:if="{{passwordNotice}}" class="settings-modal-notice"
+          >{{passwordNotice}}</view
+        >
+        <view wx:if="{{passwordError}}" class="settings-modal-error"
+          >{{passwordError}}</view
+        >
+        <view class="settings-modal-actions">
+          <button
+            class="primary-pill"
+            loading="{{passwordLoading}}"
+            bindtap="submitPasswordChange"
+          >
+            保存
+          </button>
+          <button
+            class="secondary-pill"
+            disabled="{{passwordCodeLoading || passwordLoading}}"
+            bindtap="closePasswordModal"
+          >
+            取消
+          </button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

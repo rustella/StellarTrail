@@ -1,0 +1,69 @@
+<view class="packing-page {{themeClass}}">
+  <view wx:if="{{requiresLogin}}" class="state-card login-required">
+    <view class="state-title">登录后编辑打包清单</view>
+    <view class="state-desc">清单会保存到你的账号，换设备也能继续使用。</view>
+    <button bindtap="loginPromptGoLogin">去登录</button>
+  </view>
+
+  <view wx:elif="{{error}}" class="state-card error">
+    <view>{{error}}</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="state-card">正在加载清单...</view>
+
+  <view wx:else class="form-card">
+    <view class="form-title"
+      >{{mode === 'edit' ? '编辑打包清单' : '新建打包清单'}}</view
+    >
+    <view class="form-subtitle">按路线和徒步时长命名，例如“一日武功山”。</view>
+
+    <view class="field">
+      <view class="field-label required">清单名称</view>
+      <input
+        value="{{form.name}}"
+        placeholder="例如 一日武功山"
+        data-field="name"
+        bindinput="onInput"
+      />
+    </view>
+
+    <view class="field">
+      <view class="field-label">路线/目的地</view>
+      <input
+        value="{{form.routeName}}"
+        placeholder="例如 武功山"
+        data-field="routeName"
+        bindinput="onInput"
+      />
+    </view>
+
+    <view class="field">
+      <view class="field-label">徒步时长</view>
+      <input
+        value="{{form.durationLabel}}"
+        placeholder="例如 一日、两天一夜"
+        data-field="durationLabel"
+        bindinput="onInput"
+      />
+    </view>
+  </view>
+
+  <view class="form-actions">
+    <button class="secondary" bindtap="cancel">取消</button>
+    <button class="primary" loading="{{submitting}}" bindtap="submit">
+      {{mode === 'edit' ? '保存' : '创建并挑选装备'}}
+    </button>
+  </view>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">暂不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

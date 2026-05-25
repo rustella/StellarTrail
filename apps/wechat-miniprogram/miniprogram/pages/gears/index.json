@@ -1,3 +1,5 @@
 {
-  "navigationBarTitleText": "我的装备库"
+  "navigationBarTitleText": "我的装备库",
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#f8fafc"
 }

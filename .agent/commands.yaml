@@ -1,0 +1,203 @@
+version: 1
+repo_root: .
+commands:
+  npm_install:
+    description: Install Node workspace dependencies.
+    cwd: .
+    command: npm install
+    when_to_run: Run after the first checkout or after package-lock/package.json changes.
+    side_effects: Modifies node_modules and may update package-lock; inspect diff before committing.
+  npm_run_check:
+    description: Run TypeScript checks for all workspaces.
+    cwd: .
+    command: npm run check
+    when_to_run: Run after changing TypeScript, Mini Program code, web code, or packages.
+    ci: .github/workflows/frontend-ci.yml
+  npm_format_check:
+    description: Check formatting for JSON, Markdown, YAML, TypeScript, WXSS, and WXML files.
+    cwd: .
+    command: npm run format:check
+    when_to_run: Run after changing frontend, docs, YAML, JSON, or formatted config files.
+  cargo_fmt_check:
+    description: Check Rust formatting.
+    cwd: .
+    command: cargo fmt --all -- --check
+    when_to_run: Run after changing Rust code under services/ or crates/.
+    ci: .github/workflows/rust-ci.yml
+  cargo_check_workspace:
+    description: Compile-check the Rust workspace quickly.
+    cwd: .
+    command: cargo check --workspace
+    when_to_run: Run after Rust code changes.
+  cargo_test_workspace:
+    description: Run Rust workspace tests.
+    cwd: .
+    command: cargo test --workspace
+    when_to_run: Run after changing Rust code, schema, API behavior, repositories, or tests.
+    ci: .github/workflows/rust-ci.yml
+  cargo_clippy_workspace:
+    description: Run Rust lint with warnings denied, matching CI behavior.
+    cwd: .
+    command: cargo clippy --workspace --all-targets -- -D warnings
+    when_to_run: Run before handoff after Rust changes or large refactors.
+    ci: .github/workflows/rust-ci.yml
+  cargo_doc_workspace:
+    description: Build Rust documentation for the workspace without dependencies.
+    cwd: .
+    command: cargo doc --workspace --no-deps
+    when_to_run: Run after changing rustdoc, public types, or public functions.
+    side_effects: Generates documentation artifacts under target/doc.
+  run_api:
+    description: Start the local StellarTrail API on 127.0.0.1:8080 by default.
+    cwd: .
+    command: scripts/dev-api.sh
+    when_to_run: Run when manually validating health, metadata, or local API behavior.
+    prerequisites:
+      - cp .env.example .env
+      - Ensure DATABASE_URL points to a writable SQLite or PostgreSQL database.
+    side_effects: May create or update a local stellartrail.db file.
+  migrate_up:
+    description: Apply database migrations.
+    cwd: .
+    command: cargo run -p stellartrail-api --bin migrate -- up
+    when_to_run: Run after local DB initialization or schema changes.
+    side_effects: Modifies the schema for the database referenced by DATABASE_URL.
+  migrate_down:
+    description: Roll database migrations back.
+    cwd: .
+    command: cargo run -p stellartrail-api --bin migrate -- down
+    when_to_run: Run only when an explicit local or test database rollback is required.
+    risk: Destructive for database schema; never run against production without explicit approval.
+  smoke_health:
+    description: Validate health and metadata endpoints after the API starts.
+    cwd: .
+    command: curl http://127.0.0.1:8080/healthz && curl http://127.0.0.1:8080/api/meta
+    when_to_run: Run after scripts/dev-api.sh reports the API is ready.
+    prerequisites:
+      - API is running locally on 127.0.0.1:8080.
+  check_importer_tests:
+    description: Run Knots3D metadata importer tests.
+    cwd: .
+    command: cargo test -p stellartrail-importer
+    when_to_run: Run after changing Knots3D metadata parsing or importer CLI behavior.
+  generate_api_client_stub:
+    description: Placeholder API client generation script.
+    cwd: .
+    command: scripts/generate-api-client.sh
+    status: stub
+    when_to_run: Do not treat as delivery validation until OpenAPI export and generation are implemented.
+  validate_agent_yaml:
+    description: Validate the .agent YAML files.
+    cwd: .
+    command: |
+      python3 - <<'PY'
+      from pathlib import Path
+      import yaml
+      for path in [
+          '.agent/manifest.yaml',
+          '.agent/context-index.yaml',
+          '.agent/commands.yaml',
+      ]:
+          yaml.safe_load(Path(path).read_text())
+          print(f'ok {path}')
+      PY
+    when_to_run: Run after changing .agent YAML files.
+  validate_agent_english:
+    description: Confirm root agent entry points and .agent files contain no Chinese characters.
+    cwd: .
+    command: |
+      python3 - <<'PY'
+      from pathlib import Path
+      import re
+      rx = re.compile(r'[\u4e00-\u9fff]')
+      paths = [Path('AGENTS.md'), Path('CLAUDE.md')]
+      paths.extend(p for p in Path('.agent').rglob('*') if p.is_file())
+      bad = []
+      for path in paths:
+          text = path.read_text(encoding='utf-8', errors='replace')
+          if rx.search(text):
+              bad.append(str(path))
+      if bad:
+          raise SystemExit('Chinese characters found in: ' + ', '.join(bad))
+      print('ok English-only agent files')
+      PY
+    when_to_run: Run after changing AGENTS.md, CLAUDE.md, or .agent files.
+  git_diff_check:
+    description: Check for whitespace errors in the current diff.
+    cwd: .
+    command: git diff --check
+    when_to_run: Run before handoff or commit.
+    side_effects: Read-only.
+  docker_compose_test_config:
+    description: Validate the local integration-test Docker Compose file after infra changes.
+    cwd: .
+    command: docker compose -f infra/test/docker-compose.yml config
+    when_to_run: Run after changing infra/test/docker-compose.yml, Dockerfiles, or integration-test wiring.
+  docker_compose_production_config:
+    description: Validate production split Compose files with their checked-in example env files.
+    cwd: .
+    command: |
+      set -euo pipefail
+      docker compose --env-file infra/production/traefik/.env.example -f infra/production/traefik/docker-compose.yml config >/dev/null
+      docker compose --env-file infra/production/site/.env.example -f infra/production/site/docker-compose.yml config >/dev/null
+      docker compose --env-file infra/production/web/.env.example -f infra/production/web/docker-compose.yml config >/dev/null
+      docker compose --env-file infra/production/api/.env.example -f infra/production/api/docker-compose.yml config >/dev/null
+    when_to_run: Run after changing production Docker, Traefik, domain, or deployment configuration.
+  git_check_ignore_production_config:
+    description: Confirm real production config files stay ignored while examples remain trackable.
+    cwd: .
+    command: |
+      set -euo pipefail
+      git check-ignore -v config.yaml config.production.yaml infra/production/api/.env infra/production/api/config.yaml infra/production/traefik/acme.json
+      git check-ignore -q infra/production/api/.env.example && exit 1 || true
+    when_to_run: Run after changing .gitignore or production config file naming.
+  android_assemble_debug:
+    description: Build the Android debug APK.
+    cwd: .
+    command: ./gradlew :apps:android:assembleDebug
+    when_to_run: Run after changing Android Gradle, manifest, resources, or Compose UI code.
+    ci: .github/workflows/android-ci.yml
+  android_test_debug_unit:
+    description: Run Android JVM unit tests for the debug variant.
+    cwd: .
+    command: ./gradlew :apps:android:testDebugUnitTest
+    when_to_run: Run after changing Android domain mapping, repositories, ViewModels, or API client code.
+    ci: .github/workflows/android-ci.yml
+  android_lint_debug:
+    description: Run Android lint for the debug variant.
+    cwd: .
+    command: ./gradlew :apps:android:lintDebug
+    when_to_run: Run before handoff after Android code changes.
+    ci: .github/workflows/android-ci.yml
+  ios_xcodegen_generate:
+    description: Generate the iOS Xcode project from the versioned XcodeGen definition.
+    cwd: apps/ios
+    command: xcodegen generate
+    when_to_run: Run on macOS after changing apps/ios/project.yml or before Xcode build/test commands.
+    prerequisites:
+      - macOS with Xcode installed.
+      - XcodeGen 2.42 or newer installed.
+  ios_build_simulator:
+    description: Build the iOS SwiftUI app for the review simulator.
+    cwd: apps/ios
+    command: xcodebuild -project StellarTrail.xcodeproj -scheme StellarTrail -destination 'platform=iOS Simulator,name=iPhone 15 Pro' build
+    when_to_run: Run after changing iOS app source, resources, or project configuration.
+    prerequisites:
+      - Run ios_xcodegen_generate first when the Xcode project is missing or stale.
+      - macOS with Xcode and the iPhone 15 Pro simulator runtime.
+  ios_test_simulator:
+    description: Run iOS unit and UI tests on the review simulator.
+    cwd: apps/ios
+    command: xcodebuild -project StellarTrail.xcodeproj -scheme StellarTrail -destination 'platform=iOS Simulator,name=iPhone 15 Pro' test
+    when_to_run: Run after changing iOS DTOs, repositories, view models, UI, or screenshot flow.
+    prerequisites:
+      - Run ios_xcodegen_generate first when the Xcode project is missing or stale.
+      - macOS with Xcode and the iPhone 15 Pro simulator runtime.
+  ios_capture_screenshots:
+    description: Run the deterministic iOS screenshot UI test and keep the review result bundle or exported attachments.
+    cwd: .
+    command: scripts/capture-ios-screenshots.sh
+    when_to_run: Run after visible iOS page changes before asking for design review.
+    prerequisites:
+      - macOS with Xcode, iOS simulator runtime, and XcodeGen.
+      - The app can build and run in the selected simulator.

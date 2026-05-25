@@ -1,13 +1,27 @@
 {
+  "lazyCodeLoading": "requiredComponents",
   "pages": [
     "pages/index/index",
-    "pages/routes/index",
+    "pages/gear-atlas/index",
+    "pages/gear-atlas/detail/index",
+    "pages/gear-atlas/submit/index",
     "pages/gears/index",
+    "pages/gears/form/index",
+    "pages/gears/detail/index",
+    "pages/packing-lists/index",
+    "pages/packing-lists/form/index",
+    "pages/packing-lists/detail/index",
+    "pages/packing-lists/select-gears/index",
     "pages/skills/index",
-    "pages/profile/index"
+    "pages/skills/detail/index",
+    "pages/profile/index",
+    "pages/profile/roadmap/index",
+    "pages/profile/settings/index",
+    "pages/register/index",
+    "pages/login/index"
   ],
   "window": {
-    "navigationBarTitleText": "StellarTrail",
+    "navigationBarTitleText": "寻径星野",
     "navigationBarBackgroundColor": "#0f172a",
     "navigationBarTextStyle": "white",
     "backgroundColor": "#f8fafc"
@@ -17,11 +31,30 @@
     "selectedColor": "#0f766e",
     "backgroundColor": "#ffffff",
     "list": [
-      { "pagePath": "pages/index/index", "text": "首页" },
-      { "pagePath": "pages/routes/index", "text": "路线" },
-      { "pagePath": "pages/gears/index", "text": "装备" },
-      { "pagePath": "pages/skills/index", "text": "技能" },
-      { "pagePath": "pages/profile/index", "text": "我的" }
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "assets/tabbar/home-normal.png",
+        "selectedIconPath": "assets/tabbar/home-selected.png"
+      },
+      {
+        "pagePath": "pages/gears/index",
+        "text": "装备",
+        "iconPath": "assets/tabbar/gear-normal.png",
+        "selectedIconPath": "assets/tabbar/gear-selected.png"
+      },
+      {
+        "pagePath": "pages/skills/index",
+        "text": "技能",
+        "iconPath": "assets/tabbar/skills-normal.png",
+        "selectedIconPath": "assets/tabbar/skills-selected.png"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的",
+        "iconPath": "assets/tabbar/profile-normal.png",
+        "selectedIconPath": "assets/tabbar/profile-selected.png"
+      }
     ]
   },
   "sitemapLocation": "sitemap.json"

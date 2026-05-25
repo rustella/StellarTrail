@@ -1,0 +1,145 @@
+version: 1
+project:
+  name: StellarTrail
+  display_name: Xunjing Xingye
+  repository: https://github.com/rustella/StellarTrail
+  default_branch: main
+  current_focus: phase-one gear inventory MVP
+  description: Outdoor gear preparation and offline skills for China-focused hiking scenarios. The current implementation prioritizes the WeChat Mini Program and the Rust API; route and mountain modules are future work.
+
+read_order:
+  - AGENTS.md
+  - .agent/AGENTS.md
+  - .agent/local/AGENTS.md
+  - .agent/context-index.yaml
+  - .agent/commands.yaml
+
+indexes:
+  context: .agent/context-index.yaml
+  commands: .agent/commands.yaml
+  knowledge: .agent/knowledge/README.md
+  skills: .agent/skills/README.md
+
+stack:
+  backend:
+    language: Rust
+    edition: "2024"
+    framework: axum 0.7
+    async_runtime: tokio
+    db_access: SeaORM 1.1
+    migrations: sea-orm-migration 1.1
+  frontend:
+    platforms:
+      - WeChat Mini Program
+      - Android
+      - iOS
+      - web
+    language: TypeScript
+    node: "22+"
+  public_data:
+    gear_templates: DB-backed API startup seed
+    knots: Knots3D metadata imported into DB
+    media: MinIO/S3-compatible object storage URLs stored in DB
+  databases:
+    local: SQLite
+    production_recommended: PostgreSQL
+    compatibility_note: Keep room for MySQL-compatible configuration when required, but phase one focuses on SQLite and PostgreSQL.
+
+source_roots:
+  - path: apps/android
+    role: Android native client.
+  - path: apps/ios
+    role: iOS native SwiftUI client.
+  - path: apps/wechat-miniprogram
+    role: WeChat Mini Program client.
+  - path: apps/web
+    role: Web client.
+  - path: services/api
+    role: Rust Axum API service.
+  - path: crates/domain
+    role: Domain models, enums, and validation rules.
+  - path: crates/db
+    role: Database configuration, connections, and repositories.
+  - path: crates/importer
+    role: Knots3D metadata parsing and import boundaries.
+  - path: crates/migration
+    role: Database schema migrations.
+  - path: packages/api-client-ts
+    role: TypeScript API client.
+  - path: packages/shared-types
+    role: Shared TypeScript DTO types.
+  - path: docs
+    role: Product, architecture, API, and public-data documentation.
+  - path: infra
+    role: Docker integration-test and production deployment configuration.
+  - path: scripts
+    role: Development helper scripts.
+
+entrypoints:
+  android_app: apps/android/src/main/java/com/rustella/stellartrail/MainActivity.kt
+  ios_app: apps/ios/StellarTrail/App/StellarTrailApp.swift
+  ios_project_definition: apps/ios/project.yml
+  api_server: services/api/src/main.rs
+  api_state: services/api/src/state.rs
+  api_routes: services/api/src/routes/mod.rs
+  migrations: crates/migration/src/lib.rs
+  wechat_app: apps/wechat-miniprogram/miniprogram/app.ts
+  wechat_pages_config: apps/wechat-miniprogram/miniprogram/app.json
+  rust_workspace: Cargo.toml
+  node_workspace: package.json
+
+important_docs:
+  - README.md
+  - README.en.md
+  - docs/architecture.md
+  - docs/api.md
+  - docs/content-schema.md
+  - docs/mvp.md
+
+generated_or_local_paths:
+  - target
+  - node_modules
+  - dist
+  - .idea
+  - .env
+  - config.yaml
+  - "config.*.yaml"
+  - "infra/production/**/.env"
+  - "infra/production/**/config.yaml"
+  - "infra/production/traefik/acme.json"
+  - stellartrail.db
+  - "*.sqlite"
+  - "*.sqlite3"
+
+policies:
+  agent_docs_language: English only for AGENTS.md, CLAUDE.md, and every file under .agent.
+  code_comments_language: English for code comments unless a task explicitly requests otherwise.
+  server_rust_comments: Server Rust additions and modifications should include module-level rustdoc, rustdoc for public items and important private functions, and inline comments for critical logic.
+  protect_existing_changes: true
+  no_secrets_in_repo: true
+  doc_sync_required_for_behavior_changes: true
+  keep_agent_entrypoints_thin: true
+  avoid_unrequested_scope_expansion: true
+  local_branch_policy: Use wx/chore/initial-mvp until it is merged or deleted locally and remotely.
+
+validation:
+  primary_commands_file: .agent/commands.yaml
+  recommended_before_handoff:
+    - npm_run_check
+    - npm_format_check
+    - cargo_fmt_check
+    - cargo_check_workspace
+    - cargo_test_workspace
+    - cargo_clippy_workspace
+    - docker_compose_test_config
+    - docker_compose_production_config
+    - ios_xcodegen_generate
+    - ios_test_simulator
+    - git_diff_check
+
+freshness:
+  last_updated: "2026-05-17"
+  source: Repository files, current channel context, and explicit user language and branch-policy requirements.
+  known_gaps:
+    - Route and mountain modules remain future work until explicitly restarted.
+    - Placeholder API-client generation should not be treated as delivery validation until OpenAPI export and generation are implemented.

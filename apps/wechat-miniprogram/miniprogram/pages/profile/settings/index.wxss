@@ -1,0 +1,248 @@
+.container {
+  padding-top: 40rpx;
+}
+
+.profile-settings-page.theme-dark {
+  background: var(--body-gradient);
+}
+
+.settings-hero {
+  display: flex;
+  align-items: center;
+  gap: 22rpx;
+}
+
+.settings-avatar {
+  flex: 0 0 auto;
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 34rpx;
+  font-weight: 900;
+  line-height: 96rpx;
+  text-align: center;
+  overflow: hidden;
+}
+
+.settings-avatar-image {
+  width: 96rpx;
+  height: 96rpx;
+}
+
+.settings-hero-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-card,
+.account-empty-card {
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.settings-section-title {
+  color: var(--text-color);
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.settings-section-desc {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  margin-top: 18rpx;
+  padding: 22rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.settings-icon {
+  flex: 0 0 auto;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 18rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 56rpx;
+  text-align: center;
+}
+
+.settings-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-title {
+  color: var(--text-color);
+  font-size: 27rpx;
+  font-weight: 900;
+}
+
+.settings-desc {
+  margin-top: 6rpx;
+  color: var(--muted-color);
+  font-size: 22rpx;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-chevron {
+  flex: 0 0 auto;
+  color: var(--muted-color);
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.settings-error {
+  margin-top: 14rpx;
+  color: var(--status-danger-text);
+  font-size: 23rpx;
+  line-height: 1.4;
+}
+
+.primary-button {
+  margin: 24rpx 0 0;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 26rpx;
+  font-weight: 900;
+  line-height: 74rpx;
+}
+
+.primary-button::after,
+.primary-pill::after,
+.secondary-pill::after {
+  border: 0;
+}
+
+.settings-modal-mask {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 32rpx;
+  background: rgba(15, 23, 42, 0.42);
+  box-sizing: border-box;
+}
+
+.settings-modal-card {
+  width: 100%;
+  padding: 30rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: 28rpx;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-card);
+  box-sizing: border-box;
+}
+
+.settings-modal-title {
+  color: var(--text-color);
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.settings-modal-desc {
+  margin-top: 10rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.settings-form {
+  margin-top: 24rpx;
+}
+
+.settings-input {
+  width: 100%;
+  height: 78rpx;
+  margin-top: 18rpx;
+  padding: 0 22rpx;
+  border: 1rpx solid var(--control-border);
+  border-radius: 18rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 27rpx;
+  font-weight: 800;
+  box-sizing: border-box;
+}
+
+.settings-form > .settings-input:first-child,
+.settings-code-row:first-child {
+  margin-top: 0;
+}
+
+.settings-code-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.settings-code-input {
+  min-width: 0;
+  flex: 1;
+  margin-top: 0;
+}
+
+.settings-modal-notice {
+  margin-top: 14rpx;
+  color: var(--status-success-text);
+  font-size: 23rpx;
+  line-height: 1.4;
+}
+
+.settings-modal-error {
+  margin-top: 14rpx;
+  color: var(--status-danger-text);
+  font-size: 23rpx;
+  line-height: 1.4;
+}
+
+.settings-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 18rpx;
+  margin-top: 24rpx;
+}
+
+.primary-pill,
+.secondary-pill {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 28rpx;
+  border-radius: 999rpx;
+  font-size: 25rpx;
+  font-weight: 900;
+  line-height: 64rpx;
+}
+
+.primary-pill {
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+}
+
+.secondary-pill {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+}

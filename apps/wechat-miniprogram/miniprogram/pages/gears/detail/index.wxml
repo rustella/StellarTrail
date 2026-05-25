@@ -1,0 +1,120 @@
+<view class="detail-page {{themeClass}}">
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
+  <view wx:if="{{requiresLogin}}" class="state-card login-required">
+    <view class="login-required-title">登录后查看装备详情</view>
+    <view class="login-required-desc"
+      >这是你的个人装备记录，登录后可继续查看和编辑。</view
+    >
+    <button bindtap="loginPromptGoLogin">去登录</button>
+  </view>
+
+  <view wx:elif="{{error}}" class="state-card error">
+    <view>{{error}}</view>
+    <button bindtap="loadDetail">重试</button>
+  </view>
+
+  <view wx:elif="{{loading && !item}}" class="state-card"
+    >正在加载装备详情...</view
+  >
+
+  <view wx:elif="{{!item}}" class="state-card">暂无装备详情</view>
+
+  <block wx:else>
+    <view class="detail-hero">
+      <view class="badge-row">
+        <view class="category-badge">{{categoryText}}</view>
+        <view class="status-badge {{statusTone}}">{{statusText}}</view>
+      </view>
+      <view class="detail-title">{{item.name}}</view>
+      <view class="detail-subtitle"
+        >{{item.brand || '未填写品牌'}} · {{item.model || '未填写型号'}}</view
+      >
+      <view class="summary-grid">
+        <view class="summary-item">
+          <view class="summary-value">{{weightText}}</view>
+          <view class="summary-label">重量</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-value">{{quantityText}}</view>
+          <view class="summary-label">数量</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-value">{{priceText}}</view>
+          <view class="summary-label">价格</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-value">{{atlasSubmissionText}}</view>
+          <view class="summary-label">图鉴</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="action-row">
+      <button bindtap="goEdit">编辑装备</button>
+      <button
+        wx:if="{{tab === 'available'}}"
+        class="danger"
+        bindtap="archiveItem"
+      >
+        归档
+      </button>
+      <button wx:else class="restore" bindtap="restoreItem">恢复可用</button>
+      <button wx:if="{{tab === 'history'}}" class="danger" bindtap="deleteItem">
+        删除
+      </button>
+    </view>
+
+    <view class="atlas-submit-card">
+      <view>
+        <view class="section-title">装备图鉴投稿</view>
+        <view class="atlas-submit-hint">{{atlasSubmissionHint}}</view>
+      </view>
+      <button
+        class="atlas-submit-button {{atlasSubmissionStatus === 'rejected' ? 'retry' : ''}}"
+        disabled="{{atlasSubmissionStatus === 'pending' || atlasSubmissionStatus === 'approved' || submittingAtlas}}"
+        loading="{{submittingAtlas}}"
+        bindtap="submitToAtlas"
+      >
+        {{atlasSubmissionStatus === 'pending' ? '审核中' : atlasSubmissionStatus
+        === 'approved' ? '已收录' : atlasSubmissionStatus === 'rejected' ?
+        '重新投稿' : '投稿到图鉴'}}
+      </button>
+    </view>
+
+    <view wx:if="{{tagViews.length}}" class="tag-card">
+      <view class="section-title">标签</view>
+      <view class="tag-list">
+        <block wx:for="{{tagViews}}" wx:key="name">
+          <view class="tag {{item.colorClass}}">{{item.name}}</view>
+        </block>
+      </view>
+    </view>
+
+    <block wx:for="{{groups}}" wx:key="title">
+      <view class="info-card">
+        <view class="section-title">{{item.title}}</view>
+        <block wx:for="{{item.items}}" wx:key="label" wx:for-item="row">
+          <view class="info-row">
+            <view class="info-label">{{row.label}}</view>
+            <view class="info-value">{{row.value}}</view>
+          </view>
+        </block>
+      </view>
+    </block>
+  </block>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">暂不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

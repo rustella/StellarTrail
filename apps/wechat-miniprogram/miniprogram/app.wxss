@@ -1,30 +1,346 @@
+page,
+.theme-light {
+  --text-color: #0f172a;
+  --muted-color: #64748b;
+  --heading-muted-color: #334155;
+  --accent-color: #0f766e;
+  --page-bg: #f8fafc;
+  --body-gradient: #f8fafc;
+  --surface-color: #ffffff;
+  --surface-strong-color: #ffffff;
+  --control-bg: #f8fafc;
+  --control-border: #e2e8f0;
+  --border-color: #e2e8f0;
+  --soft-border-color: #f1f5f9;
+  --brand-color: #0f766e;
+  --brand-text-color: #ffffff;
+  --brand-soft-bg: #ccfbf1;
+  --brand-soft-text: #0f766e;
+  --soft-control-bg: #e2e8f0;
+  --soft-control-text: #475569;
+  --chip-bg: #ecfdf5;
+  --hero-gradient: linear-gradient(135deg, #0f172a 0%, #0f766e 100%);
+  --notice-text: #b45309;
+  --notice-bg: #fef3c7;
+  --status-success-text: #047857;
+  --status-success-bg: #d1fae5;
+  --status-warning-text: #b45309;
+  --status-warning-bg: #fef3c7;
+  --status-danger-text: #dc2626;
+  --status-danger-bg: #fff1f2;
+  --status-info-text: #2563eb;
+  --status-info-bg: #eff6ff;
+  --shadow-soft: 0 12rpx 40rpx rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 18rpx 50rpx rgba(15, 23, 42, 0.12);
+  --card-radius: 30rpx;
+  --card-inner-radius: 24rpx;
+  --hero-card-radius: 36rpx;
+  --hero-surface-gradient: linear-gradient(
+    145deg,
+    #fff7ed 0%,
+    #ecfeff 48%,
+    #eef2ff 100%
+  );
+  --hero-surface-border: rgba(15, 118, 110, 0.12);
+  --hero-surface-shadow: 0 18rpx 60rpx rgba(15, 23, 42, 0.08);
+  --page-card-padding: 28rpx;
+  --inner-card-padding: 22rpx;
+  --footer-bg: rgba(255, 255, 255, 0.96);
+}
+
+.theme-dark {
+  --text-color: #f6f1ff;
+  --muted-color: #c7b9f4;
+  --heading-muted-color: #ddd6fe;
+  --accent-color: #e879f9;
+  --page-bg: #07051a;
+  --body-gradient:
+    radial-gradient(
+      circle at 16% 22%,
+      rgba(255, 255, 255, 0.36) 0 1px,
+      transparent 2px
+    ),
+    radial-gradient(
+      circle at 62% 18%,
+      rgba(221, 214, 254, 0.28) 0 1px,
+      transparent 2px
+    ),
+    radial-gradient(
+      circle at 88% 42%,
+      rgba(125, 211, 252, 0.24) 0 1px,
+      transparent 2px
+    ),
+    linear-gradient(
+      115deg,
+      transparent 0%,
+      transparent 34%,
+      rgba(167, 139, 250, 0.08) 45%,
+      rgba(45, 212, 191, 0.055) 52%,
+      transparent 66%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle at 18% 16%,
+      rgba(168, 85, 247, 0.34) 0%,
+      rgba(168, 85, 247, 0) 28%
+    ),
+    radial-gradient(
+      circle at 82% 8%,
+      rgba(45, 212, 191, 0.18) 0%,
+      rgba(45, 212, 191, 0) 24%
+    ),
+    radial-gradient(
+      circle at 74% 76%,
+      rgba(236, 72, 153, 0.16) 0%,
+      rgba(236, 72, 153, 0) 30%
+    ),
+    linear-gradient(135deg, #07051a 0%, #12082e 52%, #21104d 100%);
+  --surface-color: rgba(24, 18, 52, 0.9);
+  --surface-strong-color: #17112f;
+  --control-bg: #120d2c;
+  --control-border: #4b3a78;
+  --border-color: #3d2d63;
+  --soft-border-color: #332555;
+  --brand-color: #a78bfa;
+  --brand-text-color: #12071f;
+  --brand-soft-bg: #2a1f4f;
+  --brand-soft-text: #ede7ff;
+  --soft-control-bg: #2a1f4f;
+  --soft-control-text: #ede7ff;
+  --chip-bg: #2a1f4f;
+  --hero-gradient: linear-gradient(
+    135deg,
+    #12082e 0%,
+    #4c1d95 52%,
+    #0f766e 100%
+  );
+  --notice-text: #fde68a;
+  --notice-bg: #3b2a11;
+  --status-success-text: #bbf7d0;
+  --status-success-bg: #123522;
+  --status-warning-text: #fde68a;
+  --status-warning-bg: #3b2a11;
+  --status-danger-text: #fecdd3;
+  --status-danger-bg: #3b1520;
+  --status-info-text: #bfdbfe;
+  --status-info-bg: #1a274d;
+  --shadow-soft: 0 18rpx 48rpx rgba(10, 4, 32, 0.42);
+  --shadow-card: 0 26rpx 88rpx rgba(10, 4, 32, 0.5);
+  --hero-surface-gradient: var(--hero-gradient);
+  --hero-surface-border: var(--border-color);
+  --hero-surface-shadow: var(--shadow-card);
+  --footer-bg: rgba(14, 10, 34, 0.94);
+}
+
 page {
   min-height: 100%;
-  background: #f8fafc;
-  color: #0f172a;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--page-bg);
+  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+textarea,
+picker {
+  font: inherit;
 }
 
 .container {
+  min-height: 100vh;
   padding: 32rpx;
+  background: var(--page-bg);
+  color: var(--text-color);
+  box-sizing: border-box;
+}
+
+.container.theme-dark {
+  background: var(--body-gradient);
 }
 
 .card {
   margin-bottom: 24rpx;
   padding: 28rpx;
+  border: 1rpx solid var(--border-color);
   border-radius: 24rpx;
-  background: #ffffff;
-  box-shadow: 0 12rpx 40rpx rgba(15, 23, 42, 0.06);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
 }
 
 .title {
+  color: var(--text-color);
   font-size: 42rpx;
   font-weight: 700;
 }
 
 .subtitle {
   margin-top: 12rpx;
-  color: #64748b;
+  color: var(--muted-color);
   font-size: 28rpx;
   line-height: 1.6;
+}
+
+.offline-notice {
+  margin-top: 20rpx;
+  padding: 18rpx 22rpx;
+  border: 1rpx solid rgba(180, 83, 9, 0.18);
+  border-radius: 20rpx;
+  color: var(--notice-text);
+  background: var(--notice-bg);
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.theme-settings-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+}
+
+.theme-settings-title {
+  color: var(--text-color);
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.theme-settings-desc {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.theme-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  width: 136rpx;
+  height: 68rpx;
+  margin: 0;
+  padding: 6rpx;
+  border: 1rpx solid var(--control-border);
+  border-radius: 999rpx;
+  background: var(--soft-control-bg);
+  box-shadow: inset 0 2rpx 8rpx rgba(15, 23, 42, 0.08);
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+.theme-toggle::after {
+  border: 0;
+}
+
+.theme-toggle-option {
+  position: relative;
+  z-index: 1;
+  width: 54rpx;
+  height: 54rpx;
+  color: var(--muted-color);
+  font-size: 28rpx;
+  font-weight: 900;
+  line-height: 54rpx;
+  text-align: center;
+}
+
+.theme-toggle-thumb {
+  position: absolute;
+  z-index: 0;
+  top: 6rpx;
+  left: 6rpx;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 999rpx;
+  background: var(--surface-strong-color);
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.18);
+  transition: transform 160ms ease;
+}
+
+.theme-toggle.is-light .theme-toggle-sun,
+.theme-toggle.is-dark .theme-toggle-moon {
+  color: var(--brand-color);
+}
+
+.theme-toggle.is-dark .theme-toggle-thumb {
+  transform: translateX(68rpx);
+}
+
+.login-prompt-mask {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 999;
+  padding: 28rpx 28rpx calc(34rpx + env(safe-area-inset-bottom));
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(15, 23, 42, 0.22) 100%
+  );
+  box-sizing: border-box;
+}
+
+.login-prompt-card {
+  position: relative;
+  padding: 30rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: 30rpx;
+  background: var(--surface-strong-color);
+  box-shadow: 0 22rpx 64rpx rgba(15, 23, 42, 0.22);
+}
+
+.login-prompt-title {
+  color: var(--text-color);
+  font-size: 31rpx;
+  font-weight: 900;
+}
+
+.login-prompt-message {
+  margin-top: 10rpx;
+  padding-right: 42rpx;
+  color: var(--muted-color);
+  font-size: 25rpx;
+  line-height: 1.55;
+}
+
+.login-prompt-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.login-prompt-actions button {
+  flex: 1;
+  margin: 0;
+  border-radius: 999rpx;
+  font-size: 26rpx;
+  font-weight: 800;
+  line-height: 74rpx;
+}
+
+.login-prompt-actions .primary {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}
+
+.login-prompt-actions .secondary {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+}
+
+.login-prompt-close {
+  position: absolute;
+  top: 18rpx;
+  right: 18rpx;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 999rpx;
+  color: var(--muted-color);
+  background: var(--soft-control-bg);
+  font-size: 30rpx;
+  line-height: 48rpx;
+  text-align: center;
 }

@@ -1,6 +1,151 @@
-<view class="container">
-  <view class="card">
-    <view class="title">星径户外助手</view>
-    <view class="subtitle">路线、装备、技能一体化，帮你从想去到敢出发。</view>
+<view class="home-page {{themeClass}}">
+  <view class="hero-card">
+    <view class="hero-eyebrow">寻径星野</view>
+    <view class="hero-title">今天准备好出发了吗？</view>
+    <view class="hero-subtitle"
+      >出发前准备充分，留意天气变化，注意户外安全。</view
+    >
+    <view class="hero-status-row">
+      <view class="hero-status-pill">
+        <text class="hero-status-dot"></text>
+        <text>{{heroStatusText}}</text>
+      </view>
+    </view>
+    <view class="hero-actions">
+      <button class="hero-button primary" bindtap="goGears">检查装备</button>
+      <button class="hero-button secondary" bindtap="goSkills">学习技能</button>
+    </view>
+  </view>
+
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
+  <view class="section-card">
+    <view class="section-header">
+      <view>
+        <view class="section-eyebrow">装备准备</view>
+        <view class="section-title">装备概览</view>
+      </view>
+      <view class="section-link" bindtap="goGears">查看装备</view>
+    </view>
+
+    <view wx:if="{{!isLoggedIn}}" class="guest-inline">
+      <view>
+        <view class="guest-title">可以先浏览装备图鉴</view>
+        <view class="guest-desc">登录后再管理自己的装备、重量和估值。</view>
+      </view>
+      <button bindtap="showLoginForGearSummary">去登录</button>
+    </view>
+
+    <view wx:if="{{gearError}}" class="state-card error">
+      <view>{{gearError}}</view>
+      <button bindtap="loadGearSummary">重试</button>
+    </view>
+    <block wx:else>
+      <view wx:if="{{gearLoading}}" class="state-card"
+        >正在加载装备状态...</view
+      >
+      <view wx:else class="stat-grid">
+        <block wx:for="{{gearStatCards}}" wx:key="label">
+          <view class="stat-card">
+            <view class="stat-value">{{item.value}}</view>
+            <view class="stat-label">{{item.label}}</view>
+            <view class="stat-hint">{{item.hint}}</view>
+          </view>
+        </block>
+      </view>
+    </block>
+  </view>
+
+  <view class="section-card">
+    <view class="section-header">
+      <view>
+        <view class="section-eyebrow">技能复习</view>
+        <view class="section-title">户外技能精选</view>
+      </view>
+      <view class="section-link" bindtap="goSkills">全部技能</view>
+    </view>
+
+    <view wx:if="{{skillError}}" class="state-card error">
+      <view>{{skillError}}</view>
+      <button bindtap="loadFeaturedSkills">重试</button>
+    </view>
+    <block wx:else>
+      <view wx:if="{{skillLoading}}" class="state-card"
+        >正在加载户外技能...</view
+      >
+      <view wx:elif="{{featuredSkills.length}}" class="knot-pack">
+        <view class="knot-pack-header">
+          <view>
+            <view class="knot-pack-title">绳结</view>
+            <view class="knot-pack-desc">常用连接、固定与收纳绳结</view>
+          </view>
+          <view
+            class="knot-pack-link"
+            hover-class="knot-pack-link-active"
+            bindtap="goSkills"
+            >查看全部</view
+          >
+        </view>
+        <view class="skill-list">
+          <block wx:for="{{featuredSkills}}" wx:key="id">
+            <view
+              class="skill-card"
+              data-id="{{item.id}}"
+              bindtap="goSkillDetail"
+            >
+              <view class="skill-thumb">
+                <image
+                  wx:if="{{item.hasThumbnail}}"
+                  class="skill-thumb-image"
+                  mode="aspectFit"
+                  src="{{item.thumbnailUrl}}"
+                  lazy-load
+                />
+                <view wx:else class="thumb-placeholder">绳结</view>
+              </view>
+              <view class="skill-content">
+                <view class="skill-tags">
+                  <text class="skill-tag">{{item.categoryText}}</text>
+                </view>
+                <view class="skill-title">{{item.title}}</view>
+                <view wx:if="{{item.aliasText}}" class="skill-alias"
+                  >{{item.aliasText}}</view
+                >
+                <view class="skill-summary">{{item.summary}}</view>
+              </view>
+            </view>
+          </block>
+        </view>
+      </view>
+      <view wx:else class="empty-inline">技能内容准备中。</view>
+    </block>
+  </view>
+
+  <view class="section-card checklist-card">
+    <view class="section-eyebrow">出发前</view>
+    <view class="section-title">出发前检查</view>
+    <block wx:for="{{checklistItems}}" wx:key="title">
+      <view class="check-item">
+        <view class="check-icon">{{item.icon}}</view>
+        <view>
+          <view class="check-title">{{item.title}}</view>
+          <view class="check-desc">{{item.description}}</view>
+        </view>
+      </view>
+    </block>
+  </view>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">暂不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
   </view>
 </view>

@@ -1,0 +1,127 @@
+<view class="packing-page {{themeClass}}">
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
+  <view wx:if="{{!isLoggedIn}}" class="state-card login-required">
+    <view class="state-title">登录后查看打包清单</view>
+    <view class="state-desc">这是你的个人出行准备记录。</view>
+    <button bindtap="loginPromptGoLogin">去登录</button>
+  </view>
+
+  <view wx:elif="{{error}}" class="state-card error">
+    <view>{{error}}</view>
+    <button bindtap="loadDetail">重试</button>
+  </view>
+
+  <view wx:elif="{{loading && !detail}}" class="state-card"
+    >正在加载打包清单...</view
+  >
+
+  <view wx:elif="{{!detail}}" class="state-card">暂无打包清单详情</view>
+
+  <block wx:else>
+    <view class="detail-hero">
+      <view class="eyebrow">打包清单</view>
+      <view class="hero-title">{{detail.name}}</view>
+      <view class="hero-subtitle">{{metaText}}</view>
+      <view class="metrics-row">
+        <view class="metric">
+          <view class="metric-value">{{progressText}}</view>
+          <view class="metric-label">已打包</view>
+        </view>
+        <view class="metric">
+          <view class="metric-value">{{detail.stats.item_count}}</view>
+          <view class="metric-label">装备</view>
+        </view>
+        <view class="metric">
+          <view class="metric-value">{{weightText}}</view>
+          <view class="metric-label">总重量</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="action-row">
+      <button bindtap="goAddGear">添加装备</button>
+      <button bindtap="goEdit">编辑</button>
+      <button class="danger" bindtap="deleteList">删除</button>
+    </view>
+
+    <view wx:if="{{!groups.length}}" class="state-card empty">
+      <view class="state-title">还没有加入装备</view>
+      <view class="state-desc">从你的可用装备里挑选这次出发要带的物品。</view>
+      <button class="primary-action wide" bindtap="goAddGear">挑选装备</button>
+    </view>
+
+    <block wx:else>
+      <block wx:for="{{groups}}" wx:key="category">
+        <view class="group-card">
+          <view class="group-title">{{item.title}}</view>
+          <block wx:for="{{item.items}}" wx:key="id" wx:for-item="gearItem">
+            <view class="packing-item {{gearItem.packed ? 'packed' : ''}}">
+              <view
+                class="check-button {{gearItem.packed ? 'checked' : ''}}"
+                data-id="{{gearItem.id}}"
+                bindtap="togglePacked"
+              >
+                {{gearItem.packed ? '✓' : ''}}
+              </view>
+              <view class="item-main">
+                <view class="item-title">{{gearItem.gear.name}}</view>
+                <view class="item-meta">{{gearItem.brandModelText}}</view>
+                <view class="item-stats">
+                  <text>{{gearItem.weightText}}</text>
+                  <text>{{gearItem.priceText}}</text>
+                  <text>{{gearItem.statusText}}</text>
+                </view>
+                <view class="quantity-controls">
+                  <button
+                    class="quantity-button"
+                    disabled="{{!gearItem.canDecreasePlanned}}"
+                    data-id="{{gearItem.id}}"
+                    catchtap="decreasePlanned"
+                  >
+                    -
+                  </button>
+                  <text>{{gearItem.plannedText}}</text>
+                  <button
+                    class="quantity-button"
+                    disabled="{{!gearItem.canIncreasePlanned}}"
+                    data-id="{{gearItem.id}}"
+                    catchtap="increasePlanned"
+                  >
+                    +
+                  </button>
+                  <text>{{gearItem.packedText}}</text>
+                  <text>库存 {{gearItem.quantityText}}</text>
+                </view>
+                <view wx:if="{{gearItem.unavailable}}" class="unavailable-text"
+                  >{{gearItem.unavailableText}}</view
+                >
+              </view>
+              <button
+                class="remove-button"
+                data-id="{{gearItem.id}}"
+                catchtap="removeItem"
+              >
+                移除
+              </button>
+            </view>
+          </block>
+        </view>
+      </block>
+    </block>
+  </block>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">暂不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

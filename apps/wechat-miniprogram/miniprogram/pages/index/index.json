@@ -1,3 +1,4 @@
 {
-  "navigationBarTitleText": "星径户外助手"
+  "navigationBarTitleText": "寻径星野",
+  "enablePullDownRefresh": true
 }

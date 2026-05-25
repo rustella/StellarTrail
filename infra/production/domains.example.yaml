@@ -1,0 +1,48 @@
+# Non-sensitive production domain routing contract for StellarTrail.
+# Copy values into Traefik labels, API config.yaml CORS allowlist, and smoke tests.
+site:
+  canonical_origin: https://site.example.invalid
+  origins:
+    - https://site.example.invalid
+    - https://site-alt1.example.invalid
+    - https://site-alt2.example.invalid
+  redirect_origins:
+    - https://www.example.invalid
+web:
+  origins:
+    - https://app.example.invalid
+    - https://app-alt1.example.invalid
+    - https://app-alt2.example.invalid
+api:
+  origins:
+    - https://api.example.invalid
+    - https://api-alt1.example.invalid
+    - https://api-alt2.example.invalid
+assets:
+  origins:
+    - https://assets.example.invalid
+    - https://assets-alt1.example.invalid
+    - https://assets-alt2.example.invalid
+tls:
+  # Checked-in Traefik examples define "letsencrypt"; the current production
+  # edge router uses "le". Set TRAEFIK_CERT_RESOLVER in production .env files
+  # to the live resolver name instead of hard-coding it in compose labels.
+  example_cert_resolver: letsencrypt
+  production_cert_resolver: le
+allowlist:
+  api_cors_origins:
+    - https://app.example.invalid
+    - https://app-alt1.example.invalid
+    - https://app-alt2.example.invalid
+    - https://site.example.invalid
+    - https://site-alt1.example.invalid
+    - https://site-alt2.example.invalid
+    - https://www.example.invalid
+  asset_cors_origins:
+    - https://app.example.invalid
+    - https://app-alt1.example.invalid
+    - https://app-alt2.example.invalid
+    - https://site.example.invalid
+    - https://site-alt1.example.invalid
+    - https://site-alt2.example.invalid
+    - https://www.example.invalid

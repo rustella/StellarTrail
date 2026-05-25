@@ -1,8 +1,11 @@
-use axum::{extract::State, Json};
+//! Metadata route module that returns the API version and current environment for frontend and diagnostic tools.
+
+use axum::{Json, extract::State};
 use serde::Serialize;
 
 use crate::state::AppState;
 
+/// Stable data boundary for `MetaResponse`, exposed by or reused within this module.
 #[derive(Serialize)]
 pub struct MetaResponse {
     name: &'static str,
@@ -10,6 +13,7 @@ pub struct MetaResponse {
     database_kind: String,
 }
 
+/// Runs the `meta` server-side flow while preserving input validation, error propagation, and state invariants.
 pub async fn meta(State(state): State<AppState>) -> Json<MetaResponse> {
     Json(MetaResponse {
         name: "StellarTrail",
