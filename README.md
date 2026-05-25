@@ -48,6 +48,15 @@ StellarTrail 聚焦徒步、露营和轻量户外用户，围绕 **装备整理*
   <strong>微信扫码或搜索「寻径星野」进入小程序。</strong>
 </p>
 
+暂不包含路线、行程、技能、实时导航、社区信息流、路线交易/带队、完整 GPX 编辑和商城能力。
+
+## 🌱 当前公共数据
+
+| 类型        | 来源                                          |
+| ----------- | --------------------------------------------- |
+| 🪢 绳结技能 | DB-backed 公共绳结内容，媒体走 MinIO/对象存储 |
+| 🎒 装备模板 | 服务启动时向 DB 幂等 seed 默认系统模板        |
+
 ## 📱 客户端支持
 
 | 客户端       | 当前状态 | 说明                                                                  |
@@ -74,7 +83,6 @@ StellarTrail/
   crates/
     domain/                 # 共享 Rust 领域模型
     db/                     # DB 配置和仓储边界
-    importer/               # Knots3D metadata 导入边界
     migration/              # 数据迁移边界
   packages/
     api-client-ts/          # 供小程序 / Web / Mobile 复用的 TS API client

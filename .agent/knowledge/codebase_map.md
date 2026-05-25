@@ -31,7 +31,6 @@
 - `services/api/tests/`: integration and route tests.
 - `crates/domain/src/`: domain models and validation.
 - `crates/db/src/`: database configuration and repositories.
-- `crates/importer/src/`: Knots3D metadata parsing and importer boundaries.
 - `crates/migration/src/`: schema migrations.
 
 ## Packages
@@ -42,8 +41,8 @@
 
 ## Public data and docs
 
-- Gear templates: system seed under domain/API/DB/migration code.
-- Knot skills: Knots3D metadata imported through `crates/importer`; media URLs are stored in DB and backed by MinIO/object storage.
+- Gear templates: DB-backed system seed under domain/API/DB/migration code.
+- Knot skills: DB-backed public content; media URLs are stored in DB and backed by MinIO/object storage.
 - `docs/api.md`: API contract notes.
 - `docs/architecture.md`: architecture documentation.
 - `docs/mvp.md`: MVP scope notes.

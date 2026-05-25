@@ -25,7 +25,7 @@ Read:
 ## Risk classification
 
 - Low: local rename, documentation sync, or isolated helper extraction.
-- Medium: route, DTO, repository, importer, or shared-type changes.
+- Medium: route, DTO, repository, public-data, or shared-type changes.
 - High: database schema, authentication, migration semantics, broad API behavior, or multi-client compatibility changes.
 
 ## Output format

@@ -3,7 +3,6 @@ members = [
   "services/api",
   "crates/domain",
   "crates/db",
-  "crates/importer",
   "crates/migration",
 ]
 resolver = "3"
