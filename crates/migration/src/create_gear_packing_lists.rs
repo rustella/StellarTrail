@@ -3,8 +3,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Single database migration type invoked by the SeaORM migration framework for up/down operations.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260524_000001_create_gear_packing_lists"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -30,6 +35,8 @@ impl MigrationTrait for Migration {
                 packing_list_id TEXT NOT NULL REFERENCES gear_packing_lists(id),
                 user_id TEXT NOT NULL REFERENCES users(id),
                 gear_id TEXT NOT NULL REFERENCES user_gear_items(id),
+                planned_quantity INTEGER NOT NULL DEFAULT 1,
+                packed_quantity INTEGER NOT NULL DEFAULT 0,
                 packed BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,

@@ -537,12 +537,18 @@ async fn knots_migration_down_preserves_shared_skill_categories() {
     .expect("insert shared category localization");
 
     // Roll back every migration from knots content onward. Keep this dynamic so
-    // appending later migrations does not leave the knots seed row in place.
-    let migrations_after_base_schema = Migrator::migrations()
+    // schema consolidation or later appended migrations do not leave the knots
+    // seed row in place.
+    let migrations = Migrator::migrations();
+    let knots_index = migrations
+        .iter()
+        .position(|migration| migration.name() == "m20260516_000007_create_knots_content")
+        .expect("knots content migration is registered");
+    let migrations_from_knots_onward = migrations
         .len()
-        .checked_sub(6)
-        .expect("knots migration follows six base migrations");
-    Migrator::down(&db, Some(migrations_after_base_schema as u32))
+        .checked_sub(knots_index)
+        .expect("knots migration is within the migration list");
+    Migrator::down(&db, Some(migrations_from_knots_onward as u32))
         .await
         .expect("roll back knots migration");
 
