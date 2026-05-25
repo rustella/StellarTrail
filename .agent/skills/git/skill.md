@@ -9,8 +9,19 @@ Use this repository-local skill for staging, committing, pushing, reverting, and
 3. Before committing, list untracked files and confirm each one belongs to the current delivery scope.
 4. Do not use `git add -A` by default. Stage explicit paths only.
 5. Do not commit `target/`, `node_modules/`, `.env`, local databases, IDE config, tool caches, or `.agent/local/`.
-6. During the initial MVP phase, continue code development on `wx/chore/initial-mvp` until that branch is merged or removed locally and remotely.
-7. Do not create new `wx/*` branches or MRs during the initial MVP phase unless the user explicitly asks.
+6. Follow `.agent/local/AGENTS.md` when it exists for machine-local branch and worktree policy.
+7. In a new chat or fresh development task, create a dedicated Git worktree before editing unless the current checkout is already the exact task worktree or the user explicitly asks to reuse it.
+
+## Worktree default
+
+When development work starts from the main repository checkout, branch a new
+worktree first and do all task edits there. Reuse the current checkout only for
+inspection, explicit user-directed reuse, or agent-context maintenance that is
+already on the matching agent-context branch.
+
+Use branch names from `.agent/local/AGENTS.md` when it exists. If no local policy
+exists, prefer `wx/feat/<name>` for features and `wx/chore/<name>` for
+maintenance work.
 
 ## Recommended checks
 
