@@ -3736,21 +3736,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "stellartrail-importer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "sea-orm",
- "sea-orm-migration",
- "serde",
- "serde_json",
- "stellartrail-db",
- "stellartrail-domain",
- "stellartrail-migration",
- "tokio",
-]
-
-[[package]]
 name = "stellartrail-migration"
 version = "0.1.0"
 dependencies = [

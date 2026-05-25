@@ -342,11 +342,11 @@ X-StellarTrail-Locale: en
 
 ### Outdoor skills / knots
 
-一期户外技能只有绳结。服务端通过 `import-knots3d` 将 `.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json` 导入数据库；绳结媒体不再从 `/assets/*` 或本地静态目录拼 URL。管理员使用 `PUT /api/v1/admin/skills/knots/:knot_id/media/:asset_id` 上传 GIF/MP4/WebP/PNG 等二进制到 MinIO/S3-compatible object storage，服务端把 `media_resources` 与 `knot_media_resources` 元数据写入数据库。公开读接口只返回 DB 中 active media 的 `url`/`mime_type`/`size_bytes` 等公共字段，允许这些 URL 指向与 API 不同域名的 MinIO/CDN。运行配置只保留一组 `minio` 连接信息，私有反馈图和公开绳结媒体分别配置业务 bucket。
+一期户外技能只有绳结。绳结内容已经是 DB-backed 公共数据；旧的 Rust 数据导入 CLI 已退役，现有数据库和外部备份是内容恢复来源。绳结媒体不再从 `/assets/*` 或本地静态目录拼 URL。管理员使用 `PUT /api/v1/admin/skills/knots/:knot_id/media/:asset_id` 上传 GIF/MP4/WebP/PNG 等二进制到 MinIO/S3-compatible object storage，服务端把 `media_resources` 与 `knot_media_resources` 元数据写入数据库。公开读接口只返回 DB 中 active media 的 `url`/`mime_type`/`size_bytes` 等公共字段，允许这些 URL 指向与 API 不同域名的 MinIO/CDN。运行配置只保留一组 `minio` 连接信息，私有反馈图和公开绳结媒体分别配置业务 bucket。
 
 核心媒体 `asset_id` / `media_type`：`thumbnail`、`preview`、`draw_gif`、`turntable_gif`、`draw_mp4`、`turntable_mp4`。Knots3D 全量一期验收目标为 `225 knots × 6 core media = 1350`。
 
-绳结本地化别名保存在 `knot_localizations.aliases_json`，与当前 locale 的 `title`、`summary`、`description` 和 `steps_json` 同行。公开 `list`、`detail`、`offline-manifest` 以及收藏清单中的绳结摘要都返回 `aliases: string[]`；没有别名时返回空数组。生产补齐别名只允许运行 `backfill-knot-localization-aliases --from-raw-db`，不得重跑会重建绳结和级联媒体映射的 `import-knots3d`。
+绳结本地化别名保存在 `knot_localizations.aliases_json`，与当前 locale 的 `title`、`summary`、`description` 和 `steps_json` 同行。公开 `list`、`detail`、`offline-manifest` 以及收藏清单中的绳结摘要都返回 `aliases: string[]`；没有别名时返回空数组。生产别名补齐依赖现有数据库维护流程，仓库内不再提供重建绳结和级联媒体映射的 Rust CLI。
 
 绳结分页参数为 `offset`/`limit`，筛选参数为 `category`，关键词为 `q`；`q` 会匹配当前语言的 `title`、`summary`、`description`、`id`、`slug` 和 `aliases[]`。响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`，也不再接受 `difficulty`。`/api/v1/skills/knots/filters` 返回当前语言下可选用途及数量。`/api/v1/skills/knots/offline-manifest` 不接受 query 参数，返回完整离线清单、`item_count`、去重后的 `media_count` 和 `estimated_bytes`，并复用 public response cache 与 `ETag`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`、raw metadata、bucket、object key 或 storage endpoint。
 
@@ -360,9 +360,9 @@ X-StellarTrail-Locale: en
 
 装备模板的模板标题、分类名、条目名存储在 `gear_template_*_localizations` 表中；默认系统模板同时 seed `zh-CN` 和 `en`。装备图鉴的公共 `name` 和 `description` 存储在 `gear_atlas_item_localizations` 表中，新用户投稿默认写入 `zh-CN` 原文行，不做自动机翻；公共 `category_label` 从 `gear_category_localizations` 表解析。`brand`、`model`、`specs`、价格和重量等事实字段不做翻译。
 
-### Gear atlas external import POC
+### Gear atlas external source records
 
-`stellartrail-importer` 提供 `import-gear-atlas-cn` POC CLI，用于把人工挑选的 8264 移动装备详情页导入为待审核图鉴条目。该工具只接受显式 URL 或 URL 文件，不自动扫描全站；默认 dry-run 输出解析预览，真实写库必须传 `--write --submitter-user-id <existing-user-id>`。导入器只保存标题、类目、品牌/型号启发式拆分、重量、人民币价格、公共尺寸 `variants`、结构化 `specs`、评分汇总和来源链接；不复制第三方图片、介绍正文、用户点评正文或评测长文。`source_key` 用于幂等刷新同一来源条目，未删除的已审核条目不会被后续导入覆盖；如果同一 `source_key` 命中已删除条目，会复用原记录、清除 `is_deleted` 并刷新为待审核状态。
+已有外部装备来源记录会保留 `source_key`、`source_name`、`source_url`、`source_rating_score` 和 `source_rating_count` 等审核溯源字段。公开图鉴接口不暴露这些字段；只有管理员审核接口返回来源摘要。旧的 8264 POC 采集 CLI 已退役，仓库内不再提供新增 8264 来源记录的采集工具；后续如需恢复外部来源采集，应先重新设计采集、授权和审核流程。
 
 ### Admin knot media upload
 

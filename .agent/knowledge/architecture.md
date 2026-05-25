@@ -14,7 +14,6 @@ Out of scope unless explicitly requested: real-time navigation, social networkin
 - `crates/domain` owns business types, enums, and validation helpers.
 - `crates/db` owns database connections and repository implementations.
 - `crates/migration` owns schema migrations.
-- `crates/importer` owns Knots3D metadata parsing and import boundaries.
 - `packages/shared-types` and `packages/api-client-ts` provide shared DTOs and TypeScript client helpers.
 
 ## Data and content model
@@ -22,7 +21,7 @@ Out of scope unless explicitly requested: real-time navigation, social networkin
 - Local development uses SQLite by default.
 - PostgreSQL is the recommended production database.
 - MySQL-compatible configuration may be kept where needed, but phase one should avoid MySQL-specific assumptions unless explicitly required.
-- Gear templates are seeded into the database by the API; knot metadata is imported into the database through `crates/importer`; media URLs come from MinIO/S3-compatible object storage metadata stored in DB.
+- Gear templates are seeded into the database by the API; knot public content is DB-backed; media URLs come from MinIO/S3-compatible object storage metadata stored in DB.
 
 ## Layering rules
 
@@ -30,7 +29,6 @@ Out of scope unless explicitly requested: real-time navigation, social networkin
 - Domain code should define business models, enums, and validation rules.
 - DB code should hide SeaORM or SQL details behind repositories.
 - Migration code should own schema DDL and reversible migration boundaries.
-- Importer code should parse and normalize Knots3D metadata without embedding HTTP concerns.
 
 ## Documentation and language rules
 

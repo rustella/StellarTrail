@@ -75,11 +75,6 @@ commands:
     when_to_run: Run after scripts/dev-api.sh reports the API is ready.
     prerequisites:
       - API is running locally on 127.0.0.1:8080.
-  check_importer_tests:
-    description: Run Knots3D metadata importer tests.
-    cwd: .
-    command: cargo test -p stellartrail-importer
-    when_to_run: Run after changing Knots3D metadata parsing or importer CLI behavior.
   generate_api_client_stub:
     description: Placeholder API client generation script.
     cwd: .
