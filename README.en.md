@@ -97,7 +97,7 @@ StellarTrail/
 
 ### 1. Prerequisites
 
-- 🦀 Rust 1.95+ stable toolchain with Rust 2024 edition. The workspace `rust-version` is `1.95`; `rustfmt` and `clippy` are expected.
+- 🦀 Rust 1.95 stable toolchain with Rust 2024 edition. The workspace `rust-version` is `1.95`, the repository includes `rust-toolchain.toml`, and `rustfmt` plus `clippy` are expected.
 - 🟢 Node.js 22+ and npm.
 - 💬 WeChat DevTools for Mini Program debugging.
 - 🗄️ PostgreSQL 16+ / MySQL-compatible database. Local development defaults to SQLite; production and integration tests prefer PostgreSQL; MySQL URLs are recognized at the configuration boundary.
@@ -116,8 +116,8 @@ npm install
 cp .env.example .env
 # Optional: copy the YAML template to the Git-ignored config.yaml for local or production-style configuration.
 cp config.example.yaml config.yaml
-cargo run -p stellartrail-api --bin migrate -- up
-cargo run -p stellartrail-api
+cargo +1.95.0 run -p stellartrail-api --bin migrate -- up
+cargo +1.95.0 run -p stellartrail-api
 ```
 
 The API listens on `127.0.0.1:8080` by default. Startup loads `.env`, then `config.yaml` / `CONFIG_PATH`, and then environment-variable overrides. Local development defaults to SQLite; production and integration tests prefer PostgreSQL. See the [deployment guide](docs/deployment.md) for database, MinIO, Redis, SMTP, WeChat login, and administrator configuration.
@@ -165,10 +165,10 @@ npm run check
 npm run format:check
 
 # Rust workspace checks
-cargo fmt --all -- --check
-cargo check --workspace
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
+cargo +1.95.0 fmt --all -- --check
+cargo +1.95.0 check --workspace
+cargo +1.95.0 test --workspace
+cargo +1.95.0 clippy --workspace --all-targets -- -D warnings
 ```
 
 ## 📚 Documentation

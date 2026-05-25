@@ -1,4 +1,4 @@
-FROM rust:1-bookworm AS builder
+FROM rust:1.95.0-bookworm AS builder
 WORKDIR /app
 ARG STELLARTAIL_DEPLOY_TIMEZONE=
 RUN if [ "$STELLARTAIL_DEPLOY_TIMEZONE" = "Asia/Shanghai" ]; then \
@@ -19,7 +19,7 @@ COPY . .
 RUN mkdir -p /app/content
 RUN RUSTUP_TOOLCHAIN="$(cat /tmp/rust-toolchain-docker)" cargo build --release -p stellartrail-api
 
-FROM rust:1-bookworm AS runtime
+FROM rust:1.95.0-bookworm AS runtime
 WORKDIR /app
 COPY --from=builder /app/target/release/stellartrail-api /usr/local/bin/stellartrail-api
 COPY --from=builder /app/content /app/content
