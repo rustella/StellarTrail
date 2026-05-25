@@ -21,30 +21,30 @@ commands:
   cargo_fmt_check:
     description: Check Rust formatting.
     cwd: .
-    command: cargo fmt --all -- --check
+    command: cargo +1.95.0 fmt --all -- --check
     when_to_run: Run after changing Rust code under services/ or crates/.
     ci: .github/workflows/rust-ci.yml
   cargo_check_workspace:
     description: Compile-check the Rust workspace quickly.
     cwd: .
-    command: cargo check --workspace
+    command: cargo +1.95.0 check --workspace
     when_to_run: Run after Rust code changes.
   cargo_test_workspace:
     description: Run Rust workspace tests.
     cwd: .
-    command: cargo test --workspace
+    command: cargo +1.95.0 test --workspace
     when_to_run: Run after changing Rust code, schema, API behavior, repositories, or tests.
     ci: .github/workflows/rust-ci.yml
   cargo_clippy_workspace:
     description: Run Rust lint with warnings denied, matching CI behavior.
     cwd: .
-    command: cargo clippy --workspace --all-targets -- -D warnings
+    command: cargo +1.95.0 clippy --workspace --all-targets -- -D warnings
     when_to_run: Run before handoff after Rust changes or large refactors.
     ci: .github/workflows/rust-ci.yml
   cargo_doc_workspace:
     description: Build Rust documentation for the workspace without dependencies.
     cwd: .
-    command: cargo doc --workspace --no-deps
+    command: cargo +1.95.0 doc --workspace --no-deps
     when_to_run: Run after changing rustdoc, public types, or public functions.
     side_effects: Generates documentation artifacts under target/doc.
   run_api:
@@ -59,13 +59,13 @@ commands:
   migrate_up:
     description: Apply database migrations.
     cwd: .
-    command: cargo run -p stellartrail-api --bin migrate -- up
+    command: cargo +1.95.0 run -p stellartrail-api --bin migrate -- up
     when_to_run: Run after local DB initialization or schema changes.
     side_effects: Modifies the schema for the database referenced by DATABASE_URL.
   migrate_down:
     description: Roll database migrations back.
     cwd: .
-    command: cargo run -p stellartrail-api --bin migrate -- down
+    command: cargo +1.95.0 run -p stellartrail-api --bin migrate -- down
     when_to_run: Run only when an explicit local or test database rollback is required.
     risk: Destructive for database schema; never run against production without explicit approval.
   smoke_health:

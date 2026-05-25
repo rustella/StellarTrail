@@ -97,7 +97,7 @@ StellarTrail/
 
 ### 1. 环境要求
 
-- 🦀 Rust 1.95+ stable toolchain（Rust 2024 edition；仓库 `rust-version` 为 `1.95`；需要 `rustfmt` 和 `clippy`）。
+- 🦀 Rust 1.95 stable toolchain（Rust 2024 edition；仓库 `rust-version` 为 `1.95`，并包含 `rust-toolchain.toml`；需要 `rustfmt` 和 `clippy`）。
 - 🟢 Node.js 22+ 与 npm。
 - 💬 微信开发者工具（调试小程序时需要）。
 - 🗄️ PostgreSQL 16+ / MySQL-compatible 数据库（本地默认 SQLite；生产和集成测试推荐 PostgreSQL；MySQL URL 已保留识别边界）。
@@ -116,8 +116,8 @@ npm install
 cp .env.example .env
 # 可选：如果希望用 YAML 管理本地/生产配置，可复制模板到被 Git 忽略的 config.yaml
 cp config.example.yaml config.yaml
-cargo run -p stellartrail-api --bin migrate -- up
-cargo run -p stellartrail-api
+cargo +1.95.0 run -p stellartrail-api --bin migrate -- up
+cargo +1.95.0 run -p stellartrail-api
 ```
 
 API 默认监听 `127.0.0.1:8080`，启动配置按 `.env`、`config.yaml` / `CONFIG_PATH`、环境变量覆盖的顺序加载；本地默认 SQLite，生产和集成测试推荐 PostgreSQL。数据库、MinIO、Redis、SMTP、微信登录和管理员配置细节见 [部署指南](docs/deployment.md)。
@@ -165,10 +165,10 @@ npm run check
 npm run format:check
 
 # Rust workspace 检查
-cargo fmt --all -- --check
-cargo check --workspace
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
+cargo +1.95.0 fmt --all -- --check
+cargo +1.95.0 check --workspace
+cargo +1.95.0 test --workspace
+cargo +1.95.0 clippy --workspace --all-targets -- -D warnings
 ```
 
 ## 📚 文档索引
