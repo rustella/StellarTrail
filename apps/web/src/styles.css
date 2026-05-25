@@ -1415,10 +1415,22 @@ dd {
 
 .client-version-notes {
   display: grid;
+  gap: 14px;
+  margin: 0;
+  color: var(--heading-muted-color);
+}
+
+.client-version-note-section h3 {
+  margin: 0 0 8px;
+  color: var(--text-color);
+  font-size: 14px;
+}
+
+.client-version-note-section ol {
+  display: grid;
   gap: 8px;
   margin: 0;
   padding-left: 20px;
-  color: var(--heading-muted-color);
 }
 
 .status-client-version-draft {

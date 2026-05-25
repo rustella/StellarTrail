@@ -3,6 +3,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
+use sea_orm::{ConnectionTrait, Statement};
 use serde_json::{Value, json};
 use stellartrail_api::{
     config::{ApiConfig, CorsConfig, PublicApiConfig, RedisCacheConfig, UploadConfig},
@@ -170,6 +171,15 @@ async fn public_client_versions_return_seeded_wechat_release() {
     assert_eq!(current["version"], "0.1.0");
     assert_eq!(current["status"], "published");
     assert!(current["release_notes"].as_array().unwrap().len() >= 3);
+    assert_eq!(current["release_note_sections"][0]["key"], "feature");
+    assert_eq!(current["release_note_sections"][0]["title"], "Feature");
+    assert!(
+        current["release_note_sections"][0]["items"]
+            .as_array()
+            .unwrap()
+            .len()
+            >= 3
+    );
 
     let (list_status, list) = send_empty_json(
         &app.router,
@@ -233,6 +243,53 @@ async fn public_client_versions_validate_client_key_and_filter_drafts() {
 }
 
 #[tokio::test]
+async fn public_client_versions_map_legacy_array_notes_to_feature_section() {
+    let app = test_app().await;
+    app.db
+        .execute(Statement::from_sql_and_values(
+            app.db.get_database_backend(),
+            r#"INSERT INTO client_versions (
+                id, client_key, version, title, release_notes_json, status, published_at,
+                created_by_user_id, updated_by_user_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+            vec![
+                "legacy-array-version".into(),
+                "macos".into(),
+                "0.2.0".into(),
+                "macOS 旧格式版本".into(),
+                r#"["旧格式第一条","旧格式第二条"]"#.into(),
+                "published".into(),
+                "2026-05-24T00:00:00Z".into(),
+                sea_orm::Value::String(None),
+                sea_orm::Value::String(None),
+                "2026-05-24T00:00:00Z".into(),
+                "2026-05-24T00:00:00Z".into(),
+            ],
+        ))
+        .await
+        .unwrap();
+
+    let (status, value) = send_empty_json(
+        &app.router,
+        "GET",
+        "/api/v1/client-versions/current?client_key=macos",
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{value}");
+    assert_eq!(
+        value["release_notes"],
+        json!(["旧格式第一条", "旧格式第二条"])
+    );
+    assert_eq!(value["release_note_sections"][0]["key"], "feature");
+    assert_eq!(value["release_note_sections"][0]["title"], "Feature");
+    assert_eq!(
+        value["release_note_sections"][0]["items"],
+        json!(["旧格式第一条", "旧格式第二条"])
+    );
+}
+
+#[tokio::test]
 async fn admin_can_create_publish_update_and_list_client_versions() {
     let app = test_app().await;
     let admin_token = grant_admin_role(&app, "publisher").await;
@@ -246,7 +303,9 @@ async fn admin_can_create_publish_update_and_list_client_versions() {
             "client_key": "android",
             "version": "0.1.0",
             "title": "Android 初始版本",
-            "release_notes": ["新增 Android 客户端"],
+            "release_note_sections": [
+                {"key": "feature", "title": "Feature", "items": ["新增 Android 客户端"]}
+            ],
             "status": "draft"
         }),
     )
@@ -264,13 +323,19 @@ async fn admin_can_create_publish_update_and_list_client_versions() {
             "client_key": "android",
             "version": "0.1.0",
             "title": "Android 0.1.0",
-            "release_notes": ["新增 Android 客户端", "支持多域名探测"],
+            "release_note_sections": [
+                {"key": "feature", "title": "Feature", "items": ["新增 Android 客户端"]},
+                {"key": "bug_fix", "title": "BugFix", "items": ["支持多域名探测"]}
+            ],
             "status": "published"
         }),
     )
     .await;
     assert_eq!(update_status, StatusCode::OK, "{updated}");
     assert!(updated["published_at"].as_str().is_some());
+    assert_eq!(updated["release_notes"].as_array().unwrap().len(), 2);
+    assert_eq!(updated["release_note_sections"][0]["key"], "feature");
+    assert_eq!(updated["release_note_sections"][1]["key"], "bug_fix");
 
     let (admin_list_status, admin_list) = send_empty_json(
         &app.router,
@@ -335,7 +400,9 @@ async fn admin_client_versions_require_admin_and_validate_payload() {
             "client_key": "ios",
             "version": "v1",
             "title": " ",
-            "release_notes": [],
+            "release_note_sections": [
+                {"key": "notes", "title": "Notes", "items": ["只有备注"]}
+            ],
             "status": "live"
         }),
     )
@@ -344,7 +411,11 @@ async fn admin_client_versions_require_admin_and_validate_payload() {
     let fields = bad_value["fields"].as_array().unwrap();
     assert!(fields.iter().any(|field| field["field"] == "version"));
     assert!(fields.iter().any(|field| field["field"] == "title"));
-    assert!(fields.iter().any(|field| field["field"] == "release_notes"));
+    assert!(
+        fields
+            .iter()
+            .any(|field| field["field"] == "release_note_sections")
+    );
     assert!(fields.iter().any(|field| field["field"] == "status"));
 }
 

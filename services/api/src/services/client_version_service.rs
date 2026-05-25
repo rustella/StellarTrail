@@ -1,5 +1,8 @@
 //! Client version service validating public client selectors and administrator release notes.
 
+use std::collections::HashSet;
+
+use serde_json::{Map, Value, json};
 use stellartrail_db::repositories::{
     ClientVersionDraft, ClientVersionRecord, ClientVersionRepository, ListClientVersionsOptions,
 };
@@ -9,6 +12,7 @@ use crate::{error::ApiError, state::AppState};
 
 const CLIENT_KEYS: [&str; 5] = ["wechat_miniprogram", "web", "android", "ios", "macos"];
 const STATUSES: [&str; 2] = ["draft", "published"];
+const RELEASE_NOTE_SECTION_KEYS: [&str; 3] = ["feature", "bug_fix", "notes"];
 
 /// Raw administrator draft before normalization.
 #[derive(Clone, Debug)]
@@ -17,7 +21,16 @@ pub struct ValidatedClientVersionDraft {
     pub version: String,
     pub title: String,
     pub release_notes: Vec<String>,
+    pub release_note_sections: Vec<ValidatedReleaseNoteSection>,
     pub status: String,
+}
+
+/// Raw administrator release note section before normalization.
+#[derive(Clone, Debug)]
+pub struct ValidatedReleaseNoteSection {
+    pub key: String,
+    pub title: String,
+    pub items: Vec<String>,
 }
 
 /// Lists published versions for one public client.
@@ -122,16 +135,19 @@ fn normalize_draft(input: ValidatedClientVersionDraft) -> Result<ClientVersionDr
     let status = normalize_status_with_errors(input.status, &mut errors);
     let version = normalize_version(input.version, &mut errors);
     let title = normalize_text(input.title, 120, "title", &mut errors);
-    let release_notes = normalize_release_notes(input.release_notes, &mut errors);
+    let release_notes_json = normalize_release_notes_json(
+        input.release_notes,
+        input.release_note_sections,
+        &mut errors,
+    );
     if !errors.is_empty() {
         return Err(ApiError::Validation(errors));
     }
-    let release_notes_json = serde_json::to_string(&release_notes).map_err(ApiError::internal)?;
     Ok(ClientVersionDraft {
         client_key,
         version,
         title,
-        release_notes_json,
+        release_notes_json: release_notes_json.map_err(ApiError::internal)?,
         status,
     })
 }
@@ -216,25 +232,107 @@ fn normalize_text(
     value
 }
 
-fn normalize_release_notes(values: Vec<String>, errors: &mut Vec<FieldViolation>) -> Vec<String> {
+fn normalize_release_notes_json(
+    release_notes: Vec<String>,
+    release_note_sections: Vec<ValidatedReleaseNoteSection>,
+    errors: &mut Vec<FieldViolation>,
+) -> Result<String, serde_json::Error> {
+    if release_note_sections.is_empty() {
+        let notes = normalize_release_notes(release_notes, "release_notes", true, errors);
+        if notes.len() > 20 {
+            errors.push(FieldViolation::new(
+                "release_notes",
+                "must contain at most 20 items",
+            ));
+        }
+        return serde_json::to_string(&json!({
+            "feature": notes,
+            "bug_fix": [],
+        }));
+    }
+
+    let mut seen_keys = HashSet::new();
+    let mut section_map = Map::new();
+    let mut feature_or_bug_fix_count = 0usize;
+    let mut total_count = 0usize;
+
+    for (index, section) in release_note_sections.into_iter().enumerate() {
+        let key = section.key.trim().to_ascii_lowercase();
+        if !RELEASE_NOTE_SECTION_KEYS.contains(&key.as_str()) {
+            errors.push(FieldViolation::new(
+                format!("release_note_sections[{index}].key"),
+                "is not supported",
+            ));
+            continue;
+        }
+        if !seen_keys.insert(key.clone()) {
+            errors.push(FieldViolation::new(
+                format!("release_note_sections[{index}].key"),
+                "must be unique",
+            ));
+            continue;
+        }
+
+        let notes = normalize_release_notes(
+            section.items,
+            format!("release_note_sections[{index}].items"),
+            false,
+            errors,
+        );
+        if key == "feature" || key == "bug_fix" {
+            feature_or_bug_fix_count += notes.len();
+        }
+        total_count += notes.len();
+        if key == "notes" && notes.is_empty() {
+            continue;
+        }
+        section_map.insert(
+            key,
+            Value::Array(notes.into_iter().map(Value::String).collect()),
+        );
+    }
+
+    if feature_or_bug_fix_count == 0 {
+        errors.push(FieldViolation::new(
+            "release_note_sections",
+            "must include at least one Feature or BugFix item",
+        ));
+    }
+    if total_count > 20 {
+        errors.push(FieldViolation::new(
+            "release_note_sections",
+            "must contain at most 20 items",
+        ));
+    }
+    section_map
+        .entry("feature".to_owned())
+        .or_insert_with(|| Value::Array(Vec::new()));
+    section_map
+        .entry("bug_fix".to_owned())
+        .or_insert_with(|| Value::Array(Vec::new()));
+
+    serde_json::to_string(&Value::Object(section_map))
+}
+
+fn normalize_release_notes(
+    values: Vec<String>,
+    field: impl Into<String>,
+    required: bool,
+    errors: &mut Vec<FieldViolation>,
+) -> Vec<String> {
+    let field = field.into();
     let notes = values
         .into_iter()
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
         .collect::<Vec<_>>();
-    if notes.is_empty() {
-        errors.push(FieldViolation::new("release_notes", "is required"));
-    }
-    if notes.len() > 20 {
-        errors.push(FieldViolation::new(
-            "release_notes",
-            "must contain at most 20 items",
-        ));
+    if required && notes.is_empty() {
+        errors.push(FieldViolation::new(field.clone(), "is required"));
     }
     for (index, note) in notes.iter().enumerate() {
         if note.chars().count() > 240 {
             errors.push(FieldViolation::new(
-                format!("release_notes[{index}]"),
+                format!("{field}[{index}]"),
                 "must be at most 240 characters",
             ));
         }
