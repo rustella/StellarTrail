@@ -89,7 +89,7 @@ StellarTrail/
 
 ### 1. Prerequisites
 
-- 🦀 Rust 1.88+ stable toolchain with Rust 2024 edition. The workspace `rust-version` is `1.88`; `rustfmt` and `clippy` are expected.
+- 🦀 Rust 1.95+ stable toolchain with Rust 2024 edition. The workspace `rust-version` is `1.95`; `rustfmt` and `clippy` are expected.
 - 🟢 Node.js 22+ and npm.
 - 💬 WeChat DevTools for Mini Program debugging.
 - 🗄️ PostgreSQL 16+ / MySQL-compatible database. Local development defaults to SQLite; production and integration tests prefer PostgreSQL; MySQL URLs are recognized at the configuration boundary.

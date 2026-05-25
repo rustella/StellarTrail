@@ -83,13 +83,13 @@ pub fn validate_image_upload(
                 "declared content type does not match image signature",
             ));
         }
-    } else if let Some(raw_content_type) = declared_content_type {
-        if !raw_content_type.trim().is_empty() {
-            return Err(ValidationError::single(
-                "file",
-                "unsupported declared content type",
-            ));
-        }
+    } else if declared_content_type
+        .is_some_and(|raw_content_type| !raw_content_type.trim().is_empty())
+    {
+        return Err(ValidationError::single(
+            "file",
+            "unsupported declared content type",
+        ));
     }
 
     Ok(ValidatedImageUpload {

@@ -277,9 +277,12 @@ impl Cache {
                 .map(|value| value.trim())
                 .filter(|color| is_supported_gear_tag_color(color))
             {
-                if let Err(error) = store.hash_set(&colors_key, tag, color).await {
-                    warn!(key = colors_key, tag, error = %error, "redis gear tag color write failed");
-                    return;
+                match store.hash_set(&colors_key, tag, color).await {
+                    Ok(()) => {}
+                    Err(error) => {
+                        warn!(key = colors_key, tag, error = %error, "redis gear tag color write failed");
+                        return;
+                    }
                 }
             }
         }
