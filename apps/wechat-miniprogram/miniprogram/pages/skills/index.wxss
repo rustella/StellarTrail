@@ -494,6 +494,14 @@
   font-weight: 900;
 }
 
+.skill-alias {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .skill-summary {
   margin-top: 10rpx;
   color: var(--muted-color);

@@ -10,6 +10,7 @@ import {
   unfavoriteKnot,
 } from "../../../utils/api-skills";
 import {
+  formatKnotAliasText,
   type KnotDetail,
   type KnotMediaAsset,
 } from "../../../utils/skill-utils";
@@ -34,6 +35,7 @@ Page({
   data: {
     id: "",
     detail: null as KnotDetail | null,
+    detailAliasText: "",
     detailTags: [] as string[],
     media: [] as MediaView[],
     activeMediaIndex: 0,
@@ -85,6 +87,7 @@ Page({
       wx.setNavigationBarTitle({ title: detail.title });
       this.setData({
         detail,
+        detailAliasText: formatKnotAliasText(detail.aliases),
         detailTags: detailTags(detail),
         media,
         activeMediaIndex,
@@ -107,6 +110,7 @@ Page({
         error: getErrorMessage(error),
         loading: false,
         detail: null as KnotDetail | null,
+        detailAliasText: "",
       });
     }
   },

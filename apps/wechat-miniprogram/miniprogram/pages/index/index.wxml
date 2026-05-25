@@ -110,6 +110,9 @@
                   <text class="skill-tag">{{item.categoryText}}</text>
                 </view>
                 <view class="skill-title">{{item.title}}</view>
+                <view wx:if="{{item.aliasText}}" class="skill-alias"
+                  >{{item.aliasText}}</view
+                >
                 <view class="skill-summary">{{item.summary}}</view>
               </view>
             </view>

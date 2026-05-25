@@ -183,6 +183,14 @@
   line-height: 1.35;
 }
 
+.detail-alias {
+  margin-top: 12rpx;
+  color: var(--muted-color);
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 1.58;
+}
+
 .detail-summary,
 .detail-meta {
   margin-top: 12rpx;
