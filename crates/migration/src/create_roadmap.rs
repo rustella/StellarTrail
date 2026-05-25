@@ -7,8 +7,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Single migration type for roadmap content, votes, subscriptions, and seed rows.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260524_000005_create_roadmap"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {

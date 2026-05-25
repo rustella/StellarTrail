@@ -3,8 +3,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Migration adding Knots3D-backed outdoor skill tables.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260516_000007_create_knots_content"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -80,8 +85,7 @@ const KNOTS_SCHEMA_SQL: &str = r#"
         source_name TEXT NOT NULL,
         source_url TEXT NULL,
         source_slug_en TEXT NOT NULL,
-        source_slug_zh TEXT NULL,
-        difficulty TEXT NULL
+        source_slug_zh TEXT NULL
     );
 
     CREATE TABLE IF NOT EXISTS knot_localizations (
@@ -92,6 +96,7 @@ const KNOTS_SCHEMA_SQL: &str = r#"
         summary TEXT NOT NULL,
         description TEXT NULL,
         steps_json TEXT NOT NULL DEFAULT '[]',
+        aliases_json TEXT NOT NULL DEFAULT '[]',
         PRIMARY KEY (knot_id, locale),
         FOREIGN KEY (knot_id) REFERENCES knots(id) ON DELETE CASCADE
     );

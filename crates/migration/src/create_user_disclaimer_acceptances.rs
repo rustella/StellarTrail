@@ -7,8 +7,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Single migration type for account-scoped disclaimer acceptances.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260524_000003_create_user_disclaimer_acceptances"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -58,7 +63,7 @@ mod tests {
 
     async fn run_dependencies(db: &sea_orm::DatabaseConnection) {
         let manager = SchemaManager::new(db);
-        crate::m20260516_000001_create_users_sessions::Migration
+        crate::create_users_sessions::Migration
             .up(&manager)
             .await
             .unwrap();

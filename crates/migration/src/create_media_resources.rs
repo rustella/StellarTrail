@@ -3,8 +3,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Migration adding DB metadata for object-storage media resources.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260517_000006_create_media_resources"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -43,7 +48,7 @@ const MEDIA_RESOURCES_SCHEMA_SQL: &str = r#"
         public_url TEXT NOT NULL,
         mime_type TEXT NOT NULL,
         extension TEXT NOT NULL,
-        size_bytes INTEGER NOT NULL,
+        size_bytes BIGINT NOT NULL,
         sha256_hex TEXT NOT NULL,
         etag TEXT NULL,
         width INTEGER NULL,

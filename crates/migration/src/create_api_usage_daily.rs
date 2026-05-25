@@ -8,8 +8,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Migration that adds the daily API usage aggregate table.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260518_000003_create_api_usage_daily"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {

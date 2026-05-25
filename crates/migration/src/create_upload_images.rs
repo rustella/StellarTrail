@@ -3,8 +3,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Single database migration type invoked by the SeaORM migration framework for up/down operations.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260516_000005_create_upload_images"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -24,12 +29,21 @@ impl MigrationTrait for Migration {
                 size_bytes BIGINT NOT NULL,
                 sha256 TEXT NOT NULL,
                 etag TEXT NULL,
+                is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TEXT NOT NULL
             )"#,
         )
         .await?;
         db.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_upload_images_user_purpose_created ON upload_images(user_id, purpose, created_at)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_upload_images_user_purpose ON upload_images(user_id, purpose)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_upload_images_user_purpose_deleted_created ON upload_images(user_id, purpose, is_deleted, created_at)",
         )
         .await?;
         Ok(())
