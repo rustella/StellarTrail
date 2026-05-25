@@ -607,7 +607,11 @@ mod tests {
         assert_eq!(detail.stats.total_weight_g, 890);
 
         let invalid = repo
-            .add_items(&user.id, &created.list.id, &[other_gear.id.clone()])
+            .add_items(
+                &user.id,
+                &created.list.id,
+                std::slice::from_ref(&other_gear.id),
+            )
             .await
             .unwrap();
         assert_eq!(invalid.invalid_gear_ids, vec![other_gear.id]);
