@@ -120,7 +120,10 @@ test("homepage keeps the canonical hero and surface tokens", () => {
   const knotPack = selectorBlock(wxss, ".knot-pack");
   assert.match(wxml, /class="knot-pack"/);
   assert.match(wxml, /class="skill-thumb-image"[\s\S]*mode="aspectFit"/);
+  assert.match(wxml, /item\.aliasText/);
   assert.match(knotPack, /border-radius:\s*var\(--card-inner-radius\)/);
+  const homeAlias = selectorBlock(wxss, ".skill-alias");
+  assert.match(homeAlias, /color:\s*var\(--muted-color\)/);
 });
 
 test("page hero cards align with homepage in light and dark modes", () => {
@@ -335,6 +338,9 @@ test("skill detail page uses a media-first layout without practice steps", () =>
   assert.match(ts, /静态图/);
   assert.match(ts, /旋转动图/);
   assert.doesNotMatch(ts, /高清图|系法视频|旋转视频/);
+  assert.match(wxml, /detailAliasText/);
+  const detailAlias = selectorBlock(wxss, ".detail-alias");
+  assert.match(detailAlias, /color:\s*var\(--muted-color\)/);
 });
 
 test("skills knot list thumbnails preserve the full image", () => {
@@ -363,6 +369,9 @@ test("skills knot list offers search and category-only filtering", () => {
     /!loading && \(allKnots\.length \|\| hasActiveFilters \|\| categoryFilters\.length\)/,
   );
   assert.match(wxml, /placeholder="搜索绳结名称、用途"/);
+  assert.match(wxml, /item\.aliasText/);
+  const alias = selectorBlock(wxss, ".skill-alias");
+  assert.match(alias, /color:\s*var\(--muted-color\)/);
   assert.match(wxml, /bindinput="onSearchInput"/);
   assert.match(wxml, /bindchange="onCategoryFilterChange"/);
   assert.match(wxml, /class="category-filter-picker"/);

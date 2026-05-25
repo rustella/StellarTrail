@@ -151,6 +151,7 @@ export interface SkillCard {
   id: string;
   title: string;
   categoryText: string;
+  aliasText: string;
   summary: string;
 }
 
@@ -162,6 +163,17 @@ export function mapSkillCard(
     id: item.id,
     title: item.title,
     categoryText: isKnot ? (item.categories[0]?.title ?? "绳结") : "户外技能",
+    aliasText: isKnot ? formatKnotAliasText(item.aliases) : "",
     summary: item.summary,
   };
+}
+
+export function formatKnotAliasText(aliases?: string[] | null): string {
+  const normalizedAliases = (aliases ?? [])
+    .map((alias) => alias.trim())
+    .filter(Boolean)
+    .filter((alias, index, values) => values.indexOf(alias) === index);
+  return normalizedAliases.length
+    ? `又名：${normalizedAliases.join("、")}`
+    : "";
 }

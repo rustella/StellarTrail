@@ -46,6 +46,7 @@
       <view class="detail-summary-panel">
         <view class="detail-copy">
           <view class="detail-title">{{detail.title}}</view>
+          <view wx:if="{{detailAliasText}}" class="detail-alias">{{detailAliasText}}</view>
           <view class="detail-summary">{{detail.summary}}</view>
           <view wx:if="{{detailTags.length}}" class="tag-row">
             <block wx:for="{{detailTags}}" wx:key="*this">

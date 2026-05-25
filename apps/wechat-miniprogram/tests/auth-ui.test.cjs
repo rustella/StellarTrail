@@ -83,6 +83,7 @@ ${ts}`;
 
 test("home page hides featured knots until the user accepts the disclaimer", () => {
   const wxml = read("pages/index/index.wxml");
+  const wxss = read("pages/index/index.wxss");
   const ts = read("pages/index/index.ts");
 
   assert.match(ts, /getKnotDisclaimer/);
@@ -91,6 +92,8 @@ test("home page hides featured knots until the user accepts the disclaimer", () 
   assert.match(ts, /this\.hideFeaturedSkills\(\)/);
   assert.match(ts, /await listKnots\(\{ offset: 0, limit: 3 \}\)/);
   assert.match(wxml, /wx:elif="{{featuredSkills\.length}}"/);
+  assert.match(wxml, /item\.aliasText/);
+  assert.match(wxss, /\.skill-alias/);
 });
 
 test("skills page gates knot list behind disclaimer acceptance", () => {
@@ -105,15 +108,24 @@ test("skills page gates knot list behind disclaimer acceptance", () => {
   assert.match(wxml, /knotDisclaimerVisible/);
   assert.match(wxml, /我已阅读并同意/);
   assert.match(wxml, /拒绝并退出/);
+  assert.match(wxml, /item\.aliasText/);
+  assert.match(wxml, /class="skill-alias"/);
   assert.match(wxss, /\.disclaimer-mask/);
   assert.match(wxss, /\.disclaimer-content/);
+  assert.match(wxss, /\.skill-alias/);
+  assert.match(read("utils/skill-utils.ts"), /aliasText/);
 });
 
 test("knot detail page shows safety notice before source description", () => {
   const wxml = read("pages/skills/detail/index.wxml");
   const wxss = read("pages/skills/detail/index.wxss");
+  const ts = read("pages/skills/detail/index.ts");
 
   assert.ok(wxml.indexOf("安全提示") < wxml.indexOf("资料说明"));
+  assert.match(wxml, /detailAliasText/);
+  assert.match(wxml, /class="detail-alias"/);
+  assert.match(wxss, /\.detail-alias/);
+  assert.match(ts, /formatKnotAliasText\(detail\.aliases\)/);
   assert.match(wxml, /仅供绳结知识学习和非承重练习/);
   assert.match(
     wxml,
