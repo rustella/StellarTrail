@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <strong>WeChat Mini Program and Web are ready</strong> · <strong>Native clients are paused</strong>
+  <strong>WeChat Mini Program and Web are ready</strong> · <strong>Native clients are unavailable</strong>
 </p>
 
 ---
@@ -31,7 +31,7 @@ The directly usable entry points today are the **WeChat Mini Program** and **Web
 
 | Product capability | Current notes                                                       |
 | ------------------ | ------------------------------------------------------------------- |
-| 🎒 Gear org        | Personal gear, gear atlas, and DB-backed gear templates             |
+| 🎒 Gear org        | Personal gear, gear atlas, and gear templates                       |
 | 🗺️ Route planning  | Route-planning capabilities are still being developed               |
 | 🧭 Outdoor skills  | Knot skills, media resources, and offline read-only cache           |
 | 💬 Feedback/admin  | User feedback; Web adds administrator features on top of other apps |
@@ -45,13 +45,6 @@ The directly usable entry points today are the **WeChat Mini Program** and **Web
 <p align="center">
   <strong>Scan with WeChat or search for “寻径星野”.</strong>
 </p>
-
-## 🌱 Current public data
-
-| Type             | Source                                                                    |
-| ---------------- | ------------------------------------------------------------------------- |
-| 🪢 Knot skills   | Knots3D metadata imported into DB; media served from MinIO/object storage |
-| 🎒 Gear template | Idempotent system defaults seeded into DB at API startup                  |
 
 ## 📱 Client support
 
@@ -83,8 +76,9 @@ StellarTrail/
     migration/              # Migration boundary
   packages/
     api-client-ts/          # TS API client for Mini Program / web / mobile
+    apple/StellarTrailKit/  # Shared Swift package for iOS / macOS
     shared-types/           # Shared TS DTO types
-  docs/                     # Product, architecture, API, and content schema docs
+  docs/                     # Product, architecture, API, and deployment docs
   infra/                    # Local integration-test and production deployment config
   scripts/                  # Development helper scripts
 ```
@@ -93,9 +87,11 @@ StellarTrail/
 
 ### 1. Prerequisites
 
-- 🦀 Rust stable toolchain with Rust 2024 edition. The repository includes `rust-toolchain.toml` and expects `rustfmt` and `clippy`.
+- 🦀 Rust 1.88+ stable toolchain with Rust 2024 edition. The workspace `rust-version` is still `1.85`, but the current AWS SDK dependency chain is validated with `1.88.0`; `rustfmt` and `clippy` are expected.
 - 🟢 Node.js 22+ and npm.
 - 💬 WeChat DevTools for Mini Program debugging.
+- 🗄️ PostgreSQL 16+ / MySQL-compatible database. Local development defaults to SQLite; production and integration tests prefer PostgreSQL; MySQL URLs are recognized at the configuration boundary.
+- 🪣 MinIO or S3-compatible object storage.
 - ⚡ Redis 7+ (optional; set `REDIS_URL` to enable server-side caching).
 
 ### 2. Install dependencies
@@ -114,7 +110,7 @@ cargo run -p stellartrail-api --bin migrate -- up
 cargo run -p stellartrail-api
 ```
 
-The API listens on `127.0.0.1:8080` by default. Startup loads `.env`, then reads root `config.yaml` when present or the YAML file named by `CONFIG_PATH`, and finally lets environment variables override YAML values. The default database URL is `sqlite://stellartrail.db`. Local mock login is enabled with `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true`; real WeChat login requires `WECHAT_MOCK_LOGIN=false`, `WECHAT_APP_ID`, and `WECHAT_APP_SECRET`. Production email-code delivery uses SMTP: set `MAIL_ENABLED=true`, `MAIL_SMTP_HOST=smtp.example.invalid`, `MAIL_SMTP_USERNAME=[REDACTED]`, and inject `MAIL_SMTP_PASSWORD` plus the sender address through ignored `config.yaml` or a secret manager. Email codes now cover registration, email-code login, and password reset. To enable Redis caching, set `REDIS_URL=redis://127.0.0.1:6379/0`; `REDIS_GEAR_CACHE_TTL_SECONDS` controls the gear read cache TTL. `config.example.yaml` is committed, while real `config.yaml` / `config.*.yaml` files are ignored by Git.
+The API listens on `127.0.0.1:8080` by default. Startup loads `.env`, then `config.yaml` / `CONFIG_PATH`, and then environment-variable overrides. Local development defaults to SQLite; production and integration tests prefer PostgreSQL. See the [deployment guide](docs/deployment.md) for database, MinIO, Redis, SMTP, WeChat login, and administrator configuration.
 
 Use these endpoints for local smoke testing:
 
@@ -122,8 +118,6 @@ Use these endpoints for local smoke testing:
 curl http://127.0.0.1:8080/healthz
 curl http://127.0.0.1:8080/api/v1/meta
 ```
-
-Knot media is uploaded through MinIO/S3-compatible object storage. Public read APIs return only DB-backed media URLs and no longer derive knot media paths from `/assets/*`. The API now keeps one shared `minio` connection configuration, while feedback images and knot media use separate business buckets through `object_storage.bucket` and `knots_media_storage.bucket`. Administrator permission is stored in the database `admin_roles` table: an existing, non-deleted `stellarisw` user is seeded as `super_admin` by migration, and `super_admin` users can grant or revoke regular `admin` users through `/api/v1/admin/admins`. Both `admin` and `super_admin` can call Knot media upload, Gear Atlas review, feedback review, and `GET /api/v1/admin/api-usage`. Usage reporting is asynchronous and stores only matched route templates plus aggregate counts; it does not store query strings, request bodies, Authorization headers, tokens, cookies, IP addresses, or User-Agent values.
 
 ### 4. Configure client endpoints
 
@@ -172,10 +166,3 @@ cargo clippy --workspace --all-targets -- -D warnings
 - 🚀 [Deployment guide](docs/deployment.md)
 - 🏗️ [Architecture](docs/architecture.md)
 - 🔌 [API docs](docs/api.md)
-- 🧩 [Public data notes](docs/content-schema.md)
-
-## 🏷️ Naming
-
-- Product: **StellarTrail**
-- Chinese name: **寻径星野**
-- Repository: `StellarTrail`

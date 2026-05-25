@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-StellarTrail supports China-focused outdoor gear preparation and offline skill learning first, with route planning reserved for later phases. The first phase prioritizes the WeChat Mini Program and the Rust API for account access, personal gear inventory, DB-backed gear templates, and knot skills.
+StellarTrail supports outdoor gear organization, route planning, and offline skill learning. The active product prioritizes the WeChat Mini Program, Web, and the Rust API for account access, personal gear inventory, gear templates, feedback, administrator workflows, and knot skills.
 
 Out of scope unless explicitly requested: real-time navigation, social networking, e-commerce, complex track editing, and a broad route encyclopedia platform.
 
