@@ -195,10 +195,11 @@ pub fn client_ip_from_request(
         .map(|ConnectInfo(addr)| addr.ip())
         .unwrap_or(IpAddr::from([0, 0, 0, 0]));
 
-    if config.trust_proxy_headers && is_trusted_proxy(direct_ip, &config.trusted_proxy_cidrs) {
-        if let Some(forwarded) = first_forwarded_for(headers) {
-            return forwarded;
-        }
+    if config.trust_proxy_headers
+        && is_trusted_proxy(direct_ip, &config.trusted_proxy_cidrs)
+        && let Some(forwarded) = first_forwarded_for(headers)
+    {
+        return forwarded;
     }
 
     direct_ip

@@ -89,7 +89,7 @@ StellarTrail/
 
 ### 1. 环境要求
 
-- 🦀 Rust 1.88+ stable toolchain（Rust 2024 edition；仓库 `rust-version` 为 `1.88`；需要 `rustfmt` 和 `clippy`）。
+- 🦀 Rust 1.95+ stable toolchain（Rust 2024 edition；仓库 `rust-version` 为 `1.95`；需要 `rustfmt` 和 `clippy`）。
 - 🟢 Node.js 22+ 与 npm。
 - 💬 微信开发者工具（调试小程序时需要）。
 - 🗄️ PostgreSQL 16+ / MySQL-compatible 数据库（本地默认 SQLite；生产和集成测试推荐 PostgreSQL；MySQL URL 已保留识别边界）。

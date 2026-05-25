@@ -387,10 +387,11 @@ impl GearDraft {
             "selected_variant_key",
             &mut errors,
         );
-        if self.selected_variant_label.is_some() && self.selected_variant_key.is_none() {
-            if let Some(label) = self.selected_variant_label.as_deref() {
-                self.selected_variant_key = Some(variant_key_from_label(label, 0));
-            }
+        if self.selected_variant_key.is_none() {
+            self.selected_variant_key = self
+                .selected_variant_label
+                .as_deref()
+                .map(|label| variant_key_from_label(label, 0));
         }
         self.notes = normalize_optional_text(self.notes.take(), 1000, "notes", &mut errors);
 
@@ -401,31 +402,28 @@ impl GearDraft {
             ));
         }
 
-        if let Some(weight_g) = self.weight_g {
-            if !(0..=1_000_000).contains(&weight_g) {
-                errors.push(FieldViolation::new(
-                    "weight_g",
-                    "must be between 0 and 1000000",
-                ));
-            }
+        if self
+            .weight_g
+            .is_some_and(|weight_g| !(0..=1_000_000).contains(&weight_g))
+        {
+            errors.push(FieldViolation::new(
+                "weight_g",
+                "must be between 0 and 1000000",
+            ));
         }
 
-        if let Some(price) = self.official_price_cents {
-            if price < 0 {
-                errors.push(FieldViolation::new(
-                    "official_price_cents",
-                    "must be greater than or equal to 0",
-                ));
-            }
+        if self.official_price_cents.is_some_and(|price| price < 0) {
+            errors.push(FieldViolation::new(
+                "official_price_cents",
+                "must be greater than or equal to 0",
+            ));
         }
 
-        if let Some(price) = self.purchase_price_cents {
-            if price < 0 {
-                errors.push(FieldViolation::new(
-                    "purchase_price_cents",
-                    "must be greater than or equal to 0",
-                ));
-            }
+        if self.purchase_price_cents.is_some_and(|price| price < 0) {
+            errors.push(FieldViolation::new(
+                "purchase_price_cents",
+                "must be greater than or equal to 0",
+            ));
         }
 
         self.official_price_currency = normalize_price_currency(
@@ -686,14 +684,12 @@ pub fn normalize_variants(values: GearVariants, errors: &mut Vec<FieldViolation>
         if normalized.iter().any(|existing| existing.key == key) {
             continue;
         }
-        if let Some(price) = raw.official_price_cents {
-            if price < 0 {
-                errors.push(FieldViolation::new(
-                    format!("variants.{index}.official_price_cents"),
-                    "must be greater than or equal to 0",
-                ));
-                raw.official_price_cents = None;
-            }
+        if raw.official_price_cents.is_some_and(|price| price < 0) {
+            errors.push(FieldViolation::new(
+                format!("variants.{index}.official_price_cents"),
+                "must be greater than or equal to 0",
+            ));
+            raw.official_price_cents = None;
         }
         raw.official_price_currency = normalize_price_currency(
             raw.official_price_cents,
@@ -701,14 +697,15 @@ pub fn normalize_variants(values: GearVariants, errors: &mut Vec<FieldViolation>
             &format!("variants.{index}.official_price_currency"),
             errors,
         );
-        if let Some(weight_g) = raw.weight_g {
-            if !(0..=1_000_000).contains(&weight_g) {
-                errors.push(FieldViolation::new(
-                    format!("variants.{index}.weight_g"),
-                    "must be between 0 and 1000000",
-                ));
-                raw.weight_g = None;
-            }
+        if raw
+            .weight_g
+            .is_some_and(|weight_g| !(0..=1_000_000).contains(&weight_g))
+        {
+            errors.push(FieldViolation::new(
+                format!("variants.{index}.weight_g"),
+                "must be between 0 and 1000000",
+            ));
+            raw.weight_g = None;
         }
         normalized.push(GearVariant {
             key,

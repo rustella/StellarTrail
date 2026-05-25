@@ -61,14 +61,13 @@ async fn overview(
         .cache()
         .gear_response_key(&user.id, "overview", &cache_payload)
         .await;
-    if let Some(key) = cache_key.as_deref() {
-        if let Some(cached) = state
+    if let Some(key) = cache_key.as_deref()
+        && let Some(cached) = state
             .cache()
             .get_json::<crate::dto::gear::GearOverviewResponse>(key)
             .await
-        {
-            return Ok(Json(cached));
-        }
+    {
+        return Ok(Json(cached));
     }
 
     let repo = GearRepository::new(state.db().clone());
@@ -109,10 +108,10 @@ async fn categories(
         .cache()
         .gear_response_key(&user.id, "categories", &cache_payload)
         .await;
-    if let Some(key) = cache_key.as_deref() {
-        if let Some(cached) = state.cache().get_json::<GearCategoriesResponse>(key).await {
-            return Ok(Json(cached));
-        }
+    if let Some(key) = cache_key.as_deref()
+        && let Some(cached) = state.cache().get_json::<GearCategoriesResponse>(key).await
+    {
+        return Ok(Json(cached));
     }
 
     let repo = GearRepository::new(state.db().clone());
@@ -134,10 +133,10 @@ async fn stats(
         .cache()
         .gear_response_key(&user.id, "stats", &cache_payload)
         .await;
-    if let Some(key) = cache_key.as_deref() {
-        if let Some(cached) = state.cache().get_json::<GearStats>(key).await {
-            return Ok(Json(cached));
-        }
+    if let Some(key) = cache_key.as_deref()
+        && let Some(cached) = state.cache().get_json::<GearStats>(key).await
+    {
+        return Ok(Json(cached));
     }
 
     let stats = GearRepository::new(state.db().clone())
@@ -201,10 +200,10 @@ async fn list(
         .cache()
         .gear_response_key(&user.id, "list", &cache_payload)
         .await;
-    if let Some(key) = cache_key.as_deref() {
-        if let Some(cached) = state.cache().get_json::<ListGearResponse>(key).await {
-            return Ok(Json(cached));
-        }
+    if let Some(key) = cache_key.as_deref()
+        && let Some(cached) = state.cache().get_json::<ListGearResponse>(key).await
+    {
+        return Ok(Json(cached));
     }
 
     let response = build_list_response(
@@ -290,10 +289,10 @@ async fn get_one(
         .cache()
         .gear_response_key(&user.id, "item", &cache_payload)
         .await;
-    if let Some(key) = cache_key.as_deref() {
-        if let Some(cached) = state.cache().get_json::<GearItemResponse>(key).await {
-            return Ok(Json(cached));
-        }
+    if let Some(key) = cache_key.as_deref()
+        && let Some(cached) = state.cache().get_json::<GearItemResponse>(key).await
+    {
+        return Ok(Json(cached));
     }
 
     let item = GearRepository::new(state.db().clone())

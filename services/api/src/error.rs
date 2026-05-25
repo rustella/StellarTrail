@@ -239,10 +239,10 @@ impl IntoResponse for ApiError {
             }),
         )
             .into_response();
-        if let Some(retry_after) = retry_after {
-            if let Ok(value) = HeaderValue::from_str(&retry_after.to_string()) {
-                response.headers_mut().insert(header::RETRY_AFTER, value);
-            }
+        if let Some(value) =
+            retry_after.and_then(|retry_after| HeaderValue::from_str(&retry_after.to_string()).ok())
+        {
+            response.headers_mut().insert(header::RETRY_AFTER, value);
         }
         response
     }

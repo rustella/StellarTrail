@@ -262,22 +262,21 @@ impl GearAtlasDraft {
             &mut errors,
         );
 
-        if let Some(weight_g) = self.weight_g {
-            if !(0..=1_000_000).contains(&weight_g) {
-                errors.push(FieldViolation::new(
-                    "weight_g",
-                    "must be between 0 and 1000000",
-                ));
-            }
+        if self
+            .weight_g
+            .is_some_and(|weight_g| !(0..=1_000_000).contains(&weight_g))
+        {
+            errors.push(FieldViolation::new(
+                "weight_g",
+                "must be between 0 and 1000000",
+            ));
         }
 
-        if let Some(price) = self.official_price_cents {
-            if price < 0 {
-                errors.push(FieldViolation::new(
-                    "official_price_cents",
-                    "must be greater than or equal to 0",
-                ));
-            }
+        if self.official_price_cents.is_some_and(|price| price < 0) {
+            errors.push(FieldViolation::new(
+                "official_price_cents",
+                "must be greater than or equal to 0",
+            ));
         }
         self.official_price_currency = normalize_official_price_currency(
             self.official_price_cents,
@@ -357,21 +356,23 @@ impl GearAtlasExternalImportDraft {
             &mut errors,
         );
 
-        if let Some(score) = self.source_rating_score {
-            if !score.is_finite() || !(0.0..=10.0).contains(&score) {
-                errors.push(FieldViolation::new(
-                    "source_rating_score",
-                    "must be between 0 and 10",
-                ));
-            }
+        if self
+            .source_rating_score
+            .is_some_and(|score| !score.is_finite() || !(0.0..=10.0).contains(&score))
+        {
+            errors.push(FieldViolation::new(
+                "source_rating_score",
+                "must be between 0 and 10",
+            ));
         }
-        if let Some(count) = self.source_rating_count {
-            if !(0..=1_000_000).contains(&count) {
-                errors.push(FieldViolation::new(
-                    "source_rating_count",
-                    "must be between 0 and 1000000",
-                ));
-            }
+        if self
+            .source_rating_count
+            .is_some_and(|count| !(0..=1_000_000).contains(&count))
+        {
+            errors.push(FieldViolation::new(
+                "source_rating_count",
+                "must be between 0 and 1000000",
+            ));
         }
 
         if errors.is_empty() {
