@@ -779,6 +779,13 @@ test("listClientVersions fetches public WeChat version history", async () => {
             version: "0.1.0",
             title: "0.1.0 初始版本",
             release_notes: ["装备库上线"],
+            release_note_sections: [
+              {
+                key: "feature",
+                title: "Feature",
+                items: ["装备库上线"],
+              },
+            ],
             status: "published",
             published_at: "2026-05-23T00:00:00Z",
             created_at: "2026-05-23T00:00:00Z",
@@ -795,6 +802,7 @@ test("listClientVersions fetches public WeChat version history", async () => {
   });
 
   assert.equal(response.items[0].version, "0.1.0");
+  assert.equal(response.items[0].release_note_sections[0].title, "Feature");
   assert.deepEqual(calls, [
     {
       url: "https://api.example.test/api/v1/client-versions?limit=20&client_key=wechat_miniprogram",
@@ -885,11 +893,7 @@ test("knot disclaimer reads and writes authenticated acceptance", async () => {
       });
       return;
     }
-    if (
-      options.url.endsWith(
-        "/api/v1/me/skills/knots/disclaimer/acceptance",
-      )
-    ) {
+    if (options.url.endsWith("/api/v1/me/skills/knots/disclaimer/acceptance")) {
       options.success({
         statusCode: 200,
         data: {
@@ -2035,6 +2039,7 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
                 slug: "bowline",
                 title: "布林结",
                 summary: "固定绳圈",
+                aliases: ["单套结"],
                 categories: [
                   {
                     id: "camping",
@@ -2068,6 +2073,7 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
                 slug: "clove",
                 title: "丁香结",
                 summary: "快速固定",
+                aliases: [],
                 categories: [],
                 types: [],
                 media: [
@@ -2128,6 +2134,7 @@ test("cacheAllKnotsForOffline stores paged lists, details, and media resources",
 
   assert.deepEqual(requests, ["/api/v1/skills/knots/offline-manifest"]);
   assert.equal(result.items.length, 2);
+  assert.deepEqual(result.items[0].aliases, ["单套结"]);
   assert.equal(result.detailCount, 2);
   assert.equal(result.mediaReadyCount, 3);
   assert.equal(result.mediaTotal, 3);
@@ -2221,6 +2228,7 @@ test("prepareAllKnotsOfflineCache only reads the manifest before confirmation", 
               slug: "bowline",
               title: "布林结",
               summary: "固定绳圈",
+              aliases: ["单套结"],
               categories: [],
               types: [],
               media: [

@@ -207,12 +207,24 @@ export type ClientKey =
   | "ios"
   | "macos";
 
+export type ClientVersionReleaseNoteSectionKey =
+  | "feature"
+  | "bug_fix"
+  | "notes";
+
+export interface ClientVersionReleaseNoteSection {
+  key: ClientVersionReleaseNoteSectionKey;
+  title: string;
+  items: string[];
+}
+
 export interface ClientVersion {
   id: string;
   client_key: ClientKey;
   version: string;
   title: string;
   release_notes: string[];
+  release_note_sections?: ClientVersionReleaseNoteSection[];
   status: "draft" | "published";
   published_at?: string | null;
   created_at: string;

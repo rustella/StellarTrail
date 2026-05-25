@@ -135,12 +135,22 @@
           </view>
           <view class="version-notes">
             <view
-              wx:for="{{item.release_notes}}"
-              wx:for-item="note"
-              wx:key="*this"
-              class="version-note"
-              >{{note}}</view
+              wx:for="{{item.releaseNoteSections}}"
+              wx:for-item="section"
+              wx:key="key"
+              class="version-note-section"
             >
+              <view class="version-note-section-title">{{section.title}}</view>
+              <view
+                wx:for="{{section.items}}"
+                wx:for-item="note"
+                wx:key="number"
+                class="version-note"
+              >
+                <text class="version-note-number">{{note.number}}.</text>
+                <text>{{note.text}}</text>
+              </view>
+            </view>
           </view>
         </view>
       </scroll-view>
