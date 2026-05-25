@@ -12,7 +12,7 @@ resolver = "3"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/rustella/StellarTrail"
-rust-version = "1.85"
+rust-version = "1.88"
 
 [workspace.dependencies]
 anyhow = "1"
