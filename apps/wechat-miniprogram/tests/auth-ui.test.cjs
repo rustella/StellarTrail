@@ -13,6 +13,7 @@ function read(rel) {
 
 test("register page is available from the mini program page registry", () => {
   const config = JSON.parse(read("app.json"));
+  assert.equal(config.lazyCodeLoading, "requiredComponents");
   assert.ok(config.pages.includes("pages/register/index"));
 });
 
