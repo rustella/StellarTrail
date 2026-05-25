@@ -1,15 +1,16 @@
 {
-  "appid": "touristappid",
+  "appid": "wx926a64f76ca56c5f",
   "compileType": "miniprogram",
   "libVersion": "latest",
-  "projectname": "StellarTrail",
+  "projectname": "寻径星野",
   "setting": {
     "urlCheck": true,
     "es6": true,
     "enhance": true,
     "postcss": true,
     "minified": true,
-    "compileHotReLoad": true
+    "compileHotReLoad": true,
+    "useCompilerPlugins": ["typescript"]
   },
   "miniprogramRoot": "miniprogram/"
 }

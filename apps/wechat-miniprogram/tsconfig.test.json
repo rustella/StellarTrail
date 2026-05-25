@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "outDir": ".tmp-test",
+    "rootDir": "miniprogram",
+    "noEmit": false,
+    "declaration": false,
+    "moduleResolution": "Node"
+  },
+  "include": ["miniprogram/utils/*.ts"]
+}

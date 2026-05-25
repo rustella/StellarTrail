@@ -8,6 +8,17 @@
 .env
 .env.*
 !.env.example
+/config.yaml
+/config.*.yaml
+!/config.example.yaml
+infra/production/**/config.yaml
+infra/production/**/config.*.yaml
+!infra/production/**/config.*.example.yaml
+infra/production/**/.env
+infra/production/**/.env.*
+!infra/production/**/.env.example
+infra/production/traefik/acme.json
+infra/production/traefik/acme/
 
 # Rust
 /target/
@@ -20,6 +31,9 @@ build/
 coverage/
 .miniprogram-ci/
 
+# Swift Package Manager
+packages/apple/StellarTrailKit/.build/
+
 # WeChat developer tool generated local files
 apps/wechat-miniprogram/project.private.config.json
 apps/wechat-miniprogram/private.*.key
@@ -29,3 +43,22 @@ apps/wechat-miniprogram/private.*.key
 *.sqlite
 *.sqlite3
 /tmp/
+.hermes/
+/skills/
+scripts/init_agent_context.py
+.agent/local
+# Android
+.gradle/
+local.properties
+*.jks
+*.keystore
+apps/android/.cxx/
+apps/android/build/
+
+# Client runtime config
+apps/web/.env.local
+apps/web/.env.*.local
+apps/wechat-miniprogram/miniprogram/config.ts
+apps/android/config.properties
+apps/ios/StellarTrail/Resources/ClientConfig.plist
+apps/macos/StellarTrailMac/Resources/ClientConfig.plist

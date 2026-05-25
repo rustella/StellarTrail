@@ -8,6 +8,11 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+sea-orm.workspace = true
+sea-orm-migration.workspace = true
 serde.workspace = true
-serde_yaml.workspace = true
+serde_json.workspace = true
 stellartrail-domain = { path = "../domain" }
+stellartrail-db = { path = "../db" }
+stellartrail-migration = { path = "../migration" }
+tokio.workspace = true

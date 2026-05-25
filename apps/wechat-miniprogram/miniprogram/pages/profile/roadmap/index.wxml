@@ -1,0 +1,88 @@
+<view class="roadmap-page {{themeClass}}">
+  <view class="roadmap-hero">
+    <view>
+      <view class="roadmap-eyebrow">寻径星野</view>
+      <view class="roadmap-title">产品路线图</view>
+      <view class="roadmap-subtitle"
+        >这里记录后续计划。你可以给关心的功能投票，也可以先订阅站内进度。</view
+      >
+    </view>
+  </view>
+
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
+  <view class="roadmap-filter-card">
+    <picker
+      value="{{selectedStatusIndex}}"
+      range="{{statusFilterLabels}}"
+      bindchange="onStatusFilterChange"
+    >
+      <view class="roadmap-filter-pill">
+        <text>状态</text>
+        <text>{{statusFilterLabels[selectedStatusIndex]}}</text>
+      </view>
+    </picker>
+  </view>
+
+  <view wx:if="{{loading}}" class="roadmap-state-card">正在加载路线图...</view>
+
+  <view wx:elif="{{error}}" class="roadmap-state-card error">
+    <view>{{error}}</view>
+    <button bindtap="loadRoadmap">重试</button>
+  </view>
+
+  <view wx:elif="{{items.length}}" class="roadmap-list">
+    <view wx:for="{{items}}" wx:key="id" class="roadmap-card">
+      <view class="roadmap-card-head">
+        <view class="roadmap-card-tags">
+          <text class="roadmap-category">{{item.categoryText}}</text>
+          <text class="roadmap-status {{item.statusClass}}"
+            >{{item.statusText}}</text
+          >
+        </view>
+        <view class="roadmap-priority">P{{item.priority}}</view>
+      </view>
+      <view class="roadmap-item-title">{{item.title}}</view>
+      <view class="roadmap-item-summary">{{item.summary}}</view>
+      <view wx:if="{{item.details}}" class="roadmap-item-details"
+        >{{item.details}}</view
+      >
+      <view class="roadmap-actions">
+        <button
+          class="roadmap-action-button {{item.is_voted ? 'active' : ''}}"
+          data-id="{{item.id}}"
+          loading="{{item.actionLoading}}"
+          bindtap="toggleVote"
+        >
+          {{item.is_voted ? '已投票' : '投票'}} · {{item.voteText}}
+        </button>
+        <button
+          class="roadmap-action-button ghost {{item.is_subscribed ? 'active' : ''}}"
+          data-id="{{item.id}}"
+          loading="{{item.actionLoading}}"
+          bindtap="toggleSubscription"
+        >
+          {{item.subscriptionText}}
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="roadmap-state-card empty">
+    <view>暂时没有这个状态的路线图条目。</view>
+  </view>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">暂不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

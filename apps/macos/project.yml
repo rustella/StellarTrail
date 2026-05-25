@@ -1,0 +1,35 @@
+name: StellarTrailMac
+options:
+  minimumXcodeGenVersion: 2.42.0
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+packages: {}
+targets:
+  StellarTrailMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: StellarTrailMac
+        excludes:
+          - Resources/**
+      - path: StellarTrailMac/Resources
+        excludes:
+          - Info.plist
+        buildPhase: resources
+      - path: ../../packages/apple/StellarTrailKit/Sources/StellarTrailKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rustella.stellartrail.macos
+        PRODUCT_NAME: StellarTrail
+        INFOPLIST_FILE: StellarTrailMac/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+    scheme:
+      gatherCoverageData: false

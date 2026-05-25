@@ -1,0 +1,245 @@
+.atlas-page {
+  min-height: 100vh;
+  padding: 28rpx 28rpx 64rpx;
+  background: var(--page-bg);
+  box-sizing: border-box;
+  color: var(--text-color);
+}
+
+.hero-card,
+.search-card,
+.error-card,
+.state-card,
+.empty-card,
+.atlas-card {
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.hero-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 32rpx;
+  color: var(--text-color);
+  background: var(--hero-surface-gradient);
+  border-radius: var(--hero-card-radius);
+  border-color: var(--hero-surface-border);
+  box-shadow: var(--hero-surface-shadow);
+}
+
+.eyebrow {
+  color: var(--accent-color);
+  font-size: 22rpx;
+  font-weight: 800;
+  letter-spacing: 2rpx;
+}
+
+.hero-title {
+  margin-top: 12rpx;
+  font-size: 44rpx;
+  font-weight: 800;
+}
+
+.hero-subtitle {
+  margin-top: 12rpx;
+  color: var(--muted-color);
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+.primary-action {
+  flex-shrink: 0;
+  min-width: 136rpx;
+  margin: 0;
+  padding: 0 28rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 26rpx;
+  font-weight: 800;
+  line-height: 72rpx;
+}
+
+.primary-action.wide {
+  width: 100%;
+  margin-top: 24rpx;
+}
+
+.search-card {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 24rpx;
+  padding: 16rpx;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  height: 72rpx;
+  padding: 0 22rpx;
+  border: 1rpx solid var(--soft-border-color);
+  border-radius: 20rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 26rpx;
+}
+
+.search-button,
+.clear-button,
+.error-card button {
+  margin: 0;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  line-height: 64rpx;
+}
+
+.search-button {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}
+
+.clear-button {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+}
+
+.category-scroll {
+  width: 100%;
+  margin-top: 24rpx;
+  white-space: nowrap;
+}
+
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 16rpx;
+  padding: 18rpx 24rpx;
+  border: 2rpx solid var(--border-color);
+  border-radius: 999rpx;
+  color: var(--muted-color);
+  background: var(--surface-color);
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.category-chip.active {
+  color: var(--brand-soft-text);
+  border-color: var(--brand-soft-bg);
+  background: var(--brand-soft-bg);
+}
+
+.error-card,
+.state-card,
+.empty-card {
+  margin-top: 24rpx;
+  padding: 28rpx;
+  color: var(--muted-color);
+  font-size: 28rpx;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.error-card {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
+.atlas-card {
+  margin-top: 24rpx;
+  padding: 28rpx;
+}
+
+.card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.category-badge,
+.atlas-status {
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.category-badge {
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+}
+
+.atlas-status {
+  color: var(--status-success-text);
+  background: var(--status-success-bg);
+}
+
+.atlas-name {
+  margin-top: 18rpx;
+  color: var(--text-color);
+  font-size: 34rpx;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.atlas-meta,
+.atlas-desc {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.metric {
+  min-width: 0;
+  padding: 18rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.metric-value {
+  color: var(--text-color);
+  font-size: 25rpx;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-label {
+  margin-top: 6rpx;
+  color: var(--muted-color);
+  font-size: 21rpx;
+}
+
+.empty-title {
+  color: var(--text-color);
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.empty-subtitle {
+  margin-top: 10rpx;
+  color: var(--muted-color);
+  font-size: 25rpx;
+}
+
+.load-more {
+  padding: 28rpx 0;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  text-align: center;
+}

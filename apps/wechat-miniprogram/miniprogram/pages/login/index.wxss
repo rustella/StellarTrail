@@ -1,0 +1,259 @@
+.login-page {
+  min-height: 100vh;
+  padding: 32rpx;
+  background: var(--page-bg);
+  color: var(--text-color);
+  box-sizing: border-box;
+}
+
+.login-page.theme-dark {
+  background: var(--body-gradient);
+}
+
+.login-card {
+  margin-bottom: 24rpx;
+  padding: 32rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.login-card.hero {
+  color: #0f172a;
+  background: var(--hero-surface-gradient);
+  box-shadow: var(--hero-surface-shadow);
+  border: 1rpx solid var(--hero-surface-border);
+  border-radius: var(--hero-card-radius);
+}
+
+.eyebrow {
+  color: var(--accent-color);
+  font-size: 22rpx;
+  font-weight: 800;
+  letter-spacing: 2rpx;
+}
+
+.title {
+  margin-top: 12rpx;
+  color: var(--text-color);
+  font-size: 44rpx;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.subtitle,
+.panel-desc {
+  margin-top: 12rpx;
+  color: var(--muted-color);
+  font-size: 26rpx;
+  line-height: 1.58;
+}
+
+.panel-desc {
+  color: var(--muted-color);
+}
+
+.status-row,
+.captcha-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.status-title,
+.section-title {
+  color: var(--text-color);
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.status-desc {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 23rpx;
+}
+
+.status-badge {
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  color: var(--status-warning-text);
+  background: var(--status-warning-bg);
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
+.status-badge.success {
+  color: var(--status-success-text);
+  background: var(--status-success-bg);
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 22rpx;
+  padding: 8rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: 999rpx;
+  background: var(--control-bg);
+}
+
+.auth-tab {
+  margin: 0;
+  border-radius: 999rpx;
+  color: var(--soft-control-text);
+  background: transparent;
+  font-size: 25rpx;
+  font-weight: 900;
+  line-height: 64rpx;
+}
+
+.auth-tab.active {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}
+
+.auth-panel {
+  margin-top: 24rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.field-label {
+  display: block;
+  margin: 22rpx 0 10rpx;
+  color: var(--heading-muted-color);
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.field-input {
+  min-height: 78rpx;
+  padding: 0 24rpx;
+  border: 1rpx solid var(--control-border);
+  border-radius: 22rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 27rpx;
+  box-sizing: border-box;
+}
+
+.captcha-box {
+  margin-top: 20rpx;
+  padding: 20rpx;
+  border: 1rpx dashed var(--border-color);
+  border-radius: 24rpx;
+  background: var(--brand-soft-bg);
+}
+
+.captcha-image {
+  width: 100%;
+  height: 120rpx;
+  margin: 12rpx 0;
+  border-radius: 18rpx;
+  background: #ffffff;
+}
+
+.error-text,
+.notice-text {
+  margin-top: 22rpx;
+  padding: 18rpx;
+  border-radius: 20rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.error-text {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
+.notice-text {
+  color: var(--status-success-text);
+  background: var(--status-success-bg);
+}
+
+.code-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.code-input {
+  flex: 1;
+}
+
+.code-button {
+  flex: 0 0 188rpx;
+  margin: 0;
+  border-radius: 22rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 78rpx;
+}
+
+.action-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-top: 18rpx;
+}
+
+.action-row button.link-button {
+  margin-top: 0;
+  font-size: 24rpx;
+  line-height: 64rpx;
+}
+
+button.primary,
+button.secondary,
+button.link-button {
+  width: 100%;
+  margin-top: 24rpx;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+  font-weight: 900;
+  line-height: 82rpx;
+}
+
+button.primary {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}
+
+button.secondary {
+  color: var(--soft-control-text);
+  background: var(--soft-control-bg);
+}
+
+button.link-button,
+button.text-button {
+  color: var(--brand-soft-text);
+  background: transparent;
+}
+
+button.text-button {
+  width: auto;
+  margin: 0;
+  padding: 0 6rpx;
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 48rpx;
+}
+
+.login-page.theme-dark .login-card.hero,
+.login-page.theme-dark .title {
+  color: #ffffff;
+}
+
+.login-page.theme-dark .eyebrow {
+  color: rgba(221, 214, 254, 0.92);
+}
+
+.login-page.theme-dark .subtitle {
+  color: rgba(255, 255, 255, 0.82);
+}

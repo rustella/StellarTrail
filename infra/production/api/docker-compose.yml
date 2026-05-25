@@ -1,0 +1,168 @@
+services:
+  api:
+    build:
+      context: ../../..
+      dockerfile: infra/production/api/Dockerfile
+      args:
+        STELLARTAIL_DEPLOY_TIMEZONE: ${STELLARTAIL_DEPLOY_TIMEZONE:-}
+    image: ${STELLARTAIL_API_IMAGE:-ghcr.io/rustella/stellartrail-api:latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      RUST_LOG: ${RUST_LOG:-stellartrail_api=info,tower_http=info}
+      AVATAR_STORAGE_BUCKET: ${AVATAR_STORAGE_BUCKET:-stellartrail-avatars}
+      AVATAR_STORAGE_PUBLIC_BASE_URL: ${AVATAR_STORAGE_PUBLIC_BASE_URL:-https://assets.example.invalid/stellartrail-avatars}
+      AVATAR_STORAGE_MAX_IMAGE_BYTES: ${AVATAR_STORAGE_MAX_IMAGE_BYTES:-2000000}
+    volumes:
+      - ${STELLARTAIL_DEPLOY_ROOT:-/www/service/stellartail}/config.yaml:/app/config.yaml:ro
+    networks:
+      - edge
+      - backend
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
+      traefik.http.routers.api.rule: "${TRAEFIK_API_RULE:-Host(`api.example.invalid`) || Host(`api-alt1.example.invalid`) || Host(`api-alt2.example.invalid`)}"
+      traefik.http.routers.api.entrypoints: websecure
+      traefik.http.routers.api.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      # Keep API CORS preflight owned by the Rust service; the shared file middleware may
+      # define proxy-level CORS rules that override browser preflight responses.
+      traefik.http.routers.api.middlewares: api-security-headers
+      traefik.http.middlewares.api-security-headers.headers.browserXssFilter: "true"
+      traefik.http.middlewares.api-security-headers.headers.contentTypeNosniff: "true"
+      traefik.http.middlewares.api-security-headers.headers.frameDeny: "true"
+      traefik.http.middlewares.api-security-headers.headers.referrerPolicy: strict-origin-when-cross-origin
+      traefik.http.middlewares.api-security-headers.headers.stsSeconds: "31536000"
+      traefik.http.middlewares.api-security-headers.headers.stsIncludeSubdomains: "true"
+      traefik.http.middlewares.api-security-headers.headers.stsPreload: "true"
+      traefik.http.services.api.loadbalancer.server.port: "8080"
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stellartrail}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run infra/production/api/compose-from-config.sh so database.url in config.yaml is exported}
+      POSTGRES_DB: ${POSTGRES_DB:-stellartrail}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    expose:
+      - "5432"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER:-stellartrail} -d $${POSTGRES_DB:-stellartrail}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:7-alpine}
+    restart: unless-stopped
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ -n "$${REDIS_PASSWORD:-}" ]; then
+          exec redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}"
+        fi
+        exec redis-server --appendonly yes
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+    expose:
+      - "6379"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'if [ -n "$${REDIS_PASSWORD:-}" ]; then redis-cli -a "$${REDIS_PASSWORD}" ping; else redis-cli ping; fi',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  minio:
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z}
+    restart: unless-stopped
+    command:
+      ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?run infra/production/api/compose-from-config.sh so minio.access_key_id in config.yaml is exported}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?run infra/production/api/compose-from-config.sh so minio.secret_access_key in config.yaml is exported}
+    volumes:
+      - minio-data:/data
+    networks:
+      - edge
+      - backend
+    expose:
+      - "9000"
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
+      traefik.http.routers.assets.rule: "${TRAEFIK_ASSETS_RULE:-Host(`assets.example.invalid`) || Host(`assets-alt1.example.invalid`) || Host(`assets-alt2.example.invalid`)}"
+      traefik.http.routers.assets.entrypoints: websecure
+      traefik.http.routers.assets.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      traefik.http.routers.assets.middlewares: assets-security-headers
+      traefik.http.middlewares.assets-security-headers.headers.browserXssFilter: "true"
+      traefik.http.middlewares.assets-security-headers.headers.contentTypeNosniff: "true"
+      traefik.http.middlewares.assets-security-headers.headers.referrerPolicy: strict-origin-when-cross-origin
+      traefik.http.middlewares.assets-security-headers.headers.stsSeconds: "31536000"
+      traefik.http.middlewares.assets-security-headers.headers.stsIncludeSubdomains: "true"
+      traefik.http.middlewares.assets-security-headers.headers.stsPreload: "true"
+      traefik.http.services.assets.loadbalancer.server.port: "9000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  minio-init:
+    image: ${MINIO_MC_IMAGE:-quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z}
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?run infra/production/api/compose-from-config.sh so minio.access_key_id in config.yaml is exported}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?run infra/production/api/compose-from-config.sh so minio.secret_access_key in config.yaml is exported}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-stellartrail-uploads}
+      AVATAR_STORAGE_BUCKET: ${AVATAR_STORAGE_BUCKET:-stellartrail-avatars}
+      KNOTS_MEDIA_BUCKET: ${KNOTS_MEDIA_BUCKET:-stellartrail-knots-media}
+    networks:
+      - backend
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
+        mc mb -p "local/$${OBJECT_STORAGE_BUCKET}" || true
+        mc anonymous set none "local/$${OBJECT_STORAGE_BUCKET}"
+        mc mb -p "local/$${AVATAR_STORAGE_BUCKET}" || true
+        mc anonymous set download "local/$${AVATAR_STORAGE_BUCKET}"
+        mc mb -p "local/$${KNOTS_MEDIA_BUCKET}" || true
+        mc anonymous set download "local/$${KNOTS_MEDIA_BUCKET}"
+
+networks:
+  edge:
+    name: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
+    external: true
+  backend:
+    name: ${STELLARTAIL_BACKEND_NETWORK:-stellartail-backend}
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

@@ -1,0 +1,25 @@
+services:
+  site:
+    image: ${STELLARTAIL_SITE_IMAGE:-ghcr.io/rustella/stellartrail-site:latest}
+    restart: unless-stopped
+    networks:
+      - edge
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
+      traefik.http.routers.site.rule: "${TRAEFIK_SITE_RULE:-Host(`site.example.invalid`) || Host(`site-alt1.example.invalid`) || Host(`site-alt2.example.invalid`)}"
+      traefik.http.routers.site.entrypoints: websecure
+      traefik.http.routers.site.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      traefik.http.routers.site.middlewares: security-headers@file
+      traefik.http.routers.site.service: site
+      traefik.http.routers.site-www.rule: "${TRAEFIK_SITE_WWW_RULE:-Host(`www.example.invalid`)}"
+      traefik.http.routers.site-www.entrypoints: websecure
+      traefik.http.routers.site-www.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      traefik.http.routers.site-www.middlewares: redirect-www-to-apex@file,security-headers@file
+      traefik.http.routers.site-www.service: site
+      traefik.http.services.site.loadbalancer.server.port: "80"
+
+networks:
+  edge:
+    name: ${STELLARTAIL_EDGE_NETWORK:-stellartail-edge}
+    external: true

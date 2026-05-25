@@ -1,6 +1,278 @@
-<view class="container">
-  <view class="card">
-    <view class="title">户外技能</view>
-    <view class="subtitle">绳结、扎营、打包、导航、天气和急救知识离线可查。</view>
+<view class="skills-page {{themeClass}}">
+  <view class="hero-card">
+    <view>
+      <view class="eyebrow">寻径星野技能库</view>
+      <view class="hero-title">户外技能</view>
+      <view class="hero-subtitle">绳结、扎营、打包、天气和急救知识，出发前随时复习。</view>
+    </view>
+  </view>
+
+  <view wx:if="{{offlineNotice}}" class="offline-notice">{{offlineNotice}}</view>
+
+  <view wx:if="{{error}}" class="state-card error">
+    <view>{{error}}</view>
+    <button class="retry-button" bindtap="loadKnots">重试</button>
+  </view>
+
+  <view wx:elif="{{checkingKnotDisclaimer}}" class="state-card"
+    >正在确认绳结免责声明...</view
+  >
+
+  <block wx:else>
+    <view wx:if="{{mode === 'catalog'}}" class="skill-category-list">
+      <view class="favorite-entry-card" bindtap="openFavoriteSkills">
+        <view class="favorite-entry-icon">★</view>
+        <view class="favorite-entry-copy">
+          <view class="favorite-entry-title">收藏清单</view>
+          <view class="favorite-entry-desc">快速找到已经收藏的户外技能</view>
+        </view>
+        <view class="favorite-entry-cta">查看 ›</view>
+      </view>
+
+      <block wx:for="{{skillCategories}}" wx:key="id">
+        <view class="skill-category-card" data-id="{{item.id}}" bindtap="openSkillCategory">
+          <view class="category-icon">{{item.icon}}</view>
+          <view class="category-content">
+            <view class="category-subtitle">{{item.subtitle}}</view>
+            <view class="category-title">{{item.title}}</view>
+            <view class="category-summary">{{item.summary}}</view>
+          </view>
+          <view class="category-action">{{item.actionText}}</view>
+        </view>
+      </block>
+    </view>
+
+    <block wx:elif="{{mode === 'knots'}}">
+      <view class="list-header">
+        <view>
+          <view class="list-eyebrow">绳结技能</view>
+          <view class="list-title">绳结列表</view>
+        </view>
+        <view class="list-actions">
+          <button
+            class="cache-button"
+            loading="{{preparingKnotCache || cachingKnots}}"
+            disabled="{{preparingKnotCache || cachingKnots || loading}}"
+            bindtap="cacheAllKnots"
+          >
+            {{preparingKnotCache ? '统计中' : (cachingKnots ? '缓存中' : '缓存全部')}}
+          </button>
+          <button class="ghost-button" bindtap="showSkillCatalog">返回</button>
+        </view>
+      </view>
+
+      <view wx:if="{{preparingKnotCache || cachingKnots || cacheSummaryText}}" class="cache-status-card">
+        <view class="cache-status-title">{{preparingKnotCache ? '正在统计缓存信息' : (cachingKnots ? '正在缓存离线内容' : '离线缓存完成')}}</view>
+        <view class="cache-status-text">
+          {{preparingKnotCache || cachingKnots ? cacheProgressText : cacheSummaryText}}
+        </view>
+      </view>
+
+      <view class="cache-help-text">
+        缓存全部后，离线模式也能查询绳结详情和动图。
+      </view>
+
+      <view wx:if="{{!loading && (allKnots.length || hasActiveFilters || categoryFilters.length)}}" class="knot-filter-card">
+        <view class="knot-search-row">
+          <input
+            class="knot-search-input"
+            value="{{searchQuery}}"
+            placeholder="搜索绳结名称、用途"
+            confirm-type="search"
+            bindinput="onSearchInput"
+          />
+          <button
+            wx:if="{{hasActiveFilters}}"
+            class="clear-filter-button"
+            bindtap="clearKnotFilters"
+          >
+            清除
+          </button>
+        </view>
+        <view class="knot-filter-row">
+          <picker
+            class="category-filter-picker"
+            value="{{selectedCategoryIndex}}"
+            range="{{categoryFilterLabels}}"
+            bindchange="onCategoryFilterChange"
+          >
+            <view class="category-filter-pill">
+              <text class="filter-label">类别</text>
+              <text>{{categoryFilterLabels[selectedCategoryIndex]}}</text>
+            </view>
+          </picker>
+          <view wx:if="{{listResultText}}" class="result-count">{{listResultText}}</view>
+        </view>
+      </view>
+
+      <view wx:if="{{loading}}" class="state-card">正在加载绳结列表...</view>
+
+      <view wx:elif="{{knots.length}}" class="skill-list">
+        <block wx:for="{{knots}}" wx:key="id">
+          <view class="skill-card" data-id="{{item.id}}" bindtap="goDetail">
+            <view class="skill-thumb">
+              <image
+                wx:if="{{item.hasThumbnail}}"
+                class="skill-thumb-image"
+                mode="aspectFit"
+                src="{{item.thumbnailUrl}}"
+                lazy-load
+              />
+              <view wx:else class="thumb-placeholder">绳结</view>
+            </view>
+            <view class="skill-content">
+              <view class="skill-tags">
+                <text class="skill-tag">{{item.categoryText}}</text>
+              </view>
+              <view class="skill-title">{{item.title}}</view>
+              <view wx:if="{{item.aliasText}}" class="skill-alias">{{item.aliasText}}</view>
+              <view class="skill-summary">{{item.summary}}</view>
+            </view>
+            <button
+              class="favorite-button {{item.isFavorited ? 'active' : ''}}"
+              data-id="{{item.id}}"
+              loading="{{item.favoriteLoading}}"
+              catchtap="toggleFavorite"
+            >
+              {{item.isFavorited ? '★' : '☆'}}
+            </button>
+          </view>
+        </block>
+      </view>
+
+      <view wx:else class="state-card empty">
+        <view class="empty-title">{{hasActiveFilters ? '没有找到匹配绳结' : '绳结内容准备中'}}</view>
+        <view class="empty-subtitle">
+          {{hasActiveFilters ? '换个关键词或类别试试。' : '稍后会展示常用绳结。'}}
+        </view>
+        <button
+          wx:if="{{hasActiveFilters}}"
+          class="empty-clear-filter-button"
+          bindtap="clearKnotFilters"
+        >
+          清除筛选
+        </button>
+      </view>
+
+      <view wx:if="{{loadingMore}}" class="load-more">继续加载...</view>
+      <view wx:elif="{{allKnots.length && !nextOffset}}" class="load-more muted"
+        >没有更多绳结了</view
+      >
+    </block>
+
+    <block wx:else>
+      <view class="list-header">
+        <view>
+          <view class="list-eyebrow">我的收藏</view>
+          <view class="list-title">收藏清单</view>
+        </view>
+        <view class="list-actions">
+          <button class="ghost-button" bindtap="showSkillCatalog">返回</button>
+        </view>
+      </view>
+
+      <view class="knot-filter-card favorite-filter-card">
+        <view class="knot-filter-row">
+          <picker
+            class="category-filter-picker"
+            value="{{selectedFavoriteFilterIndex}}"
+            range="{{favoriteFilterLabels}}"
+            bindchange="onFavoriteFilterChange"
+          >
+            <view class="category-filter-pill">
+              <text class="filter-label">技能</text>
+              <text>{{favoriteFilterLabels[selectedFavoriteFilterIndex]}}</text>
+            </view>
+          </picker>
+        </view>
+      </view>
+
+      <view wx:if="{{loading}}" class="state-card">正在加载收藏清单...</view>
+
+      <view wx:elif="{{favoriteKnots.length}}" class="skill-list">
+        <block wx:for="{{favoriteKnots}}" wx:key="id">
+          <view class="skill-card" data-id="{{item.id}}" bindtap="goDetail">
+            <view class="skill-thumb">
+              <image
+                wx:if="{{item.hasThumbnail}}"
+                class="skill-thumb-image"
+                mode="aspectFit"
+                src="{{item.thumbnailUrl}}"
+                lazy-load
+              />
+              <view wx:else class="thumb-placeholder">绳结</view>
+            </view>
+            <view class="skill-content">
+              <view class="skill-tags">
+                <text class="skill-tag">{{item.categoryText}}</text>
+              </view>
+              <view class="skill-title">{{item.title}}</view>
+              <view wx:if="{{item.aliasText}}" class="skill-alias">{{item.aliasText}}</view>
+              <view class="skill-summary">{{item.summary}}</view>
+            </view>
+            <button
+              class="favorite-button {{item.isFavorited ? 'active' : ''}}"
+              data-id="{{item.id}}"
+              loading="{{item.favoriteLoading}}"
+              catchtap="toggleFavorite"
+            >
+              {{item.isFavorited ? '★' : '☆'}}
+            </button>
+          </view>
+        </block>
+      </view>
+
+      <view wx:else class="state-card empty">
+        <view class="empty-title">还没有收藏技能</view>
+        <view class="empty-subtitle">在绳结列表或详情页点星标，就会出现在这里。</view>
+      </view>
+
+      <view wx:if="{{loadingMore}}" class="load-more">继续加载...</view>
+      <view wx:elif="{{favoriteKnots.length && !favoriteNextOffset}}" class="load-more muted"
+        >没有更多收藏了</view
+      >
+    </block>
+  </block>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">暂不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{knotDisclaimerVisible}}" class="disclaimer-mask">
+    <view class="disclaimer-card">
+      <view class="disclaimer-title">{{knotDisclaimerTitle}}</view>
+      <view class="disclaimer-version">版本 {{knotDisclaimerVersion}}</view>
+      <scroll-view scroll-y class="disclaimer-content">
+        <text>{{knotDisclaimerContent}}</text>
+      </scroll-view>
+      <view wx:if="{{knotDisclaimerError}}" class="disclaimer-error"
+        >{{knotDisclaimerError}}</view
+      >
+      <view class="disclaimer-actions">
+        <button
+          class="disclaimer-secondary"
+          disabled="{{acceptingKnotDisclaimer}}"
+          bindtap="rejectKnotDisclaimer"
+        >
+          拒绝并退出
+        </button>
+        <button
+          class="disclaimer-primary"
+          loading="{{acceptingKnotDisclaimer}}"
+          disabled="{{acceptingKnotDisclaimer}}"
+          bindtap="acceptKnotDisclaimer"
+        >
+          我已阅读并同意
+        </button>
+      </view>
+    </view>
   </view>
 </view>

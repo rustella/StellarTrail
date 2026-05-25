@@ -1,6 +1,424 @@
-<view class="container">
-  <view class="card">
-    <view class="title">我的 StellarTrail</view>
-    <view class="subtitle">微信登录、收藏路线、行程计划和个人装备统计。</view>
+<view class="profile-page container {{themeClass}}">
+  <view class="card account-card">
+    <view class="account-main">
+      <button
+        wx:if="{{loggedIn}}"
+        class="account-avatar"
+        open-type="chooseAvatar"
+        bindchooseavatar="onChooseWechatAvatar"
+        disabled="{{avatarLoading}}"
+        aria-label="导入微信头像"
+      >
+        <image
+          wx:if="{{accountProfile.avatarUrl}}"
+          class="account-avatar-image"
+          src="{{accountProfile.avatarUrl}}"
+          mode="aspectFill"
+          lazy-load
+        />
+        <text wx:else>{{accountProfile.avatarInitial}}</text>
+      </button>
+      <view
+        wx:if="{{loggedIn}}"
+        class="account-settings-entry"
+        bindtap="openUserSettings"
+      >
+        <view class="account-copy">
+          <view class="account-name-row">
+            <view class="account-desc">{{accountProfile.displayName}}</view>
+          </view>
+          <view wx:if="{{accountError}}" class="account-error"
+            >{{accountError}}</view
+          >
+        </view>
+        <view class="account-chevron">›</view>
+      </view>
+      <view wx:else class="account-copy">
+        <view class="account-desc">未登录</view>
+      </view>
+    </view>
+    <button wx:if="{{!loggedIn}}" class="account-button" bindtap="goLogin">
+      登录 / 注册
+    </button>
+    <button wx:else class="account-button danger" bindtap="logout">退出</button>
+  </view>
+
+  <view class="card settings-card">
+    <view class="settings-card-header">
+      <view class="settings-card-title">设置与帮助</view>
+      <button
+        class="theme-toggle {{isDarkTheme ? 'is-dark' : 'is-light'}}"
+        aria-pressed="{{isDarkTheme}}"
+        aria-label="{{themeToggleAriaLabel}}"
+        bindtap="toggleTheme"
+      >
+        <text class="theme-toggle-option theme-toggle-sun">☀</text>
+        <text class="theme-toggle-option theme-toggle-moon">☾</text>
+        <view class="theme-toggle-thumb"></view>
+      </button>
+    </view>
+    <view class="settings-row" bindtap="openCachedKnotsModal">
+      <view class="settings-icon">绳</view>
+      <view class="settings-copy">
+        <view class="settings-title">绳结离线缓存</view>
+        <view class="settings-desc">缓存后离线也能查询绳结详情和动图。</view>
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+    <view class="settings-row" bindtap="openFeedbackModal">
+      <view class="settings-icon">馈</view>
+      <view class="settings-copy">
+        <view class="settings-title">意见反馈</view>
+        <view class="settings-desc">告诉我们遇到的问题或想要的功能。</view>
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+    <view class="settings-row" bindtap="openRoadmap">
+      <view class="settings-icon">图</view>
+      <view class="settings-copy">
+        <view class="settings-title">产品路线图</view>
+        <view class="settings-desc"
+          >查看后续功能计划，投票或订阅你关心的方向。</view
+        >
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+    <view class="settings-row" bindtap="openVersionInfoModal">
+      <view class="settings-icon">版</view>
+      <view class="settings-copy">
+        <view class="settings-title">版本信息</view>
+        <view class="settings-desc">{{versionInfoDesc}}</view>
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+    <view class="settings-row" bindtap="openAboutModal">
+      <view class="settings-icon">星</view>
+      <view class="settings-copy">
+        <view class="settings-title">关于寻径星野</view>
+        <view class="settings-desc"
+          >为户外爱好者准备的出行、装备与技能工具。</view
+        >
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+  </view>
+
+  <view wx:if="{{versionModalVisible}}" class="profile-modal-mask">
+    <view class="profile-modal-card version-modal-card">
+      <view class="profile-modal-title">版本信息</view>
+      <view wx:if="{{versionLoading}}" class="version-loading"
+        >正在加载版本信息...</view
+      >
+      <view wx:elif="{{versionError}}" class="profile-modal-error"
+        >{{versionError}}</view
+      >
+      <scroll-view
+        wx:elif="{{clientVersions.length}}"
+        class="version-list"
+        scroll-y
+      >
+        <view
+          wx:for="{{clientVersions}}"
+          wx:key="id"
+          class="version-card {{index === 0 ? 'latest' : ''}}"
+        >
+          <view class="version-card-head">
+            <view>
+              <view class="version-title">{{item.title}}</view>
+              <view class="version-meta"
+                >{{item.version}} · {{item.publishedAtText}}</view
+              >
+            </view>
+            <view wx:if="{{index === 0}}" class="version-latest-badge"
+              >最新</view
+            >
+          </view>
+          <view class="version-notes">
+            <view
+              wx:for="{{item.releaseNoteSections}}"
+              wx:for-item="section"
+              wx:key="key"
+              class="version-note-section"
+            >
+              <view class="version-note-section-title">{{section.title}}</view>
+              <view
+                wx:for="{{section.items}}"
+                wx:for-item="note"
+                wx:key="number"
+                class="version-note"
+              >
+                <text class="version-note-number">{{note.number}}.</text>
+                <text>{{note.text}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+      <view wx:else class="profile-modal-desc">暂无版本信息。</view>
+      <view class="profile-modal-actions">
+        <button
+          wx:if="{{versionError}}"
+          class="account-inline-button profile-modal-action-button"
+          loading="{{versionLoading}}"
+          bindtap="retryClientVersions"
+        >
+          重试
+        </button>
+        <button
+          class="account-inline-button muted profile-modal-action-button"
+          bindtap="closeVersionInfoModal"
+        >
+          关闭
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{cachedKnotsModalVisible}}" class="profile-modal-mask">
+    <view class="profile-modal-card cached-knots-card">
+      <view class="profile-modal-title">已缓存绳结</view>
+      <view wx:if="{{cachedKnots.length}}" class="profile-modal-desc"
+        >共 {{cachedKnots.length}} 个绳结，离线时也可以打开详情和动图。</view
+      >
+      <view wx:else class="profile-modal-desc"
+        >还没有缓存绳结。去绳结列表点“缓存全部”后，这里会显示已缓存内容。</view
+      >
+      <view class="cached-knots-stats">
+        <view class="cached-knots-stat">
+          <text class="cached-knots-stat-value"
+            >{{cachedKnotsInfo.cachedCount}}</text
+          >
+          <text class="cached-knots-stat-label">已缓存</text>
+        </view>
+        <view class="cached-knots-stat">
+          <text class="cached-knots-stat-value"
+            >{{cachedKnotsInfo.uncachedCountText}}</text
+          >
+          <text class="cached-knots-stat-label">未缓存</text>
+        </view>
+        <view class="cached-knots-stat">
+          <text class="cached-knots-stat-value"
+            >{{cachedKnotsInfo.totalCountText}}</text
+          >
+          <text class="cached-knots-stat-label">全部绳结</text>
+        </view>
+      </view>
+      <view wx:if="{{cachedKnotsStatsLoading}}" class="cached-knots-updating"
+        >正在更新绳结总数</view
+      >
+      <scroll-view
+        wx:if="{{cachedKnots.length}}"
+        class="cached-knots-list"
+        scroll-y
+      >
+        <view
+          wx:for="{{cachedKnots}}"
+          wx:key="id"
+          class="cached-knot-row"
+          data-id="{{item.id}}"
+          bindtap="openCachedKnotDetail"
+        >
+          <view class="cached-knot-copy">
+            <view class="cached-knot-title">{{item.title}}</view>
+            <view class="cached-knot-summary">{{item.summary}}</view>
+          </view>
+          <view class="cached-knot-meta">
+            <text class="cached-knot-tag">{{item.categoryText}}</text>
+            <button
+              class="cached-knot-delete"
+              data-id="{{item.id}}"
+              data-title="{{item.title}}"
+              catchtap="removeCachedKnot"
+            >
+              删除
+            </button>
+          </view>
+        </view>
+      </scroll-view>
+      <view class="profile-modal-actions">
+        <button
+          class="account-inline-button profile-modal-action-button"
+          bindtap="goKnotOfflineCache"
+        >
+          去绳结列表
+        </button>
+        <button
+          wx:if="{{cachedKnots.length}}"
+          class="account-inline-button danger profile-modal-action-button"
+          bindtap="clearCachedKnots"
+        >
+          删除全部
+        </button>
+        <button
+          class="account-inline-button muted profile-modal-action-button"
+          bindtap="closeCachedKnotsModal"
+        >
+          关闭
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{feedbackModalVisible}}" class="profile-modal-mask">
+    <view class="profile-modal-card">
+      <view class="profile-modal-title">意见反馈</view>
+      <view class="profile-feedback-form">
+        <picker
+          value="{{feedbackCategoryIndex}}"
+          range="{{feedbackCategoryLabels}}"
+          bindchange="onFeedbackCategoryChange"
+        >
+          <view class="profile-feedback-picker"
+            >{{feedbackCategoryLabels[feedbackCategoryIndex]}}</view
+          >
+        </picker>
+        <textarea
+          class="profile-feedback-textarea"
+          maxlength="2000"
+          placeholder="写下问题、建议或需要纠正的内容"
+          value="{{feedbackContent}}"
+          data-field="feedbackContent"
+          disabled="{{feedbackLoading}}"
+          bindinput="onFeedbackInput"
+        />
+        <view class="profile-feedback-images">
+          <view class="profile-feedback-images-head">
+            <text>图片附件</text>
+            <text>{{feedbackImageLimitText}}</text>
+          </view>
+          <view class="profile-feedback-image-grid">
+            <view
+              wx:for="{{feedbackImages}}"
+              wx:key="id"
+              class="profile-feedback-image-card"
+              data-index="{{index}}"
+              bindtap="previewFeedbackImage"
+            >
+              <image
+                class="profile-feedback-image"
+                src="{{item.path}}"
+                mode="aspectFill"
+                lazy-load="{{true}}"
+              />
+              <view
+                wx:if="{{item.sizeText}}"
+                class="profile-feedback-image-size"
+                >{{item.sizeText}}</view
+              >
+              <button
+                class="profile-feedback-image-remove"
+                data-index="{{index}}"
+                disabled="{{feedbackLoading}}"
+                catchtap="removeFeedbackImage"
+              >
+                ×
+              </button>
+            </view>
+            <button
+              wx:if="{{feedbackCanAddImage}}"
+              class="profile-feedback-image-add"
+              disabled="{{feedbackLoading}}"
+              bindtap="chooseFeedbackImages"
+            >
+              <text class="profile-feedback-image-add-icon">+</text>
+              <text>添加图片</text>
+            </button>
+          </view>
+        </view>
+        <input
+          class="profile-name-input"
+          type="text"
+          placeholder="联系方式（可选）"
+          value="{{feedbackContact}}"
+          data-field="feedbackContact"
+          disabled="{{feedbackLoading}}"
+          bindinput="onFeedbackInput"
+        />
+        <view wx:if="{{feedbackError}}" class="profile-modal-error"
+          >{{feedbackError}}</view
+        >
+        <view class="profile-modal-actions">
+          <button
+            class="account-inline-button profile-modal-action-button"
+            loading="{{feedbackLoading}}"
+            bindtap="submitFeedback"
+          >
+            提交
+          </button>
+          <button
+            class="account-inline-button muted profile-modal-action-button"
+            disabled="{{feedbackLoading}}"
+            bindtap="closeFeedbackModal"
+          >
+            取消
+          </button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{feedbackSuccessVisible}}" class="feedback-success-layer">
+    <view class="feedback-success-card">
+      <view class="feedback-success-icon">✓</view>
+      <view class="feedback-success-title">反馈已提交</view>
+      <view class="feedback-success-message">{{feedbackSuccessMessage}}</view>
+      <view class="feedback-success-countdown"
+        >{{feedbackSuccessSecondsRemaining}} 秒后自动关闭</view
+      >
+      <button
+        class="feedback-success-button"
+        bindtap="closeFeedbackSuccess"
+        aria-label="关闭反馈提交提示"
+      >
+        我知道了
+      </button>
+    </view>
+  </view>
+
+  <view wx:if="{{aboutModalVisible}}" class="profile-modal-mask">
+    <view class="profile-modal-card about-modal-card">
+      <view class="about-hero">
+        <view class="about-eyebrow">🏕️ 寻径星野</view>
+        <view class="about-title">关于寻径星野</view>
+        <view class="about-subtitle">把每次出发前的准备，整理得更安心。</view>
+      </view>
+      <view class="about-body">
+        <view class="about-copy">
+          <view class="about-icon">🧭</view>
+          <view class="about-copy-main">
+            <view class="about-copy-title">出发准备</view>
+            <view class="about-copy-text"
+              >寻径星野是一个面向户外爱好者的个人工具，希望把出发前准备、装备管理、装备图鉴、户外技能复习和离线可用的知识内容慢慢整理到一起。</view
+            >
+          </view>
+        </view>
+        <view class="about-copy">
+          <view class="about-icon">🎒</view>
+          <view class="about-copy-main">
+            <view class="about-copy-title">山野陪伴</view>
+            <view class="about-copy-text"
+              >它不只服务某一次路线或某一类装备，而是想陪伴每一次走向山野之前的准备过程：少一点遗漏，多一点安心。</view
+            >
+          </view>
+        </view>
+        <view class="about-copy">
+          <view class="about-icon">✨</view>
+          <view class="about-copy-main">
+            <view class="about-copy-title">作者的话</view>
+            <view class="about-copy-text"
+              >这个项目由作者在业余时间出于爱好开发，也会按自己的使用感受持续打磨。寻径星野会永久免费，无广告，不做打扰用户的商业化设计。</view
+            >
+          </view>
+        </view>
+        <view class="profile-modal-actions about-actions">
+          <button
+            class="account-inline-button profile-modal-action-button"
+            bindtap="closeAboutModal"
+          >
+            知道了
+          </button>
+        </view>
+      </view>
+    </view>
   </view>
 </view>

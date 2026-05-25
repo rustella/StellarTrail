@@ -1,60 +1,281 @@
-# StellarTrail
+# 🌌 StellarTrail（星径）
 
-StellarTrail is a China-focused outdoor assistant: routes, mountains, gear planning, and field skills in one product.
+> 面向中国户外场景的路线百科、装备准备助手和离线技能工具箱。
 
-## Product scope
+[English](README.en.md)
 
-MVP focuses on:
+<p align="center">
+  <img alt="Language" src="https://img.shields.io/badge/README-%E4%B8%AD%E6%96%87-blue" />
+  <img alt="Rust" src="https://img.shields.io/badge/API-Rust%20%2B%20Axum-orange" />
+  <img alt="WeChat Mini Program" src="https://img.shields.io/badge/Client-WeChat%20Mini%20Program-07C160" />
+  <img alt="Android" src="https://img.shields.io/badge/Client-Android%20%2B%20Compose-3DDC84" />
+  <img alt="iOS" src="https://img.shields.io/badge/Client-iOS%20%2B%20SwiftUI-000000" />
+  <img alt="Content Driven" src="https://img.shields.io/badge/Content-DB%20%2B%20MinIO-8A2BE2" />
+</p>
 
-- WeChat Mini Program first.
-- Rust API service.
-- Content-driven mountain/route/skill catalog.
-- User gear library and route-based packing checklist.
-- Database abstraction prepared for SQLite, PostgreSQL, and MySQL.
+<p align="center">
+  <strong>小程序端可用</strong> · <strong>Android 端可用</strong> · <strong>装备库</strong> · <strong>绳结技能</strong>
+</p>
 
-## Repository layout
+---
+
+## ✨ 项目一眼看懂
+
+StellarTrail 聚焦中国徒步、露营和轻量户外用户，目标是在一个产品里完成「选路线 → 看难度、季节和风险 → 生成装备清单 → 对比个人装备库 → 学习相关技能」的准备闭环。
+
+当前代码已经支持 **微信小程序端** 和 **Android 原生端** 两个用户入口：两端都接入账号登录、个人装备库、绳结技能和个人中心，并复用同一套 Rust 服务能力。Web、iOS、macOS 也保留在仓库中用于展示、管理和 Apple 生态扩展；第一期聚焦 **个人装备库管理**、DB-backed 装备模板和绳结公共技能。路线、山峰模块尚未进入实现阶段。
+
+| 模块          | 当前目标                                   |
+| ------------- | ------------------------------------------ |
+| 📱 客户端     | 微信小程序端 + Android 端已覆盖 MVP 主流程 |
+| 🎒 装备准备   | 管理个人装备库，提供 DB-backed 装备模板    |
+| 🧭 技能工具箱 | 先接入绳结，媒体通过 MinIO/对象存储提供    |
+| 🧱 Rust 服务  | 提供账号、装备、技能、图鉴、反馈和管理能力 |
+| 🗺️ 路线百科   | 后续阶段再实现山峰、路线、难度和风险       |
+
+## 🚀 MVP 范围
+
+第一期重点建设：
+
+- 🧑‍💻 微信小程序端：微信登录、邮箱/用户名 + 密码登录、注册、头像上传、邮箱绑定和 refresh token 会话续期。
+- 🤖 Android 端：邮箱/用户名 + 密码登录、注册、token 本地安全存储、401 自动续期和 Profile 配置入口。
+- 🎒 用户个人装备库 CRUD。
+- 🔎 装备搜索、分类筛选、状态筛选、排序和分页。
+- 📊 装备数量、装备价值、总重量和分类计数统计。
+- 🗃️ 可用装备 / 历史装备（软删除归档与恢复）。
+- 🏷️ 标签、状态与位置、共享开关、备注等字段。
+- 📤 装备 JSON 导入和 CSV 导出。
+- 🧭 装备图鉴公开浏览、个人装备投稿与管理员审核。
+- 💬 反馈图片上传、用户反馈提交与管理员查看。
+- 📡 微信小程序离线只读：断网时可查看已加载过的绳结技能、装备图鉴、个人装备数据和已查看过的绳结媒体。
+- 🗄️ SeaORM 数据访问：本地默认 SQLite，生产推荐 PostgreSQL。
+- ⚡ 可选 Redis read-through cache，提升装备库高频读取接口性能。
+
+暂不包含路线、行程、技能、实时导航、社区信息流、路线交易/带队、完整 GPX 编辑和商城能力。
+
+## 🌱 当前公共数据
+
+| 类型        | 来源                                            |
+| ----------- | ----------------------------------------------- |
+| 🪢 绳结技能 | Knots3D metadata 导入 DB，媒体走 MinIO/对象存储 |
+| 🎒 装备模板 | 服务启动时向 DB 幂等 seed 默认系统模板          |
+
+## 📱 客户端支持
+
+| 客户端       | 当前状态 | 覆盖能力                                                                                        |
+| ------------ | -------- | ----------------------------------------------------------------------------------------------- |
+| 微信小程序端 | 已支持   | 首页、装备库/装备图鉴、绳结技能、我的、登录/注册、头像/邮箱绑定、离线只读缓存与反馈             |
+| Android 端   | 已支持   | Kotlin + Compose 原生应用、登录/注册、装备列表/详情/编辑、技能列表/详情、首页统计、Profile 配置 |
+| Web          | 已接入   | Web App 与管理入口，复用同一套公开数据、装备和管理员能力                                        |
+| iOS / macOS  | 已入仓   | SwiftUI 应用壳与 StellarTrailKit，共享账号、装备和技能模型，继续打磨中                          |
+
+## 🧭 仓库结构
 
 ```text
 StellarTrail/
   apps/
+    android/                # Android 原生端（Kotlin + Jetpack Compose）
+    ios/                    # iOS 原生端（Swift + SwiftUI）
+    web/                    # Web App
     wechat-miniprogram/     # 微信小程序端
   services/
-    api/                    # Rust API server
+    api/                    # Rust axum API 服务
   crates/
-    domain/                 # Shared Rust domain models
-    db/                     # DB config and repository boundary
-    importer/               # Content importer boundary
-    migration/              # Migration boundary
+    domain/                 # 共享 Rust 领域模型
+    db/                     # DB 配置和仓储边界
+    importer/               # Knots3D metadata 导入边界
+    migration/              # 数据迁移边界
   packages/
-    api-client-ts/          # TS API client shared by mini program / web / mobile
-    shared-types/           # TS shared DTOs
-  content/                  # Mountains, routes, skills, gear templates
-  docs/                     # Product, architecture, API, content schema docs
-  infra/                    # Local/dev deployment files
-  scripts/                  # Dev helper scripts
+    api-client-ts/          # 供小程序 / Web / Mobile 复用的 TS API client
+    shared-types/           # TS 共享 DTO 类型
+  docs/                     # 产品、架构、API、内容 schema 文档
+  infra/                    # 本地集成测试与生产部署配置
+  scripts/                  # 开发辅助脚本
 ```
 
-## Quick start
+## ⚡ 快速开始
+
+### 1. 环境要求
+
+- 🦀 Rust stable toolchain（Rust 2024 edition；仓库包含 `rust-toolchain.toml`，需要 `rustfmt` 和 `clippy`）。
+- 🟢 Node.js 22+ 与 npm。
+- 💬 微信开发者工具（调试小程序时需要）。
+- 🤖 Android Studio / Android SDK 36 + JDK 21（调试 Android 端时需要）。
+- 🍎 macOS + Xcode 16+ + XcodeGen（调试 iOS 端和生成页面截图时需要）。
+- ⚡ Redis 7+（可选；配置 `REDIS_URL` 后启用服务端缓存）。
+
+### 2. 安装依赖
 
 ```bash
-# API
-cargo run -p stellartrail-api
-
-# Check Rust workspace
-cargo fmt --all -- --check
-cargo check --workspace
-cargo test --workspace
+npm install
 ```
 
-API defaults to `127.0.0.1:8080` and reads config from environment variables.
+### 3. 启动 API
 
 ```bash
 cp .env.example .env
-DATABASE_URL=sqlite://stellartrail.db cargo run -p stellartrail-api
+# 可选：如果希望用 YAML 管理本地/生产配置，可复制模板到被 Git 忽略的 config.yaml
+cp config.example.yaml config.yaml
+cargo run -p stellartrail-api --bin migrate -- up
+cargo run -p stellartrail-api
 ```
 
-## Naming
+API 默认监听 `127.0.0.1:8080`。启动时会先加载 `.env`，再读取根目录 `config.yaml`（存在时）或 `CONFIG_PATH` 指定的 YAML 文件，最后由环境变量覆盖 YAML 配置。默认数据库地址为 `sqlite://stellartrail.db`。本地可通过 `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true` 启用 mock 登录；正式微信登录需设置 `WECHAT_MOCK_LOGIN=false`、`WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`。邮箱验证码生产投递通过 SMTP：设置 `MAIL_ENABLED=true`、`MAIL_SMTP_HOST=smtp.example.invalid`、`MAIL_SMTP_USERNAME=[REDACTED]`，并通过被忽略的 `config.yaml` 或 secret manager 注入 `MAIL_SMTP_PASSWORD` 和发件人地址。邮箱验证码现在用于注册、邮箱验证码登录和找回密码。如需启用 Redis 缓存，设置 `REDIS_URL=redis://127.0.0.1:6379/0`；`REDIS_GEAR_CACHE_TTL_SECONDS` 控制装备读取缓存 TTL。`config.example.yaml` 会提交到 Git，实际 `config.yaml` / `config.*.yaml` 会被忽略。
 
-- Product: **StellarTrail**
-- Chinese placeholder: **星径**
-- Repository: `StellarTrail`
+可用以下接口做本地冒烟验证：
+
+```bash
+curl http://127.0.0.1:8080/healthz
+curl http://127.0.0.1:8080/api/v1/meta
+```
+
+绳结媒体通过 MinIO/S3-compatible 对象存储上传，公开读接口只返回数据库中的媒体 URL，不再从 `/assets/*` 拼接绳结媒体路径。服务端只维护一组 `minio` 连接配置，反馈图与绳结媒体分别通过 `object_storage.bucket` 和 `knots_media_storage.bucket` 配置业务 bucket。管理员权限存储在数据库 `admin_roles` 表：已有且未删除的 `stellarisw` 用户会在迁移时被 seed 为 `super_admin`，`super_admin` 可通过 `/api/v1/admin/admins` 授予或移除普通 `admin`。`admin` 与 `super_admin` 都可调用 Knots 媒体上传、Gear Atlas 审核、反馈查看和 `GET /api/v1/admin/api-usage`。统计使用异步上报，只保存 matched route 模板和聚合计数，不记录 query、请求体、Authorization、token、Cookie、IP 或 User-Agent。
+
+### 4. 配置客户端访问地址
+
+仓库中的客户端默认使用占位地址：
+
+- API 地址：`https://api.example.invalid`
+- 图片资源 / 允许跨域资源域名：`https://assets.example.invalid`
+
+真实客户端配置文件只保留在本地或构建环境，已被 `.gitignore` 忽略；仓库只提交示例文件。需要调整地址时，复制对应示例文件后修改：
+
+| 客户端     | 示例配置                                                          | 真实配置（不提交）                                        |
+| ---------- | ----------------------------------------------------------------- | --------------------------------------------------------- |
+| Web        | `apps/web/.env.example`                                           | `apps/web/.env.local`                                     |
+| 微信小程序 | `apps/wechat-miniprogram/miniprogram/config.example.ts`           | `apps/wechat-miniprogram/miniprogram/config.ts`           |
+| Android    | `apps/android/config.example.properties`                          | `apps/android/config.properties`                          |
+| iOS        | `apps/ios/StellarTrail/Resources/ClientConfig.example.plist`      | `apps/ios/StellarTrail/Resources/ClientConfig.plist`      |
+| macOS      | `apps/macos/StellarTrailMac/Resources/ClientConfig.example.plist` | `apps/macos/StellarTrailMac/Resources/ClientConfig.plist` |
+
+Web 可通过 `VITE_STELLARTRAIL_API_BASE_URL` 和 `VITE_STELLARTRAIL_ASSETS_BASE_URL` 覆盖；本地 Vite 开发默认使用同源 `/api/v1`，并通过 `VITE_STELLARTRAIL_API_PROXY_TARGET` 代理到真实或本地 API，避免浏览器 CORS 拦截。Android 会在 Gradle 构建时读取 `config.properties` 并写入 `BuildConfig`；iOS/macOS 会优先读取应用 Bundle 内的 `ClientConfig.plist`，缺失时回退到占位地址且不执行生产域名探测。
+
+当前已实现服务能力：
+
+```http
+GET /healthz
+GET /api/v1/meta
+
+POST /api/v1/auth/wechat-login
+POST /api/v1/auth/email-verification-code
+POST /api/v1/auth/email-login-code
+POST /api/v1/auth/email-login
+POST /api/v1/auth/password-reset-code
+POST /api/v1/auth/password-reset
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+POST /api/v1/auth/refresh
+POST /api/v1/auth/captcha
+POST /api/v1/me/email-binding-code
+POST /api/v1/me/email-binding
+GET /api/v1/me/profile
+PUT|POST /api/v1/me/profile/avatar
+
+GET /api/v1/skills
+GET /api/v1/skills/knots/list
+GET /api/v1/skills/knots/filters
+GET /api/v1/skills/knots/offline-manifest
+GET /api/v1/skills/knots/detail/:id
+GET /api/v1/gear-templates
+GET /api/v1/gear-templates/:id
+
+GET /api/v1/gear-atlas
+GET /api/v1/gear-atlas/:id
+GET|POST /api/v1/me/gear-atlas-submissions
+POST /api/v1/me/gears/:id/atlas-submission
+
+GET /api/v1/me/gears/categories
+GET /api/v1/me/gears/stats
+GET /api/v1/me/gears/spec-key-rankings
+GET /api/v1/me/gears/tag-suggestions
+GET|POST /api/v1/me/gears
+GET|PATCH|DELETE /api/v1/me/gears/:id
+POST /api/v1/me/gears/:id/delete
+POST /api/v1/me/gears/:id/undelete
+POST /api/v1/me/gears/:id/restore
+GET /api/v1/me/gears/export
+POST /api/v1/me/gears/import
+
+POST /api/v1/me/uploads
+GET /api/v1/me/uploads/:id
+POST /api/v1/me/feedback
+
+GET /api/v1/admin/api-usage
+POST|DELETE /api/v1/admin/admins
+PUT /api/v1/admin/skills/knots/:knot_id/media/:asset_id
+GET /api/v1/admin/gear-atlas-submissions
+GET|PATCH|DELETE /api/v1/admin/gear-atlas-submissions/:id
+POST /api/v1/admin/gear-atlas-submissions/:id/restore
+POST /api/v1/admin/gear-atlas-submissions/:id/approve
+POST /api/v1/admin/gear-atlas-submissions/:id/reject
+GET /api/v1/admin/feedback
+DELETE /api/v1/admin/feedback/:id
+POST /api/v1/admin/feedback/:id/restore
+GET /api/v1/admin/feedback-images/:id
+```
+
+### 5. 使用 Docker Compose 启动 PostgreSQL + Redis + API
+
+也可以用 Docker Compose 启动一次性本地集成测试：
+
+```bash
+COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=15432 REDIS_HOST_PORT=16379 \
+  bash infra/test/integration-test.sh
+```
+
+该脚本会启动 PostgreSQL、Redis 缓存和 API 服务，使用账号注册、密码登录、邮箱验证码登录和找回密码做 curl 冒烟测试，并在测试结束或失败时自动执行 `docker compose down -v --remove-orphans` 关闭并清理容器；生产环境请通过安全渠道注入真实微信、数据库和 SMTP 密钥。
+
+### 6. 生产 Docker / Traefik 部署配置
+
+生产部署配置拆分在 `infra/production/` 下，目标服务器部署根目录为 `/www/service/stellartail`：
+
+- `infra/production/traefik/docker-compose.yml`：唯一公网入口，暴露 80/443，并通过 Let’s Encrypt 自动申请和续期证书。
+- `infra/production/site/docker-compose.yml`：官网，`site.example.invalid` 为 canonical；`www.example.invalid` 通过 Traefik 301 到 apex。
+- `infra/production/web/docker-compose.yml`：Web App，域名 `app.example.invalid`。
+- `infra/production/api/docker-compose.yml`：后端 API 与私有依赖组件 PostgreSQL、Redis、MinIO；API 可通过 Docker 服务名 `postgres`、`redis`、`minio` 访问组件，根目录 `config.yaml` 挂载到容器 `/app/config.yaml:ro`，并通过 `infra/production/api/compose-from-config.sh` 派生 PostgreSQL、Redis、MinIO 的 Compose 运行变量；`assets.example.invalid` 只通过 Traefik 指向 MinIO API，MinIO console 不直接公网暴露。
+- `infra/production/domains.example.yaml` 与 `infra/production/api/config.production.example.yaml`：可提交的非敏感域名 / API 配置示例。
+
+生产 API 不再使用 `infra/production/api/.env`；真实 `config.yaml`、ACME storage 和生产密钥文件必须保留在生产服务器或安全渠道中，仓库 `.gitignore` 会忽略这些文件；API 配置只提交 `config.example.yaml` 和 `*.example.yaml`。
+
+### 7. 打开微信小程序
+
+用微信开发者工具打开 `apps/wechat-miniprogram`。项目配置中的 `miniprogramRoot` 指向 `miniprogram/`。当前小程序端已覆盖首页、装备库、装备图鉴、绳结技能、我的、登录/注册、头像/邮箱绑定、反馈和离线只读缓存。
+
+### 8. Android 原生端
+
+Android 应用位于 `apps/android`，使用 Kotlin、Jetpack Compose、Material 3、Navigation Compose、Ktor Client 与 kotlinx.serialization。已覆盖首页、登录/注册、装备列表/详情/新增/编辑、技能列表/详情和 Profile 设置。构建时从 `apps/android/config.properties` 读取默认 API 和图片资源地址；本地联调可复制示例后改为 `http://10.0.2.2:8080`，也可在 Profile 页面临时覆盖 API Base URL。
+
+```bash
+./gradlew :apps:android:assembleDebug
+./gradlew :apps:android:testDebugUnitTest
+./gradlew :apps:android:lintDebug
+```
+
+## 🧪 常用检查命令
+
+```bash
+# 前端 / TypeScript workspace 检查
+npm run check
+
+# Markdown / JSON / YAML / TS 等格式检查
+npm run format:check
+
+# Rust workspace 检查
+cargo fmt --all -- --check
+cargo check --workspace
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+```
+
+## 📚 文档索引
+
+- 📌 [MVP 范围](docs/mvp.md)
+- 🏗️ [架构说明](docs/architecture.md)
+- 🔌 [API 草案](docs/api.md)
+- 🧩 [公共数据说明](docs/content-schema.md)
+
+## 🏷️ 命名约定
+
+- 产品名：**StellarTrail**
+- 中文占位名：**星径**
+- 仓库名：`StellarTrail`

@@ -1,0 +1,18 @@
+@import "../../gears/detail/index.wxss";
+
+.atlas-detail-page {
+  min-height: 100vh;
+  padding: 28rpx 28rpx 64rpx;
+  background: var(--page-bg);
+  box-sizing: border-box;
+  color: var(--text-color);
+}
+
+.atlas-status {
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  color: var(--status-success-text);
+  background: var(--status-success-bg);
+  font-size: 22rpx;
+  font-weight: 800;
+}

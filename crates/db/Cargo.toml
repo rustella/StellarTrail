@@ -7,4 +7,19 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+async-trait.workspace = true
+hex.workspace = true
+sea-orm.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+stellartrail-domain = { path = "../domain" }
+sha2.workspace = true
 thiserror.workspace = true
+time.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+sea-orm-migration.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+stellartrail-migration = { path = "../migration" }

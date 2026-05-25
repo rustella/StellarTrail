@@ -1,0 +1,11 @@
+# XcodeGen output can be regenerated from project.yml.
+StellarTrail.xcodeproj/
+DerivedData/
+build/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# Local screenshot and simulator artifacts.
+Screenshots/
+*.xcresult

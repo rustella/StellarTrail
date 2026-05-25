@@ -1,0 +1,7 @@
+.hermes/
+target/
+node_modules/
+.agent/
+skills/
+AGENTS.md
+CLAUDE.md

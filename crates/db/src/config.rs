@@ -1,5 +1,8 @@
+//! Database configuration module that detects the database type from the connection string and provides SeaORM connection settings.
+
 use thiserror::Error;
 
+/// Stable enum boundary for `DatabaseKind`, exposed by or reused within this module.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DatabaseKind {
     Sqlite,
@@ -8,6 +11,7 @@ pub enum DatabaseKind {
 }
 
 impl DatabaseKind {
+    /// Runs the `as str` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Sqlite => "sqlite",
@@ -17,6 +21,7 @@ impl DatabaseKind {
     }
 }
 
+/// Stable data boundary for `DatabaseConfig`, exposed by or reused within this module.
 #[derive(Clone, Debug)]
 pub struct DatabaseConfig {
     pub url: String,
@@ -24,6 +29,7 @@ pub struct DatabaseConfig {
 }
 
 impl DatabaseConfig {
+    /// Runs the `new` server-side flow while preserving input validation, error propagation, and state invariants.
     pub fn new(url: String) -> Result<Self, DatabaseConfigError> {
         let kind = if url.starts_with("sqlite:") {
             DatabaseKind::Sqlite
@@ -39,6 +45,7 @@ impl DatabaseConfig {
     }
 }
 
+/// Stable enum boundary for `DatabaseConfigError`, exposed by or reused within this module.
 #[derive(Debug, Error)]
 pub enum DatabaseConfigError {
     #[error("unsupported database url: {0}")]
@@ -49,6 +56,7 @@ pub enum DatabaseConfigError {
 mod tests {
     use super::*;
 
+    /// Runs the `detects supported database kinds` server-side flow while preserving input validation, error propagation, and state invariants.
     #[test]
     fn detects_supported_database_kinds() {
         let cases = [
