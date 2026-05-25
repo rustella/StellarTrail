@@ -1,6 +1,6 @@
 # 🌌 StellarTrail (Xunjing Xingye)
 
-> A China-focused gear-prep, route-inspiration, and offline field-skills toolbox.
+> An outdoor gear organization, route planning, and field-skills toolbox.
 
 [中文](README.md)
 
@@ -18,24 +18,25 @@
 </p>
 
 <p align="center">
-  <strong>WeChat Mini Program and Web are ready</strong> · <strong>Most complete experiences today</strong> · <strong>Native mobile is paused</strong>
+  <strong>WeChat Mini Program and Web are ready</strong> · <strong>Native mobile is paused</strong>
 </p>
 
 ---
 
 ## ✨ At a glance
 
-StellarTrail serves hikers, campers, and lightweight outdoor users in China. The product is designed around one preparation loop: explore route inspiration, prepare gear, compare it with the user's gear library, learn related field skills, and keep feedback flowing back into the product.
+StellarTrail serves hikers, campers, and lightweight outdoor users. The app is organized around **gear organization**, **route planning**, **outdoor skills**, and the related preparation workflows around them.
 
-The most complete, directly usable entry points today are the **WeChat Mini Program** and **Web**. Both share the same Rust API and cover account access, personal gear, gear atlas, knot skills, feedback, and admin capabilities. Android, iOS, and HarmonyOS are currently unavailable and are not delivery targets for the active product.
+The directly usable entry points today are the **WeChat Mini Program** and **Web**. Both share the same Rust API and cover account access, personal gear, gear atlas, knot skills, and feedback. Web adds administrator capabilities on top of the other client surfaces. Android, iOS, and HarmonyOS are currently unavailable and are not delivery targets for the active product.
 
 | Area              | Current status                                                            |
 | ----------------- | ------------------------------------------------------------------------- |
-| 📱 Entry points   | WeChat Mini Program + Web are ready and are the most complete experiences |
-| 🎒 Gear prep      | Personal gear, gear atlas, and DB-backed gear templates                   |
+| 📱 Entry points   | WeChat Mini Program + Web are ready                                       |
+| 🎒 Gear org       | Personal gear, gear atlas, and DB-backed gear templates                   |
+| 🗺️ Route planning | Route-planning capabilities are still being developed                     |
 | 🧭 Skills toolbox | Knot skills are live; media is delivered through MinIO/object storage     |
 | 🧱 Rust service   | Account, gear, skills, feedback, upload, admin, and usage-reporting flows |
-| 🧪 Native mobile  | Android / iOS / HarmonyOS are currently unavailable and not shipped       |
+| 🧪 Native mobile  | Android / iOS / HarmonyOS are currently unavailable                       |
 
 ## 🟢 WeChat Mini Program
 
@@ -56,13 +57,13 @@ The most complete, directly usable entry points today are the **WeChat Mini Prog
 
 ## 📱 Client support
 
-| Client              | Status                  | Notes                                                                                                     |
-| ------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| WeChat Mini Program | Ready, feature-complete | Home, gear library, gear atlas, knot skills, profile, login/registration, feedback, and offline read-only |
-| Web                 | Ready, feature-complete | Web App and admin-facing surfaces sharing public data, gear, feedback, upload, admin, and usage reporting |
-| Android             | Unavailable             | Code remains in the repository, but it is not a runnable delivery target today                            |
-| iOS                 | Unavailable             | Code remains in the repository, but it is not a runnable delivery target today                            |
-| HarmonyOS           | Unavailable             | Not connected as an active delivery client                                                                |
+| Client              | Status      | Notes                                                                                                     |
+| ------------------- | ----------- | --------------------------------------------------------------------------------------------------------- |
+| WeChat Mini Program | Ready       | Home, gear library, gear atlas, knot skills, profile, login/registration, feedback, and offline read-only |
+| Web                 | Ready       | Covers the core client capabilities and adds administrator features                                       |
+| Android             | Unavailable | Code remains in the repository, but it is not a runnable delivery target today                            |
+| iOS                 | Unavailable | Code remains in the repository, but it is not a runnable delivery target today                            |
+| HarmonyOS           | Unavailable | Not connected as an active delivery client                                                                |
 
 ## 🧭 Repository layout
 
@@ -71,8 +72,9 @@ StellarTrail/
   apps/
     android/                # Android native client (Kotlin + Jetpack Compose)
     ios/                    # iOS native client (Swift + SwiftUI)
-    web/                    # Web App
-    wechat-miniprogram/     # WeChat Mini Program client
+    macos/                  # macOS native client (Swift + SwiftUI)
+    web/                    # Web App (TypeScript + Vite)
+    wechat-miniprogram/     # WeChat Mini Program client (TypeScript + WXML + WXSS)
   services/
     api/                    # Rust axum API service
   crates/
@@ -131,7 +133,7 @@ Checked-in clients default to placeholder endpoints:
 - API base URL: `https://api.example.invalid`
 - Image asset / CORS asset origin: `https://assets.example.invalid`
 
-Real client config files stay local or in the build environment and are ignored by Git; the repository commits only example files. Copy the matching example when you need to override endpoints:
+Copy the matching example when you need to override client endpoints:
 
 | Client              | Example config                                          | Real config (do not commit)                     |
 | ------------------- | ------------------------------------------------------- | ----------------------------------------------- |

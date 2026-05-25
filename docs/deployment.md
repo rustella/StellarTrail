@@ -19,6 +19,17 @@ COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=1543
 docker compose -f infra/test/docker-compose.yml config
 ```
 
+## 客户端配置文件
+
+真实客户端配置文件只保留在本地或构建环境，已被 `.gitignore` 忽略；仓库只提交示例文件。需要调整地址时，复制对应示例文件后修改：
+
+| 客户端     | 示例配置                                                | 真实配置（不提交）                              |
+| ---------- | ------------------------------------------------------- | ----------------------------------------------- |
+| Web        | `apps/web/.env.example`                                 | `apps/web/.env.local`                           |
+| 微信小程序 | `apps/wechat-miniprogram/miniprogram/config.example.ts` | `apps/wechat-miniprogram/miniprogram/config.ts` |
+
+Web 可通过 `VITE_STELLARTRAIL_API_BASE_URL` 和 `VITE_STELLARTRAIL_ASSETS_BASE_URL` 覆盖；本地 Vite 开发默认使用同源 `/api/v1`，并通过 `VITE_STELLARTRAIL_API_PROXY_TARGET` 代理到真实或本地 API，避免浏览器 CORS 拦截。微信小程序端会读取 `miniprogram/config.ts`，缺失时回退到占位地址。
+
 ## 生产 Docker / Traefik
 
 生产部署配置拆分在 `infra/production/` 下，目标服务器部署根目录为 `/www/service/stellartail`：
