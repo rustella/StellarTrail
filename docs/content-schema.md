@@ -9,8 +9,11 @@ Repo-local `content/` seed folders have been removed. API startup no longer read
 - `GET /api/v1/skills`
 - `GET /api/v1/skills/knots/list`
 - `GET /api/v1/skills/knots/detail/:id`
+- `GET /api/v1/skills/knots/offline-manifest`
 
 媒体二进制不进入 JSON 文件或 repo-local assets。管理员上传接口把媒体写入 MinIO/S3-compatible object storage，并将公开 URL 写入数据库；公开读接口只返回 DB 中 active media 的公共字段。
+
+本地化别名从 Knots3D `languages.<locale>.aliases` 读取，存入 `knot_localizations.aliases_json`。别名跟随当前 locale fallback，公开 list/detail/offline payload 始终返回 `aliases` 数组；列表搜索 `q` 会匹配别名，但不会把 `meta_keywords`、ABOK、source slug 或 raw metadata 当作公开别名。
 
 ## Public locale model
 

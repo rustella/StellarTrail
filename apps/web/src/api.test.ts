@@ -253,6 +253,7 @@ describe("StellarTrailApiClient public knot requests", () => {
             slug: "adjustable-grip",
             title: "可调节绳结",
             summary: "调节绳索上的张力。",
+            aliases: [],
             description: null,
             steps: [],
             categories: [],

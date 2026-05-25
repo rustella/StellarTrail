@@ -107,7 +107,7 @@ async fn knot_list(
     let category = query.get("category").map(String::as_str);
     let q = query.get("q").map(String::as_str);
     let normalized_input = format!(
-        "v3|{}|offset={offset}|limit={limit}|category={}|q={}",
+        "v4|{}|offset={offset}|limit={limit}|category={}|q={}",
         locale.as_str(),
         category.unwrap_or_default(),
         q.unwrap_or_default()
@@ -166,7 +166,7 @@ async fn knot_offline_manifest(
         &headers,
         locale,
         "skills-knots-offline-manifest",
-        &format!("v3|{}", locale.as_str()),
+        &format!("v4|{}", locale.as_str()),
         || async {
             state
                 .knot_repository()
@@ -186,7 +186,7 @@ async fn knot_detail(
 ) -> Result<Response, ApiError> {
     reject_query_locale(&query)?;
     let locale = resolve_locale(&headers)?;
-    let normalized_input = format!("v3|{}|id={id}", locale.as_str());
+    let normalized_input = format!("v4|{}|id={id}", locale.as_str());
     cached_localized_json_with(
         &state,
         &headers,
@@ -285,6 +285,7 @@ async fn list_favorite_skills(
                 slug: detail.slug.clone(),
                 title: detail.title.clone(),
                 summary: detail.summary.clone(),
+                aliases: detail.aliases.clone(),
                 categories: detail.categories.clone(),
                 types: detail.types.clone(),
                 media: detail.media.clone(),

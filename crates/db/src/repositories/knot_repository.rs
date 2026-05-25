@@ -87,10 +87,12 @@ impl KnotRepository {
             for localization in &knot.localizations {
                 let steps_json = serde_json::to_string(&localization.steps)
                     .map_err(|err| DbErr::Custom(err.to_string()))?;
+                let aliases_json = serde_json::to_string(&localization.aliases)
+                    .map_err(|err| DbErr::Custom(err.to_string()))?;
                 tx.execute(statement(
                     backend,
-                    "INSERT INTO knot_localizations(knot_id, locale, slug, title, summary, description, steps_json) \
-                     VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO knot_localizations(knot_id, locale, slug, title, summary, description, steps_json, aliases_json) \
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     vec![
                         knot.id.clone().into(),
                         localization.locale.as_str().to_owned().into(),
@@ -99,6 +101,7 @@ impl KnotRepository {
                         localization.summary.clone().into(),
                         localization.description.clone().into(),
                         steps_json.into(),
+                        aliases_json.into(),
                     ],
                 ))
                 .await?;
@@ -288,17 +291,13 @@ impl KnotRepository {
             .collect::<Result<Vec<_>, _>>()?;
 
         let query = q
-            .map(|value| value.trim().to_lowercase())
+            .map(normalize_search_text)
             .filter(|value| !value.is_empty());
         let mut summaries = Vec::with_capacity(ids.len());
         for id in ids {
             if let Some(detail) = self.detail(&id, locale).await? {
                 let matches_query = match query.as_ref() {
-                    Some(needle) => {
-                        detail.title.to_lowercase().contains(needle)
-                            || detail.summary.to_lowercase().contains(needle)
-                            || detail.id.to_lowercase().contains(needle)
-                    }
+                    Some(needle) => knot_matches_query(&detail, needle),
                     None => true,
                 };
                 if matches_query {
@@ -307,6 +306,7 @@ impl KnotRepository {
                         slug: detail.slug.clone(),
                         title: detail.title.clone(),
                         summary: detail.summary.clone(),
+                        aliases: detail.aliases.clone(),
                         categories: detail.categories.clone(),
                         types: detail.types.clone(),
                         media: detail.media.clone(),
@@ -408,6 +408,7 @@ impl KnotRepository {
                 slug: localization.slug.clone(),
                 title: localization.title.clone(),
                 summary: localization.summary.clone(),
+                aliases: localization.aliases.clone(),
                 description: localization.description.clone(),
                 steps: localization.steps.clone(),
                 categories: categories.get(&id).cloned().unwrap_or_default(),
@@ -447,6 +448,7 @@ impl KnotRepository {
             slug: localization.slug,
             title: localization.title,
             summary: localization.summary,
+            aliases: localization.aliases,
             description: localization.description,
             steps: localization.steps,
             categories: fetch_categories(&self.db, id, locale).await?,
@@ -464,6 +466,7 @@ struct KnotLocalizationRow {
     summary: String,
     description: Option<String>,
     steps: Vec<String>,
+    aliases: Vec<String>,
 }
 
 async fn fetch_knot_localization(
@@ -475,21 +478,21 @@ async fn fetch_knot_localization(
         let row = db
             .query_one(statement(
                 db.get_database_backend(),
-                "SELECT slug, title, summary, description, steps_json \
+                "SELECT slug, title, summary, description, steps_json, aliases_json \
                  FROM knot_localizations WHERE knot_id = ? AND locale = ?",
                 vec![id.to_owned().into(), candidate.as_str().to_owned().into()],
             ))
             .await?;
         if let Some(row) = row {
             let steps_json: String = row.try_get("", "steps_json")?;
-            let steps = serde_json::from_str::<Vec<String>>(&steps_json)
-                .map_err(|err| DbErr::Custom(err.to_string()))?;
+            let aliases_json: String = row.try_get("", "aliases_json")?;
             return Ok(Some(KnotLocalizationRow {
                 slug: row.try_get("", "slug")?,
                 title: row.try_get("", "title")?,
                 summary: row.try_get("", "summary")?,
                 description: row.try_get("", "description")?,
-                steps,
+                steps: parse_string_array_json("steps_json", &steps_json)?,
+                aliases: parse_string_array_json("aliases_json", &aliases_json)?,
             }));
         }
     }
@@ -504,7 +507,7 @@ async fn fetch_all_knot_localizations(
     let rows = db
         .query_all(statement(
             db.get_database_backend(),
-            "SELECT knot_id, locale, slug, title, summary, description, steps_json \
+            "SELECT knot_id, locale, slug, title, summary, description, steps_json, aliases_json \
              FROM knot_localizations WHERE locale IN (?, ?) ORDER BY knot_id ASC",
             vec![
                 fallbacks[0].as_str().to_owned().into(),
@@ -519,8 +522,7 @@ async fn fetch_all_knot_localizations(
             continue;
         };
         let steps_json: String = row.try_get("", "steps_json")?;
-        let steps = serde_json::from_str::<Vec<String>>(&steps_json)
-            .map_err(|err| DbErr::Custom(err.to_string()))?;
+        let aliases_json: String = row.try_get("", "aliases_json")?;
         candidates
             .entry(row.try_get("", "knot_id")?)
             .or_default()
@@ -531,7 +533,8 @@ async fn fetch_all_knot_localizations(
                     title: row.try_get("", "title")?,
                     summary: row.try_get("", "summary")?,
                     description: row.try_get("", "description")?,
-                    steps,
+                    steps: parse_string_array_json("steps_json", &steps_json)?,
+                    aliases: parse_string_array_json("aliases_json", &aliases_json)?,
                 },
             ));
     }
@@ -549,6 +552,38 @@ async fn fetch_all_knot_localizations(
         }
     }
     Ok(selected)
+}
+
+fn parse_string_array_json(field: &str, raw: &str) -> Result<Vec<String>, DbErr> {
+    serde_json::from_str::<Vec<String>>(raw)
+        .map_err(|err| DbErr::Custom(format!("invalid {field}: {err}")))
+}
+
+fn knot_matches_query(detail: &KnotDetail, needle: &str) -> bool {
+    search_matches(&detail.title, needle)
+        || search_matches(&detail.summary, needle)
+        || detail
+            .description
+            .as_deref()
+            .is_some_and(|value| search_matches(value, needle))
+        || search_matches(&detail.id, needle)
+        || search_matches(&detail.slug, needle)
+        || detail
+            .aliases
+            .iter()
+            .any(|alias| search_matches(alias, needle))
+}
+
+fn search_matches(value: &str, needle: &str) -> bool {
+    normalize_search_text(value).contains(needle)
+}
+
+fn normalize_search_text(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 async fn fetch_category_filter_option(

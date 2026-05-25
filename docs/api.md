@@ -346,7 +346,9 @@ X-StellarTrail-Locale: en
 
 核心媒体 `asset_id` / `media_type`：`thumbnail`、`preview`、`draw_gif`、`turntable_gif`、`draw_mp4`、`turntable_mp4`。Knots3D 全量一期验收目标为 `225 knots × 6 core media = 1350`。
 
-绳结分页参数为 `offset`/`limit`，筛选参数为 `category`，关键词为 `q`；响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`，也不再接受 `difficulty`。`/api/v1/skills/knots/filters` 返回当前语言下可选用途及数量。`/api/v1/skills/knots/offline-manifest` 不接受 query 参数，返回完整离线清单、`item_count`、去重后的 `media_count` 和 `estimated_bytes`，并复用 public response cache 与 `ETag`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`。
+绳结本地化别名保存在 `knot_localizations.aliases_json`，与当前 locale 的 `title`、`summary`、`description` 和 `steps_json` 同行。公开 `list`、`detail`、`offline-manifest` 以及收藏清单中的绳结摘要都返回 `aliases: string[]`；没有别名时返回空数组。生产补齐别名只允许运行 `backfill-knot-localization-aliases --from-raw-db`，不得重跑会重建绳结和级联媒体映射的 `import-knots3d`。
+
+绳结分页参数为 `offset`/`limit`，筛选参数为 `category`，关键词为 `q`；`q` 会匹配当前语言的 `title`、`summary`、`description`、`id`、`slug` 和 `aliases[]`。响应字段为 `next_offset`，不返回 `cursor`/`next_cursor`，也不再接受 `difficulty`。`/api/v1/skills/knots/filters` 返回当前语言下可选用途及数量。`/api/v1/skills/knots/offline-manifest` 不接受 query 参数，返回完整离线清单、`item_count`、去重后的 `media_count` 和 `estimated_bytes`，并复用 public response cache 与 `ETag`。public response 不暴露 `zh_slug`、`english_slug`、`source_slug_zh`、`source_slug_en`、raw metadata、bucket、object key 或 storage endpoint。
 
 微信端进入绳结列表和首页展示绳结精选前，必须用登录态确认当前账号已同意绳结教程免责声明。`GET /api/v1/me/skills/knots/disclaimer` 返回当前声明 `key`、`version`、`title`、`content`、`accepted` 和 `accepted_at`；`POST /api/v1/me/skills/knots/disclaimer/acceptance` 接受可选的 `client_platform`、`client_version`、`device_model`，幂等写入 `user_disclaimer_acceptances` 留档。同一账号同一声明版本只保存一条记录；声明版本升级后需要重新同意。当前 `v1` 声明按“个人兴趣免费整理、仅供学习和非承重练习、不得直接用于承载人体/攀登/救援/吊装/高空/航海安全等场景、法定责任除外”的保守口径提供；微信端绳结详情页也必须在来源说明前展示同一安全边界提示。
 

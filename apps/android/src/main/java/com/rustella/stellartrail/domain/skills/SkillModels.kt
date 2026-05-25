@@ -60,6 +60,7 @@ data class KnotSummary(
     val types: List<KnotTaxonomyItem> = emptyList(),
     val media: List<KnotMediaAsset> = emptyList(),
     val href: String,
+    val aliases: List<String> = emptyList(),
 )
 
 @Serializable
@@ -82,6 +83,7 @@ data class KnotDetail(
     val description: String? = null,
     val steps: List<String> = emptyList(),
     val locale: SkillLocale,
+    val aliases: List<String> = emptyList(),
 )
 
 data class ListKnotsRequest(

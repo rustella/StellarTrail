@@ -175,6 +175,7 @@ export interface KnotSummary {
   slug: string;
   title: string;
   summary: string;
+  aliases: string[];
   categories: KnotTaxonomyItem[];
   types: KnotTaxonomyItem[];
   media: KnotMediaAsset[];

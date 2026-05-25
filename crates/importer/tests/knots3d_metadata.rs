@@ -52,12 +52,83 @@ fn parses_compact_knots3d_metadata_into_internal_seed_without_public_slug_leakag
             .summary,
         "Adjust tension on a line."
     );
+    assert!(
+        knot.localizations
+            .iter()
+            .find(|l| l.locale == Locale::En)
+            .unwrap()
+            .aliases
+            .is_empty()
+    );
     assert_eq!(knot.categories[0].id, "camping-knots");
     assert_eq!(knot.types[0].id, "hitch-knots");
     assert!(
         knot.media
             .iter()
             .any(|m| m.path == "skills/knots/adjustable-grip-hitch-knot/thumbnail.webp")
+    );
+}
+
+#[test]
+fn parses_knots3d_aliases_from_language_metadata() {
+    let raw = r#"
+    {
+      "items": [
+        {
+          "id": "adjustable-grip-hitch-knot",
+          "english_slug": "adjustable-grip-hitch-knot",
+          "zh_slug": "ke-tiao-jie-sheng-jie",
+          "english_name": "Adjustable Grip Hitch",
+          "chinese_name": "可调节绳结",
+          "meta_keywords": ["ignored keyword"],
+          "subtitle": "ignored subtitle",
+          "languages": {
+            "en": {
+              "aliases": [
+                " Adjustable Loop ",
+                "Cawley   Adjustable Hitch",
+                "adjustable loop",
+                "Adjustable Grip Hitch",
+                "",
+                42
+              ]
+            },
+            "zh-CN": {
+              "aliases": [
+                " 可调节活结 ",
+                "考利   可调节套结",
+                "可调节活结",
+                "可调节绳结"
+              ]
+            }
+          }
+        }
+      ]
+    }
+    "#;
+
+    let seeds = parse_knots3d_metadata(raw).expect("parse");
+    let en = seeds[0]
+        .localizations
+        .iter()
+        .find(|localization| localization.locale == Locale::En)
+        .expect("en localization");
+    let zh = seeds[0]
+        .localizations
+        .iter()
+        .find(|localization| localization.locale == Locale::ZhCn)
+        .expect("zh localization");
+
+    assert_eq!(
+        en.aliases,
+        vec![
+            "Adjustable Loop".to_owned(),
+            "Cawley Adjustable Hitch".to_owned()
+        ]
+    );
+    assert_eq!(
+        zh.aliases,
+        vec!["可调节活结".to_owned(), "考利 可调节套结".to_owned()]
     );
 }
 

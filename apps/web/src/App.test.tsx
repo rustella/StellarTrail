@@ -20,6 +20,7 @@ const sampleKnotSummary = {
   slug: "ke-tiao-jie-sheng-jie",
   title: "可调节绳结",
   summary: "调节绳索上的张力。",
+  aliases: ["可调节活结", "考利可调节套结"],
   categories: [
     { id: "camping-knots", slug: "lu-ying-sheng-jie", title: "露营绳结" },
   ],

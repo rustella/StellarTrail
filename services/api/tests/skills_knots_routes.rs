@@ -46,6 +46,10 @@ fn sample_knot() -> KnotSeed {
                 slug: "adjustable-grip-hitch-knot".to_owned(),
                 title: "Adjustable Grip Hitch".to_owned(),
                 summary: "Adjust tension on a line.".to_owned(),
+                aliases: vec![
+                    "Adjustable Loop".to_owned(),
+                    "Cawley Adjustable Hitch".to_owned(),
+                ],
                 description: Some("A practical hitch for tensioning guylines.".to_owned()),
                 steps: vec!["Wrap the working end around the standing part.".to_owned()],
             },
@@ -54,6 +58,7 @@ fn sample_knot() -> KnotSeed {
                 slug: "ke-tiao-jie-sheng-jie".to_owned(),
                 title: "可调节绳结".to_owned(),
                 summary: "调节绳索上的张力。".to_owned(),
+                aliases: vec!["可调节活结".to_owned(), "考利可调节套结".to_owned()],
                 description: Some("适合风绳和营绳张力调节。".to_owned()),
                 steps: vec!["将绳头绕过主绳。".to_owned()],
             },
@@ -115,6 +120,7 @@ fn technical_knot() -> KnotSeed {
                 slug: "figure-eight-knot".to_owned(),
                 title: "Figure Eight Knot".to_owned(),
                 summary: "Stopper knot for rope ends.".to_owned(),
+                aliases: vec!["Flemish Knot".to_owned()],
                 description: Some("A compact stopper for rope ends.".to_owned()),
                 steps: vec!["Form an eight shape.".to_owned()],
             },
@@ -123,6 +129,7 @@ fn technical_knot() -> KnotSeed {
                 slug: "ba-zi-jie".to_owned(),
                 title: "八字结".to_owned(),
                 summary: "用于绳端防脱的基础结。".to_owned(),
+                aliases: vec!["八字扣".to_owned()],
                 description: Some("适合作为绳端止动。".to_owned()),
                 steps: vec!["绕出八字形。".to_owned()],
             },
@@ -661,7 +668,34 @@ async fn knots_list_combines_category_and_keyword_filters() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["items"].as_array().unwrap().len(), 1);
     assert_eq!(body["items"][0]["id"], "adjustable-grip-hitch-knot");
+    assert_eq!(body["items"][0]["aliases"][0], "可调节活结");
     assert_eq!(body["page"]["next_offset"], Value::Null);
+
+    let (status, _headers, body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&q=%E8%80%83%E5%88%A9")
+            .header("X-StellarTrail-Locale", "zh-CN")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["items"].as_array().unwrap().len(), 1);
+    assert_eq!(body["items"][0]["id"], "adjustable-grip-hitch-knot");
+
+    let (status, _headers, body) = json_response(
+        &app.router,
+        Request::builder()
+            .uri("/api/v1/skills/knots/list?offset=0&limit=20&category=camping-knots&q=Cawley")
+            .header("X-StellarTrail-Locale", "en")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["items"].as_array().unwrap().len(), 1);
+    assert_eq!(body["items"][0]["aliases"][1], "Cawley Adjustable Hitch");
 
     let (status, _headers, body) = json_response(
         &app.router,
@@ -819,6 +853,10 @@ async fn favorite_skill_routes_soft_delete_and_restore_user_knot_favorites() {
     assert_eq!(body["filters"][1]["count"], 2);
     assert_eq!(body["items"].as_array().unwrap().len(), 2);
     assert_eq!(body["items"][0]["knot"]["id"], "adjustable-grip-hitch-knot");
+    assert_eq!(
+        body["items"][0]["knot"]["aliases"][1],
+        "Cawley Adjustable Hitch"
+    );
     assert_eq!(body["items"][0]["skill_category"], "knots");
     assert!(body["items"][0]["favorited_at"].is_string());
     assert_eq!(body["page"]["next_offset"], Value::Null);
@@ -977,6 +1015,7 @@ async fn knots_list_uses_offset_pagination_and_hides_source_slugs() {
     assert_eq!(body["page"]["next_offset"], Value::Null);
     assert_eq!(body["items"][0]["id"], "adjustable-grip-hitch-knot");
     assert_eq!(body["items"][0]["title"], "Adjustable Grip Hitch");
+    assert_eq!(body["items"][0]["aliases"][0], "Adjustable Loop");
     let serialized = body.to_string();
     assert!(!serialized.contains("cursor"));
     assert!(!serialized.contains("next_cursor"));
@@ -1005,6 +1044,7 @@ async fn knot_detail_returns_media_resource_urls_from_db_and_no_language_specifi
     assert_eq!(body["id"], "adjustable-grip-hitch-knot");
     assert_eq!(body["title"], "可调节绳结");
     assert_eq!(body["slug"], "ke-tiao-jie-sheng-jie");
+    assert_eq!(body["aliases"][1], "考利可调节套结");
     assert_eq!(
         body["media"][0]["url"],
         "https://minio-a.example.com/stellartrail-knots-media/skills/knots/adjustable-grip-hitch-knot/thumbnail/hash-a.webp"
@@ -1059,6 +1099,7 @@ async fn knot_offline_manifest_returns_complete_payload_with_deduped_media_estim
     assert_eq!(body["estimated_bytes"], 746348);
     assert_eq!(body["items"][0]["id"], "adjustable-grip-hitch-knot");
     assert_eq!(body["items"][0]["title"], "可调节绳结");
+    assert_eq!(body["items"][0]["aliases"][0], "可调节活结");
     assert_eq!(body["items"][0]["steps"][0], "将绳头绕过主绳。");
     assert_eq!(
         body["items"][0]["media"][0]["url"],

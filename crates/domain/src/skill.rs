@@ -70,6 +70,7 @@ pub struct KnotSummary {
     pub slug: String,
     pub title: String,
     pub summary: String,
+    pub aliases: Vec<String>,
     pub categories: Vec<KnotTaxonomyItem>,
     pub types: Vec<KnotTaxonomyItem>,
     pub media: Vec<KnotMediaAsset>,
@@ -83,6 +84,7 @@ pub struct KnotDetail {
     pub slug: String,
     pub title: String,
     pub summary: String,
+    pub aliases: Vec<String>,
     pub description: Option<String>,
     pub steps: Vec<String>,
     pub categories: Vec<KnotTaxonomyItem>,
@@ -135,6 +137,7 @@ pub struct KnotLocalizationSeed {
     pub slug: String,
     pub title: String,
     pub summary: String,
+    pub aliases: Vec<String>,
     pub description: Option<String>,
     pub steps: Vec<String>,
 }
