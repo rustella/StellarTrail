@@ -13,3 +13,4 @@ Before handoff:
 - [ ] The most relevant tests, lint, format, or build commands were run.
 - [ ] `git diff --check` was run or an explicit reason was provided.
 - [ ] The final response lists changed files, validation results, and remaining risks.
+- [ ] After code edits, commits, pushes, or PR/MR creation, the final response includes the worktree path, branch name, relevant commit hashes and messages, and PR/MR link.

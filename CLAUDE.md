@@ -11,7 +11,7 @@ Read in this order:
 5. [.agent/commands.yaml](.agent/commands.yaml)
 6. Only the task-specific files listed in [.agent/knowledge/README.md](.agent/knowledge/README.md), [.agent/checklists/](.agent/checklists/), [.agent/agents/](.agent/agents/), and [.agent/skills/](.agent/skills/).
 
-Current local development note: while `wx/chore/initial-mvp` exists and is not merged, code development should use its dedicated worktree instead of creating new `wx/*` branches or MRs, unless the user explicitly says otherwise.
+Current local development note: follow `.agent/local/AGENTS.md` when it exists for machine-local branch and worktree policy.
 
 Language rule: root agent entry points and every file under `.agent/` must be written in English.
 

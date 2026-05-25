@@ -59,6 +59,19 @@ Do not expand the product into real-time navigation, social networking, e-commer
 8. Sync relevant documentation when APIs, schemas, directory boundaries, or validation commands change.
 9. Run the most relevant `npm`, `cargo`, or git validation after code changes. If validation cannot run, explain why and provide an alternative.
 
+## Final response after code or PR work
+
+After updating code, committing, pushing, or creating a pull request or merge
+request, the final response must include these exact delivery details:
+
+- Worktree directory path.
+- Branch name.
+- Commit hash and commit message for each relevant commit.
+- Pull request or merge request link.
+
+If a requested action was not performed, explicitly say so in the corresponding
+item instead of omitting it.
+
 ## Task routing
 
 | Task type | Read first | Then read as needed |
