@@ -10,23 +10,6 @@ Use this repository-local skill for staging, committing, pushing, reverting, and
 4. Do not use `git add -A` by default. Stage explicit paths only.
 5. Do not commit `target/`, `node_modules/`, `.env`, local databases, IDE config, tool caches, or `.agent/local/`.
 6. Follow `.agent/local/AGENTS.md` when it exists for machine-local branch and worktree policy.
-7. In a new chat or fresh development task, create a dedicated Git worktree before editing unless the current checkout is already the exact task worktree or the user explicitly asks to reuse it.
-8. A single chat may create at most one StellarTrail worktree. Reuse that worktree, branch, and existing PR/MR for all later work in the same chat; do not create a second one without an explicit user override.
-
-## Worktree default
-
-When development work starts from the main repository checkout, branch a new
-worktree first and do all task edits there. Reuse the current checkout only for
-inspection, explicit user-directed reuse, or agent-context maintenance that is
-already on the matching agent-context branch.
-
-Use branch names from `.agent/local/AGENTS.md` when it exists. If no local policy
-exists, prefer `wx/feat/<name>` for features and `wx/chore/<name>` for
-maintenance work.
-
-Before creating any worktree, check the current conversation context. If this
-chat already created a StellarTrail worktree, continue in that worktree and
-update its branch or PR/MR instead of creating another.
 
 ## Recommended checks
 
