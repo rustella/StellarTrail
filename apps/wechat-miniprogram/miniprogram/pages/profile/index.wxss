@@ -710,12 +710,22 @@
 }
 
 .version-notes {
+  display: grid;
+  gap: 18rpx;
   margin-top: 16rpx;
 }
 
+.version-note-section-title {
+  margin-bottom: 10rpx;
+  color: var(--text-color);
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
 .version-note {
-  position: relative;
-  padding-left: 22rpx;
+  display: flex;
+  align-items: flex-start;
+  gap: 10rpx;
   color: var(--text-color);
   font-size: 24rpx;
   font-weight: 700;
@@ -726,15 +736,10 @@
   margin-top: 8rpx;
 }
 
-.version-note::before {
-  position: absolute;
-  top: 15rpx;
-  left: 0;
-  width: 8rpx;
-  height: 8rpx;
-  border-radius: 999rpx;
-  background: var(--brand-color);
-  content: "";
+.version-note-number {
+  flex: 0 0 auto;
+  color: var(--brand-color);
+  font-weight: 900;
 }
 
 .about-modal-card {

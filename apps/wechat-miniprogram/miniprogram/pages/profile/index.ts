@@ -65,6 +65,18 @@ interface FeedbackImageItem {
 
 interface ClientVersionView extends ClientVersion {
   publishedAtText: string;
+  releaseNoteSections: ClientVersionSectionView[];
+}
+
+interface ClientVersionSectionView {
+  key: string;
+  title: string;
+  items: ClientVersionNoteView[];
+}
+
+interface ClientVersionNoteView {
+  number: number;
+  text: string;
 }
 
 Page({
@@ -726,7 +738,32 @@ function versionToView(version: ClientVersion): ClientVersionView {
   return {
     ...version,
     publishedAtText: formatVersionDate(version.published_at),
+    releaseNoteSections: buildReleaseNoteSectionViews(version),
   };
+}
+
+function buildReleaseNoteSectionViews(
+  version: ClientVersion,
+): ClientVersionSectionView[] {
+  const sections = version.release_note_sections?.length
+    ? version.release_note_sections
+    : [
+        {
+          key: "feature",
+          title: "Feature",
+          items: version.release_notes,
+        },
+      ];
+  return sections
+    .filter((section) => section.items.length > 0)
+    .map((section) => ({
+      key: section.key,
+      title: section.title,
+      items: section.items.map((text, index) => ({
+        number: index + 1,
+        text,
+      })),
+    }));
 }
 
 function formatVersionDate(value?: string | null): string {

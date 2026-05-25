@@ -1044,6 +1044,7 @@ async function mapKnotListCard(
     item.slug,
     item.title,
     item.summary,
+    ...(item.aliases || []),
     description ?? "",
   ].concat(
     steps,

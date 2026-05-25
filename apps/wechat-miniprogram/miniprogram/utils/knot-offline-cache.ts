@@ -425,6 +425,7 @@ function toKnotSummary(item: KnotDetail): KnotSummary {
     slug: item.slug,
     title: item.title,
     summary: item.summary,
+    aliases: item.aliases || [],
     categories: item.categories,
     types: item.types,
     media: item.media,
