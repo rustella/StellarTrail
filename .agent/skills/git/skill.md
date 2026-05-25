@@ -21,6 +21,16 @@ git diff -- AGENTS.md CLAUDE.md .agent .gitignore
 git diff --check
 ```
 
+## Final response requirements
+
+After code edits, commits, pushes, or pull request or merge request creation, the
+final response must include:
+
+- Worktree directory path.
+- Branch name.
+- Commit hash and commit message for each relevant commit.
+- Pull request or merge request link.
+
 If preparing to stage agent-context changes, stage only explicit files, for example:
 
 ```bash
