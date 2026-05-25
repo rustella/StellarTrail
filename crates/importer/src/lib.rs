@@ -1,8 +1,9 @@
 //! Knots3D metadata importer helpers that convert exported JSON into DB import seeds.
 
 pub mod gear_atlas_cn;
+pub mod knot_alias_backfill;
 
-use std::{fs, path::Path};
+use std::{collections::HashSet, fs, path::Path};
 
 use anyhow::Context;
 use serde_json::Value;
@@ -22,6 +23,11 @@ pub fn read_knots3d_metadata(path: impl AsRef<Path>) -> anyhow::Result<Vec<KnotS
 /// Parses Knots3D bilingual metadata JSON into internal import seeds.
 pub fn parse_knots3d_metadata(raw: &str) -> anyhow::Result<Vec<KnotSeed>> {
     let value: Value = serde_json::from_str(raw).context("metadata must be JSON")?;
+    parse_knots3d_metadata_value(&value)
+}
+
+/// Converts a parsed Knots3D metadata document with a top-level `items` array into import seeds.
+pub fn parse_knots3d_metadata_value(value: &Value) -> anyhow::Result<Vec<KnotSeed>> {
     let items = value
         .get("items")
         .and_then(Value::as_array)
@@ -29,69 +35,78 @@ pub fn parse_knots3d_metadata(raw: &str) -> anyhow::Result<Vec<KnotSeed>> {
 
     let mut seeds = Vec::with_capacity(items.len());
     for item in items {
-        let id = text(item, "id")
-            .or_else(|| text(item, "english_slug"))
-            .context("metadata item missing id")?;
-        let english_slug = text(item, "english_slug").unwrap_or_else(|| id.clone());
-        let zh_slug = text(item, "zh_slug");
-        let en_language = item.pointer("/languages/en");
-        let zh_language = item.pointer("/languages/zh-CN");
-
-        let english_title = text(item, "english_name")
-            .or_else(|| nested_text(en_language, "h1"))
-            .or_else(|| nested_text(en_language, "title"))
-            .unwrap_or_else(|| english_slug.clone());
-        let chinese_title = text(item, "chinese_name")
-            .or_else(|| nested_text(zh_language, "h1"))
-            .or_else(|| zh_slug.clone())
-            .unwrap_or_else(|| english_title.clone());
-        let english_summary = text(item, "english_summary")
-            .or_else(|| nested_text(en_language, "summary"))
-            .or_else(|| {
-                nested_text(en_language, "meta_description").and_then(|s| strip_title_prefix(&s))
-            })
-            .unwrap_or_default();
-        let chinese_summary = text(item, "chinese_summary")
-            .or_else(|| nested_text(zh_language, "summary"))
-            .or_else(|| {
-                nested_text(zh_language, "meta_description").and_then(|s| strip_title_prefix(&s))
-            })
-            .unwrap_or_else(|| english_summary.clone());
-        let english_url = text(item, "english_url").or_else(|| nested_text(en_language, "url"));
-        let chinese_slug = zh_slug.clone().unwrap_or_else(|| chinese_title.clone());
-
-        seeds.push(KnotSeed {
-            id: id.clone(),
-            source_name: "Knots 3D".to_owned(),
-            source_url: english_url,
-            source_slug_en: english_slug.clone(),
-            source_slug_zh: zh_slug,
-            localizations: vec![
-                KnotLocalizationSeed {
-                    locale: Locale::En,
-                    slug: english_slug,
-                    title: english_title,
-                    summary: english_summary,
-                    description: section_description(en_language),
-                    steps: section_steps(en_language),
-                },
-                KnotLocalizationSeed {
-                    locale: Locale::ZhCn,
-                    slug: chinese_slug,
-                    title: chinese_title,
-                    summary: chinese_summary,
-                    description: section_description(zh_language),
-                    steps: section_steps(zh_language),
-                },
-            ],
-            categories: parse_categories(item),
-            types: parse_types(item),
-            media: parse_media(item, &id),
-            raw_metadata: item.clone(),
-        });
+        seeds.push(parse_knots3d_item(item)?);
     }
 
     Ok(seeds)
+}
+
+/// Converts one Knots3D metadata item into a DB import seed.
+pub fn parse_knots3d_item(item: &Value) -> anyhow::Result<KnotSeed> {
+    let id = text(item, "id")
+        .or_else(|| text(item, "english_slug"))
+        .context("metadata item missing id")?;
+    let english_slug = text(item, "english_slug").unwrap_or_else(|| id.clone());
+    let zh_slug = text(item, "zh_slug");
+    let en_language = item.pointer("/languages/en");
+    let zh_language = item.pointer("/languages/zh-CN");
+
+    let english_title = text(item, "english_name")
+        .or_else(|| nested_text(en_language, "h1"))
+        .or_else(|| nested_text(en_language, "title"))
+        .unwrap_or_else(|| english_slug.clone());
+    let chinese_title = text(item, "chinese_name")
+        .or_else(|| nested_text(zh_language, "h1"))
+        .or_else(|| zh_slug.clone())
+        .unwrap_or_else(|| english_title.clone());
+    let english_summary = text(item, "english_summary")
+        .or_else(|| nested_text(en_language, "summary"))
+        .or_else(|| {
+            nested_text(en_language, "meta_description").and_then(|s| strip_title_prefix(&s))
+        })
+        .unwrap_or_default();
+    let chinese_summary = text(item, "chinese_summary")
+        .or_else(|| nested_text(zh_language, "summary"))
+        .or_else(|| {
+            nested_text(zh_language, "meta_description").and_then(|s| strip_title_prefix(&s))
+        })
+        .unwrap_or_else(|| english_summary.clone());
+    let english_url = text(item, "english_url").or_else(|| nested_text(en_language, "url"));
+    let chinese_slug = zh_slug.clone().unwrap_or_else(|| chinese_title.clone());
+    let english_aliases = language_aliases(en_language, &english_title);
+    let chinese_aliases = language_aliases(zh_language, &chinese_title);
+
+    Ok(KnotSeed {
+        id: id.clone(),
+        source_name: "Knots 3D".to_owned(),
+        source_url: english_url,
+        source_slug_en: english_slug.clone(),
+        source_slug_zh: zh_slug,
+        localizations: vec![
+            KnotLocalizationSeed {
+                locale: Locale::En,
+                slug: english_slug,
+                title: english_title,
+                summary: english_summary,
+                aliases: english_aliases,
+                description: section_description(en_language),
+                steps: section_steps(en_language),
+            },
+            KnotLocalizationSeed {
+                locale: Locale::ZhCn,
+                slug: chinese_slug,
+                title: chinese_title,
+                summary: chinese_summary,
+                aliases: chinese_aliases,
+                description: section_description(zh_language),
+                steps: section_steps(zh_language),
+            },
+        ],
+        categories: parse_categories(item),
+        types: parse_types(item),
+        media: parse_media(item, &id),
+        raw_metadata: item.clone(),
+    })
 }
 
 fn text(item: &Value, key: &str) -> Option<String> {
@@ -139,6 +154,38 @@ fn section_steps(language: Option<&Value>) -> Vec<String> {
         .flatten()
         .filter_map(step_text)
         .collect()
+}
+
+fn language_aliases(language: Option<&Value>, title: &str) -> Vec<String> {
+    let title_key = normalize_alias_key(title);
+    let mut seen = HashSet::new();
+    language
+        .and_then(|value| value.get("aliases"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter_map(collapsed_alias_text)
+        .filter(|alias| normalize_alias_key(alias) != title_key)
+        .filter(|alias| seen.insert(normalize_alias_key(alias)))
+        .collect()
+}
+
+fn collapsed_alias_text(value: &str) -> Option<String> {
+    let collapsed = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    if collapsed.is_empty() {
+        None
+    } else {
+        Some(collapsed)
+    }
+}
+
+fn normalize_alias_key(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 fn step_text(step: &Value) -> Option<String> {

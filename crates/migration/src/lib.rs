@@ -37,6 +37,7 @@ mod m20260524_000003_create_user_disclaimer_acceptances;
 mod m20260524_000004_add_gear_quantities;
 mod m20260524_000005_create_roadmap;
 mod m20260524_000006_sanitize_knot_risk_copy;
+mod m20260525_000001_add_knot_localization_aliases;
 
 /// Concrete SeaORM migrator used by the API server and test suites.
 ///
@@ -84,6 +85,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260524_000004_add_gear_quantities::Migration),
             Box::new(m20260524_000005_create_roadmap::Migration),
             Box::new(m20260524_000006_sanitize_knot_risk_copy::Migration),
+            Box::new(m20260525_000001_add_knot_localization_aliases::Migration),
         ]
     }
 }

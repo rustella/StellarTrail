@@ -42,6 +42,7 @@ struct KnotSummary: Codable, Equatable, Identifiable {
     let slug: String?
     let title: String
     let summary: String
+    let aliases: [String]
     let categories: [KnotTaxonomyItem]
     let types: [KnotTaxonomyItem]
     let media: [KnotMediaAsset]
@@ -50,15 +51,16 @@ struct KnotSummary: Codable, Equatable, Identifiable {
     var mediaCount: Int { media.count }
 
     enum CodingKeys: String, CodingKey {
-        case id, slug, title, summary, categories, types, media, href
+        case id, slug, title, summary, aliases, categories, types, media, href
         case mediaCount
     }
 
-    init(id: String, slug: String?, title: String, summary: String, categories: [KnotTaxonomyItem], types: [KnotTaxonomyItem], media: [KnotMediaAsset], href: String?) {
+    init(id: String, slug: String?, title: String, summary: String, categories: [KnotTaxonomyItem], types: [KnotTaxonomyItem], media: [KnotMediaAsset], href: String?, aliases: [String] = []) {
         self.id = id
         self.slug = slug
         self.title = title
         self.summary = summary
+        self.aliases = aliases
         self.categories = categories
         self.types = types
         self.media = media
@@ -71,6 +73,7 @@ struct KnotSummary: Codable, Equatable, Identifiable {
         slug = try container.decodeIfPresent(String.self, forKey: .slug)
         title = try container.decode(String.self, forKey: .title)
         summary = try container.decode(String.self, forKey: .summary)
+        aliases = try container.decodeIfPresent([String].self, forKey: .aliases) ?? []
         categories = try container.decodeIfPresent([KnotTaxonomyItem].self, forKey: .categories) ?? []
         types = try container.decodeIfPresent([KnotTaxonomyItem].self, forKey: .types) ?? []
         media = try container.decodeIfPresent([KnotMediaAsset].self, forKey: .media) ?? []
@@ -83,6 +86,7 @@ struct KnotSummary: Codable, Equatable, Identifiable {
         try container.encodeIfPresent(slug, forKey: .slug)
         try container.encode(title, forKey: .title)
         try container.encode(summary, forKey: .summary)
+        try container.encode(aliases, forKey: .aliases)
         try container.encode(categories, forKey: .categories)
         try container.encode(types, forKey: .types)
         try container.encode(media, forKey: .media)
@@ -143,6 +147,7 @@ struct KnotDetail: Codable, Equatable, Identifiable {
     let slug: String?
     let title: String
     let summary: String
+    let aliases: [String]
     let categories: [KnotTaxonomyItem]
     let types: [KnotTaxonomyItem]
     let media: [KnotMediaAsset]
@@ -152,6 +157,41 @@ struct KnotDetail: Codable, Equatable, Identifiable {
     let locale: String?
 
     var mediaCount: Int { media.count }
+
+    enum CodingKeys: String, CodingKey {
+        case id, slug, title, summary, aliases, categories, types, media, href, description, steps, locale
+    }
+
+    init(id: String, slug: String?, title: String, summary: String, categories: [KnotTaxonomyItem], types: [KnotTaxonomyItem], media: [KnotMediaAsset], href: String?, description: String?, steps: [String], locale: String?, aliases: [String] = []) {
+        self.id = id
+        self.slug = slug
+        self.title = title
+        self.summary = summary
+        self.aliases = aliases
+        self.categories = categories
+        self.types = types
+        self.media = media
+        self.href = href
+        self.description = description
+        self.steps = steps
+        self.locale = locale
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        slug = try container.decodeIfPresent(String.self, forKey: .slug)
+        title = try container.decode(String.self, forKey: .title)
+        summary = try container.decode(String.self, forKey: .summary)
+        aliases = try container.decodeIfPresent([String].self, forKey: .aliases) ?? []
+        categories = try container.decodeIfPresent([KnotTaxonomyItem].self, forKey: .categories) ?? []
+        types = try container.decodeIfPresent([KnotTaxonomyItem].self, forKey: .types) ?? []
+        media = try container.decodeIfPresent([KnotMediaAsset].self, forKey: .media) ?? []
+        href = try container.decodeIfPresent(String.self, forKey: .href)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        steps = try container.decodeIfPresent([String].self, forKey: .steps) ?? []
+        locale = try container.decodeIfPresent(String.self, forKey: .locale)
+    }
 }
 
 struct ListKnotsRequest: Equatable {

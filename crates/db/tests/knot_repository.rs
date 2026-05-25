@@ -34,6 +34,10 @@ fn seed() -> KnotSeed {
                 slug: "adjustable-grip-hitch-knot".to_owned(),
                 title: "Adjustable Grip Hitch".to_owned(),
                 summary: "Adjust tension on a line.".to_owned(),
+                aliases: vec![
+                    "Adjustable Loop".to_owned(),
+                    "Cawley Adjustable Hitch".to_owned(),
+                ],
                 description: None,
                 steps: vec![],
             },
@@ -42,6 +46,7 @@ fn seed() -> KnotSeed {
                 slug: "ke-tiao-jie-sheng-jie".to_owned(),
                 title: "可调节绳结".to_owned(),
                 summary: "调节绳索上的张力。".to_owned(),
+                aliases: vec!["可调节活结".to_owned(), "考利可调节套结".to_owned()],
                 description: None,
                 steps: vec![],
             },
@@ -91,6 +96,7 @@ fn technical_seed() -> KnotSeed {
                 slug: "figure-eight-knot".to_owned(),
                 title: "Figure Eight Knot".to_owned(),
                 summary: "Stopper knot for rope ends.".to_owned(),
+                aliases: vec!["Flemish Knot".to_owned()],
                 description: None,
                 steps: vec![],
             },
@@ -99,6 +105,7 @@ fn technical_seed() -> KnotSeed {
                 slug: "ba-zi-jie".to_owned(),
                 title: "八字结".to_owned(),
                 summary: "用于绳端防脱的基础结。".to_owned(),
+                aliases: vec!["八字扣".to_owned()],
                 description: None,
                 steps: vec![],
             },
@@ -203,6 +210,13 @@ async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offs
     assert_eq!(page.page.next_offset, None);
     assert_eq!(page.items[0].title, "Adjustable Grip Hitch");
     assert_eq!(page.items[0].slug, "adjustable-grip-hitch-knot");
+    assert_eq!(
+        page.items[0].aliases,
+        vec![
+            "Adjustable Loop".to_owned(),
+            "Cawley Adjustable Hitch".to_owned()
+        ]
+    );
 
     db.execute(Statement::from_sql_and_values(
         db.get_database_backend(),
@@ -237,6 +251,10 @@ async fn repository_migrates_upserts_and_queries_locale_resolved_knots_with_offs
         .expect("query")
         .expect("detail");
     assert_eq!(detail.title, "可调节绳结");
+    assert_eq!(
+        detail.aliases,
+        vec!["可调节活结".to_owned(), "考利可调节套结".to_owned()]
+    );
     assert_eq!(detail.categories[0].title, "露营");
     assert_eq!(
         detail.media[0].url,
@@ -325,6 +343,7 @@ async fn repository_builds_offline_manifest_with_fallback_locale_and_deduped_med
         .find(|item| item.id == "figure-eight-knot")
         .expect("fallback knot");
     assert_eq!(fallback.title, "Figure Eight Knot");
+    assert_eq!(fallback.aliases, vec!["Flemish Knot".to_owned()]);
     assert_eq!(fallback.locale, Locale::ZhCn);
 }
 
@@ -354,6 +373,20 @@ async fn repository_lists_filter_options_and_filters_knots_by_category_and_query
         .expect("filtered list");
     assert_eq!(page.items.len(), 1);
     assert_eq!(page.items[0].id, "adjustable-grip-hitch-knot");
+
+    let zh_alias = repo
+        .list_knots(Locale::ZhCn, 0, 20, Some("camping-knots"), Some("考利"))
+        .await
+        .expect("filtered list by zh alias");
+    assert_eq!(zh_alias.items.len(), 1);
+    assert_eq!(zh_alias.items[0].id, "adjustable-grip-hitch-knot");
+
+    let en_alias = repo
+        .list_knots(Locale::En, 0, 20, Some("camping-knots"), Some("Cawley"))
+        .await
+        .expect("filtered list by en alias");
+    assert_eq!(en_alias.items.len(), 1);
+    assert_eq!(en_alias.items[0].id, "adjustable-grip-hitch-knot");
 
     let empty = repo
         .list_knots(Locale::ZhCn, 0, 20, Some("camping-knots"), Some("八字"))

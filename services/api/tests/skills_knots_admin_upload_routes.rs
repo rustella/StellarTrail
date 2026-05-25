@@ -49,6 +49,7 @@ fn sample_knot() -> KnotSeed {
             slug: "adjustable-grip-hitch-knot".to_owned(),
             title: "Adjustable Grip Hitch".to_owned(),
             summary: "Adjust tension on a line.".to_owned(),
+            aliases: vec!["Adjustable Loop".to_owned()],
             description: Some("A practical hitch for tensioning guylines.".to_owned()),
             steps: vec!["Wrap the working end around the standing part.".to_owned()],
         }],

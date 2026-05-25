@@ -9,6 +9,7 @@ const knotSummary = {
   slug: "ke-tiao-jie-sheng-jie",
   title: "可调节绳结",
   summary: "调节绳索上的张力。",
+  aliases: ["可调节活结", "考利可调节套结"],
   categories: [
     { id: "camping-knots", slug: "lu-ying-sheng-jie", title: "露营绳结" },
   ],
@@ -35,6 +36,7 @@ const secondKnotSummary = {
   slug: "dan-jie",
   title: "单结",
   summary: "快速形成固定绳圈。",
+  aliases: ["布林结"],
   categories: [
     { id: "basic-knots", slug: "ji-chu-sheng-jie", title: "基础绳结" },
   ],

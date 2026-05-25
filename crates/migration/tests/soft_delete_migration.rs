@@ -55,7 +55,7 @@ async fn soft_delete_migration_adds_flags_and_rolls_back() {
         assert!(!read_is_deleted(&db, table, id).await);
     }
 
-    Migrator::down(&db, Some(7)).await.expect("rollback");
+    Migrator::down(&db, Some(8)).await.expect("rollback");
     for table in [
         "user_gear_items",
         "gear_atlas_items",
