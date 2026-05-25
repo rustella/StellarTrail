@@ -3,8 +3,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Single database migration type invoked by the SeaORM migration framework for up/down operations.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260516_000006_create_user_feedback"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -23,6 +28,7 @@ impl MigrationTrait for Migration {
                 client_version TEXT NULL,
                 device_model TEXT NULL,
                 status TEXT NOT NULL DEFAULT 'open',
+                is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )"#,
@@ -44,6 +50,10 @@ impl MigrationTrait for Migration {
         .await?;
         db.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_user_feedback_status_created ON user_feedback(status, created_at)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_user_feedback_deleted_status_created ON user_feedback(is_deleted, status, created_at)",
         )
         .await?;
         db.execute_unprepared(

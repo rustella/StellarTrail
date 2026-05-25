@@ -39,8 +39,9 @@ Do not expand the product into real-time navigation, social networking, e-commer
 5. Code comments across the repository should be written in English. Server-side Rust code under `services/api` and `crates/{domain,db,importer,migration}` should use detailed rustdoc and inline comments for module responsibilities, public items, important private functions, authentication, database access, caching, state transitions, external calls, and migration DDL.
 6. Do not commit real tokens, secrets, personal credentials, or connection strings. `.env.example` may only contain example values.
 7. Do not edit or commit generated or local artifacts such as `target/`, `node_modules/`, `dist/`, `.idea/`, local database files, and tool caches.
-8. Sync relevant documentation when APIs, schemas, directory boundaries, or validation commands change.
-9. Run the most relevant `npm`, `cargo`, or git validation after code changes. If validation cannot run, explain why and provide an alternative.
+8. Migration files under `crates/migration/src/` must use descriptive names without leading date or timestamp prefixes. Preserve migration chronology through the order in `crates/migration/src/lib.rs`, and preserve already-applied SeaORM migration names with explicit `MigrationName` implementations when renaming legacy files unless a task explicitly opts into a fresh-schema-only migration reset.
+9. Sync relevant documentation when APIs, schemas, directory boundaries, or validation commands change.
+10. Run the most relevant `npm`, `cargo`, or git validation after code changes. If validation cannot run, explain why and provide an alternative.
 
 ## Task routing
 

@@ -5,7 +5,11 @@ use stellartrail_migration::Migrator;
 #[tokio::test]
 async fn knot_risk_copy_migration_removes_critical_public_phrasing() {
     let db = Database::connect("sqlite::memory:").await.expect("connect");
-    Migrator::up(&db, Some(29))
+    let repair_index = Migrator::migrations()
+        .iter()
+        .position(|migration| migration.name() == "m20260524_000006_sanitize_knot_risk_copy")
+        .expect("copy repair migration is registered");
+    Migrator::up(&db, Some(repair_index as u32))
         .await
         .expect("migrate before copy repair");
 
