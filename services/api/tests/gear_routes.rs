@@ -1263,7 +1263,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
 #[tokio::test]
 async fn gear_atlas_public_routes_hide_external_source_audit_but_admin_routes_expose_it() {
     let app = test_app().await;
-    let login_body = login_response(&app.router, "atlas-external-importer").await;
+    let login_body = login_response(&app.router, "atlas-external-source").await;
     let user_id = login_body["user"]["id"].as_str().unwrap().to_owned();
     let token = login_body["access_token"].as_str().unwrap().to_owned();
     let repo = GearAtlasRepository::new(app.db.clone());
@@ -1357,7 +1357,7 @@ async fn gear_atlas_public_routes_use_response_cache_and_etag() {
         Duration::from_secs(300),
     ))
     .await;
-    let login_body = login_response(&app.router, "atlas-cache-importer").await;
+    let login_body = login_response(&app.router, "atlas-cache-source").await;
     let user_id = login_body["user"]["id"].as_str().unwrap().to_owned();
     let repo = GearAtlasRepository::new(app.db.clone());
     let mut draft = GearAtlasExternalImportDraft {

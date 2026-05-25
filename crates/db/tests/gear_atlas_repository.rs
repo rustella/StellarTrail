@@ -64,7 +64,7 @@ async fn external_import_upserts_pending_rows_and_skips_approved_rows() {
     let db = connect_database(&config).await.expect("connect");
     Migrator::up(&db, None).await.expect("migrate");
     let user = AuthRepository::new(db.clone())
-        .create_password_user("atlas_importer", "atlas-importer@example.test", "hash")
+        .create_password_user("atlas_source", "atlas-source@example.test", "hash")
         .await
         .expect("create import user");
     let repo = GearAtlasRepository::new(db);
