@@ -120,7 +120,7 @@ policies:
   doc_sync_required_for_behavior_changes: true
   keep_agent_entrypoints_thin: true
   avoid_unrequested_scope_expansion: true
-  local_branch_policy: Use wx/chore/initial-mvp until it is merged or deleted locally and remotely.
+  local_branch_policy: Follow .agent/local/AGENTS.md when present for machine-local branch and worktree rules.
 
 validation:
   primary_commands_file: .agent/commands.yaml
