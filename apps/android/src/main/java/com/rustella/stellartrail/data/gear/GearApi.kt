@@ -46,7 +46,7 @@ class GearApi(private val apiClient: ApiClient) {
     }
 
     suspend fun delete(id: String) {
-        apiClient.post("/me/gears/$id/delete", EmptyRequest)
+        apiClient.post<EmptyRequest, Unit>("/me/gears/$id/delete", EmptyRequest)
     }
 
     suspend fun undelete(id: String): GearItem = apiClient.post("/me/gears/$id/undelete", EmptyRequest)
