@@ -30,6 +30,14 @@ When a new worktree is needed, create it before making code or documentation
 changes, use the branch naming policy from `.agent/local/AGENTS.md` when present,
 and keep unrelated dirty changes in the original checkout untouched.
 
+A single chat or conversation thread may create at most one StellarTrail
+worktree. Once a worktree has been created in that chat, all later code,
+documentation, commit, push, and PR/MR work in the same chat must reuse that
+worktree and branch, updating the existing PR/MR when one exists. Do not create a
+second worktree, branch, or PR/MR from the same chat; if the scope truly needs a
+separate branch or PR/MR, stop and ask the user to start a new chat or explicitly
+override this rule first.
+
 ## Product scope
 
 StellarTrail is an outdoor product for China-focused hiking scenarios. The first phase prioritizes the WeChat Mini Program and the Rust API, centered on account access, personal gear inventory, DB-backed gear templates, and knot skills. Route and mountain modules are future work until explicitly restarted.

@@ -121,6 +121,7 @@ policies:
   keep_agent_entrypoints_thin: true
   avoid_unrequested_scope_expansion: true
   new_chat_worktree_default: For every new chat or fresh development task, create a dedicated Git worktree before editing unless the current directory is already the exact task worktree, the user explicitly asks to reuse the current checkout, or the task is limited to agent-context maintenance on the existing agent-context branch.
+  one_chat_one_worktree: A single chat or conversation thread may create at most one StellarTrail worktree. After that worktree exists, reuse its branch and existing PR/MR for all later work in the same chat; do not create a second worktree, branch, or PR/MR unless the user explicitly overrides this rule.
   local_branch_policy: Follow .agent/local/AGENTS.md when present for machine-local branch and worktree directory rules.
 
 validation:

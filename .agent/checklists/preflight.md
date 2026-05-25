@@ -7,6 +7,7 @@ Before modifying files:
 - [ ] Read `.agent/manifest.yaml`, `.agent/context-index.yaml`, and `.agent/commands.yaml`.
 - [ ] Run or inspect `git status --short --branch` and identify existing user changes.
 - [ ] Confirm the current branch and any machine-local worktree policy from `.agent/local/AGENTS.md`.
+- [ ] Check whether this chat already created a StellarTrail worktree; if so, reuse that worktree, branch, and existing PR/MR instead of creating another one.
 - [ ] For a new chat or fresh development task, create a dedicated Git worktree before editing unless the current directory is already the exact task worktree or the user explicitly asks to reuse the current checkout.
 - [ ] Identify generated or local-only paths that must not be edited or committed.
 - [ ] Identify the smallest relevant docs, source files, and tests for the task.
