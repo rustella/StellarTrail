@@ -15,7 +15,7 @@ At the start of each task:
 
 ## Product scope
 
-StellarTrail is an outdoor product for China-focused hiking scenarios. The first phase prioritizes the WeChat Mini Program and the Rust API, centered on account access, personal gear inventory, DB-backed gear templates, and knot skills. Route and mountain modules are future work until explicitly restarted.
+StellarTrail is an outdoor product for gear organization, route planning, and field-skill workflows. The active product prioritizes the WeChat Mini Program, Web, and the Rust API, centered on account access, personal gear inventory, gear templates, feedback, administrator workflows, and knot skills. Route and mountain modules are future work until explicitly restarted.
 
 Do not expand the product into real-time navigation, social networking, e-commerce, complex track editing, or an all-purpose route encyclopedia unless the task explicitly asks for it.
 
@@ -27,8 +27,8 @@ Do not expand the product into real-time navigation, social networking, e-commer
 - Rust API: `services/api`, using Axum and Tokio.
 - Rust crates: `crates/domain`, `crates/db`, `crates/importer`, and `crates/migration`.
 - TypeScript packages: `packages/shared-types` and `packages/api-client-ts`.
-- Public data: gear templates are seeded into DB at API startup; knots are imported from Knots3D metadata into DB; media is served through MinIO/object storage URLs stored in DB.
-- Documentation: `docs/`, including API, architecture, content schema, and MVP notes.
+- Public data: gear templates are seeded at API startup; knots are imported from Knots3D metadata into DB; media is served through MinIO/object storage URLs stored in DB.
+- Documentation: `docs/`, including API, architecture, deployment, and MVP notes.
 
 ## Hard rules
 
@@ -49,7 +49,7 @@ Do not expand the product into real-time navigation, social networking, e-commer
 | Understand architecture or module boundaries | `.agent/knowledge/architecture.md`, `.agent/knowledge/codebase_map.md` | `docs/architecture.md`, `README.md` |
 | Backend API, DB, or migration changes | `.agent/knowledge/architecture.md`, `.agent/commands.yaml` | `docs/api.md`, `services/api`, `crates/{domain,db,migration}` |
 | WeChat Mini Program or TypeScript client changes | `.agent/knowledge/codebase_map.md`, `.agent/commands.yaml` | `apps/wechat-miniprogram`, `packages/*` |
-| Public data or importer changes | `.agent/knowledge/architecture.md`, `.agent/commands.yaml` | `docs/content-schema.md`, `crates/importer`, `crates/db`, `crates/migration` |
+| Public data or importer changes | `.agent/knowledge/architecture.md`, `.agent/commands.yaml` | `docs/api.md`, `crates/importer`, `crates/db`, `crates/migration` |
 | Review or self-review | `.agent/agents/code-reviewer.md`, `.agent/checklists/self-review.md` | `git diff`, related docs |
 | Refactor planning | `.agent/agents/refactor-planner.md`, `.agent/checklists/preflight.md` | `.agent/knowledge/*`, related code |
 | Agent context changes | `.agent/checklists/doc-sync.md` | `.agent/context-index.yaml`, `.agent/commands.yaml` |
