@@ -13,12 +13,12 @@
   <img alt="Rust" src="https://img.shields.io/badge/API-Rust%20%2B%20Axum-orange" />
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat%20Mini%20Program-Ready-07C160" />
   <img alt="Web" src="https://img.shields.io/badge/Web-Ready-0EA5E9" />
-  <img alt="Native mobile" src="https://img.shields.io/badge/iOS%20%2F%20Android%20%2F%20HarmonyOS-Unavailable-lightgrey" />
+  <img alt="Native clients" src="https://img.shields.io/badge/iOS%20%2F%20macOS%20%2F%20Android%20%2F%20HarmonyOS-Unavailable-lightgrey" />
   <img alt="Content Driven" src="https://img.shields.io/badge/Content-DB%20%2B%20MinIO-8A2BE2" />
 </p>
 
 <p align="center">
-  <strong>WeChat Mini Program and Web are ready</strong> · <strong>Native mobile is paused</strong>
+  <strong>WeChat Mini Program and Web are ready</strong> · <strong>Native clients are paused</strong>
 </p>
 
 ---
@@ -27,7 +27,7 @@
 
 StellarTrail serves hikers, campers, and lightweight outdoor users. The app is organized around **gear organization**, **route planning**, **outdoor skills**, and the related preparation workflows around them.
 
-The directly usable entry points today are the **WeChat Mini Program** and **Web**. Both cover account access, personal gear, gear atlas, knot skills, and feedback. Web adds administrator capabilities on top of the other client surfaces. Android, iOS, and HarmonyOS are currently unavailable and are not delivery targets for the active product.
+The directly usable entry points today are the **WeChat Mini Program** and **Web**. Both cover account access, personal gear, gear atlas, knot skills, and feedback. Web adds administrator capabilities on top of the other client surfaces. Android, iOS, macOS, and HarmonyOS are currently unavailable and are not delivery targets for the active product.
 
 | Product capability | Current notes                                                       |
 | ------------------ | ------------------------------------------------------------------- |
@@ -61,6 +61,7 @@ The directly usable entry points today are the **WeChat Mini Program** and **Web
 | Web                 | Ready       | Covers the core client capabilities and adds administrator features                                       |
 | Android             | Unavailable | Code remains in the repository, but it is not a runnable delivery target today                            |
 | iOS                 | Unavailable | Code remains in the repository, but it is not a runnable delivery target today                            |
+| macOS               | Unavailable | Code remains in the repository, but it is not a runnable delivery target today                            |
 | HarmonyOS           | Unavailable | Not connected as an active delivery client                                                                |
 
 ## 🧭 Repository layout

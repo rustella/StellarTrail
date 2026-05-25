@@ -13,12 +13,12 @@
   <img alt="Rust" src="https://img.shields.io/badge/API-Rust%20%2B%20Axum-orange" />
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat%20Mini%20Program-%E5%8F%AF%E7%94%A8-07C160" />
   <img alt="Web" src="https://img.shields.io/badge/Web-%E5%8F%AF%E7%94%A8-0EA5E9" />
-  <img alt="Native mobile" src="https://img.shields.io/badge/iOS%20%2F%20Android%20%2F%20HarmonyOS-%E4%B8%8D%E5%8F%AF%E7%94%A8-lightgrey" />
+  <img alt="Native clients" src="https://img.shields.io/badge/iOS%20%2F%20macOS%20%2F%20Android%20%2F%20HarmonyOS-%E4%B8%8D%E5%8F%AF%E7%94%A8-lightgrey" />
   <img alt="Content Driven" src="https://img.shields.io/badge/Content-DB%20%2B%20MinIO-8A2BE2" />
 </p>
 
 <p align="center">
-  <strong>微信小程序与 Web 已可用</strong> · <strong>原生移动端暂不可用</strong>
+  <strong>微信小程序与 Web 已可用</strong> · <strong>原生客户端暂不可用</strong>
 </p>
 
 ---
@@ -27,7 +27,7 @@
 
 StellarTrail 聚焦徒步、露营和轻量户外用户，围绕 **装备整理**、**路线计划**、**户外技能工具箱** 等准备和出行前协作场景展开。
 
-当前可直接体验的入口是 **微信小程序端** 和 **Web**：两端覆盖账号登录、个人装备库、装备图鉴、绳结技能和反馈能力。Web 在其他端能力基础上增加了管理员功能。Android、iOS、HarmonyOS 暂不可用，不作为当前交付入口。
+当前可直接体验的入口是 **微信小程序端** 和 **Web**：两端覆盖账号登录、个人装备库、装备图鉴、绳结技能和反馈能力。Web 在其他端能力基础上增加了管理员功能。Android、iOS、macOS、HarmonyOS 暂不可用，不作为当前交付入口。
 
 | 产品功能      | 当前说明                                   |
 | ------------- | ------------------------------------------ |
@@ -61,6 +61,7 @@ StellarTrail 聚焦徒步、露营和轻量户外用户，围绕 **装备整理*
 | Web          | 可用     | 覆盖其他端的核心能力，并增加管理员功能                                |
 | Android      | 不可用   | 代码仍在仓库中，但当前不作为可运行交付入口                            |
 | iOS          | 不可用   | 代码仍在仓库中，但当前不作为可运行交付入口                            |
+| macOS        | 不可用   | 代码仍在仓库中，但当前不作为可运行交付入口                            |
 | HarmonyOS    | 不可用   | 尚未作为当前交付客户端接入                                            |
 
 ## 🧭 仓库结构
