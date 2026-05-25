@@ -6,8 +6,13 @@ use sea_orm_migration::{
 };
 
 /// Clears bogus Knots3D practice steps that were populated from page section headings.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260518_000002_clear_knots3d_section_heading_steps"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {

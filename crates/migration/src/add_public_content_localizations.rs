@@ -3,8 +3,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Adds locale-specific public text tables while leaving user-entered private text unchanged.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260521_000001_add_public_content_localizations"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {

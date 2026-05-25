@@ -3,8 +3,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Single database migration type invoked by the SeaORM migration framework for up/down operations.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260516_000004_create_captcha_challenges"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {

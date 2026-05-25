@@ -8,8 +8,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Single migration type for the user knot favorites table.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260524_000002_create_user_knot_favorites"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -56,11 +61,11 @@ mod tests {
 
     async fn run_dependencies(db: &sea_orm::DatabaseConnection) {
         let manager = SchemaManager::new(db);
-        crate::m20260516_000001_create_users_sessions::Migration
+        crate::create_users_sessions::Migration
             .up(&manager)
             .await
             .unwrap();
-        crate::m20260516_000007_create_knots_content::Migration
+        crate::create_knots_content::Migration
             .up(&manager)
             .await
             .unwrap();

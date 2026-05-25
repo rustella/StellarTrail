@@ -124,6 +124,7 @@ policies:
   doc_sync_required_for_behavior_changes: true
   keep_agent_entrypoints_thin: true
   avoid_unrequested_scope_expansion: true
+  migration_filenames: Use descriptive names under crates/migration/src without leading date or timestamp prefixes; migration order is defined by crates/migration/src/lib.rs, and legacy SeaORM migration names must be preserved explicitly when files are renamed unless a task explicitly opts into a fresh-schema-only migration reset.
   local_branch_policy: Follow .agent/local/AGENTS.md when present for machine-local branch and worktree rules.
 
 validation:

@@ -7,8 +7,13 @@
 use sea_orm_migration::prelude::*;
 
 /// Single migration type for the administrator role table.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260518_000006_create_admin_roles"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -63,11 +68,7 @@ mod tests {
 
     async fn run_user_migrations(db: &sea_orm::DatabaseConnection) {
         let manager = SchemaManager::new(db);
-        crate::m20260516_000001_create_users_sessions::Migration
-            .up(&manager)
-            .await
-            .unwrap();
-        crate::m20260516_000003_add_password_auth::Migration
+        crate::create_users_sessions::Migration
             .up(&manager)
             .await
             .unwrap();

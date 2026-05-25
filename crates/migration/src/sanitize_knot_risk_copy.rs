@@ -6,8 +6,13 @@ use sea_orm_migration::{
 };
 
 /// Rewrites a few public Chinese knot descriptions that read like operational safety guidance.
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m20260524_000006_sanitize_knot_risk_copy"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
