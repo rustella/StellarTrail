@@ -166,10 +166,10 @@ fn image_quota_error(message: String) -> ApiError {
 }
 
 fn format_decimal_bytes(bytes: u64) -> String {
-    if bytes >= 1_000_000 && bytes % 1_000_000 == 0 {
+    if bytes >= 1_000_000 && bytes.is_multiple_of(1_000_000) {
         return format!("{}MB", bytes / 1_000_000);
     }
-    if bytes >= 1_000 && bytes % 1_000 == 0 {
+    if bytes >= 1_000 && bytes.is_multiple_of(1_000) {
         return format!("{}KB", bytes / 1_000);
     }
     format!("{bytes} bytes")

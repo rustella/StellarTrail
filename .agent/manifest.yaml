@@ -4,8 +4,8 @@ project:
   display_name: Xunjing Xingye
   repository: https://github.com/rustella/StellarTrail
   default_branch: main
-  current_focus: phase-one gear inventory MVP
-  description: Outdoor gear preparation and offline skills for China-focused hiking scenarios. The current implementation prioritizes the WeChat Mini Program and the Rust API; route and mountain modules are future work.
+  current_focus: active gear, route-planning, skills, feedback, and admin workflows
+  description: Outdoor gear preparation, route planning, and field-skill workflows. The current implementation prioritizes the WeChat Mini Program, Web, and the Rust API; route and mountain modules are still being built.
 
 read_order:
   - AGENTS.md
@@ -33,11 +33,12 @@ stack:
       - WeChat Mini Program
       - Android
       - iOS
+      - macOS
       - web
     language: TypeScript
     node: "22+"
   public_data:
-    gear_templates: DB-backed API startup seed
+    gear_templates: API startup seed
     knots: Knots3D metadata imported into DB
     media: MinIO/S3-compatible object storage URLs stored in DB
   databases:
@@ -50,6 +51,8 @@ source_roots:
     role: Android native client.
   - path: apps/ios
     role: iOS native SwiftUI client.
+  - path: apps/macos
+    role: macOS native SwiftUI client.
   - path: apps/wechat-miniprogram
     role: WeChat Mini Program client.
   - path: apps/web
@@ -66,10 +69,12 @@ source_roots:
     role: Database schema migrations.
   - path: packages/api-client-ts
     role: TypeScript API client.
+  - path: packages/apple/StellarTrailKit
+    role: Shared Swift package for iOS and macOS clients.
   - path: packages/shared-types
     role: Shared TypeScript DTO types.
   - path: docs
-    role: Product, architecture, API, and public-data documentation.
+    role: Product, architecture, API, and deployment documentation.
   - path: infra
     role: Docker integration-test and production deployment configuration.
   - path: scripts
@@ -93,7 +98,6 @@ important_docs:
   - README.en.md
   - docs/architecture.md
   - docs/api.md
-  - docs/content-schema.md
   - docs/mvp.md
 
 generated_or_local_paths:
