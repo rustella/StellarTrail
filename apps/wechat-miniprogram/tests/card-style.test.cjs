@@ -358,6 +358,10 @@ test("skills knot list offers search and category-only filtering", () => {
   const ts = read("pages/skills/index.ts");
 
   assert.match(wxml, /class="knot-filter-card"/);
+  assert.match(
+    wxml,
+    /!loading && \(allKnots\.length \|\| hasActiveFilters \|\| categoryFilters\.length\)/,
+  );
   assert.match(wxml, /placeholder="搜索绳结名称、用途"/);
   assert.match(wxml, /bindinput="onSearchInput"/);
   assert.match(wxml, /bindchange="onCategoryFilterChange"/);
@@ -365,6 +369,9 @@ test("skills knot list offers search and category-only filtering", () => {
   assert.match(wxml, /range="{{categoryFilterLabels}}"/);
   assert.match(wxml, /class="category-filter-pill"/);
   assert.match(wxml, /class="result-count"/);
+  assert.match(wxml, /class="empty-clear-filter-button"/);
+  assert.match(wxml, /清除筛选/);
+  assert.match(wxml, /bindtap="clearKnotFilters"/);
   assert.match(wxml, /loadingMore/);
   assert.match(wxml, /bindtap="cacheAllKnots"/);
   assert.match(wxml, /缓存全部/);
@@ -380,6 +387,8 @@ test("skills knot list offers search and category-only filtering", () => {
   assert.match(searchInput, /background:\s*var\(--control-bg\)/);
   const filterPill = selectorBlock(wxss, ".category-filter-pill");
   assert.match(filterPill, /background:\s*var\(--control-bg\)/);
+  const emptyClearButton = selectorBlock(wxss, ".empty-clear-filter-button");
+  assert.match(emptyClearButton, /background:\s*var\(--brand-color\)/);
   const cacheButton = selectorBlock(wxss, ".cache-button");
   assert.match(cacheButton, /background:\s*var\(--brand-color\)/);
 

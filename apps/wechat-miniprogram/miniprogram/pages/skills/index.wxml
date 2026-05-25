@@ -72,7 +72,7 @@
         缓存全部后，离线模式也能查询绳结详情和动图。
       </view>
 
-      <view wx:if="{{!loading && allKnots.length}}" class="knot-filter-card">
+      <view wx:if="{{!loading && (allKnots.length || hasActiveFilters || categoryFilters.length)}}" class="knot-filter-card">
         <view class="knot-search-row">
           <input
             class="knot-search-input"
@@ -144,6 +144,13 @@
         <view class="empty-subtitle">
           {{hasActiveFilters ? '换个关键词或类别试试。' : '稍后会展示常用绳结。'}}
         </view>
+        <button
+          wx:if="{{hasActiveFilters}}"
+          class="empty-clear-filter-button"
+          bindtap="clearKnotFilters"
+        >
+          清除筛选
+        </button>
       </view>
 
       <view wx:if="{{loadingMore}}" class="load-more">继续加载...</view>

@@ -322,6 +322,26 @@
   line-height: 64rpx;
 }
 
+.empty-clear-filter-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 220rpx;
+  height: 72rpx;
+  margin: 28rpx auto 0;
+  padding: 0 30rpx;
+  border-radius: 999rpx;
+  color: #ffffff;
+  background: var(--brand-color);
+  font-size: 26rpx;
+  font-weight: 900;
+  line-height: 72rpx;
+}
+
+.empty-clear-filter-button::after {
+  border: 0;
+}
+
 .knot-filter-row {
   display: flex;
   align-items: center;
