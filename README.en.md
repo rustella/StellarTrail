@@ -36,7 +36,9 @@ The directly usable entry points today are the **WeChat Mini Program** and **Web
 | 🧭 Outdoor skills  | Knot skills, media resources, and offline read-only cache           |
 | 💬 Feedback/admin  | User feedback; Web adds administrator features on top of other apps |
 
-## 🟢 WeChat Mini Program
+## 🚀 Quick Try
+
+### WeChat Mini Program
 
 <p align="center">
   <img alt="Xunjing Xingye WeChat Mini Program code" src="assets/brand/wechat-miniprogram-code.png" width="260" />
@@ -87,7 +89,7 @@ StellarTrail/
 
 ### 1. Prerequisites
 
-- 🦀 Rust 1.88+ stable toolchain with Rust 2024 edition. The workspace `rust-version` is still `1.85`, but the current AWS SDK dependency chain is validated with `1.88.0`; `rustfmt` and `clippy` are expected.
+- 🦀 Rust 1.88+ stable toolchain with Rust 2024 edition. The workspace `rust-version` is `1.88`; `rustfmt` and `clippy` are expected.
 - 🟢 Node.js 22+ and npm.
 - 💬 WeChat DevTools for Mini Program debugging.
 - 🗄️ PostgreSQL 16+ / MySQL-compatible database. Local development defaults to SQLite; production and integration tests prefer PostgreSQL; MySQL URLs are recognized at the configuration boundary.

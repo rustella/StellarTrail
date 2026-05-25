@@ -36,7 +36,9 @@ StellarTrail 聚焦徒步、露营和轻量户外用户，围绕 **装备整理*
 | 🧭 户外技能   | 绳结技能、媒体资源和离线只读缓存           |
 | 💬 反馈与管理 | 用户反馈；Web 在其他端基础上增加管理员功能 |
 
-## 🟢 微信小程序入口
+## 🚀 快速体验
+
+### 微信小程序入口
 
 <p align="center">
   <img alt="寻径星野微信小程序码" src="assets/brand/wechat-miniprogram-code.png" width="260" />
@@ -87,7 +89,7 @@ StellarTrail/
 
 ### 1. 环境要求
 
-- 🦀 Rust 1.88+ stable toolchain（Rust 2024 edition；仓库 `rust-version` 仍为 `1.85`，当前 AWS SDK 依赖链建议使用 `1.88.0`；需要 `rustfmt` 和 `clippy`）。
+- 🦀 Rust 1.88+ stable toolchain（Rust 2024 edition；仓库 `rust-version` 为 `1.88`；需要 `rustfmt` 和 `clippy`）。
 - 🟢 Node.js 22+ 与 npm。
 - 💬 微信开发者工具（调试小程序时需要）。
 - 🗄️ PostgreSQL 16+ / MySQL-compatible 数据库（本地默认 SQLite；生产和集成测试推荐 PostgreSQL；MySQL URL 已保留识别边界）。
