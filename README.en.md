@@ -27,16 +27,14 @@
 
 StellarTrail serves hikers, campers, and lightweight outdoor users. The app is organized around **gear organization**, **route planning**, **outdoor skills**, and the related preparation workflows around them.
 
-The directly usable entry points today are the **WeChat Mini Program** and **Web**. Both share the same Rust API and cover account access, personal gear, gear atlas, knot skills, and feedback. Web adds administrator capabilities on top of the other client surfaces. Android, iOS, and HarmonyOS are currently unavailable and are not delivery targets for the active product.
+The directly usable entry points today are the **WeChat Mini Program** and **Web**. Both cover account access, personal gear, gear atlas, knot skills, and feedback. Web adds administrator capabilities on top of the other client surfaces. Android, iOS, and HarmonyOS are currently unavailable and are not delivery targets for the active product.
 
-| Area              | Current status                                                            |
-| ----------------- | ------------------------------------------------------------------------- |
-| 📱 Entry points   | WeChat Mini Program + Web are ready                                       |
-| 🎒 Gear org       | Personal gear, gear atlas, and DB-backed gear templates                   |
-| 🗺️ Route planning | Route-planning capabilities are still being developed                     |
-| 🧭 Skills toolbox | Knot skills are live; media is delivered through MinIO/object storage     |
-| 🧱 Rust service   | Account, gear, skills, feedback, upload, admin, and usage-reporting flows |
-| 🧪 Native mobile  | Android / iOS / HarmonyOS are currently unavailable                       |
+| Product capability | Current notes                                                       |
+| ------------------ | ------------------------------------------------------------------- |
+| 🎒 Gear org        | Personal gear, gear atlas, and DB-backed gear templates             |
+| 🗺️ Route planning  | Route-planning capabilities are still being developed               |
+| 🧭 Outdoor skills  | Knot skills, media resources, and offline read-only cache           |
+| 💬 Feedback/admin  | User feedback; Web adds administrator features on top of other apps |
 
 ## 🟢 WeChat Mini Program
 
