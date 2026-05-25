@@ -38,8 +38,8 @@ stack:
     language: TypeScript
     node: "22+"
   public_data:
-    gear_templates: API startup seed
-    knots: Knots3D metadata imported into DB
+    gear_templates: DB-backed API startup seed
+    knots: DB-backed public knot catalog
     media: MinIO/S3-compatible object storage URLs stored in DB
   databases:
     local: SQLite
@@ -63,8 +63,6 @@ source_roots:
     role: Domain models, enums, and validation rules.
   - path: crates/db
     role: Database configuration, connections, and repositories.
-  - path: crates/importer
-    role: Knots3D metadata parsing and import boundaries.
   - path: crates/migration
     role: Database schema migrations.
   - path: packages/api-client-ts

@@ -48,6 +48,15 @@ The directly usable entry points today are the **WeChat Mini Program** and **Web
   <strong>Scan with WeChat or search for “寻径星野”.</strong>
 </p>
 
+Routes, trips, skills, realtime navigation, social feeds, guided-trip marketplaces, full GPX editing, and commerce are intentionally out of scope for phase one.
+
+## 🌱 Current public data
+
+| Type             | Source                                                                |
+| ---------------- | --------------------------------------------------------------------- |
+| 🪢 Knot skills   | DB-backed public knot catalog; media served from MinIO/object storage |
+| 🎒 Gear template | Idempotent system defaults seeded into DB at API startup              |
+
 ## 📱 Client support
 
 | Client              | Status      | Notes                                                                                                     |
@@ -74,7 +83,6 @@ StellarTrail/
   crates/
     domain/                 # Shared Rust domain models
     db/                     # DB config and repository boundary
-    importer/               # Knots3D metadata importer boundary
     migration/              # Migration boundary
   packages/
     api-client-ts/          # TS API client for Mini Program / web / mobile

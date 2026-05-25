@@ -16,7 +16,6 @@ SQLite / PostgreSQL
         |
 optional Redis cache (read-through gear API cache)
 
-Knots3D metadata import CLI -> DB
 MinIO / S3-compatible object storage -> public media URLs stored in DB
 ```
 
@@ -30,7 +29,6 @@ MinIO / S3-compatible object storage -> public media URLs stored in DB
 - `crates/domain`：装备、装备模板、技能、用户和反馈等领域模型、枚举和校验规则。
 - `crates/db`：SeaORM 连接、repository、用户会话、装备、绳结、媒体资源和装备模板持久化。
 - `crates/migration`：数据库 schema 迁移。
-- `crates/importer`：Knots3D metadata 解析边界；导入结果写 DB，不被 API 启动直接读取为内存 catalog。
 - `packages/shared-types` / `packages/api-client-ts`：客户端复用 DTO 和 API client。
 - `apps/ios`：SwiftUI 原生端，使用 MVVM、repository、URLSession/Codable 和 Keychain 会话存储复用同一套装备与技能体验。
 
@@ -44,7 +42,7 @@ MinIO / S3-compatible object storage -> public media URLs stored in DB
 
 ## Public data
 
-- 绳结内容通过 `import-knots3d` 将 `.hermes/local/knots3d/metadata/knots3d_bilingual_metadata.json` 导入数据库。
+- 绳结内容已经是 DB-backed 公共数据；旧的 Rust 数据导入 CLI 已退役，现有数据库和外部备份是内容恢复来源。
 - 绳结媒体通过管理员上传接口写入 MinIO/S3-compatible object storage，并把 public URL 与 metadata 写入 `media_resources` / `knot_media_resources`。
 - 装备模板由 API 启动 seed 逻辑向 `gear_templates`、`gear_template_categories` 和 `gear_template_items` 幂等写入默认系统模板。
 - repo-local `content/assets`、`content/skills`、`content/mountains`、`content/routes` 和 `content/gear-templates` 已删除；公开 API 不从这些路径读取，也不通过 `/assets/*` 直接服务媒体。

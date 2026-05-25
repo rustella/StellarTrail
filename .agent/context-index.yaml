@@ -53,12 +53,11 @@ topics:
       - packages/shared-types/src/index.ts
       - docs/api.md
       - .agent/commands.yaml
-  public_data_import:
-    summary: Load when changing gear-template DB seed, public data docs, Knots3D metadata import, or media object-storage behavior.
+  public_data:
+    summary: Load when changing gear-template DB seed, public data docs, knot catalog behavior, or media object-storage behavior.
     read:
       - docs/api.md
       - crates/domain/src/gear_template.rs
-      - crates/importer/src/lib.rs
       - crates/db/src/repositories/gear_template_repository.rs
   testing_and_ci:
     summary: Load when confirming validation commands, CI rules, or test entry points.
@@ -143,11 +142,10 @@ tasks:
       - apps/wechat-miniprogram/miniprogram/app.json
       - .agent/commands.yaml
     checklist: .agent/checklists/self-review.md
-  public_data_or_importer_change:
-    keywords: [public-data, gear-template, knots, importer, seed, object-storage]
+  public_data_change:
+    keywords: [public-data, gear-template, knots, seed, object-storage]
     read:
       - docs/api.md
-      - crates/importer/src/lib.rs
       - crates/domain/src/gear_template.rs
       - crates/db/src/repositories/gear_template_repository.rs
       - .agent/commands.yaml
