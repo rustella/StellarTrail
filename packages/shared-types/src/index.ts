@@ -17,12 +17,24 @@ export type ClientKey =
 
 export type ClientVersionStatus = "draft" | "published";
 
+export type ClientVersionReleaseNoteSectionKey =
+  | "feature"
+  | "bug_fix"
+  | "notes";
+
+export interface ClientVersionReleaseNoteSection {
+  key: ClientVersionReleaseNoteSectionKey;
+  title: string;
+  items: string[];
+}
+
 export interface ClientVersion {
   id: string;
   client_key: ClientKey;
   version: string;
   title: string;
   release_notes: string[];
+  release_note_sections: ClientVersionReleaseNoteSection[];
   status: ClientVersionStatus;
   published_at?: string | null;
   created_at: string;
@@ -45,7 +57,8 @@ export interface ClientVersionRequest {
   client_key: ClientKey;
   version: string;
   title: string;
-  release_notes: string[];
+  release_notes?: string[];
+  release_note_sections?: ClientVersionReleaseNoteSection[];
   status: ClientVersionStatus;
 }
 

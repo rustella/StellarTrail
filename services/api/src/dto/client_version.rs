@@ -1,9 +1,26 @@
 //! Client version HTTP DTOs for public release notes and administrator maintenance.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use stellartrail_db::repositories::ClientVersionRecord;
 
-use crate::services::client_version_service::ValidatedClientVersionDraft;
+use crate::services::client_version_service::{
+    ValidatedClientVersionDraft, ValidatedReleaseNoteSection,
+};
+
+const RELEASE_NOTE_SECTION_ORDER: [(&str, &str); 3] = [
+    ("feature", "Feature"),
+    ("bug_fix", "BugFix"),
+    ("notes", "Notes"),
+];
+
+/// One grouped section in public release notes.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ClientVersionReleaseNoteSection {
+    pub key: String,
+    pub title: String,
+    pub items: Vec<String>,
+}
 
 /// Public and administrator client version response.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -13,6 +30,7 @@ pub struct ClientVersionResponse {
     pub version: String,
     pub title: String,
     pub release_notes: Vec<String>,
+    pub release_note_sections: Vec<ClientVersionReleaseNoteSection>,
     pub status: String,
     pub published_at: Option<String>,
     pub created_at: String,
@@ -52,7 +70,10 @@ pub struct ClientVersionRequest {
     pub client_key: String,
     pub version: String,
     pub title: String,
+    #[serde(default)]
     pub release_notes: Vec<String>,
+    #[serde(default)]
+    pub release_note_sections: Vec<ClientVersionReleaseNoteSection>,
     pub status: String,
 }
 
@@ -63,6 +84,15 @@ impl From<ClientVersionRequest> for ValidatedClientVersionDraft {
             version: value.version,
             title: value.title,
             release_notes: value.release_notes,
+            release_note_sections: value
+                .release_note_sections
+                .into_iter()
+                .map(|section| ValidatedReleaseNoteSection {
+                    key: section.key,
+                    title: section.title,
+                    items: section.items,
+                })
+                .collect(),
             status: value.status,
         }
     }
@@ -71,16 +101,75 @@ impl From<ClientVersionRequest> for ValidatedClientVersionDraft {
 impl ClientVersionResponse {
     /// Converts a persisted record to an API response.
     pub fn from_record(record: &ClientVersionRecord) -> Self {
+        let release_note_sections = parse_release_note_sections(&record.release_notes_json);
+        let release_notes = release_note_sections
+            .iter()
+            .flat_map(|section| section.items.iter().cloned())
+            .collect();
         Self {
             id: record.id.clone(),
             client_key: record.client_key.clone(),
             version: record.version.clone(),
             title: record.title.clone(),
-            release_notes: serde_json::from_str(&record.release_notes_json).unwrap_or_default(),
+            release_notes,
+            release_note_sections,
             status: record.status.clone(),
             published_at: record.published_at.clone(),
             created_at: record.created_at.clone(),
             updated_at: record.updated_at.clone(),
         }
     }
+}
+
+fn parse_release_note_sections(raw: &str) -> Vec<ClientVersionReleaseNoteSection> {
+    let Ok(value) = serde_json::from_str::<Value>(raw) else {
+        return Vec::new();
+    };
+    if let Some(items) = value.as_array() {
+        let notes = items
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(ToOwned::to_owned)
+            .collect::<Vec<_>>();
+        return section_if_not_empty("feature", "Feature", notes);
+    }
+    let Some(object) = value.as_object() else {
+        return Vec::new();
+    };
+    RELEASE_NOTE_SECTION_ORDER
+        .iter()
+        .flat_map(|(key, title)| {
+            let items = object
+                .get(*key)
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::trim)
+                        .filter(|item| !item.is_empty())
+                        .map(ToOwned::to_owned)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            section_if_not_empty(key, title, items)
+        })
+        .collect()
+}
+
+fn section_if_not_empty(
+    key: &str,
+    title: &str,
+    items: Vec<String>,
+) -> Vec<ClientVersionReleaseNoteSection> {
+    if items.is_empty() {
+        return Vec::new();
+    }
+    vec![ClientVersionReleaseNoteSection {
+        key: key.to_owned(),
+        title: title.to_owned(),
+        items,
+    }]
 }

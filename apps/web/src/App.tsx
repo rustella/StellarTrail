@@ -4,6 +4,7 @@ import type {
   AdminFeedbackItem,
   ClientKey,
   ClientVersion,
+  ClientVersionReleaseNoteSection,
   ClientVersionRequest,
   ClientVersionStatus,
   CreateGearRequest,
@@ -102,7 +103,9 @@ interface ClientVersionFormState {
   clientKey: ClientKey;
   version: string;
   title: string;
-  releaseNotesText: string;
+  featureNotesText: string;
+  bugFixNotesText: string;
+  notesText: string;
   status: ClientVersionStatus;
 }
 
@@ -225,7 +228,9 @@ const emptyClientVersionForm: ClientVersionFormState = {
   clientKey: "wechat_miniprogram",
   version: "",
   title: "",
-  releaseNotesText: "",
+  featureNotesText: "",
+  bugFixNotesText: "",
+  notesText: "",
   status: "draft",
 };
 
@@ -890,12 +895,15 @@ export default function App({ client }: AppProps) {
   }
 
   function editClientVersion(item: ClientVersion) {
+    const sections = clientVersionSections(item);
     setClientVersionForm({
       id: item.id,
       clientKey: item.client_key,
       version: item.version,
       title: item.title,
-      releaseNotesText: item.release_notes.join("\n"),
+      featureNotesText: sectionItemsText(sections, "feature"),
+      bugFixNotesText: sectionItemsText(sections, "bug_fix"),
+      notesText: sectionItemsText(sections, "notes"),
       status: item.status,
     });
   }
@@ -3101,14 +3109,40 @@ function ClientVersionsAdminPage({
               />
             </label>
             <label className="full-width">
-              更新说明
+              Feature
               <textarea
-                value={form.releaseNotesText}
-                placeholder="每行一条更新内容"
+                value={form.featureNotesText}
+                placeholder="每行一条新增功能"
                 onChange={(event) =>
                   onFormChange({
                     ...form,
-                    releaseNotesText: event.target.value,
+                    featureNotesText: event.target.value,
+                  })
+                }
+              />
+            </label>
+            <label className="full-width">
+              BugFix
+              <textarea
+                value={form.bugFixNotesText}
+                placeholder="每行一条修复内容"
+                onChange={(event) =>
+                  onFormChange({
+                    ...form,
+                    bugFixNotesText: event.target.value,
+                  })
+                }
+              />
+            </label>
+            <label className="full-width">
+              Notes（可选）
+              <textarea
+                value={form.notesText}
+                placeholder="每行一条兼容说明、已知限制或注意事项"
+                onChange={(event) =>
+                  onFormChange({
+                    ...form,
+                    notesText: event.target.value,
                   })
                 }
               />
@@ -3168,11 +3202,21 @@ function ClientVersionsAdminPage({
                   {clientVersionStatusLabel(item.status)}
                 </span>
               </div>
-              <ul className="client-version-notes">
-                {item.release_notes.map((note) => (
-                  <li key={note}>{note}</li>
+              <div className="client-version-notes">
+                {clientVersionSections(item).map((section) => (
+                  <section
+                    className="client-version-note-section"
+                    key={section.key}
+                  >
+                    <h3>{section.title}</h3>
+                    <ol>
+                      {section.items.map((note) => (
+                        <li key={note}>{note}</li>
+                      ))}
+                    </ol>
+                  </section>
                 ))}
-              </ul>
+              </div>
               <div className="actions">
                 <button
                   type="button"
@@ -4143,16 +4187,59 @@ function clientVersionStatusLabel(status: ClientVersionStatus): string {
 function clientVersionRequestFromForm(
   form: ClientVersionFormState,
 ): ClientVersionRequest {
+  const featureItems = splitReleaseNoteText(form.featureNotesText);
+  const bugFixItems = splitReleaseNoteText(form.bugFixNotesText);
+  const notesItems = splitReleaseNoteText(form.notesText);
+  const releaseNoteSections: ClientVersionReleaseNoteSection[] = [
+    { key: "feature", title: "Feature", items: featureItems },
+    { key: "bug_fix", title: "BugFix", items: bugFixItems },
+  ];
+  if (notesItems.length) {
+    releaseNoteSections.push({
+      key: "notes",
+      title: "Notes",
+      items: notesItems,
+    });
+  }
   return {
     client_key: form.clientKey,
     version: form.version.trim(),
     title: form.title.trim(),
-    release_notes: form.releaseNotesText
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean),
+    release_notes: [...featureItems, ...bugFixItems, ...notesItems],
+    release_note_sections: releaseNoteSections,
     status: form.status,
   };
+}
+
+function splitReleaseNoteText(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function clientVersionSections(
+  item: ClientVersion,
+): ClientVersionReleaseNoteSection[] {
+  const sections = item.release_note_sections?.filter(
+    (section) => section.items.length > 0,
+  );
+  if (sections?.length) {
+    return sections;
+  }
+  if (item.release_notes.length) {
+    return [{ key: "feature", title: "Feature", items: item.release_notes }];
+  }
+  return [];
+}
+
+function sectionItemsText(
+  sections: ClientVersionReleaseNoteSection[],
+  key: ClientVersionReleaseNoteSection["key"],
+): string {
+  return (
+    sections.find((section) => section.key === key)?.items.join("\n") ?? ""
+  );
 }
 
 function feedbackUserName(user: AdminFeedbackItem["user"]): string {

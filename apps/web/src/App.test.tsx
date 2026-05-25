@@ -93,6 +93,13 @@ function buildClientVersion(
     version: "0.1.0",
     title: "0.1.0 初始版本",
     release_notes: ["装备库上线", "绳结离线缓存"],
+    release_note_sections: [
+      {
+        key: "feature",
+        title: "Feature",
+        items: ["装备库上线", "绳结离线缓存"],
+      },
+    ],
     status: "published",
     published_at: "2026-05-23T00:00:00Z",
     created_at: "2026-05-23T00:00:00Z",
@@ -1084,8 +1091,11 @@ describe("App", () => {
     fireEvent.change(screen.getByPlaceholderText("例如 0.1.0 初始版本"), {
       target: { value: "0.2.0 装备图鉴更新" },
     });
-    fireEvent.change(screen.getByPlaceholderText("每行一条更新内容"), {
-      target: { value: "新增版本信息\n优化绳结离线缓存" },
+    fireEvent.change(screen.getByPlaceholderText("每行一条新增功能"), {
+      target: { value: "新增版本信息" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("每行一条修复内容"), {
+      target: { value: "优化绳结离线缓存" },
     });
     fireEvent.click(screen.getByRole("button", { name: "创建版本" }));
 
@@ -1095,6 +1105,18 @@ describe("App", () => {
         version: "0.2.0",
         title: "0.2.0 装备图鉴更新",
         release_notes: ["新增版本信息", "优化绳结离线缓存"],
+        release_note_sections: [
+          {
+            key: "feature",
+            title: "Feature",
+            items: ["新增版本信息"],
+          },
+          {
+            key: "bug_fix",
+            title: "BugFix",
+            items: ["优化绳结离线缓存"],
+          },
+        ],
         status: "draft",
       });
     });
