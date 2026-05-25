@@ -22,7 +22,7 @@ MinIO / S3-compatible object storage -> public media URLs stored in DB
 
 ## Phase-one scope
 
-第一期核心是装备库管理、DB-backed 装备模板、账号登录和绳结公共技能。路线、山峰、行程和导航模块尚未开始实现；服务端不注册 `/api/v1/mountains*` 或 `/api/v1/routes*`，也不再通过 repo-local `content/` 文件树启动加载公共内容。
+第一期核心是装备库管理、装备模板、账号登录和绳结公共技能。路线、山峰、行程和导航模块尚未开始实现；服务端不注册 `/api/v1/mountains*` 或 `/api/v1/routes*`，也不再通过 repo-local `content/` 文件树启动加载公共内容。
 
 服务端分层：
 

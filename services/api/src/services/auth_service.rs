@@ -637,13 +637,13 @@ async fn ensure_email_available_for_binding(
     user: &UserRecord,
     email: &str,
 ) -> Result<(), ApiError> {
-    if let Some(existing_user) = repo.find_user_by_email(email).await? {
-        if existing_user.id != user.id {
-            return Err(ApiError::Validation(vec![FieldViolation::new(
-                "email",
-                "has already been registered",
-            )]));
-        }
+    if let Some(existing_user) = repo.find_user_by_email(email).await?
+        && existing_user.id != user.id
+    {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "email",
+            "has already been registered",
+        )]));
     }
     Ok(())
 }

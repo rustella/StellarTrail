@@ -118,13 +118,13 @@ async fn ensure_unique_version(
     version: &str,
     allowed_id: Option<&str>,
 ) -> Result<(), ApiError> {
-    if let Some(existing) = repo.get_by_client_version(client_key, version).await? {
-        if Some(existing.id.as_str()) != allowed_id {
-            return Err(ApiError::Validation(vec![FieldViolation::new(
-                "version",
-                "already exists for this client",
-            )]));
-        }
+    if let Some(existing) = repo.get_by_client_version(client_key, version).await?
+        && Some(existing.id.as_str()) != allowed_id
+    {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "version",
+            "already exists for this client",
+        )]));
     }
     Ok(())
 }

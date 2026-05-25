@@ -56,7 +56,7 @@ topics:
   public_data_import:
     summary: Load when changing gear-template DB seed, public data docs, Knots3D metadata import, or media object-storage behavior.
     read:
-      - docs/content-schema.md
+      - docs/api.md
       - crates/domain/src/gear_template.rs
       - crates/importer/src/lib.rs
       - crates/db/src/repositories/gear_template_repository.rs
@@ -146,7 +146,7 @@ tasks:
   public_data_or_importer_change:
     keywords: [public-data, gear-template, knots, importer, seed, object-storage]
     read:
-      - docs/content-schema.md
+      - docs/api.md
       - crates/importer/src/lib.rs
       - crates/domain/src/gear_template.rs
       - crates/db/src/repositories/gear_template_repository.rs

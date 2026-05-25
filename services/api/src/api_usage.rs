@@ -129,16 +129,16 @@ pub async fn track_api_usage(
     request.extensions_mut().insert(context.clone());
 
     let response = next.run(request).await;
-    if let Some(route_pattern) = route_pattern {
-        if should_track(&method, &route_pattern) {
-            state.api_usage_reporter().try_report(ApiUsageEvent {
-                user_id: context.user_id(),
-                method: method.as_str().to_owned(),
-                route_pattern,
-                status_code: response.status().as_u16(),
-                occurred_at: OffsetDateTime::now_utc(),
-            });
-        }
+    if let Some(route_pattern) = route_pattern
+        && should_track(&method, &route_pattern)
+    {
+        state.api_usage_reporter().try_report(ApiUsageEvent {
+            user_id: context.user_id(),
+            method: method.as_str().to_owned(),
+            route_pattern,
+            status_code: response.status().as_u16(),
+            occurred_at: OffsetDateTime::now_utc(),
+        });
     }
     response
 }

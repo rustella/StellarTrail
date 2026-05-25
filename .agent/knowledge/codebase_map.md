@@ -11,6 +11,9 @@
 
 ## Applications
 
+- `apps/android/`: Android native client source and tests.
+- `apps/ios/`: iOS SwiftUI app, XcodeGen project definition, tests, and screenshot flows.
+- `apps/macos/`: macOS SwiftUI app and XcodeGen project definition.
 - `apps/wechat-miniprogram/miniprogram/app.ts`: Mini Program app entry point.
 - `apps/wechat-miniprogram/miniprogram/app.json`: Mini Program page and tab configuration.
 - `apps/wechat-miniprogram/miniprogram/pages/`: page implementations.
@@ -35,14 +38,14 @@
 
 - `packages/shared-types/src/index.ts`: shared DTO and API-facing TypeScript types.
 - `packages/api-client-ts/src/index.ts`: TypeScript client helpers.
+- `packages/apple/StellarTrailKit/`: shared Swift package for iOS and macOS clients.
 
 ## Public data and docs
 
-- Gear templates: DB-backed system seed under domain/API/DB/migration code.
+- Gear templates: system seed under domain/API/DB/migration code.
 - Knot skills: Knots3D metadata imported through `crates/importer`; media URLs are stored in DB and backed by MinIO/object storage.
 - `docs/api.md`: API contract notes.
 - `docs/architecture.md`: architecture documentation.
-- `docs/content-schema.md`: content schema documentation.
 - `docs/mvp.md`: MVP scope notes.
 
 ## Generated or local-only paths
