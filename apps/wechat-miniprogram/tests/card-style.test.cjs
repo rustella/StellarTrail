@@ -169,7 +169,13 @@ test("primary page cards share homepage surface tokens", () => {
   const cases = [
     [
       "pages/gears/index.wxss",
-      [".tab-card", ".search-card", ".gear-card", ".guest-card"],
+      [
+        ".tab-card",
+        ".search-card",
+        ".filter-panel",
+        ".gear-card",
+        ".guest-card",
+      ],
     ],
     [
       "pages/skills/index.wxss",
@@ -220,6 +226,108 @@ test("primary page cards share homepage surface tokens", () => {
       );
     }
   }
+});
+
+test("gear page filter panel labels category status and sort controls", () => {
+  const wxml = read("pages/gears/index.wxml");
+  const wxss = read("pages/gears/index.wxss");
+
+  assert.match(wxml, /tab-card-title">列表范围/);
+  assert.match(wxml, /class="tab-switch"/);
+  assert.match(wxml, /class="tab-item-title">\{\{item\.label\}\}/);
+  assert.match(wxml, /class="tab-item-hint"/);
+  assert.match(wxml, /class="filter-panel"/);
+  assert.match(wxml, /filter-panel-title">筛选/);
+  assert.match(wxml, /filter-panel-hint">分类、状态、排序/);
+  assert.ok(
+    wxml.indexOf('class="filter-panel"') < wxml.indexOf('class="search-card"'),
+    "gear filters should appear before the search card",
+  );
+  assert.match(wxml, /filter-section-label">分类/);
+  assert.match(
+    wxml,
+    /class="filter-select-picker"[\s\S]*bindchange="onStatusChange"/,
+  );
+  assert.match(wxml, /class="filter-label">状态/);
+  assert.match(
+    wxml,
+    /class="filter-value"[\s\S]*\{\{statusLabels\[selectedStatusIndex\]\}\}/,
+  );
+  assert.match(
+    wxml,
+    /class="filter-select-picker"[\s\S]*bindchange="onSortChange"/,
+  );
+  assert.match(wxml, /class="filter-label">排序/);
+  assert.match(
+    wxml,
+    /class="filter-value"[\s\S]*\{\{sortLabels\[selectedSortIndex\]\}\}/,
+  );
+  assert.doesNotMatch(wxml, /class="filter-pill"/);
+
+  const tabSwitch = selectorBlock(wxss, ".tab-switch");
+  const tabItem = selectorBlock(wxss, ".tab-item");
+  const activeTabItem = selectorBlock(wxss, ".tab-item.active");
+  const title = selectorBlock(wxss, ".filter-panel-title");
+  const categoryChip = selectorBlock(wxss, ".category-chip");
+  const activeCategoryChip = selectorBlock(wxss, ".category-chip.active");
+  const filterSelect = selectorBlock(wxss, ".filter-select");
+  const filterLabel = selectorBlock(wxss, ".filter-label");
+  const filterValue = selectorBlock(wxss, ".filter-value");
+  const darkPanel = selectorBlock(wxss, ".gear-page.theme-dark .filter-panel");
+  const darkSelect = selectorBlock(
+    wxss,
+    ".gear-page.theme-dark .filter-select",
+  );
+
+  assert.match(wxss, /\.tab-card\s*\{[\s\S]*padding:\s*18rpx/);
+  assert.match(tabSwitch, /background:\s*var\(--control-bg\)/);
+  assert.match(tabItem, /min-height:\s*64rpx/);
+  assert.match(activeTabItem, /border-color:\s*var\(--brand-color\)/);
+  assert.match(wxss, /\.filter-panel\s*\{[\s\S]*padding:\s*22rpx 0 18rpx/);
+  assert.match(title, /color:\s*var\(--text-color\)/);
+  assert.match(categoryChip, /background:\s*var\(--control-bg\)/);
+  assert.match(activeCategoryChip, /border-color:\s*var\(--brand-color\)/);
+  assert.match(filterSelect, /background:\s*var\(--control-bg\)/);
+  assert.match(filterSelect, /border:\s*1rpx solid var\(--soft-border-color\)/);
+  assert.match(filterLabel, /color:\s*var\(--muted-color\)/);
+  assert.match(filterValue, /text-overflow:\s*ellipsis/);
+  assert.match(darkPanel, /background:\s*var\(--surface-color\)/);
+  assert.match(darkSelect, /background:\s*var\(--control-bg\)/);
+});
+
+test("packing list gear selector uses labeled filter controls", () => {
+  const wxml = read("pages/packing-lists/select-gears/index.wxml");
+  const wxss = read("pages/packing-lists/select-gears/index.wxss");
+
+  assert.match(wxml, /class="filter-panel"/);
+  assert.match(wxml, /filter-panel-title">筛选/);
+  assert.match(wxml, /filter-panel-hint">仅可用装备/);
+  assert.match(wxml, /filter-section-label">分类/);
+  assert.match(
+    wxml,
+    /class="filter-select-picker"[\s\S]*bindchange="onStatusChange"/,
+  );
+  assert.match(wxml, /class="filter-label">状态/);
+  assert.match(
+    wxml,
+    /class="filter-select-picker"[\s\S]*bindchange="onSortChange"/,
+  );
+  assert.match(wxml, /class="filter-label">排序/);
+  assert.doesNotMatch(wxml, /class="filter-pill"/);
+
+  const categoryChip = selectorBlock(wxss, ".category-chip");
+  const activeCategoryChip = selectorBlock(wxss, ".category-chip.active");
+  const filterSelect = selectorBlock(wxss, ".filter-select");
+  const filterLabel = selectorBlock(wxss, ".filter-label");
+  const filterValue = selectorBlock(wxss, ".filter-value");
+
+  assert.match(wxss, /\.filter-panel\s*\{[\s\S]*padding:\s*22rpx 0 18rpx/);
+  assert.match(categoryChip, /background:\s*var\(--control-bg\)/);
+  assert.match(activeCategoryChip, /border-color:\s*var\(--brand-color\)/);
+  assert.match(filterSelect, /background:\s*var\(--control-bg\)/);
+  assert.match(filterSelect, /border:\s*1rpx solid var\(--soft-border-color\)/);
+  assert.match(filterLabel, /color:\s*var\(--muted-color\)/);
+  assert.match(filterValue, /text-overflow:\s*ellipsis/);
 });
 
 test("profile pages expose page-local dark backgrounds", () => {
@@ -364,7 +472,7 @@ test("skills knot list offers search and category-only filtering", () => {
   const ts = read("pages/skills/index.ts");
 
   assert.match(wxml, /class="knot-filter-card"/);
-  assert.match(
+  assert.doesNotMatch(
     wxml,
     /!loading && \(allKnots\.length \|\| hasActiveFilters \|\| categoryFilters\.length\)/,
   );
@@ -373,6 +481,7 @@ test("skills knot list offers search and category-only filtering", () => {
   const alias = selectorBlock(wxss, ".skill-alias");
   assert.match(alias, /color:\s*var\(--muted-color\)/);
   assert.match(wxml, /bindinput="onSearchInput"/);
+  assert.match(wxml, /bindconfirm="submitKnotSearch"/);
   assert.match(wxml, /bindchange="onCategoryFilterChange"/);
   assert.match(wxml, /class="category-filter-picker"/);
   assert.match(wxml, /range="{{categoryFilterLabels}}"/);
@@ -405,7 +514,8 @@ test("skills knot list offers search and category-only filtering", () => {
   assert.match(ts, /categoryFilterLabels/);
   assert.match(ts, /const KNOTS_PAGE_SIZE = 10/);
   assert.match(ts, /knotListRequestSeq/);
-  assert.match(ts, /searchQuery,\s*nextOffset:\s*null,\s*loadingMore:\s*false/);
+  assert.match(ts, /onSearchInput\(event: any\) \{[\s\S]*this\.applyFilters/);
+  assert.match(ts, /submitKnotSearch\(\)/);
   assert.match(
     ts,
     /const favoriteIds = await favoriteIdsPromise;[\s\S]*response\.items\.map\(\(item\) => mapKnotListCard\(item, favoriteIds\)\)/,

@@ -110,9 +110,24 @@ test("skills page gates knot list behind disclaimer acceptance", () => {
   assert.match(wxml, /拒绝并退出/);
   assert.match(wxml, /item\.aliasText/);
   assert.match(wxml, /class="skill-alias"/);
+  assert.match(
+    wxml,
+    /class="knot-search-input"[\s\S]*bindinput="onSearchInput"/,
+  );
+  assert.match(
+    wxml,
+    /class="knot-search-input"[\s\S]*bindconfirm="submitKnotSearch"/,
+  );
+  assert.doesNotMatch(
+    wxml,
+    /!loading && \(allKnots\.length \|\| hasActiveFilters \|\| categoryFilters\.length\)/,
+  );
   assert.match(wxss, /\.disclaimer-mask/);
   assert.match(wxss, /\.disclaimer-content/);
   assert.match(wxss, /\.skill-alias/);
+  assert.match(ts, /onSearchInput\(event: any\) \{[\s\S]*this\.applyFilters/);
+  assert.match(ts, /submitKnotSearch\(\) \{[\s\S]*this\.loadKnots/);
+  assert.match(ts, /clearKnotSearchTimer/);
   assert.match(read("utils/skill-utils.ts"), /aliasText/);
 });
 
@@ -460,6 +475,7 @@ test("home gear summary aligns logged-out and logged-in card surfaces", () => {
 });
 
 test("gear page logged-out and logged-in cards share surface tokens", () => {
+  const wxml = read("pages/gears/index.wxml");
   const wxss = read("pages/gears/index.wxss");
   const cardSurfaceBlock =
     wxss.match(/\.tab-card,[\s\S]*?\.gear-card \{[\s\S]*?\n\}/)?.[0] ?? "";
@@ -467,6 +483,16 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
   const metricValueBlock =
     wxss.match(/\.metric-value \{[\s\S]*?\n\}/)?.[0] ?? "";
 
+  assert.match(wxml, /class="filter-panel"/);
+  assert.match(wxml, /tab-card-title">列表范围/);
+  assert.match(wxml, /tab-card-hint"[\s\S]*\{\{tab === 'available'/);
+  assert.match(wxml, /class="tab-switch"/);
+  assert.match(wxml, /class="tab-item-title">\{\{item\.label\}\}/);
+  assert.match(wxml, /filter-panel-title">筛选/);
+  assert.match(wxml, /filter-section-label">分类/);
+  assert.match(wxml, /class="filter-label">状态/);
+  assert.match(wxml, /class="filter-label">排序/);
+  assert.doesNotMatch(wxml, /class="filter-pill"/);
   assert.match(cardSurfaceBlock, /border: 1rpx solid var\(--border-color\)/);
   assert.match(cardSurfaceBlock, /background: var\(--surface-color\)/);
   assert.match(cardSurfaceBlock, /box-shadow: var\(--shadow-soft\)/);
@@ -498,6 +524,13 @@ test("packing lists pages expose create select and checklist flows", () => {
   assert.match(packingDetailWxml, /bindtap="togglePacked"/);
   assert.match(packingDetailWxml, /已打包/);
   assert.match(packingDetailTs, /updateGearPackingItem/);
+  assert.match(packingSelectWxml, /class="filter-panel"/);
+  assert.match(packingSelectWxml, /filter-panel-title">筛选/);
+  assert.match(packingSelectWxml, /filter-panel-hint">仅可用装备/);
+  assert.match(packingSelectWxml, /filter-section-label">分类/);
+  assert.match(packingSelectWxml, /class="filter-label">状态/);
+  assert.match(packingSelectWxml, /class="filter-label">排序/);
+  assert.doesNotMatch(packingSelectWxml, /class="filter-pill"/);
   assert.match(packingSelectWxml, /加入 \{\{selectedIds\.length\}\} 件装备/);
   assert.match(packingSelectTs, /addGearPackingItems/);
   assert.match(packingSelectTs, /showOfflineWriteBlockedToast/);

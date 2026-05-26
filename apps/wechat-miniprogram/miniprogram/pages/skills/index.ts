@@ -692,21 +692,51 @@ Page({
 
   onSearchInput(event: any) {
     const searchQuery = String(event.detail.value ?? "");
-    this.setData({ searchQuery, nextOffset: null, loadingMore: false });
-    if (knotSearchTimer) {
-      clearTimeout(knotSearchTimer);
+    const clearingSearch = !searchQuery.trim();
+    const selectedCategoryId = clearingSearch ? "all" : this.data.selectedCategoryId;
+    const selectedCategoryIndex = clearingSearch ? 0 : this.data.selectedCategoryIndex;
+    clearKnotSearchTimer();
+    knotListRequestSeq += 1;
+    this.applyFilters({
+      searchQuery,
+      selectedCategoryId,
+      selectedCategoryIndex,
+      nextOffset: null,
+    });
+    if (clearingSearch) {
+      this.loadKnots({ searchQuery: "", selectedCategoryId: "all", selectedCategoryIndex: 0 });
+      return;
     }
     knotSearchTimer = setTimeout(() => {
       knotSearchTimer = null;
       this.loadKnots({
-        searchQuery,
+        searchQuery: this.data.searchQuery,
         selectedCategoryId: this.data.selectedCategoryId,
         selectedCategoryIndex: this.data.selectedCategoryIndex,
       });
     }, 250);
   },
 
+  submitKnotSearch() {
+    clearKnotSearchTimer();
+    const clearingSearch = !this.data.searchQuery.trim();
+    const selectedCategoryId = clearingSearch ? "all" : this.data.selectedCategoryId;
+    const selectedCategoryIndex = clearingSearch ? 0 : this.data.selectedCategoryIndex;
+    this.applyFilters({
+      searchQuery: this.data.searchQuery,
+      selectedCategoryId,
+      selectedCategoryIndex,
+      nextOffset: null,
+    });
+    this.loadKnots({
+      searchQuery: this.data.searchQuery,
+      selectedCategoryId,
+      selectedCategoryIndex,
+    });
+  },
+
   onCategoryFilterChange(event: any) {
+    clearKnotSearchTimer();
     const selectedCategoryIndex = Number(event.detail.value || 0);
     const selectedCategoryId = this.data.categoryFilters[selectedCategoryIndex]?.id ?? "all";
     this.loadKnots({
@@ -727,10 +757,13 @@ Page({
   },
 
   clearKnotFilters() {
-    if (knotSearchTimer) {
-      clearTimeout(knotSearchTimer);
-      knotSearchTimer = null;
-    }
+    clearKnotSearchTimer();
+    this.applyFilters({
+      searchQuery: "",
+      selectedCategoryId: "all",
+      selectedCategoryIndex: 0,
+      nextOffset: null,
+    });
     this.loadKnots({
       searchQuery: "",
       selectedCategoryId: "all",
@@ -846,20 +879,33 @@ Page({
     searchQuery: string;
     selectedCategoryId: string;
     selectedCategoryIndex: number;
+    nextOffset?: number | null;
   }) {
+    const nextOffset =
+      filterState.nextOffset === undefined ? this.data.nextOffset : filterState.nextOffset;
     const listState = buildKnotListState(
       this.data.allKnots,
       filterState.selectedCategoryId,
       filterState.searchQuery,
-      this.data.nextOffset,
+      nextOffset,
       this.data.categoryFilters,
     );
     this.setData({
       ...listState,
       searchQuery: filterState.searchQuery,
+      nextOffset,
+      loadingMore: false,
     });
   },
 });
+
+function clearKnotSearchTimer() {
+  if (!knotSearchTimer) {
+    return;
+  }
+  clearTimeout(knotSearchTimer);
+  knotSearchTimer = null;
+}
 
 function loadKnotsPage(
   offset: number,
