@@ -16,6 +16,7 @@ export {
   sendEmailLoginCode,
   sendEmailVerificationCode,
   sendPasswordResetCode,
+  updateWechatNickname,
   type ApiResponseCaptchaRequirement,
   type ApiResponseFieldViolation,
   type CaptchaChallengeResponse,
