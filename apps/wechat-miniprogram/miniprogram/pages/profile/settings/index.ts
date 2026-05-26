@@ -7,9 +7,9 @@ import {
   sendBindEmailCode,
 } from "../../../utils/api-profile";
 import {
-  loginWithWechat,
   resetPassword,
   sendPasswordResetCode,
+  updateWechatNickname,
 } from "../../../utils/api-auth";
 import { buildAccountProfile } from "../../../utils/account-profile";
 import { loginPageUrl } from "../../../utils/auth-prompt";
@@ -144,7 +144,7 @@ Page({
     }
     this.setData({ nicknameLoading: true, accountError: "" });
     try {
-      await loginWithWechat({ nickname });
+      await updateWechatNickname(nickname);
       this.setData({
         loggedIn: hasAccessToken(),
         accountProfile: buildAccountProfile(true),
