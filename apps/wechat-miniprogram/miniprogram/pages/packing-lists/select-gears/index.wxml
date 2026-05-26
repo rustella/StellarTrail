@@ -29,33 +29,53 @@
     </button>
   </view>
 
-  <scroll-view class="category-scroll" scroll-x enable-flex>
-    <block wx:for="{{categoryOptions}}" wx:key="id">
-      <view
-        class="category-chip {{selectedCategory === item.id ? 'active' : ''}}"
-        data-id="{{item.id}}"
-        bindtap="selectCategory"
-      >
-        {{item.label}}
-      </view>
-    </block>
-  </scroll-view>
+  <view class="filter-panel">
+    <view class="filter-panel-header">
+      <view class="filter-panel-title">筛选</view>
+      <view class="filter-panel-hint">仅可用装备</view>
+    </view>
 
-  <view class="filter-row">
-    <picker
-      value="{{selectedStatusIndex}}"
-      range="{{statusLabels}}"
-      bindchange="onStatusChange"
-    >
-      <view class="filter-pill">{{statusLabels[selectedStatusIndex]}}</view>
-    </picker>
-    <picker
-      value="{{selectedSortIndex}}"
-      range="{{sortLabels}}"
-      bindchange="onSortChange"
-    >
-      <view class="filter-pill">{{sortLabels[selectedSortIndex]}}</view>
-    </picker>
+    <view class="filter-section-label">分类</view>
+    <scroll-view class="category-scroll" scroll-x enable-flex>
+      <block wx:for="{{categoryOptions}}" wx:key="id">
+        <view
+          class="category-chip {{selectedCategory === item.id ? 'active' : ''}}"
+          data-id="{{item.id}}"
+          bindtap="selectCategory"
+        >
+          {{item.label}}
+        </view>
+      </block>
+    </scroll-view>
+
+    <view class="filter-select-grid">
+      <picker
+        class="filter-select-picker"
+        value="{{selectedStatusIndex}}"
+        range="{{statusLabels}}"
+        bindchange="onStatusChange"
+      >
+        <view class="filter-select">
+          <text class="filter-label">状态</text>
+          <text class="filter-value"
+            >{{statusLabels[selectedStatusIndex]}}</text
+          >
+          <text class="filter-caret">⌄</text>
+        </view>
+      </picker>
+      <picker
+        class="filter-select-picker"
+        value="{{selectedSortIndex}}"
+        range="{{sortLabels}}"
+        bindchange="onSortChange"
+      >
+        <view class="filter-select">
+          <text class="filter-label">排序</text>
+          <text class="filter-value">{{sortLabels[selectedSortIndex]}}</text>
+          <text class="filter-caret">⌄</text>
+        </view>
+      </picker>
+    </view>
   </view>
 
   <view wx:if="{{error}}" class="state-card error">

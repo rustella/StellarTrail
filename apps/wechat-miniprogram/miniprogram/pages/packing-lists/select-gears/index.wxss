@@ -6,6 +6,7 @@
 
 .select-header,
 .search-card,
+.filter-panel,
 .gear-select-card {
   margin-top: 24rpx;
   border: 1rpx solid var(--border-color);
@@ -74,48 +75,127 @@
   background: var(--soft-control-bg);
 }
 
+.filter-panel {
+  padding: 22rpx 0 18rpx;
+}
+
+.filter-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 0 22rpx 16rpx;
+}
+
+.filter-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  color: var(--text-color);
+  font-size: 28rpx;
+  font-weight: 900;
+}
+
+.filter-panel-title::before {
+  display: block;
+  width: 8rpx;
+  height: 28rpx;
+  border-radius: 999rpx;
+  background: var(--brand-color);
+  content: "";
+}
+
+.filter-panel-hint {
+  color: var(--muted-color);
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.filter-section-label {
+  padding: 0 22rpx;
+  color: var(--heading-muted-color);
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
 .category-scroll {
   display: flex;
-  margin-top: 24rpx;
+  width: 100%;
+  margin-top: 12rpx;
+  padding: 0 22rpx;
+  box-sizing: border-box;
   white-space: nowrap;
 }
 
 .category-chip {
   display: inline-flex;
   align-items: center;
-  margin-right: 14rpx;
-  padding: 0 22rpx;
+  margin-right: 12rpx;
+  padding: 14rpx 20rpx;
+  border: 1rpx solid var(--soft-border-color);
   border-radius: 999rpx;
   color: var(--soft-control-text);
-  background: var(--soft-control-bg);
+  background: var(--control-bg);
   font-size: 24rpx;
-  font-weight: 700;
-  line-height: 64rpx;
+  font-weight: 800;
+  line-height: 36rpx;
 }
 
 .category-chip.active {
-  color: var(--brand-soft-text);
+  border-color: var(--brand-color);
+  color: var(--brand-color);
   background: var(--brand-soft-bg);
 }
 
-.filter-row {
+.filter-select-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16rpx;
-  margin-top: 20rpx;
+  gap: 14rpx;
+  margin-top: 18rpx;
+  padding: 0 22rpx;
 }
 
-.filter-pill {
+.filter-select-picker {
+  min-width: 0;
+}
+
+.filter-select {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10rpx;
+  min-height: 76rpx;
+  padding: 0 18rpx;
   overflow: hidden;
-  border-radius: 999rpx;
-  color: var(--soft-control-text);
-  background: var(--soft-control-bg);
+  border: 1rpx solid var(--soft-border-color);
+  border-radius: 20rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  box-sizing: border-box;
+}
+
+.filter-label {
+  color: var(--muted-color);
+  font-size: 21rpx;
+  font-weight: 900;
+}
+
+.filter-value {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-color);
   font-size: 25rpx;
-  font-weight: 700;
-  line-height: 68rpx;
-  text-align: center;
+  font-weight: 900;
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.filter-caret {
+  color: var(--accent-color);
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .gear-select-card {
