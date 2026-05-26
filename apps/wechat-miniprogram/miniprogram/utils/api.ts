@@ -618,6 +618,14 @@ export async function loginWithWechat(
   return loginPromise;
 }
 
+export function updateWechatNickname(nickname: string): Promise<string> {
+  const avatarUrl = getStoredUser()?.avatar_url;
+  return loginWithWechat({
+    nickname,
+    ...(isUploadedProfileAvatarUrl(avatarUrl) ? { avatar_url: avatarUrl } : {}),
+  });
+}
+
 export async function loginWithPassword(
   request: PasswordLoginRequest,
 ): Promise<string> {
@@ -1541,6 +1549,15 @@ function normalizeUserAssets(
     ...user,
     avatar_url: normalizeKnownAssetUrl(user.avatar_url),
   };
+}
+
+function isUploadedProfileAvatarUrl(
+  avatarUrl?: string | null,
+): avatarUrl is string {
+  return (
+    typeof avatarUrl === "string" &&
+    /\/users\/[^/?#]+\/avatar\//.test(avatarUrl)
+  );
 }
 
 function readAccessToken(): string | undefined {

@@ -158,6 +158,81 @@ test("loginWithWechat sends provided profile without default nickname", async ()
   });
 });
 
+test("updateWechatNickname keeps the stored avatar in the profile payload", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({ url: options.url, data: options.data });
+    options.success({
+      statusCode: 200,
+      data: {
+        ...loginResponse("access-nickname", "refresh-nickname"),
+        user: {
+          id: "u1",
+          nickname: "新昵称",
+          avatar_url: "https://assets.example.test/users/u1/avatar/custom.png",
+        },
+      },
+    });
+  });
+  storage.set("stellartrail_user", {
+    id: "u1",
+    nickname: "旧昵称",
+    avatar_url: "https://assets.example.test/users/u1/avatar/custom.png",
+  });
+  const { updateWechatNickname } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(updateWechatNickname(" 新昵称 "));
+
+  assert.deepEqual(calls[0].data, {
+    code: "wx-login-code",
+    profile: {
+      nickname: "新昵称",
+      avatar_url: "https://assets.example.test/users/u1/avatar/custom.png",
+    },
+  });
+  assert.deepEqual(storage.get("stellartrail_user"), {
+    id: "u1",
+    nickname: "新昵称",
+    avatar_url: "https://assets.example.test/users/u1/avatar/custom.png",
+  });
+});
+
+test("updateWechatNickname lets a default avatar become a text avatar", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({ url: options.url, data: options.data });
+    options.success({
+      statusCode: 200,
+      data: {
+        ...loginResponse("access-nickname-text", "refresh-nickname-text"),
+        user: {
+          id: "u1",
+          nickname: "新昵称",
+          avatar_url: null,
+        },
+      },
+    });
+  });
+  storage.set("stellartrail_user", {
+    id: "u1",
+    nickname: "旧昵称",
+    avatar_url: "https://thirdwx.qlogo.cn/mmopen/default-avatar/132",
+  });
+  const { updateWechatNickname } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(updateWechatNickname(" 新昵称 "));
+
+  assert.deepEqual(calls[0].data, {
+    code: "wx-login-code",
+    profile: { nickname: "新昵称" },
+  });
+  assert.deepEqual(storage.get("stellartrail_user"), {
+    id: "u1",
+    nickname: "新昵称",
+    avatar_url: null,
+  });
+});
+
 test("loginWithWechat reports request timeout instead of hanging", async () => {
   installWxMock((options) => {
     assert.equal(

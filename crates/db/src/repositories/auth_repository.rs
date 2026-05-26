@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 const USER_SELECT: &str = "id, wechat_openid, username, email, password_hash, nickname, avatar_url, failed_login_attempts, created_at, updated_at";
 const EMAIL_CODE_MAX_FAILED_ATTEMPTS: i64 = 5;
+const UPLOADED_PROFILE_AVATAR_SQL_PATTERN: &str = "%/users/%/avatar/%";
 
 /// Database projection for an application user returned by authentication queries.
 #[derive(Clone, Debug)]
@@ -92,12 +93,22 @@ impl AuthRepository {
                     self.db.get_database_backend(),
                     r#"UPDATE users
                        SET nickname = COALESCE(?, nickname),
-                           avatar_url = COALESCE(?, avatar_url),
+                           avatar_url = CASE
+                               WHEN ? IS NOT NULL THEN ?
+                               WHEN ? IS NOT NULL
+                                    AND avatar_url IS NOT NULL
+                                    AND avatar_url NOT LIKE ?
+                                   THEN NULL
+                               ELSE avatar_url
+                           END,
                            updated_at = ?
                        WHERE id = ?"#,
                     vec![
-                        nickname.into(),
+                        nickname.clone().into(),
+                        avatar_url.clone().into(),
                         avatar_url.into(),
+                        nickname.into(),
+                        UPLOADED_PROFILE_AVATAR_SQL_PATTERN.to_owned().into(),
                         now.into(),
                         user.id.clone().into(),
                     ],
@@ -870,6 +881,59 @@ mod tests {
             updated.avatar_url.as_deref(),
             Some("https://assets.example.test/avatar.png")
         );
+    }
+
+    #[tokio::test]
+    async fn wechat_upsert_preserves_uploaded_avatar_when_nickname_changes() {
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        Migrator::up(&db, None).await.unwrap();
+        let repo = AuthRepository::new(db);
+        let avatar_url = "https://assets.example.test/users/u1/avatar/custom.png";
+        let created = repo
+            .upsert_mock_user(
+                "mock:uploaded-avatar-preserve",
+                Some("旧昵称".to_owned()),
+                Some(avatar_url.to_owned()),
+            )
+            .await
+            .unwrap();
+
+        let updated = repo
+            .upsert_mock_user(
+                "mock:uploaded-avatar-preserve",
+                Some("新昵称".to_owned()),
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.nickname.as_deref(), Some("新昵称"));
+        assert_eq!(updated.avatar_url.as_deref(), Some(avatar_url));
+    }
+
+    #[tokio::test]
+    async fn wechat_upsert_clears_default_avatar_when_nickname_changes() {
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        Migrator::up(&db, None).await.unwrap();
+        let repo = AuthRepository::new(db);
+        let created = repo
+            .upsert_mock_user(
+                "mock:default-avatar-text",
+                Some("旧昵称".to_owned()),
+                Some("https://thirdwx.qlogo.cn/mmopen/default-avatar/132".to_owned()),
+            )
+            .await
+            .unwrap();
+
+        let updated = repo
+            .upsert_mock_user("mock:default-avatar-text", Some("新昵称".to_owned()), None)
+            .await
+            .unwrap();
+
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.nickname.as_deref(), Some("新昵称"));
+        assert_eq!(updated.avatar_url, None);
     }
 
     /// Verifies password resets update the stored digest and clear brute-force counters.
