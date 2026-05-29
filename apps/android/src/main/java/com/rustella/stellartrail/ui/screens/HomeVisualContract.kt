@@ -5,7 +5,7 @@ import com.rustella.stellartrail.domain.gear.formatWeight
 import com.rustella.stellartrail.ui.common.HeroStar
 import com.rustella.stellartrail.ui.common.HeroVisualContract
 
-enum class HomeActionTarget { Gears, NewGear, Skills, Profile, Login }
+enum class HomeActionTarget { Gears, NewGear, Trips, Skills, Profile, Login }
 
 data class HomeQuickAction(
     val icon: String,
@@ -22,13 +22,13 @@ data class HomeQuickAction(
                 target = HomeActionTarget.Gears,
             ),
             HomeQuickAction(
-                icon = "＋",
-                title = "添加装备",
-                body = "登录后快速记录装备",
-                target = if (isLoggedIn) HomeActionTarget.NewGear else HomeActionTarget.Login,
+                icon = "行",
+                title = "我的行程",
+                body = "单人准备与组队协作",
+                target = HomeActionTarget.Trips,
             ),
             HomeQuickAction(
-                icon = "🪢",
+                icon = "结",
                 title = "户外技能",
                 body = "绳结、天气、急救知识",
                 target = HomeActionTarget.Skills,

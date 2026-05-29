@@ -14,7 +14,9 @@ import com.rustella.stellartrail.core.theme.ThemeRepository
 import com.rustella.stellartrail.data.atlas.GearAtlasRepositoryContract
 import com.rustella.stellartrail.data.auth.AuthRepositoryContract
 import com.rustella.stellartrail.data.gear.GearRepositoryContract
+import com.rustella.stellartrail.data.packing.PackingRepositoryContract
 import com.rustella.stellartrail.data.skills.SkillRepositoryContract
+import com.rustella.stellartrail.data.trip.TripRepositoryContract
 import com.rustella.stellartrail.di.AppContainer
 import com.rustella.stellartrail.domain.atlas.CreateGearAtlasSubmissionRequest
 import com.rustella.stellartrail.domain.atlas.GearAtlasPublicItem
@@ -46,6 +48,15 @@ import com.rustella.stellartrail.domain.gear.ListGearTemplatesResponse
 import com.rustella.stellartrail.domain.gear.ListGearsRequest
 import com.rustella.stellartrail.domain.gear.ListGearsResponse
 import com.rustella.stellartrail.domain.gear.UpdateGearRequest
+import com.rustella.stellartrail.domain.packing.AddGearPackingItemsRequest
+import com.rustella.stellartrail.domain.packing.CreateGearPackingListRequest
+import com.rustella.stellartrail.domain.packing.GearPackingListDetail
+import com.rustella.stellartrail.domain.packing.GearPackingListItem
+import com.rustella.stellartrail.domain.packing.GearPackingListStats
+import com.rustella.stellartrail.domain.packing.GearPackingListSummary
+import com.rustella.stellartrail.domain.packing.ListGearPackingListsRequest
+import com.rustella.stellartrail.domain.packing.ListGearPackingListsResponse
+import com.rustella.stellartrail.domain.packing.UpdateGearPackingItemRequest
 import com.rustella.stellartrail.domain.gear.label
 import com.rustella.stellartrail.domain.skills.KnotDetail
 import com.rustella.stellartrail.domain.skills.KnotListResponse
@@ -57,7 +68,41 @@ import com.rustella.stellartrail.domain.skills.PageInfo
 import com.rustella.stellartrail.domain.skills.SkillCategoriesResponse
 import com.rustella.stellartrail.domain.skills.SkillCategorySummary
 import com.rustella.stellartrail.domain.skills.SkillLocale
+import com.rustella.stellartrail.domain.trip.CreateTripInvitationResponse
+import com.rustella.stellartrail.domain.trip.CreateTripRequest
+import com.rustella.stellartrail.domain.trip.ImportTripPackingListRequest
+import com.rustella.stellartrail.domain.trip.ListTripsRequest
+import com.rustella.stellartrail.domain.trip.ListTripsResponse
+import com.rustella.stellartrail.domain.trip.OutdoorExperience
+import com.rustella.stellartrail.domain.trip.TripBudgetItem
+import com.rustella.stellartrail.domain.trip.TripDetail
+import com.rustella.stellartrail.domain.trip.TripFoodMeal
+import com.rustella.stellartrail.domain.trip.TripGoalItem
+import com.rustella.stellartrail.domain.trip.TripHomeHighlightItem
+import com.rustella.stellartrail.domain.trip.TripHomeHighlightResponse
+import com.rustella.stellartrail.domain.trip.TripHomeHighlightStatus
+import com.rustella.stellartrail.domain.trip.TripItineraryDay
+import com.rustella.stellartrail.domain.trip.TripInvitation
+import com.rustella.stellartrail.domain.trip.TripMedicalItem
+import com.rustella.stellartrail.domain.trip.TripMember
+import com.rustella.stellartrail.domain.trip.TripMemberGearWeightSummary
+import com.rustella.stellartrail.domain.trip.TripMemberProfile
+import com.rustella.stellartrail.domain.trip.TripPersonalGearItem
+import com.rustella.stellartrail.domain.trip.TripRecordKind
+import com.rustella.stellartrail.domain.trip.TripRescueContact
+import com.rustella.stellartrail.domain.trip.TripRouteSegment
+import com.rustella.stellartrail.domain.trip.TripSafetyRisk
+import com.rustella.stellartrail.domain.trip.TripSectionKey
+import com.rustella.stellartrail.domain.trip.TripSegmentAssignment
+import com.rustella.stellartrail.domain.trip.TripSharedGearDemand
+import com.rustella.stellartrail.domain.trip.TripSummary
+import com.rustella.stellartrail.domain.trip.TripTimeBucket
+import com.rustella.stellartrail.domain.trip.TripType
+import com.rustella.stellartrail.domain.trip.UpdateTripRequest
+import com.rustella.stellartrail.domain.trip.UpdateTripSectionsRequest
+import com.rustella.stellartrail.domain.trip.emptyFieldVersions
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.json.JsonObject
 
 object ScreenshotFixtures {
     private const val EXTRA_ENABLED = "stellartrail.screenshot"
@@ -94,7 +139,9 @@ private class FixtureAppContainer(
     override val authRepository: AuthRepositoryContract = FixtureAuthRepository(sessionStore)
     override val gearRepository: GearRepositoryContract = FixtureGearRepository()
     override val gearAtlasRepository: GearAtlasRepositoryContract = FixtureGearAtlasRepository()
+    override val packingRepository: PackingRepositoryContract = FixturePackingRepository()
     override val skillRepository: SkillRepositoryContract = FixtureSkillRepository()
+    override val tripRepository: TripRepositoryContract = FixtureTripRepository()
 }
 
 private fun fixtureSession(): UserSession = UserSession(
@@ -219,6 +266,40 @@ private class FixtureGearAtlasRepository : GearAtlasRepositoryContract {
     )
 }
 
+private class FixturePackingRepository : PackingRepositoryContract {
+    private var detail = fixturePackingList()
+    override suspend fun list(request: ListGearPackingListsRequest): ListGearPackingListsResponse = ListGearPackingListsResponse(
+        listOf(
+            GearPackingListSummary(
+                id = detail.id,
+                title = detail.title,
+                description = detail.description,
+                targetDate = detail.targetDate,
+                totalItems = detail.stats.totalItems,
+                packedItems = detail.stats.packedItems,
+                totalWeightG = detail.stats.totalWeightG,
+                packedWeightG = detail.stats.packedWeightG,
+            ),
+        ),
+    )
+    override suspend fun create(request: CreateGearPackingListRequest): GearPackingListDetail {
+        detail = detail.copy(id = "packing-created", title = request.title, description = request.description)
+        return detail
+    }
+    override suspend fun get(id: String): GearPackingListDetail = detail
+    override suspend fun update(id: String, request: CreateGearPackingListRequest): GearPackingListDetail {
+        detail = detail.copy(title = request.title, description = request.description, targetDate = request.targetDate)
+        return detail
+    }
+    override suspend fun delete(id: String) = Unit
+    override suspend fun addItems(id: String, request: AddGearPackingItemsRequest): GearPackingListDetail = detail
+    override suspend fun updateItem(id: String, itemId: String, request: UpdateGearPackingItemRequest): GearPackingListDetail {
+        detail = detail.copy(items = detail.items.map { if (it.id == itemId) it.copy(packedQuantity = request.packedQuantity) else it })
+        return detail
+    }
+    override suspend fun removeItem(id: String, itemId: String): GearPackingListDetail = detail
+}
+
 private class FixtureSkillRepository : SkillRepositoryContract {
     private val categories = listOf(
         SkillCategorySummary("knots", "knots", "绳结", "常用露营、钓鱼、连接和固定绳结，按场景快速复习。", 3, "/api/v1/skills/knots"),
@@ -244,6 +325,80 @@ private class FixtureSkillRepository : SkillRepositoryContract {
         )
     } ?: knotDetail("bowline", locale)
     override fun resolveMediaUrl(pathOrUrl: String): String = pathOrUrl
+}
+
+private class FixtureTripRepository : TripRepositoryContract {
+    private var detail = fixtureTripDetail()
+
+    override suspend fun list(request: ListTripsRequest): ListTripsResponse = ListTripsResponse(listOf(detail.trip))
+
+    override suspend fun homeHighlight(today: String): TripHomeHighlightResponse = TripHomeHighlightResponse(
+        TripHomeHighlightItem(
+            trip = detail.trip,
+            status = TripHomeHighlightStatus.UPCOMING,
+            daysUntilStart = 7,
+            daysUntilEnd = 9,
+        ),
+    )
+
+    override suspend fun create(request: CreateTripRequest): TripDetail {
+        detail = fixtureTripDetail().copy(
+            trip = fixtureTripDetail().trip.copy(
+                id = "trip-created",
+                tripType = request.tripType,
+                title = request.title,
+                startDate = request.startDate,
+                endDate = request.endDate,
+                description = request.description,
+            ),
+        )
+        return detail
+    }
+
+    override suspend fun get(id: String): TripDetail = detail
+    override suspend fun update(id: String, request: UpdateTripRequest): TripDetail {
+        detail = detail.copy(
+            trip = detail.trip.copy(
+                title = request.title ?: detail.trip.title,
+                startDate = request.startDate ?: detail.trip.startDate,
+                endDate = request.endDate ?: detail.trip.endDate,
+                description = request.description ?: detail.trip.description,
+            ),
+        )
+        return detail
+    }
+
+    override suspend fun delete(id: String) = Unit
+    override suspend fun updateSections(id: String, request: UpdateTripSectionsRequest): TripDetail {
+        detail = detail.copy(sections = request.enabledSections, trip = detail.trip.copy(enabledSections = request.enabledSections))
+        return detail
+    }
+
+    override suspend fun createInvitation(id: String): CreateTripInvitationResponse = CreateTripInvitationResponse(
+        TripInvitation(
+            id = "invite-1",
+            planId = id,
+            token = "11111111-2222-3333-4444-555555555555",
+            createdByUserId = "fixture-user",
+        ),
+    )
+
+    override suspend fun acceptInvitation(token: String): TripDetail = detail
+    override suspend fun convertToOutdoorExperience(id: String): OutdoorExperience = OutdoorExperience(
+        id = "experience-1",
+        userId = "fixture-user",
+        sourceTripId = id,
+        tripType = detail.trip.tripType,
+        title = detail.trip.title,
+    )
+    override suspend fun updateMember(id: String, memberId: String, request: JsonObject): TripDetail = detail
+    override suspend fun removeMember(id: String, memberId: String): TripDetail = detail
+    override suspend fun importPackingList(id: String, request: ImportTripPackingListRequest): TripDetail = detail
+    override suspend fun createRecord(id: String, collectionPath: String, request: JsonObject): TripDetail = detail
+    override suspend fun updateRecord(id: String, collectionPath: String, recordId: String, request: JsonObject): TripDetail = detail
+    override suspend fun deleteRecord(id: String, collectionPath: String, recordId: String): TripDetail = detail
+    override suspend fun bindSharedGearDemandMyGear(id: String, itemId: String, request: JsonObject): TripDetail = detail
+    override suspend fun fillSharedGearDemandConcreteGear(id: String, itemId: String, request: JsonObject): TripDetail = detail
 }
 
 private fun fixtureTemplates() = listOf(
@@ -314,6 +469,163 @@ private fun fixtureGears() = listOf(
         shareStatus = GearShareStatus.NOT_SHARED,
         createdAt = "2026-03-12T12:00:00Z",
         updatedAt = "2026-04-05T12:00:00Z",
+    ),
+)
+
+private fun fixtureTripDetail(): TripDetail {
+    val sections = listOf(
+        TripSectionKey.MEMBERS,
+        TripSectionKey.PERSONAL_GEAR,
+        TripSectionKey.ITINERARY,
+        TripSectionKey.SHARED_GEAR,
+        TripSectionKey.FOOD_PLAN,
+        TripSectionKey.MEDICAL_KIT,
+        TripSectionKey.SAFETY_PLAN,
+        TripSectionKey.RESCUE_INFO,
+        TripSectionKey.BUDGET,
+        TripSectionKey.GOALS,
+    )
+    val trip = TripSummary(
+        id = "trip-wugong",
+        ownerUserId = "fixture-user",
+        tripType = TripType.TEAM,
+        title = "端午武功山重装",
+        description = "两天一夜，重点检查天气、营地和公共装备。",
+        startDate = "2026-06-19",
+        endDate = "2026-06-21",
+        enabledSections = sections,
+        dayCount = 3,
+        itineraryDayCount = 3,
+        timeBucket = TripTimeBucket.UPCOMING,
+        daysUntilStart = 21,
+        memberCount = 3,
+        fieldVersions = emptyFieldVersions(),
+        createdAt = "2026-05-20T12:00:00Z",
+        updatedAt = "2026-05-22T12:00:00Z",
+    )
+    val owner = TripMember(
+        id = "member-owner",
+        tripId = trip.id,
+        userId = "fixture-user",
+        isOwner = true,
+        profile = TripMemberProfile(displayName = "星野徒步者", phone = "13800000000", roleLabel = "队长"),
+    )
+    val teammate = TripMember(
+        id = "member-navigator",
+        tripId = trip.id,
+        userId = "fixture-user-2",
+        profile = TripMemberProfile(displayName = "山脊领航", roleLabel = "导航"),
+    )
+    return TripDetail(
+        trip = trip,
+        sections = sections,
+        myMemberId = owner.id,
+        members = listOf(owner, teammate),
+        personalGear = listOf(
+            TripPersonalGearItem(
+                id = "trip-gear-pack",
+                memberId = owner.id,
+                category = GearCategory.BACKPACK_SYSTEM,
+                categoryLabel = GearCategory.BACKPACK_SYSTEM.label,
+                name = "Osprey Talon 22",
+                plannedQuantity = 1,
+                packedQuantity = 1,
+                unitWeightG = 900,
+            ),
+        ),
+        sharedGearDemands = listOf(
+            TripSharedGearDemand(
+                id = "shared-stove",
+                category = GearCategory.KITCHEN_SYSTEM,
+                categoryLabel = GearCategory.KITCHEN_SYSTEM.label,
+                name = "炉头",
+                responsibleMemberId = owner.id,
+                demandName = "炉头",
+                slotName = "炉头",
+                concreteName = "BRS-3000T",
+                plannedQuantity = 1,
+                unitWeightG = 25,
+            ),
+        ),
+        itineraryDays = listOf(
+            TripItineraryDay(
+                id = "day-1",
+                dayIndex = 1,
+                dateLabel = "2026-06-19",
+                title = "集合进山",
+                estimateMinutes = 320,
+            ),
+        ),
+        routeSegments = listOf(
+            TripRouteSegment(
+                id = "segment-1",
+                name = "龙山村到金顶",
+                distanceKm = 10.8,
+                ascentM = 1200,
+                descentM = 100,
+                formulaEstimateMinutes = 320,
+                finalEstimateMinutes = 340,
+            ),
+        ),
+        foodMeals = listOf(
+            TripFoodMeal(
+                id = "meal-1",
+                itineraryDayId = "day-1",
+                mealKey = "dinner",
+                dishName = "营地热食",
+            ),
+        ),
+        medicalItems = listOf(
+            TripMedicalItem(id = "medical-1", name = "弹性绷带", requiredQuantity = 2, packedQuantity = 1),
+        ),
+        segmentAssignments = listOf(
+            TripSegmentAssignment(id = "assignment-1", checkpoint = "金顶前最后补水点", leaderRecordMemberId = owner.id),
+        ),
+        safetyRisks = listOf(
+            TripSafetyRisk(id = "risk-weather", riskType = "雷雨", prevention = "午后雷雨前通过暴露山脊"),
+        ),
+        rescueContacts = listOf(
+            TripRescueContact(id = "rescue-1", organization = "景区救援", phone = "110"),
+        ),
+        budgetItems = listOf(
+            TripBudgetItem(id = "budget-1", name = "包车费用", quantity = 1, totalPriceCents = 80000),
+        ),
+        goals = listOf(
+            TripGoalItem(id = "goal-1", scope = "team", content = "全员安全完成穿越"),
+        ),
+        weightSummaries = listOf(
+            TripMemberGearWeightSummary(memberId = owner.id, allWeightG = 925, actualWeightG = 925),
+        ),
+    )
+}
+
+private fun fixturePackingList(): GearPackingListDetail = GearPackingListDetail(
+    id = "packing-weekend",
+    title = "武功山出发清单",
+    description = "出发前逐项确认个人装备。",
+    targetDate = "2026-06-19",
+    stats = GearPackingListStats(totalItems = 2, packedItems = 1, totalWeightG = 945, packedWeightG = 900),
+    items = listOf(
+        GearPackingListItem(
+            id = "packing-item-pack",
+            gearId = "gear-pack",
+            category = GearCategory.BACKPACK_SYSTEM,
+            categoryLabel = GearCategory.BACKPACK_SYSTEM.label,
+            name = "Osprey Talon 22",
+            plannedQuantity = 1,
+            packedQuantity = 1,
+            unitWeightG = 900,
+        ),
+        GearPackingListItem(
+            id = "packing-item-headlamp",
+            gearId = "gear-headlamp",
+            category = GearCategory.LIGHTING_SYSTEM,
+            categoryLabel = GearCategory.LIGHTING_SYSTEM.label,
+            name = "NITECORE NU25 UL",
+            plannedQuantity = 1,
+            packedQuantity = 0,
+            unitWeightG = 45,
+        ),
     ),
 )
 

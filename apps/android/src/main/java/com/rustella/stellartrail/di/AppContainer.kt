@@ -17,9 +17,15 @@ import com.rustella.stellartrail.data.auth.AuthRepositoryContract
 import com.rustella.stellartrail.data.gear.GearApi
 import com.rustella.stellartrail.data.gear.GearRepository
 import com.rustella.stellartrail.data.gear.GearRepositoryContract
+import com.rustella.stellartrail.data.packing.PackingApi
+import com.rustella.stellartrail.data.packing.PackingRepository
+import com.rustella.stellartrail.data.packing.PackingRepositoryContract
 import com.rustella.stellartrail.data.skills.SkillApi
 import com.rustella.stellartrail.data.skills.SkillRepository
 import com.rustella.stellartrail.data.skills.SkillRepositoryContract
+import com.rustella.stellartrail.data.trip.TripApi
+import com.rustella.stellartrail.data.trip.TripRepository
+import com.rustella.stellartrail.data.trip.TripRepositoryContract
 
 interface AppContainer {
     val configStore: AppConfigStore
@@ -29,7 +35,9 @@ interface AppContainer {
     val authRepository: AuthRepositoryContract
     val gearRepository: GearRepositoryContract
     val gearAtlasRepository: GearAtlasRepositoryContract
+    val packingRepository: PackingRepositoryContract
     val skillRepository: SkillRepositoryContract
+    val tripRepository: TripRepositoryContract
 }
 
 class DefaultAppContainer(context: Context) : AppContainer {
@@ -46,5 +54,7 @@ class DefaultAppContainer(context: Context) : AppContainer {
     override val authRepository: AuthRepositoryContract = AuthRepository(AuthApi(apiClient), sessionStore)
     override val gearRepository: GearRepositoryContract = GearRepository(GearApi(apiClient))
     override val gearAtlasRepository: GearAtlasRepositoryContract = GearAtlasRepository(GearAtlasApi(apiClient))
+    override val packingRepository: PackingRepositoryContract = PackingRepository(PackingApi(apiClient))
     override val skillRepository: SkillRepositoryContract = SkillRepository(SkillApi(apiClient))
+    override val tripRepository: TripRepositoryContract = TripRepository(TripApi(apiClient))
 }

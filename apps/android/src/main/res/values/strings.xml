@@ -2,6 +2,7 @@
     <string name="app_name">寻径星野</string>
     <string name="nav_home">首页</string>
     <string name="nav_gears">装备</string>
+    <string name="nav_trips">行程</string>
     <string name="nav_skills">技能</string>
     <string name="nav_profile">我的</string>
 </resources>
