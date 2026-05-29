@@ -30,6 +30,9 @@ import com.rustella.stellartrail.domain.gear.formatPrice
 import com.rustella.stellartrail.domain.gear.formatWeight
 import com.rustella.stellartrail.domain.gear.joinBrandModel
 import com.rustella.stellartrail.domain.skills.SkillCategorySummary
+import com.rustella.stellartrail.domain.trip.TripHomeHighlightItem
+import com.rustella.stellartrail.domain.trip.dateText
+import com.rustella.stellartrail.domain.trip.durationText
 import com.rustella.stellartrail.feature.home.HomeViewModel
 import com.rustella.stellartrail.ui.common.Badge
 import com.rustella.stellartrail.ui.common.BadgeTone
@@ -54,6 +57,8 @@ fun HomeScreen(
     onOpenGears: () -> Unit,
     onCreateGear: () -> Unit,
     onOpenSkills: () -> Unit,
+    onOpenTrips: () -> Unit,
+    onOpenTrip: (String) -> Unit,
     onOpenProfile: () -> Unit,
     onOpenGear: (String) -> Unit,
     onLogin: () -> Unit,
@@ -65,6 +70,7 @@ fun HomeScreen(
         when (target) {
             HomeActionTarget.Gears -> onOpenGears()
             HomeActionTarget.NewGear -> onCreateGear()
+            HomeActionTarget.Trips -> onOpenTrips()
             HomeActionTarget.Skills -> onOpenSkills()
             HomeActionTarget.Profile -> onOpenProfile()
             HomeActionTarget.Login -> onLogin()
@@ -88,6 +94,9 @@ fun HomeScreen(
             )
         }
         item { QuickActionGrid(actions = quickActions, onAction = openAction) }
+        state.tripHighlight?.let { highlight ->
+            item { HomeTripHighlightCard(highlight = highlight, onClick = { onOpenTrip(highlight.trip.id) }) }
+        }
         if (state.error != null) item { ErrorState(state.error!!, onRetry = { viewModel.load(state.isLoggedIn) }) }
         if (state.loading) item { LoadingState() }
         item {
@@ -119,6 +128,26 @@ fun HomeScreen(
             SkillPreviewCard(skill = skill, onClick = onOpenSkills)
         }
         item { PrimaryPillButton("学习技能", onOpenSkills, Modifier.fillMaxWidth()) }
+    }
+}
+
+@Composable
+private fun HomeTripHighlightCard(highlight: TripHomeHighlightItem, onClick: () -> Unit) {
+    SurfaceCard(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                Badge("近期行程", tone = BadgeTone.Info)
+                Text(highlight.trip.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+            }
+            SoftPillButton("查看行程", onClick)
+        }
+        Text(highlight.trip.dateText(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MetricTile("准备度", "${highlight.trip.readiness.completionPercent}%", Modifier.weight(1f))
+            MetricTile("成员", "${highlight.trip.memberCount}", Modifier.weight(1f))
+            MetricTile("行程", highlight.trip.durationText(), Modifier.weight(1f))
+        }
+        Text("出发前检查：装备、技能、天气和安全预案。", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

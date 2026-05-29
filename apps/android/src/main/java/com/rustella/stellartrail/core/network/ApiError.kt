@@ -16,6 +16,7 @@ data class ApiErrorBody(
 class ApiException(
     val statusCode: Int,
     val errorCode: String?,
+    val rawBody: String,
     override val message: String,
 ) : RuntimeException(message) {
     val isUnauthorized: Boolean get() = statusCode == HttpStatusCode.Unauthorized.value
@@ -25,7 +26,7 @@ class ApiException(
         fun from(status: HttpStatusCode, body: String, json: Json): ApiException {
             val parsed = runCatching { json.decodeFromString<ApiErrorBody>(body) }.getOrNull()
             val fallback = body.takeIf { it.isNotBlank() } ?: status.description
-            return ApiException(status.value, parsed?.code, parsed?.message ?: fallback)
+            return ApiException(status.value, parsed?.code, body, parsed?.message ?: fallback)
         }
     }
 }

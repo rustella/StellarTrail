@@ -27,6 +27,7 @@ import com.rustella.stellartrail.feature.profile.ProfileViewModel
 import com.rustella.stellartrail.ui.common.Badge
 import com.rustella.stellartrail.ui.common.BadgeTone
 import com.rustella.stellartrail.ui.common.CompactPillAction
+import com.rustella.stellartrail.ui.common.FeatureTile
 import com.rustella.stellartrail.ui.common.MetadataRow
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SectionTitle
@@ -34,7 +35,15 @@ import com.rustella.stellartrail.ui.common.SoftPillButton
 import com.rustella.stellartrail.ui.common.SurfaceCard
 
 @Composable
-fun ProfileScreen(viewModel: ProfileViewModel, onLogin: () -> Unit, modifier: Modifier = Modifier) {
+fun ProfileScreen(
+    viewModel: ProfileViewModel,
+    onLogin: () -> Unit,
+    onOpenRoadmap: () -> Unit,
+    onOpenOutdoorProfile: () -> Unit,
+    onOpenOutdoorExperiences: () -> Unit,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val session by viewModel.session.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val config by viewModel.config.collectAsStateWithLifecycle()
@@ -84,6 +93,15 @@ fun ProfileScreen(viewModel: ProfileViewModel, onLogin: () -> Unit, modifier: Mo
                 MetadataRow("用户 ID", session?.user?.id.orEmpty())
                 MetadataRow("邮箱", session?.user?.email ?: "未绑定")
             }
+        }
+        SectionTitle("我的工具")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FeatureTile("图", "功能路线图", "查看计划和投票", onOpenRoadmap, Modifier.weight(1f), compact = true)
+            FeatureTile("山", "户外资料", "健康与联系人", onOpenOutdoorProfile, Modifier.weight(1f), compact = true)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FeatureTile("历", "户外经历", "历史行程沉淀", onOpenOutdoorExperiences, Modifier.weight(1f), compact = true)
+            FeatureTile("设", "设置", "主题与调试地址", onOpenSettings, Modifier.weight(1f), compact = true)
         }
         SurfaceCard {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

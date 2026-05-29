@@ -88,6 +88,9 @@ class ApiClient(
         send<Unit>(HttpMethod.Delete, path)
     }
 
+    suspend inline fun <reified Response> deleteReturning(path: String): Response =
+        send(HttpMethod.Delete, path)
+
     suspend inline fun <reified Response> send(
         method: HttpMethod,
         path: String,

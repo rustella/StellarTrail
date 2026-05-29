@@ -35,9 +35,14 @@ import com.rustella.stellartrail.feature.gear.detail.GearDetailViewModel
 import com.rustella.stellartrail.feature.gear.form.GearFormViewModel
 import com.rustella.stellartrail.feature.gear.list.GearListViewModel
 import com.rustella.stellartrail.feature.home.HomeViewModel
+import com.rustella.stellartrail.feature.packing.PackingViewModel
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
 import com.rustella.stellartrail.feature.skills.detail.SkillDetailViewModel
 import com.rustella.stellartrail.feature.skills.SkillsViewModel
+import com.rustella.stellartrail.feature.trips.TripDetailViewModel
+import com.rustella.stellartrail.feature.trips.TripFormViewModel
+import com.rustella.stellartrail.feature.trips.TripJoinViewModel
+import com.rustella.stellartrail.feature.trips.TripListViewModel
 import com.rustella.stellartrail.ui.common.currentTrailPalette
 import com.rustella.stellartrail.ui.common.viewModelFactory
 import com.rustella.stellartrail.ui.navigation.AppRoutes
@@ -51,10 +56,17 @@ import com.rustella.stellartrail.ui.screens.GearFormScreen
 import com.rustella.stellartrail.ui.screens.GearListScreen
 import com.rustella.stellartrail.ui.screens.HomeScreen
 import com.rustella.stellartrail.ui.screens.LoginRequiredScreen
+import com.rustella.stellartrail.ui.screens.PackingListsScreen
+import com.rustella.stellartrail.ui.screens.PlaceholderParityScreen
+import com.rustella.stellartrail.ui.screens.TripDetailScreen
+import com.rustella.stellartrail.ui.screens.TripFormScreen
+import com.rustella.stellartrail.ui.screens.TripJoinScreen
+import com.rustella.stellartrail.ui.screens.TripsScreen
 import com.rustella.stellartrail.ui.screens.ProfileScreen
 import com.rustella.stellartrail.ui.screens.SkillDetailScreen
 import com.rustella.stellartrail.ui.screens.SkillsScreen
 import com.rustella.stellartrail.ui.theme.StellarTrailDesignColors
+import com.rustella.stellartrail.domain.trip.TripType
 
 @Composable
 fun StellarTrailApp(
@@ -145,7 +157,7 @@ private fun AuthenticatedApp(
             }
             composable(AppRoutes.HOME) {
                 val viewModel: HomeViewModel = viewModel(factory = viewModelFactory {
-                    HomeViewModel(container.gearRepository, container.skillRepository)
+                    HomeViewModel(container.gearRepository, container.skillRepository, container.tripRepository)
                 })
                 LaunchedEffect(isLoggedIn) { viewModel.load(isLoggedIn) }
                 HomeScreen(
@@ -155,6 +167,10 @@ private fun AuthenticatedApp(
                         if (isLoggedIn) navController.navigate(AppRoutes.GEAR_NEW) else navController.navigate(AppRoutes.AUTH)
                     },
                     onOpenSkills = { navController.navigate(AppRoutes.SKILLS) },
+                    onOpenTrips = { navController.navigate(AppRoutes.TRIPS) },
+                    onOpenTrip = { id ->
+                        if (isLoggedIn) navController.navigate(AppRoutes.tripDetail(id)) else navController.navigate(AppRoutes.AUTH)
+                    },
                     onOpenProfile = { navController.navigate(AppRoutes.PROFILE) },
                     onOpenGear = { id ->
                         if (isLoggedIn) navController.navigate(AppRoutes.gearDetail(id)) else navController.navigate(AppRoutes.AUTH)
@@ -176,6 +192,20 @@ private fun AuthenticatedApp(
                         if (isLoggedIn) navController.navigate(AppRoutes.GEAR_NEW) else navController.navigate(AppRoutes.AUTH)
                     },
                     onOpenAtlas = { navController.navigate(AppRoutes.GEAR_ATLAS) },
+                    onOpenPackingLists = {
+                        if (isLoggedIn) navController.navigate(AppRoutes.PACKING_LISTS) else navController.navigate(AppRoutes.AUTH)
+                    },
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
+                )
+            }
+            composable(AppRoutes.PACKING_LISTS) {
+                val viewModel: PackingViewModel = viewModel(factory = viewModelFactory {
+                    PackingViewModel(container.packingRepository)
+                })
+                PackingListsScreen(
+                    viewModel = viewModel,
+                    isLoggedIn = isLoggedIn,
+                    onBack = { navController.popBackStack() },
                     onLogin = { navController.navigate(AppRoutes.AUTH) },
                 )
             }
@@ -299,6 +329,122 @@ private fun AuthenticatedApp(
                 LaunchedEffect(Unit) { viewModel.load() }
                 SkillsScreen(viewModel = viewModel, onOpenKnot = { id -> navController.navigate(AppRoutes.skillDetail(id)) })
             }
+            composable(AppRoutes.TRIPS) {
+                val viewModel: TripListViewModel = viewModel(factory = viewModelFactory {
+                    TripListViewModel(container.tripRepository)
+                })
+                TripsScreen(
+                    viewModel = viewModel,
+                    isLoggedIn = isLoggedIn,
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    onCreateTrip = { type -> navController.navigate(AppRoutes.tripNew(type.name.lowercase())) },
+                    onJoinTrip = {
+                        if (isLoggedIn) navController.navigate(AppRoutes.TRIP_JOIN) else navController.navigate(AppRoutes.AUTH)
+                    },
+                    onOpenTrip = { id ->
+                        if (isLoggedIn) navController.navigate(AppRoutes.tripDetail(id)) else navController.navigate(AppRoutes.AUTH)
+                    },
+                    onOpenGearAtlas = { navController.navigate(AppRoutes.GEAR_ATLAS) },
+                )
+            }
+            composable(
+                AppRoutes.TRIP_NEW,
+                arguments = listOf(navArgument("type") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                if (!isLoggedIn) {
+                    LoginRequiredScreen(
+                        title = "登录后制作行程",
+                        body = "行程计划和协作分工会保存到账号中，请先登录。",
+                        onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    )
+                    return@composable
+                }
+                val typeValue = backStackEntry.arguments?.getString("type")
+                val tripType = if (typeValue == "team") TripType.TEAM else TripType.SOLO
+                val viewModel: TripFormViewModel = viewModel(
+                    key = "trip-new-$typeValue",
+                    factory = viewModelFactory { TripFormViewModel(container.tripRepository, tripType = tripType) },
+                )
+                TripFormScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { id ->
+                        navController.navigate(AppRoutes.tripDetail(id)) {
+                            popUpTo(AppRoutes.TRIPS)
+                        }
+                    },
+                )
+            }
+            composable(
+                AppRoutes.TRIP_EDIT,
+                arguments = listOf(navArgument("id") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val id = requireNotNull(backStackEntry.arguments?.getString("id"))
+                val viewModel: TripFormViewModel = viewModel(
+                    key = "trip-edit-$id",
+                    factory = viewModelFactory { TripFormViewModel(container.tripRepository, tripId = id) },
+                )
+                TripFormScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { savedId ->
+                        navController.navigate(AppRoutes.tripDetail(savedId)) {
+                            popUpTo(AppRoutes.TRIPS)
+                        }
+                    },
+                )
+            }
+            composable(AppRoutes.TRIP_JOIN) {
+                if (!isLoggedIn) {
+                    LoginRequiredScreen(
+                        title = "登录后加入行程",
+                        body = "加入多人行程需要绑定到你的账号。",
+                        onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    )
+                    return@composable
+                }
+                val viewModel: TripJoinViewModel = viewModel(factory = viewModelFactory {
+                    TripJoinViewModel(container.tripRepository)
+                })
+                TripJoinScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onAccepted = { id ->
+                        navController.navigate(AppRoutes.tripDetail(id)) {
+                            popUpTo(AppRoutes.TRIPS)
+                        }
+                    },
+                )
+            }
+            composable(
+                AppRoutes.TRIP_DETAIL,
+                arguments = listOf(navArgument("id") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val id = requireNotNull(backStackEntry.arguments?.getString("id"))
+                if (!isLoggedIn) {
+                    LoginRequiredScreen(
+                        title = "登录后查看行程",
+                        body = "行程计划和装备分工会保存到账号中，请先登录。",
+                        onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    )
+                    return@composable
+                }
+                val viewModel: TripDetailViewModel = viewModel(
+                    key = "trip-detail-$id",
+                    factory = viewModelFactory { TripDetailViewModel(container.tripRepository, id) },
+                )
+                TripDetailScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onEdit = { tripId -> navController.navigate(AppRoutes.tripEdit(tripId)) },
+                    onDeleted = {
+                        navController.navigate(AppRoutes.TRIPS) {
+                            popUpTo(AppRoutes.TRIPS)
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
             composable(
                 AppRoutes.SKILL_DETAIL,
                 arguments = listOf(navArgument("id") { type = NavType.StringType }),
@@ -315,7 +461,26 @@ private fun AuthenticatedApp(
                 val viewModel: ProfileViewModel = viewModel(factory = viewModelFactory {
                     ProfileViewModel(container.authRepository, container.themeRepository, container.configStore)
                 })
-                ProfileScreen(viewModel = viewModel, onLogin = { navController.navigate(AppRoutes.AUTH) })
+                ProfileScreen(
+                    viewModel = viewModel,
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    onOpenRoadmap = { navController.navigate(AppRoutes.PROFILE_ROADMAP) },
+                    onOpenOutdoorProfile = { navController.navigate(AppRoutes.PROFILE_OUTDOOR) },
+                    onOpenOutdoorExperiences = { navController.navigate(AppRoutes.PROFILE_OUTDOOR_EXPERIENCES) },
+                    onOpenSettings = { navController.navigate(AppRoutes.PROFILE_SETTINGS) },
+                )
+            }
+            composable(AppRoutes.PROFILE_ROADMAP) {
+                PlaceholderParityScreen("功能路线图", "对齐小程序端的路线图投票与订阅入口。", onBack = { navController.popBackStack() })
+            }
+            composable(AppRoutes.PROFILE_OUTDOOR) {
+                PlaceholderParityScreen("路线 / 户外资料", "维护户外 ID、紧急联系人、健康信息和经验备注。", onBack = { navController.popBackStack() })
+            }
+            composable(AppRoutes.PROFILE_OUTDOOR_EXPERIENCES) {
+                PlaceholderParityScreen("户外经历", "展示从历史行程转换而来的个人户外经历。", onBack = { navController.popBackStack() })
+            }
+            composable(AppRoutes.PROFILE_SETTINGS) {
+                PlaceholderParityScreen("设置", "管理主题、调试地址和账号状态。", onBack = { navController.popBackStack() })
             }
         }
     }
