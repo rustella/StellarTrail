@@ -17,21 +17,12 @@
           <view class="quick-entry-desc">浏览市面装备</view>
         </view>
       </button>
-      <button class="quick-entry-card" bindtap="goPackingLists">
-        <view class="quick-entry-icon packing-entry-icon" aria-hidden="true">
-          <view class="packing-check">✓</view>
-        </view>
-        <view class="quick-entry-copy">
-          <view class="quick-entry-title">打包清单</view>
-          <view class="quick-entry-desc">准备出发物品</view>
-        </view>
-      </button>
     </view>
     <view class="guest-card">
       <view>
         <view class="guest-title">未登录也可先浏览</view>
         <view class="guest-desc"
-          >可以先看装备图鉴和绳结教学；要保存自己的装备时再登录。</view
+          >可以先看装备图鉴；要保存自己的装备时再登录。</view
         >
       </view>
       <button bindtap="goLogin">登录</button>

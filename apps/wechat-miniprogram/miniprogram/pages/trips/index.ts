@@ -21,6 +21,7 @@ import {
   requireLoginForAction,
   showLoginPrompt,
 } from "../../utils/auth-prompt";
+import { navigateToGuestFallback } from "../../utils/navigation";
 import {
   isOffline,
   showOfflineWriteBlockedToast,
@@ -200,7 +201,19 @@ Page({
   },
 
   goJoin() {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以加入多人行程。",
+        redirectUrl: "/pages/trips/join/index",
+      })
+    ) {
+      return;
+    }
     wx.navigateTo({ url: "/pages/trips/join/index" });
+  },
+
+  goGearAtlas() {
+    navigateToGuestFallback();
   },
 
   goLogin() {

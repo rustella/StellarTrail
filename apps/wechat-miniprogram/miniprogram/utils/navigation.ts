@@ -5,6 +5,14 @@ const TAB_PAGES = new Set([
   "/pages/skills/index",
   "/pages/profile/index",
 ]);
+export const GUEST_FALLBACK_PAGE = "/pages/gear-atlas/index";
+
+const GUEST_ACCESSIBLE_PAGES = new Set([
+  GUEST_FALLBACK_PAGE,
+  "/pages/gear-atlas/detail/index",
+  "/pages/login/index",
+  "/pages/register/index",
+]);
 
 export function decodeRedirect(
   value?: string,
@@ -34,6 +42,20 @@ export function navigateToRedirect(
   wx.redirectTo({
     url: safeRedirect,
     fail: () => wx.switchTab({ url: fallback }),
+  });
+}
+
+export function isGuestAccessiblePage(value: string): boolean {
+  const [path] = value.split("?");
+  return GUEST_ACCESSIBLE_PAGES.has(path);
+}
+
+export function navigateToGuestFallback(): void {
+  wx.redirectTo({
+    url: GUEST_FALLBACK_PAGE,
+    fail: () => {
+      wx.navigateTo({ url: GUEST_FALLBACK_PAGE });
+    },
   });
 }
 

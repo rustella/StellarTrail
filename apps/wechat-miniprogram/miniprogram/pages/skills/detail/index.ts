@@ -23,6 +23,7 @@ import {
   requireLoginForAction,
 } from "../../../utils/auth-prompt";
 import { isOffline, showOfflineWriteBlockedToast } from "../../../utils/network-state";
+import { navigateToGuestFallback } from "../../../utils/navigation";
 
 interface MediaView extends KnotMediaAsset {
   resolvedUrl: string;
@@ -53,6 +54,10 @@ Page({
   },
 
   onLoad(options: Record<string, string | undefined>) {
+    if (!hasAccessToken()) {
+      navigateToGuestFallback();
+      return;
+    }
     const id = options.id;
     if (!id) {
       this.setData({ error: "没有找到这条内容，请返回后重试" });
@@ -64,6 +69,9 @@ Page({
 
   onShow() {
     syncPageTheme(this);
+    if (!hasAccessToken()) {
+      navigateToGuestFallback();
+    }
   },
 
   onPullDownRefresh() {

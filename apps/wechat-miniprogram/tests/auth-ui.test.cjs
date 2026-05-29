@@ -32,7 +32,10 @@ ${ts}`;
   assert.match(wxml, /placeholder="邮箱验证码"/);
   assert.match(wxml, /password="{{true}}"/);
   assert.match(wxml, /注册账号/);
+  assert.match(wxml, /不登录也可以先看装备图鉴/);
+  assert.doesNotMatch(wxml, /绳结教学/);
   assert.match(pageSource, /this\.afterLoginSuccess\(\)/);
+  assert.match(pageSource, /navigateToGuestFallback/);
   assert.doesNotMatch(
     pageSource,
     /afterLoginSuccess\("\/pages\/index\/index"\)/,
@@ -45,6 +48,56 @@ ${ts}`;
   assert.match(pageSource, /sendLoginCode/);
   assert.match(pageSource, /sendResetCode/);
   assert.doesNotMatch(wxml, /API|后端|接口|游客|免登录|写操作|模板/);
+});
+
+test("guest users can only browse the gear atlas", () => {
+  const navigationTs = read("utils/navigation.ts");
+  const homeTs = read("pages/index/index.ts");
+  const skillsTs = read("pages/skills/index.ts");
+  const skillDetailTs = read("pages/skills/detail/index.ts");
+  const profileTs = read("pages/profile/index.ts");
+  const gearWxml = read("pages/gears/index.wxml");
+  const gearWxss = read("pages/gears/index.wxss");
+  const tripsWxml = read("pages/trips/index.wxml");
+  const tripsTs = read("pages/trips/index.ts");
+  const guestGearBlock = gearWxml.slice(
+    gearWxml.indexOf('<block wx:if="{{!isLoggedIn}}">'),
+    gearWxml.indexOf("<block wx:else>"),
+  );
+
+  assert.match(
+    navigationTs,
+    /GUEST_FALLBACK_PAGE = "\/pages\/gear-atlas\/index"/,
+  );
+  assert.match(navigationTs, /"\/pages\/gear-atlas\/detail\/index"/);
+  assert.match(navigationTs, /"\/pages\/login\/index"/);
+  assert.match(navigationTs, /"\/pages\/register\/index"/);
+  assert.doesNotMatch(
+    navigationTs,
+    /GUEST_ACCESSIBLE_PAGES[\s\S]*"\/pages\/skills\/index"/,
+  );
+  assert.doesNotMatch(
+    navigationTs,
+    /GUEST_ACCESSIBLE_PAGES[\s\S]*"\/pages\/trips\/index"/,
+  );
+  assert.match(homeTs, /navigateToGuestFallback/);
+  assert.match(skillsTs, /navigateToGuestFallback/);
+  assert.match(skillDetailTs, /navigateToGuestFallback/);
+  assert.match(profileTs, /navigateToGuestFallback/);
+  assert.doesNotMatch(profileTs, /退出后仍可浏览装备图鉴和绳结教学/);
+  assert.match(guestGearBlock, /装备图鉴/);
+  assert.match(guestGearBlock, /goGearAtlas/);
+  assert.doesNotMatch(guestGearBlock, /goPackingLists/);
+  assert.doesNotMatch(guestGearBlock, /绳结教学/);
+  assert.match(
+    gearWxss,
+    /\.guest-quick-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/,
+  );
+  assert.match(tripsWxml, /管理单人行程与组队协作，出发前准备更清晰。/);
+  assert.doesNotMatch(tripsWxml, /历史经历都从这里管理/);
+  assert.match(tripsWxml, /查看装备图鉴/);
+  assert.match(tripsTs, /登录后可以加入多人行程/);
+  assert.match(tripsTs, /navigateToGuestFallback/);
 });
 
 test("home page does not automatically prompt to import WeChat profile", () => {
