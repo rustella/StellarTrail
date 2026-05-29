@@ -19,6 +19,7 @@ global.wx = {
     throw new Error("wx.login should not be called in guest API paths");
   },
   switchTab: (options) => options.success && options.success({}),
+  navigateTo: (options) => options.success && options.success({}),
   redirectTo: (options) => options.success && options.success({}),
   request: (options) => {
     requests.push(options);
@@ -127,8 +128,23 @@ test("navigation helper rejects external redirects and switches tab pages", () =
     calls.push({ type: "redirectTo", url: options.url });
   const {
     decodeRedirect,
+    GUEST_FALLBACK_PAGE,
+    isGuestAccessiblePage,
+    navigateToGuestFallback,
     navigateToRedirect,
   } = require("../.tmp-test/utils/navigation.js");
+
+  assert.equal(GUEST_FALLBACK_PAGE, "/pages/gear-atlas/index");
+  assert.equal(isGuestAccessiblePage("/pages/gear-atlas/index"), true);
+  assert.equal(
+    isGuestAccessiblePage("/pages/gear-atlas/detail/index?id=g1"),
+    true,
+  );
+  assert.equal(isGuestAccessiblePage("/pages/login/index"), true);
+  assert.equal(isGuestAccessiblePage("/pages/register/index"), true);
+  assert.equal(isGuestAccessiblePage("/pages/skills/index"), false);
+  assert.equal(isGuestAccessiblePage("/pages/trips/index"), false);
+  assert.equal(isGuestAccessiblePage("/pages/profile/index"), false);
 
   assert.equal(
     decodeRedirect(encodeURIComponent("https://example.com")),
@@ -142,10 +158,12 @@ test("navigation helper rejects external redirects and switches tab pages", () =
   navigateToRedirect("/pages/profile/index");
   navigateToRedirect("/pages/trips/index");
   navigateToRedirect("/pages/gears/detail/index?id=g1");
+  navigateToGuestFallback();
 
   assert.deepEqual(calls, [
     { type: "switchTab", url: "/pages/profile/index" },
     { type: "switchTab", url: "/pages/trips/index" },
     { type: "redirectTo", url: "/pages/gears/detail/index?id=g1" },
+    { type: "redirectTo", url: "/pages/gear-atlas/index" },
   ]);
 });

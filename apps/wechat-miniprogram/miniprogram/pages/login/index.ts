@@ -11,7 +11,11 @@ import {
   sendEmailLoginCode,
   sendPasswordResetCode,
 } from "../../utils/api-auth";
-import { decodeRedirect, navigateToRedirect } from "../../utils/navigation";
+import {
+  decodeRedirect,
+  navigateToGuestFallback,
+  navigateToRedirect,
+} from "../../utils/navigation";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import {
   isOffline,
@@ -318,7 +322,7 @@ Page({
   },
 
   skip() {
-    navigateToRedirect(this.data.redirect || "/pages/index/index");
+    navigateToGuestFallback();
   },
 
   afterLoginSuccess(target?: string) {

@@ -4,7 +4,7 @@
       <view class="eyebrow">我的户外行程</view>
       <view class="hero-title">我的行程</view>
       <view class="hero-subtitle"
-        >单人准备、多人协作和历史经历都从这里管理。</view
+        >管理单人行程与组队协作，出发前准备更清晰。</view
       >
     </view>
     <view class="hero-actions">
@@ -19,9 +19,11 @@
 
   <view wx:if="{{!isLoggedIn}}" class="state-card login-required">
     <view class="state-title">登录后查看我的行程</view>
-    <view class="state-desc">行程计划、装备分工和历史经历会保存到账号中。</view>
+    <view class="state-desc">行程计划和装备分工会保存到账号中。</view>
     <view class="state-actions">
-      <button class="secondary-action" bindtap="goJoin">加入多人行程</button>
+      <button class="secondary-action" bindtap="goGearAtlas">
+        查看装备图鉴
+      </button>
       <button bindtap="goLogin">登录</button>
     </view>
   </view>

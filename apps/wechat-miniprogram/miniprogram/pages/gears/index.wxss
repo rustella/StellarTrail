@@ -249,6 +249,7 @@
 }
 
 .guest-quick-entry {
+  grid-template-columns: minmax(0, 1fr);
   margin-top: 4rpx;
 }
 
