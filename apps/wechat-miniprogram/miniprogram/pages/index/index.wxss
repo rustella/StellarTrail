@@ -206,6 +206,209 @@
   font-weight: 800;
 }
 
+.plan-highlight-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 18rpx;
+  overflow: hidden;
+  margin-top: 24rpx;
+  min-height: 156rpx;
+  padding: 28rpx 26rpx 28rpx 34rpx;
+  border: 1rpx solid rgba(15, 118, 110, 0.14);
+  border-radius: var(--card-radius);
+  background: linear-gradient(
+    135deg,
+    rgba(204, 251, 241, 0.72) 0%,
+    rgba(255, 255, 255, 0.96) 46%,
+    var(--surface-color) 100%
+  );
+  box-shadow: var(--shadow-soft);
+  box-sizing: border-box;
+}
+
+.plan-highlight-card::before {
+  position: absolute;
+  left: 0;
+  top: 28rpx;
+  bottom: 28rpx;
+  width: 8rpx;
+  border-radius: 0 999rpx 999rpx 0;
+  background: var(--brand-color);
+  content: "";
+}
+
+.plan-highlight-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.plan-highlight-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 20rpx;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.plan-highlight-title {
+  margin-top: 8rpx;
+  color: var(--brand-color);
+  font-size: 32rpx;
+  font-weight: 900;
+  line-height: 1.28;
+}
+
+.plan-highlight-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4rpx;
+  width: 100%;
+  min-width: 0;
+  margin-top: 6rpx;
+}
+
+.plan-highlight-subtitle,
+.plan-highlight-date {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-highlight-subtitle {
+  color: var(--heading-muted-color);
+  font-size: 25rpx;
+  font-weight: 800;
+}
+
+.plan-highlight-date {
+  color: var(--muted-color);
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.plan-highlight-action {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  align-self: flex-end;
+  min-width: 120rpx;
+  padding: 13rpx 18rpx;
+  border-radius: 999rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 22rpx;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.plan-highlight-checklist {
+  display: grid;
+  width: 100%;
+  gap: 10rpx;
+  margin-top: 18rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid rgba(15, 118, 110, 0.12);
+}
+
+.plan-highlight-check-heading {
+  color: var(--brand-soft-text);
+  font-size: 22rpx;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.plan-highlight-check-item {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  min-width: 0;
+  padding: 12rpx 14rpx;
+  border-radius: 20rpx;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.plan-highlight-check-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 20rpx;
+  font-weight: 900;
+  line-height: 36rpx;
+}
+
+.plan-highlight-check-copy {
+  min-width: 0;
+}
+
+.plan-highlight-check-title {
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-highlight-check-desc {
+  margin-top: 2rpx;
+  overflow: hidden;
+  color: var(--muted-color);
+  font-size: 21rpx;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-page.theme-dark .plan-highlight-card {
+  border-color: rgba(167, 139, 250, 0.32);
+  background: linear-gradient(
+    135deg,
+    rgba(42, 31, 79, 0.94) 0%,
+    rgba(24, 18, 52, 0.94) 54%,
+    var(--surface-color) 100%
+  );
+}
+
+.home-page.theme-dark .plan-highlight-subtitle {
+  color: var(--text-color);
+}
+
+.home-page.theme-dark .plan-highlight-checklist {
+  border-top-color: rgba(167, 139, 250, 0.22);
+}
+
+.home-page.theme-dark .plan-highlight-check-item {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -298,13 +501,12 @@
 }
 
 .skill-title,
-.check-title {
+.plan-highlight-check-title {
   color: var(--text-color);
   font-weight: 900;
 }
 
 .skill-summary,
-.check-desc,
 .empty-inline,
 .state-card {
   color: var(--muted-color);
@@ -414,40 +616,6 @@
 
 .skill-summary {
   margin-top: 8rpx;
-}
-
-.checklist-card {
-  padding-bottom: 18rpx;
-}
-
-.check-item {
-  display: flex;
-  gap: 18rpx;
-  margin-top: 22rpx;
-  padding: 20rpx;
-  border-radius: 24rpx;
-  background: var(--control-bg);
-}
-
-.check-icon {
-  flex: 0 0 auto;
-  width: 48rpx;
-  height: 48rpx;
-  border-radius: 999rpx;
-  color: var(--brand-text-color);
-  background: var(--brand-color);
-  font-size: 24rpx;
-  font-weight: 900;
-  line-height: 48rpx;
-  text-align: center;
-}
-
-.check-title {
-  font-size: 26rpx;
-}
-
-.check-desc {
-  margin-top: 6rpx;
 }
 
 .home-page.theme-dark .hero-card {

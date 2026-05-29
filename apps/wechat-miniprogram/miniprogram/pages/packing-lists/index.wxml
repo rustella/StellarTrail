@@ -3,9 +3,7 @@
     <view>
       <view class="eyebrow">出发前准备</view>
       <view class="hero-title">打包清单</view>
-      <view class="hero-subtitle"
-        >按路线和徒步时长挑选个人装备，出发前逐项确认。</view
-      >
+      <view class="hero-subtitle">按清单挑选个人装备，出发前逐项确认。</view>
     </view>
     <button class="primary-action" bindtap="goCreate">新建</button>
   </view>
@@ -16,9 +14,7 @@
 
   <view wx:if="{{!isLoggedIn}}" class="state-card login-required">
     <view class="state-title">登录后使用打包清单</view>
-    <view class="state-desc"
-      >清单会保存到你的账号里，方便不同路线重复准备。</view
-    >
+    <view class="state-desc">清单会保存到你的账号里，方便重复准备。</view>
     <button bindtap="goLogin">登录</button>
   </view>
 
@@ -46,7 +42,9 @@
           <view class="card-header">
             <view>
               <view class="packing-name">{{item.name}}</view>
-              <view class="packing-meta">{{item.metaText}}</view>
+              <view wx:if="{{item.metaText}}" class="packing-meta"
+                >{{item.metaText}}</view
+              >
             </view>
             <view class="progress-pill">{{item.progressText}}</view>
           </view>

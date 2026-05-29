@@ -124,11 +124,6 @@
   color: var(--status-danger-text);
 }
 
-.action-row .restore {
-  background: var(--status-info-bg);
-  color: var(--status-info-text);
-}
-
 .tag-card,
 .atlas-submit-card,
 .info-card,
@@ -344,11 +339,6 @@
 .detail-page.theme-dark .state-card.error {
   color: var(--status-danger-text);
   background: var(--status-danger-bg);
-}
-
-.detail-page.theme-dark .action-row .restore {
-  color: var(--status-info-text);
-  background: var(--status-info-bg);
 }
 
 .login-required-title {

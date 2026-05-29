@@ -1,4 +1,4 @@
-//! Gear packing-list routes for authenticated users preparing route-specific loadouts.
+//! Gear packing-list routes for authenticated users preparing personal loadouts.
 
 use axum::{
     Json, Router,

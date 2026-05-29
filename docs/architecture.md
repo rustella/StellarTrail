@@ -38,7 +38,7 @@ MinIO / S3-compatible object storage -> public media URLs stored in DB
 - Production recommendation: PostgreSQL.
 - MySQL compatibility is no longer part of phase-one implementation; keep future compatibility conservative if needed.
 
-`users` 支持微信 openid 与邮箱/用户名登录并存；密码按当前需求以 SHA-256 十六进制摘要保存，连续密码错误会累计失败次数并触发验证码门槛。`user_gear_items` 使用 `archived_at` 支撑“可用装备 / 历史装备”，并使用 `is_deleted` 作为真正软删除标记；`gear_atlas_items`、`user_feedback` 和 `upload_images` 也使用顶层 `is_deleted` 标记隐藏业务记录。金额以分为单位保存为 `purchase_price_cents`，重量以克为单位保存为 `weight_g`。
+`users` 支持微信 openid 与邮箱/用户名登录并存；密码按当前需求以 SHA-256 十六进制摘要保存，连续密码错误会累计失败次数并触发验证码门槛。`user_gear_items` 使用 `is_deleted` 标记隐藏个人装备记录；`gear_atlas_items`、`user_feedback` 和 `upload_images` 也使用顶层 `is_deleted` 标记隐藏业务记录。金额以分为单位保存为 `purchase_price_cents`，重量以克为单位保存为 `weight_g`。
 
 ## Public data
 
@@ -56,7 +56,7 @@ MinIO / S3-compatible object storage -> public media URLs stored in DB
 - `GET /api/v1/me/gears`
 - `GET /api/v1/me/gears/:id`
 
-缓存采用 read-through 模式，默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒。每个用户有独立 gear cache version；创建、更新、归档、软删除、恢复和导入装备后会递增版本号，让后续读请求自动绕过旧 key，避免跨用户或写后读到旧数据。Redis 读写异常只会降级为直连数据库，不影响接口可用性。
+缓存采用 read-through 模式，默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒。每个用户有独立 gear cache version；创建、更新、删除和导入装备后会递增版本号，让后续读请求自动绕过旧 key，避免跨用户或写后读到旧数据。Redis 读写异常只会降级为直连数据库，不影响接口可用性。
 
 ## Production deployment topology
 

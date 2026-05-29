@@ -1,0 +1,65 @@
+<view class="form-page {{themeClass}}">
+  <view wx:if="{{error}}" class="state-card error">{{error}}</view>
+  <view wx:elif="{{loading}}" class="state-card">正在加载行程...</view>
+
+  <view class="form-card">
+    <view class="field">
+      <view class="label">行程名称</view>
+      <input
+        value="{{name}}"
+        data-field="name"
+        bindinput="onInput"
+        placeholder="例如：端午武功山重装"
+      />
+    </view>
+    <view class="two-col">
+      <view class="field">
+        <view class="label">开始日期</view>
+        <picker
+          mode="date"
+          value="{{startDate}}"
+          data-field="startDate"
+          bindchange="onDateChange"
+        >
+          <view class="picker-value">{{startDate || '选择日期'}}</view>
+        </picker>
+      </view>
+      <view class="field">
+        <view class="label">结束日期</view>
+        <picker
+          mode="date"
+          value="{{endDate}}"
+          data-field="endDate"
+          bindchange="onDateChange"
+        >
+          <view class="picker-value">{{endDate || '选择日期'}}</view>
+        </picker>
+      </view>
+    </view>
+    <view class="field">
+      <view class="label">备注</view>
+      <textarea
+        value="{{description}}"
+        data-field="description"
+        bindinput="onInput"
+        placeholder="集合方式、天气预案、风险提示"
+      />
+    </view>
+  </view>
+
+  <button class="submit-button" loading="{{saving}}" bindtap="submit">
+    保存行程
+  </button>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">先不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

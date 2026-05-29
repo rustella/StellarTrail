@@ -207,7 +207,7 @@ impl std::fmt::Display for GearShareStatus {
     }
 }
 
-/// Stable enum boundary for `GearTab`, exposed by or reused within this module.
+/// Stable enum boundary for available and historical gear inventory tabs.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GearTab {
@@ -781,6 +781,8 @@ pub struct GearCategoryCount {
     pub category: GearCategory,
     pub label: String,
     pub count: i64,
+    pub total_weight_g: i64,
+    pub total_value_cents: i64,
 }
 
 /// Stable data boundary for `GearStatusCount`, exposed by or reused within this module.
@@ -789,6 +791,8 @@ pub struct GearStatusCount {
     pub status: GearStatus,
     pub label: String,
     pub count: i64,
+    pub total_weight_g: i64,
+    pub total_value_cents: i64,
 }
 
 /// Stable data boundary for `GearStats`, exposed by or reused within this module.

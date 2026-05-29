@@ -24,7 +24,7 @@
     <view class="detail-hero">
       <view class="eyebrow">打包清单</view>
       <view class="hero-title">{{detail.name}}</view>
-      <view class="hero-subtitle">{{metaText}}</view>
+      <view wx:if="{{metaText}}" class="hero-subtitle">{{metaText}}</view>
       <view class="metrics-row">
         <view class="metric">
           <view class="metric-value">{{progressText}}</view>
@@ -41,8 +41,8 @@
       </view>
     </view>
 
-    <view class="action-row">
-      <button bindtap="goAddGear">添加装备</button>
+    <view class="action-row {{groups.length ? '' : 'empty-list'}}">
+      <button wx:if="{{groups.length}}" bindtap="goAddGear">继续挑选</button>
       <button bindtap="goEdit">编辑</button>
       <button class="danger" bindtap="deleteList">删除</button>
     </view>

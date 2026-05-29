@@ -27,8 +27,9 @@ pub struct ListGearQuery {
     pub cursor: Option<String>,
 }
 
-/// Stable data boundary for `GearStatsQuery`, exposed by or reused within this module.
+/// Query parameters shared by gear aggregate endpoints.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GearStatsQuery {
     #[serde(default)]
     pub tab: GearTab,
@@ -48,6 +49,7 @@ pub struct GearTagSuggestionsQuery {
 
 /// Stable data boundary for `GearExportQuery`, exposed by or reused within this module.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GearExportQuery {
     #[serde(default)]
     pub tab: GearTab,

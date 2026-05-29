@@ -1,5 +1,4 @@
 export {
-  archiveGear,
   addGearPackingItems,
   consumeOfflineCacheNotice,
   createGearPackingList,
@@ -21,9 +20,7 @@ export {
   listGearCategories,
   listGears,
   removeGearPackingItem,
-  restoreGear,
   submitGearToAtlas,
-  undeleteGear,
   updateGearPackingItem,
   updateGearPackingList,
   updateGear,

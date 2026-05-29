@@ -128,7 +128,6 @@ test("homepage keeps the canonical hero and surface tokens", () => {
 
 test("page hero cards align with homepage in light and dark modes", () => {
   const cases = [
-    ["pages/gears/index.wxss", ".hero-card"],
     ["pages/skills/index.wxss", ".hero-card"],
     ["pages/login/index.wxss", ".login-card.hero"],
     ["pages/register/index.wxss", ".register-card.hero"],
@@ -170,12 +169,16 @@ test("primary page cards share homepage surface tokens", () => {
     [
       "pages/gears/index.wxss",
       [
-        ".tab-card",
-        ".search-card",
-        ".filter-panel",
+        ".gear-toolbar",
+        ".stats-panel",
+        ".quick-entry-card",
         ".gear-card",
         ".guest-card",
       ],
+    ],
+    [
+      "pages/gears/stats/index.wxss",
+      [".overview-card", ".chart-card", ".state-card"],
     ],
     [
       "pages/skills/index.wxss",
@@ -228,71 +231,139 @@ test("primary page cards share homepage surface tokens", () => {
   }
 });
 
-test("gear page filter panel labels category status and sort controls", () => {
+test("gear page keeps list-first toolbar and bottom filter sheet", () => {
   const wxml = read("pages/gears/index.wxml");
   const wxss = read("pages/gears/index.wxss");
 
-  assert.match(wxml, /tab-card-title">列表范围/);
-  assert.match(wxml, /class="tab-switch"/);
-  assert.match(wxml, /class="tab-item-title">\{\{item\.label\}\}/);
-  assert.match(wxml, /class="tab-item-hint"/);
-  assert.match(wxml, /class="filter-panel"/);
-  assert.match(wxml, /filter-panel-title">筛选/);
-  assert.match(wxml, /filter-panel-hint">分类、状态、排序/);
+  assert.doesNotMatch(wxml, /class="hero-card"/);
+  assert.doesNotMatch(wxml, /tab-card-title">列表范围/);
+  assert.doesNotMatch(wxml, /class="tab-switch"/);
+  assert.doesNotMatch(wxml, /class="filter-panel"/);
+  assert.doesNotMatch(wxml, /class="search-card"/);
+  assert.doesNotMatch(wxml, /class="gear-add-card"/);
+  assert.match(wxml, /class="gear-toolbar"/);
+  assert.match(wxml, /class="toolbar-search-input"/);
+  assert.match(wxml, /bindtap="openFilterSheet"/);
+  assert.match(wxml, /class="toolbar-add"[\s\S]*bindtap="goCreate"/);
+  assert.match(wxml, /class="filter-summary"/);
+  assert.match(wxml, /\{\{activeFilterText\}\}/);
+  assert.match(wxml, /bindtap="clearAppliedFilters"/);
+  assert.match(wxml, /class="stats-panel"/);
+  assert.match(wxml, /class="stats-detail-link"/);
+  assert.match(wxml, /bindtap="goStatsDetail"/);
+  assert.match(wxml, /详细统计/);
+  assert.match(wxml, /当前库存汇总/);
+  assert.match(wxml, /class="quick-entry-grid"/);
+  assert.match(wxml, /class="gear-list"/);
   assert.ok(
-    wxml.indexOf('class="filter-panel"') < wxml.indexOf('class="search-card"'),
-    "gear filters should appear before the search card",
+    wxml.indexOf('class="quick-entry-grid"') <
+      wxml.indexOf('class="stats-panel"'),
+    "gear atlas and packing list entries should appear first",
   );
-  assert.match(wxml, /filter-section-label">分类/);
-  assert.match(
-    wxml,
-    /class="filter-select-picker"[\s\S]*bindchange="onStatusChange"/,
+  assert.ok(
+    wxml.indexOf('class="stats-panel"') < wxml.indexOf('class="gear-toolbar"'),
+    "search and filter toolbar should appear below stats",
   );
-  assert.match(wxml, /class="filter-label">状态/);
-  assert.match(
-    wxml,
-    /class="filter-value"[\s\S]*\{\{statusLabels\[selectedStatusIndex\]\}\}/,
+  assert.ok(
+    wxml.indexOf('class="gear-toolbar"') <
+      wxml.indexOf('class="filter-summary"'),
+    "filter summary should appear below the search toolbar",
   );
-  assert.match(
-    wxml,
-    /class="filter-select-picker"[\s\S]*bindchange="onSortChange"/,
+  assert.ok(
+    wxml.indexOf('class="filter-summary"') < wxml.indexOf('class="gear-list"'),
+    "gear list should appear after the restored auxiliary information",
   );
-  assert.match(wxml, /class="filter-label">排序/);
-  assert.match(
-    wxml,
-    /class="filter-value"[\s\S]*\{\{sortLabels\[selectedSortIndex\]\}\}/,
-  );
+
+  assert.match(wxml, /class="filter-sheet-mask"/);
+  assert.match(wxml, /class="filter-sheet"/);
+  assert.match(wxml, /filter-sheet-title">筛选装备/);
+  assert.match(wxml, /filter-sheet-label">分类/);
+  assert.match(wxml, /filter-sheet-label">状态/);
+  assert.match(wxml, /filter-sheet-label">排序/);
+  assert.match(wxml, /bindtap="selectDraftCategory"/);
+  assert.match(wxml, /bindtap="selectDraftStatus"/);
+  assert.match(wxml, /bindtap="selectDraftSort"/);
+  assert.match(wxml, /bindtap="resetFilterDrafts"/);
+  assert.match(wxml, /bindtap="applyFilters"/);
   assert.doesNotMatch(wxml, /class="filter-pill"/);
 
-  const tabSwitch = selectorBlock(wxss, ".tab-switch");
-  const tabItem = selectorBlock(wxss, ".tab-item");
-  const activeTabItem = selectorBlock(wxss, ".tab-item.active");
-  const title = selectorBlock(wxss, ".filter-panel-title");
-  const categoryChip = selectorBlock(wxss, ".category-chip");
-  const activeCategoryChip = selectorBlock(wxss, ".category-chip.active");
-  const filterSelect = selectorBlock(wxss, ".filter-select");
-  const filterLabel = selectorBlock(wxss, ".filter-label");
-  const filterValue = selectorBlock(wxss, ".filter-value");
-  const darkPanel = selectorBlock(wxss, ".gear-page.theme-dark .filter-panel");
-  const darkSelect = selectorBlock(
+  const toolbar = selectorBlock(wxss, ".gear-toolbar");
+  const toolbarSearch = selectorBlock(wxss, ".toolbar-search");
+  const toolbarFilter = selectorBlock(wxss, ".toolbar-filter");
+  const toolbarAdd = selectorBlock(wxss, ".toolbar-add");
+  const filterSummary = selectorBlock(wxss, ".filter-summary");
+  const statsGrid = selectorBlock(wxss, ".stats-grid");
+  const gearFacts = selectorBlock(wxss, ".gear-facts");
+  const sheet = selectorBlock(wxss, ".filter-sheet");
+  const sheetChip = selectorBlock(wxss, ".sheet-chip");
+  const activeSheetChip = selectorBlock(wxss, ".sheet-chip.active");
+  const darkToolbar = selectorBlock(
     wxss,
-    ".gear-page.theme-dark .filter-select",
+    ".gear-page.theme-dark .gear-toolbar",
+  );
+  const darkSheetChip = selectorBlock(
+    wxss,
+    ".gear-page.theme-dark .sheet-chip",
   );
 
-  assert.match(wxss, /\.tab-card\s*\{[\s\S]*padding:\s*18rpx/);
-  assert.match(tabSwitch, /background:\s*var\(--control-bg\)/);
-  assert.match(tabItem, /min-height:\s*64rpx/);
-  assert.match(activeTabItem, /border-color:\s*var\(--brand-color\)/);
-  assert.match(wxss, /\.filter-panel\s*\{[\s\S]*padding:\s*22rpx 0 18rpx/);
-  assert.match(title, /color:\s*var\(--text-color\)/);
-  assert.match(categoryChip, /background:\s*var\(--control-bg\)/);
-  assert.match(activeCategoryChip, /border-color:\s*var\(--brand-color\)/);
-  assert.match(filterSelect, /background:\s*var\(--control-bg\)/);
-  assert.match(filterSelect, /border:\s*1rpx solid var\(--soft-border-color\)/);
-  assert.match(filterLabel, /color:\s*var\(--muted-color\)/);
-  assert.match(filterValue, /text-overflow:\s*ellipsis/);
-  assert.match(darkPanel, /background:\s*var\(--surface-color\)/);
-  assert.match(darkSelect, /background:\s*var\(--control-bg\)/);
+  assert.doesNotMatch(wxss, /\.tab-card\s*\{/);
+  assert.doesNotMatch(wxss, /\.hero-card\s*\{/);
+  assert.doesNotMatch(wxss, /\.filter-panel\s*\{/);
+  assert.doesNotMatch(wxss, /\.gear-add-card\s*\{/);
+  assert.match(toolbar, /grid-template-columns:\s*minmax\(0, 1fr\) auto auto/);
+  assert.match(toolbar, /background:\s*var\(--surface-color\)/);
+  assert.match(toolbarSearch, /background:\s*var\(--control-bg\)/);
+  assert.match(toolbarFilter, /background:\s*var\(--soft-control-bg\)/);
+  assert.match(toolbarAdd, /background:\s*var\(--brand-color\)/);
+  assert.match(filterSummary, /justify-content:\s*space-between/);
+  assert.match(
+    statsGrid,
+    /grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
+  );
+  assert.match(gearFacts, /background:\s*var\(--control-bg\)/);
+  assert.match(sheet, /position|width:\s*100%/);
+  assert.match(sheetChip, /background:\s*var\(--control-bg\)/);
+  assert.match(activeSheetChip, /border-color:\s*var\(--brand-color\)/);
+  assert.match(darkToolbar, /background:\s*var\(--surface-color\)/);
+  assert.match(darkSheetChip, /background:\s*var\(--control-bg\)/);
+});
+
+test("gear stats page registers ECharts charts and detail rows", () => {
+  const app = JSON.parse(read("app.json"));
+  const pageJson = JSON.parse(read("pages/gears/stats/index.json"));
+  const wxml = read("pages/gears/stats/index.wxml");
+  const wxss = read("pages/gears/stats/index.wxss");
+  const ts = read("pages/gears/stats/index.ts");
+
+  assert.ok(app.pages.includes("pages/gears/stats/index"));
+  assert.equal(pageJson.navigationBarTitleText, "装备统计");
+  assert.equal(
+    pageJson.usingComponents["ec-canvas"],
+    "../../../components/ec-canvas/index",
+  );
+  assert.match(
+    ts,
+    /require\("\.\.\/\.\.\/\.\.\/vendor\/echarts\.simple\.min"\)/,
+  );
+  const ecCanvasComponent = read("components/ec-canvas/index.js");
+  assert.match(read("components/ec-canvas/index.json"), /component/);
+  assert.match(ecCanvasComponent, /addEventListener/);
+  assert.match(ecCanvasComponent, /removeEventListener/);
+  assert.match(read("vendor/echarts.simple.min.js"), /version="5\.6\.0"/);
+  assert.match(ts, /getGearStats\(\)/);
+  assert.match(ts, /buildChartData/);
+  assert.match(wxml, /分类数量占比/);
+  assert.match(wxml, /分类重量占比/);
+  assert.match(wxml, /分类估值占比/);
+  assert.match(wxml, /状态数量占比/);
+  assert.match(wxml, /id="categoryCountChart"/);
+  assert.match(wxml, /id="categoryWeightChart"/);
+  assert.match(wxml, /id="categoryValueChart"/);
+  assert.match(wxml, /id="statusCountChart"/);
+  assert.match(wxml, /暂无可统计数据/);
+  assert.match(wxml, /class="detail-row"/);
+  assert.match(wxss, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(wxss, /height: 380rpx/);
 });
 
 test("packing list gear selector uses labeled filter controls", () => {
@@ -386,7 +457,7 @@ test("profile theme toggle uses a sun and moon slider", () => {
 test("inner cards and panels use homepage inner surface tokens", () => {
   const cases = [
     ["pages/index/index.wxss", [".stat-card", ".skill-card"]],
-    ["pages/gears/index.wxss", [".stat-card", ".metric"]],
+    ["pages/gears/index.wxss", [".stat-card", ".gear-facts"]],
     ["pages/login/index.wxss", [".auth-panel"]],
     ["pages/gears/detail/index.wxss", [".summary-item"]],
     ["pages/gears/form/index.wxss", [".field", ".picker-row"]],

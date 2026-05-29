@@ -6,7 +6,7 @@ use axum::{
     response::IntoResponse,
 };
 use serde::Serialize;
-use stellartrail_domain::validation::FieldViolation;
+use stellartrail_domain::{trip::FieldConflict, validation::FieldViolation};
 
 use crate::routes::CAPTCHA_ENDPOINT;
 
@@ -25,6 +25,7 @@ pub enum ApiError {
     CaptchaRequired,
     NotFound,
     Validation(Vec<FieldViolation>),
+    EditConflict(Vec<FieldConflict>),
     PayloadTooLarge {
         max_bytes: u64,
     },
@@ -43,6 +44,8 @@ struct ErrorBody {
     message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     fields: Option<Vec<FieldViolation>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    conflicts: Option<Vec<FieldConflict>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     captcha: Option<CaptchaChallenge>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -96,11 +99,13 @@ impl ApiError {
 impl IntoResponse for ApiError {
     /// Runs the `into response` server-side flow while preserving input validation, error propagation, and state invariants.
     fn into_response(self) -> axum::response::Response {
-        let (status, code, message, fields, captcha, parameter, retry_after) = match self {
+        let (status, code, message, fields, conflicts, captcha, parameter, retry_after) = match self
+        {
             Self::BadRequest(message) => (
                 StatusCode::BAD_REQUEST,
                 "bad_request",
                 message,
+                None,
                 None,
                 None,
                 None,
@@ -116,6 +121,7 @@ impl IntoResponse for ApiError {
                 message,
                 None,
                 None,
+                None,
                 parameter,
                 None,
             ),
@@ -123,6 +129,7 @@ impl IntoResponse for ApiError {
                 StatusCode::UNAUTHORIZED,
                 "unauthorized",
                 "missing or invalid bearer token".to_owned(),
+                None,
                 None,
                 None,
                 None,
@@ -136,6 +143,7 @@ impl IntoResponse for ApiError {
                 None,
                 None,
                 None,
+                None,
             ),
             Self::InvalidCredentials => (
                 StatusCode::UNAUTHORIZED,
@@ -145,11 +153,13 @@ impl IntoResponse for ApiError {
                 None,
                 None,
                 None,
+                None,
             ),
             Self::CaptchaRequired => (
                 StatusCode::PRECONDITION_REQUIRED,
                 "captcha_required",
                 "多次登录失败，请先完成验证码验证".to_owned(),
+                None,
                 None,
                 Some(CaptchaChallenge {
                     captcha_type: "image",
@@ -166,12 +176,24 @@ impl IntoResponse for ApiError {
                 None,
                 None,
                 None,
+                None,
             ),
             Self::Validation(fields) => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "validation_failed",
                 "request validation failed".to_owned(),
                 Some(fields),
+                None,
+                None,
+                None,
+                None,
+            ),
+            Self::EditConflict(conflicts) => (
+                StatusCode::CONFLICT,
+                "edit_conflict",
+                "record was changed by another member".to_owned(),
+                None,
+                Some(conflicts),
                 None,
                 None,
                 None,
@@ -184,11 +206,13 @@ impl IntoResponse for ApiError {
                 None,
                 None,
                 None,
+                None,
             ),
             Self::UnsupportedMediaType(message) => (
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
                 "unsupported_media_type",
                 message,
+                None,
                 None,
                 None,
                 None,
@@ -203,12 +227,14 @@ impl IntoResponse for ApiError {
                 None,
                 None,
                 None,
+                None,
                 Some(retry_after_seconds),
             ),
             Self::EmailDeliveryFailed => (
                 StatusCode::BAD_GATEWAY,
                 "email_delivery_failed",
                 "邮箱验证码发送失败，请稍后重试".to_owned(),
+                None,
                 None,
                 None,
                 None,
@@ -224,6 +250,7 @@ impl IntoResponse for ApiError {
                     None,
                     None,
                     None,
+                    None,
                 )
             }
         };
@@ -234,6 +261,7 @@ impl IntoResponse for ApiError {
                 code,
                 message,
                 fields,
+                conflicts,
                 captcha,
                 parameter,
             }),
@@ -266,5 +294,18 @@ impl From<stellartrail_domain::validation::ValidationError> for ApiError {
     /// Runs the `from` server-side flow while preserving input validation, error propagation, and state invariants.
     fn from(value: stellartrail_domain::validation::ValidationError) -> Self {
         Self::Validation(value.fields)
+    }
+}
+
+impl From<stellartrail_db::repositories::TripRepositoryError> for ApiError {
+    /// Converts trip persistence failures into the shared API error envelope.
+    fn from(value: stellartrail_db::repositories::TripRepositoryError) -> Self {
+        match value {
+            stellartrail_db::repositories::TripRepositoryError::Db(error) => error.into(),
+            stellartrail_db::repositories::TripRepositoryError::Validation(error) => error.into(),
+            stellartrail_db::repositories::TripRepositoryError::Conflict(conflicts) => {
+                Self::EditConflict(conflicts)
+            }
+        }
     }
 }

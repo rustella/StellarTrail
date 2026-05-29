@@ -62,6 +62,8 @@ POST /api/v1/auth/login
 POST /api/v1/auth/refresh
 POST /api/v1/auth/captcha
 GET /api/v1/me/profile
+GET /api/v1/me/profile/outdoor
+PATCH /api/v1/me/profile/outdoor
 PUT /api/v1/me/profile/avatar
 ```
 
@@ -243,6 +245,46 @@ Authorization: Bearer ***
     "email": null,
     "nickname": "微信用户",
     "avatar_url": "https://assets.example.invalid/stellartrail-avatars/users/user-id/avatar/hash.png"
+  }
+}
+```
+
+### Outdoor profile
+
+登录后可维护账号级户外资料，作为组队计划书成员信息的默认来源。它和组队计划书里的成员资料是复制关系：用户在计划详情中点击“一键导入我的资料”时，客户端读取这里已填写的字段并 PATCH 到当前计划的本人成员资料；后续不会自动同步，也不会反写角色分工。
+
+```http
+GET /api/v1/me/profile/outdoor
+PATCH /api/v1/me/profile/outdoor
+Authorization: Bearer ***
+```
+
+`PATCH` 使用稀疏更新：缺省字段保持不变，字段传 `null` 表示清空。支持字段包括 `outdoor_id`、`real_name`、`gender`、`birth_date`、`height_cm`、`phone`、`emergency_contact`、`emergency_contact_relationship`、`emergency_phone`、`blood_type`、`medical_history`、`allergy_history`、`medical_response_note`、`diet_preference`、`insurance_policy_no`、`insurance_company_phone` 和 `experience_note`。
+
+成功响应：
+
+```json
+{
+  "profile": {
+    "user_id": "user-id",
+    "outdoor_id": "星星",
+    "real_name": "王鑫",
+    "gender": "男",
+    "height_cm": 176,
+    "phone": "15696331949",
+    "emergency_contact": "吕荟琪",
+    "emergency_contact_relationship": "家属",
+    "emergency_phone": "18976951563",
+    "blood_type": "O",
+    "medical_history": "无",
+    "allergy_history": "无",
+    "medical_response_note": "无特殊处置",
+    "diet_preference": "不吃牛羊肉",
+    "insurance_policy_no": "11209616600972792644",
+    "insurance_company_phone": "95500",
+    "experience_note": "四姑娘山三峰，贡嘎环线等",
+    "created_at": "2026-05-26T13:00:00Z",
+    "updated_at": "2026-05-26T13:00:00Z"
   }
 }
 ```
@@ -599,33 +641,30 @@ Authorization: Bearer <super-admin-token>
 
 ## Cache / performance
 
-服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/v1/me/gears`、`PATCH /api/v1/me/gears/:id`、`DELETE /api/v1/me/gears/:id`、`POST /api/v1/me/gears/:id/delete`、`POST /api/v1/me/gears/:id/undelete`、`POST /api/v1/me/gears/:id/restore` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。公共读接口（装备图鉴、技能、绳结列表、筛选、详情、离线 manifest）也会缓存最终 JSON 响应和 ETag，Redis 不可用时退回 API 进程内存缓存；管理员删除/恢复图鉴会同步失效图鉴公共缓存。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境；公共接口 HTTP 缓存 TTL 由 `public_api.cache_ttl_seconds` 控制。装备 specs 字段频次只保存在 Redis sorted set 中，key 为 `<prefix>:gear:<user_id>:spec-keys:<category>`，member 只保存 spec key，不保存用户填写的具体值。用户标签建议也只保存在 Redis：标签频次 key 为 `<prefix>:gear:<user_id>:tags`，标签颜色偏好 hash key 为 `<prefix>:gear:<user_id>:tag-colors`。
+服务端支持可选 Redis 缓存。设置 `REDIS_URL` 后，装备库高频只读接口会走 Redis read-through cache；`POST /api/v1/me/gears`、`PATCH /api/v1/me/gears/:id`、`DELETE /api/v1/me/gears/:id` 和非 dry-run 导入会递增用户级缓存版本，确保写入后后续读取不会命中旧 key。公共读接口（装备图鉴、技能、绳结列表、筛选、详情、离线 manifest）也会缓存最终 JSON 响应和 ETag，Redis 不可用时退回 API 进程内存缓存；管理员删除/恢复图鉴会同步失效图鉴公共缓存。默认 TTL 为 `REDIS_GEAR_CACHE_TTL_SECONDS=30` 秒，可通过 `REDIS_KEY_PREFIX` 区分环境；公共接口 HTTP 缓存 TTL 由 `public_api.cache_ttl_seconds` 控制。装备 specs 字段频次只保存在 Redis sorted set 中，key 为 `<prefix>:gear:<user_id>:spec-keys:<category>`，member 只保存 spec key，不保存用户填写的具体值。用户标签建议也只保存在 Redis：标签频次 key 为 `<prefix>:gear:<user_id>:tags`，标签颜色偏好 hash key 为 `<prefix>:gear:<user_id>:tag-colors`。
 
 ## Gear inventory
 
-个人装备使用顶层 `quantity` 表示同款同规格库存数量，默认 `1`，最小值 `1`。`weight_g`、`official_price_cents`、`purchase_price_cents` 仍表示单件数据；分类计数、状态计数、`current_count`、总重量和总价值都会按 `quantity` 乘算。`specs.quantity` 不再表示个人拥有数量；旧请求里可解析的 `specs.quantity` 会被折入顶层 `quantity`，响应和导出以顶层字段为准。创建装备时若命中同款同规格的现有可用记录，会返回已有记录并递增 `quantity`，不会创建重复行。
+个人装备使用顶层 `quantity` 表示同款同规格库存数量，默认 `1`，最小值 `1`。`weight_g`、`official_price_cents`、`purchase_price_cents` 仍表示单件数据；分类计数、状态计数、`current_count`、总重量和总价值都会按 `quantity` 乘算。`GET /api/v1/me/gears/stats` 和首屏 `overview.stats` 的 `by_category`、`by_status` 每一项都返回 `count`、`total_weight_g`、`total_value_cents`；估值仅汇总 CNY 购买价，非 CNY 不计入 `total_value_cents`。`specs.quantity` 不再表示个人拥有数量；旧请求里可解析的 `specs.quantity` 会被折入顶层 `quantity`，响应和导出以顶层字段为准。创建装备时若命中同款同规格的现有可用记录，会返回已有记录并递增 `quantity`，不会创建重复行。
 
 ```http
-GET /api/v1/me/gears/categories?tab=available
-GET /api/v1/me/gears/stats?tab=available
-GET /api/v1/me/gears/overview?tab=available&limit=20&sort=created_at_desc
+GET /api/v1/me/gears/categories
+GET /api/v1/me/gears/stats
+GET /api/v1/me/gears/overview?limit=20&sort=created_at_desc
 GET /api/v1/me/gears/spec-key-rankings?category=electronics_system
 GET /api/v1/me/gears/tag-suggestions?limit=20
-GET /api/v1/me/gears?tab=available&category=electronics_system&status=available&q=nitecore&sort=created_at_desc&limit=20&cursor=0
+GET /api/v1/me/gears?category=electronics_system&status=available&q=nitecore&sort=created_at_desc&limit=20&cursor=0
 POST /api/v1/me/gears
 GET /api/v1/me/gears/:id
 PATCH /api/v1/me/gears/:id
 DELETE /api/v1/me/gears/:id
-POST /api/v1/me/gears/:id/delete
-POST /api/v1/me/gears/:id/undelete
-POST /api/v1/me/gears/:id/restore
-GET /api/v1/me/gears/export?tab=available&format=csv
+GET /api/v1/me/gears/export?format=csv
 POST /api/v1/me/gears/import
 ```
 
 ## Gear packing lists
 
-打包清单是用户私有的出发前准备清单，用于按路线/目的地和徒步时长挑选本人已有装备，并在出发前逐项勾选已打包。第一版不依赖路线模块，不做自动推荐；`duration_label` 是自由文本，例如 `一日`、`两天一夜`。所有接口都需要 Bearer Token。
+打包清单是用户私有的出发前准备清单，用于挑选本人已有装备，并在出发前逐项勾选已打包。创建清单只要求 `name`；`route_name`（路线/目的地）和 `duration_label`（徒步时长）都是可选辅助信息。第一版不依赖路线模块，不做自动推荐；`duration_label` 是自由文本，例如 `一日`、`两天一夜`。所有接口都需要 Bearer Token。
 
 ```http
 GET /api/v1/me/packing-lists?limit=20&cursor=0
@@ -639,6 +678,14 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
 ```
 
 创建/更新清单：
+
+```json
+{
+  "name": "周末轻量清单"
+}
+```
+
+可选填写路线/目的地和徒步时长：
 
 ```json
 {
@@ -677,7 +724,7 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
 }
 ```
 
-同一装备重复加入同一清单保持幂等。只能加入当前用户自己的、未归档、未软删除装备；若提交其它用户、已归档、已软删除或不存在的装备 ID，返回 `422 validation_failed`。已加入清单的装备之后若被归档或软删除，清单详情仍保留该条目，并在条目上返回 `unavailable=true` 与 `unavailable_reason=archived|deleted`。
+同一装备重复加入同一清单保持幂等。只能加入当前用户自己的、未删除装备；若提交其它用户、已删除或不存在的装备 ID，返回 `422 validation_failed`。已加入清单的装备之后若被删除，清单详情仍保留该条目，并在条目上返回 `unavailable=true` 与 `unavailable_reason=deleted`。
 
 清单详情：
 
@@ -787,7 +834,7 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
 
 个人装备可以独立存在，不要求先关联装备图鉴。用户实际选择或手填的尺寸保存在 `selected_variant_label`，可选的稳定 key 保存在 `selected_variant_key`；当装备关联图鉴时，`atlas_item_id` 指向公开图鉴条目，客户端可读取该图鉴条目的 `variants` 作为“可选尺寸”。个人装备 `specs` 继续保存容量、背长、收纳尺寸等参数，但不再接受 `size`、`backpack_size`、`size_or_length`。
 
-装备响应包含 `created_at`、`updated_at` 和 `is_deleted`。`DELETE /api/v1/me/gears/:id` 只表示归档，会设置 `archived_at` 并进入 `tab=history`；`POST /api/v1/me/gears/:id/restore` 可从 history 恢复。真正软删除使用 `POST /api/v1/me/gears/:id/delete` 设置 `is_deleted=true`；默认列表、详情、统计、导出和导入去重都忽略已删除记录。`GET /api/v1/me/gears` 支持 `deleted=active|deleted|all`，默认 `active`；`POST /api/v1/me/gears/:id/undelete` 只恢复 `is_deleted=false`，不改变原来的 `archived_at`。
+装备响应包含 `created_at`、`updated_at` 和 `is_deleted`。`DELETE /api/v1/me/gears/:id` 会设置 `is_deleted=true`，默认列表、详情、统计、导出和导入去重都忽略已删除记录。`GET /api/v1/me/gears` 支持 `deleted=active|deleted|all`，默认 `active`；用于排查或内部工具时可以通过 `deleted=deleted` 查看已删除记录。
 
 ### Gear overview
 
@@ -795,11 +842,10 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
 
 支持参数：
 
-- `tab`: `available` 或 `history`，默认 `available`。
 - `limit`: 首屏列表数量，默认 `20`，仓储层会按列表接口同样规则限制在 `1..100`。
 - `sort`: 首屏列表排序，默认 `created_at_desc`。
 
-不支持 `cursor`、`q`、`category`、`status`。筛选、搜索、状态切换和后续分页仍调用 `GET /api/v1/me/gears`，避免每次筛选都重新计算统计。
+不支持 `cursor`、`q`、`category`、`status`、`tab`。筛选、搜索、状态切换和后续分页仍调用 `GET /api/v1/me/gears`，避免每次筛选都重新计算统计。
 
 ```json
 {
@@ -808,11 +854,26 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
   },
   "stats": {
     "current_count": 1,
-    "archived_count": 0,
     "total_value_cents": 63900,
     "total_weight_g": 315,
-    "by_category": [],
-    "by_status": []
+    "by_category": [
+      {
+        "category": "electronics_system",
+        "label": "电子系统",
+        "count": 1,
+        "total_weight_g": 315,
+        "total_value_cents": 63900
+      }
+    ],
+    "by_status": [
+      {
+        "status": "available",
+        "label": "可用",
+        "count": 1,
+        "total_weight_g": 315,
+        "total_value_cents": 63900
+      }
+    ]
   },
   "list": {
     "items": [],
@@ -847,6 +908,67 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
 ```
 
 标签建议按 Redis 频次倒序返回，`limit` 默认 20、最大 50。Redis 未启用或不可用时返回空数组；装备保存不受影响。
+
+## Team Trip Plans
+
+组队计划书是登录用户之间协作编辑的出行准备文档。创建计划只要求 `name`；路线目标、起终点、环线、营地和上下山信息由行程安排/路线维度记录。创建后默认开启 `members` 和 `personal_gear`；`itinerary`、`shared_gear`、`food_plan`、`medical_kit`、`safety_plan`、`rescue_info`、`budget`、`goals` 可通过 `PATCH /api/v1/me/trips/:id/sections` 开启或隐藏。关闭板块只隐藏数据，不删除已有记录。`food_plan` 依赖 `itinerary`，没有行程日时食品计划不可编辑。
+
+计划摘要会返回 `itinerary_day_count`，表示当前计划中未删除的行程日数量，列表端可用它展示 `3天2夜` 这类行程时长。
+
+核心接口：
+
+- `GET /api/v1/me/trips`
+- `POST /api/v1/me/trips`
+- `GET /api/v1/me/trips/:id`
+- `PATCH /api/v1/me/trips/:id`
+- `DELETE /api/v1/me/trips/:id`
+- `PATCH /api/v1/me/trips/:id/sections`
+- `POST /api/v1/me/trips/:id/invitations`
+- `POST /api/v1/me/team-plan-invitations/:token/accept`
+- `POST /api/v1/me/trips/:id/personal-gear/import-packing-list`
+- `DELETE /api/v1/me/trips/:id/shared-gear-templates/:slot_key`
+
+成员、个人装备、公共装备、行程日、时间段、路线段、食品餐次/食材、公共食材、医药包、分段分工、安全预案、救援信息、财务预算和目标均使用对应子资源的 `POST`、`PATCH`、`DELETE`。例如：
+
+- `/api/v1/me/trips/:id/members/:member_id`
+- `/api/v1/me/trips/:id/personal-gear/:item_id`
+- `/api/v1/me/trips/:id/shared-gear/:item_id`
+- `/api/v1/me/trips/:id/itinerary-days/:day_id`
+- `/api/v1/me/trips/:id/itinerary-days/:day_id/time-slots/:slot_id`
+- `/api/v1/me/trips/:id/route-segments/:segment_id`
+- `/api/v1/me/trips/:id/segment-assignments/:assignment_id`
+- `/api/v1/me/trips/:id/food-meals/:meal_id/items/:item_id`
+- `/api/v1/me/trips/:id/food-supplies/:supply_id`
+- `/api/v1/me/trips/:id/medical-items/:item_id`
+- `/api/v1/me/trips/:id/safety-risks/:risk_id`
+- `/api/v1/me/trips/:id/rescue-contacts/:contact_id`
+- `/api/v1/me/trips/:id/budget-items/:item_id`
+- `/api/v1/me/trips/:id/goals/:goal_id`
+
+成员资料字段包括显示名、户外 ID、姓名、性别、身高、电话、紧急联系人、紧急联系人关系、血型、既往病、过敏史、过敏/伤病处理方法、饮食习惯、保险单号、保险公司电话、户外经历和角色分工。本人可编辑自己的成员资料，队长可编辑所有成员资料；角色分工仍是每个计划独立字段，不属于账号级户外资料。
+
+计划详情会返回后端保存的 `shared_gear_templates`，用于生成公共装备需求位，如炉头、煮锅、提水袋、急救包和对讲机。`DELETE /shared-gear-templates/:slot_key` 只会在当前计划隐藏对应模板需求，不会删除全局模板；刷新详情后该 `slot_key` 不再返回。公共装备记录的 `name` 表示需求位名称，`concrete_name` 表示具体装备名称；可选 `slot_key`、`slot_name` 用于匹配后端模板或自定义空位，`source_gear_id`、`source_member_id` 表示从谁的个人装备导入。公共装备必须传 `responsible_member_id`，负责人即背负人；未绑定具体装备的空位不计入成员装备视图和背负重量。每个成员的个人装备视图会合并展示自己的个人装备和已绑定的全队公共装备，并返回标签：`公共装备`、`非本人装备`、`我负责` 或 `他人负责`。重量统计中，`all_weight_g` 和 `actual_weight_g` 只计入自己的个人装备，以及自己负责背负的已绑定公共装备。
+
+行程日可记录天气、最高温、最低温、结论、注意事项，以及营地名称、海拔、地形、坡度、面积、水源和备注。路线段支持检查点、领队、下撤路线、路况描述和备注，同时支持计划级估算设置。基础 Naismith 始终启用：距离按 `5 km/h`、爬升按 `600 m/h`、下降不额外计时，结果按 5 分钟四舍五入。计划可用 `route_use_slope_adjustment` 开启坡度修正，开启后按路段平均坡度分档处理陡上陡下：上升坡度 `<8%` 仍按 `600 m/h`，`8%-15%` 按 `500 m/h`，`15%-25%` 按 `400 m/h`，`25%+` 按 `300 m/h`；下降坡度 `<8%` 不额外计时，`8%-15%` 按 `1200 m/h`，`15%-25%` 按 `900 m/h`，`25%+` 按 `600 m/h` 额外计时。计划可用 `route_use_high_altitude_adjustment` 开启高海拔修正，开启时 `route_start_altitude_m` 必填，范围 `-500..9000` 米；后端按行程日和时间段顺序累计 `爬升 - 下降`，以每段估算最高海拔叠加系数：`2500m+` 为 `1.10`、`3500m+` 为 `1.20`、`4500m+` 为 `1.35`。两个修正项可同时开启，顺序为先坡度修正再叠加高海拔系数；修改计划估算设置、行程日、时间段或路线段后，后端会统一复算路线段和每日预计时间。`manual_estimate_minutes` 仍可覆盖最终估算。新增行程日后会自动生成 `breakfast`、`lunch`、`dinner` 三个餐次，可用 `skipped=true` 跳过；餐次食材和 `food-supplies` 公共食材作为食品计划独立数据维护，不生成公共装备。客户端成员信息页可按负责人单独汇总食材重量，并在总背负重量里合并个人装备、公共装备和食材。
+
+财务预算是可选板块。预算条目可手动填写类目、名称、数量、单价、总价、分摊人数和备注，也可以通过 `linked_shared_gear_id` 弱关联公共装备；关联后详情会补充公共装备名称和负责人。删除公共装备不会删除预算条目，详情会返回 `linked_shared_gear_deleted=true`，客户端可显示“原关联装备已删除”。
+
+所有可编辑记录返回 `field_versions`。PATCH 只提交变更字段、这些字段的 `base_field_versions`，以及可选的 `force_fields`。不同字段并发修改可同时成功；同一字段版本不一致时返回：
+
+```json
+{
+  "code": "edit_conflict",
+  "message": "record was changed by another member",
+  "conflicts": [
+    {
+      "field": "name",
+      "client_value": "本地旧版本",
+      "server_value": "端午重装计划 v2",
+      "server_version": 2
+    }
+  ]
+}
+```
 
 ## Enums
 

@@ -287,7 +287,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (first_status, first) = send_empty(
         &app.router,
         "GET",
-        "/api/v1/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        "/api/v1/me/gears/overview?limit=2&sort=created_at_desc",
         Some(&token),
     )
     .await;
@@ -302,7 +302,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (second_status, second) = send_empty(
         &app.router,
         "GET",
-        "/api/v1/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        "/api/v1/me/gears/overview?limit=2&sort=created_at_desc",
         Some(&token),
     )
     .await;
@@ -342,7 +342,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (fresh_status, fresh) = send_empty(
         &app.router,
         "GET",
-        "/api/v1/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        "/api/v1/me/gears/overview?limit=2&sort=created_at_desc",
         Some(&token),
     )
     .await;
@@ -413,6 +413,40 @@ async fn gear_create_merges_same_item_and_stats_count_physical_quantity() {
     assert_eq!(stats["total_weight_g"], 440);
     assert_eq!(stats["total_value_cents"], 39800);
     assert_eq!(stats["by_category"][7]["count"], 2);
+    assert_eq!(stats["by_category"][7]["total_weight_g"], 440);
+    assert_eq!(stats["by_category"][7]["total_value_cents"], 39800);
+    assert_eq!(stats["by_status"][0]["count"], 2);
+    assert_eq!(stats["by_status"][0]["total_weight_g"], 440);
+    assert_eq!(stats["by_status"][0]["total_value_cents"], 39800);
+
+    let (usd_status, usd_gear) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/gears",
+        Some(&token),
+        json!({
+            "category": "lighting_system",
+            "name": "美元头灯",
+            "weight_g": 100,
+            "purchase_price_cents": 5000,
+            "purchase_price_currency": "USD"
+        }),
+    )
+    .await;
+    assert_eq!(usd_status, StatusCode::CREATED, "{usd_gear}");
+
+    let (stats_status, stats) =
+        send_empty(&app.router, "GET", "/api/v1/me/gears/stats", Some(&token)).await;
+    assert_eq!(stats_status, StatusCode::OK, "{stats}");
+    assert_eq!(stats["current_count"], 3);
+    assert_eq!(stats["total_weight_g"], 540);
+    assert_eq!(stats["total_value_cents"], 39800);
+    assert_eq!(stats["by_category"][5]["count"], 1);
+    assert_eq!(stats["by_category"][5]["total_weight_g"], 100);
+    assert_eq!(stats["by_category"][5]["total_value_cents"], 0);
+    assert_eq!(stats["by_status"][0]["count"], 3);
+    assert_eq!(stats["by_status"][0]["total_weight_g"], 540);
+    assert_eq!(stats["by_status"][0]["total_value_cents"], 39800);
 }
 
 #[tokio::test]
@@ -451,16 +485,33 @@ async fn gear_packing_lists_create_add_check_and_keep_unavailable_items_visible(
         "/api/v1/me/packing-lists",
         Some(&token),
         json!({
+            "name": " 周末清单 "
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["name"], "周末清单");
+    assert!(created["route_name"].is_null());
+    assert!(created["duration_label"].is_null());
+    assert_eq!(created["stats"]["item_count"], 0);
+    let list_id = created["id"].as_str().unwrap();
+
+    let (metadata_status, metadata) = send_json(
+        &app.router,
+        "PATCH",
+        &format!("/api/v1/me/packing-lists/{list_id}"),
+        Some(&token),
+        json!({
             "name": " 武功山一日 ",
             "route_name": "武功山",
             "duration_label": "一日"
         }),
     )
     .await;
-    assert_eq!(create_status, StatusCode::CREATED, "{created}");
-    assert_eq!(created["name"], "武功山一日");
-    assert_eq!(created["stats"]["item_count"], 0);
-    let list_id = created["id"].as_str().unwrap();
+    assert_eq!(metadata_status, StatusCode::OK, "{metadata}");
+    assert_eq!(metadata["name"], "武功山一日");
+    assert_eq!(metadata["route_name"], "武功山");
+    assert_eq!(metadata["duration_label"], "一日");
 
     let (add_status, added) = send_json(
         &app.router,

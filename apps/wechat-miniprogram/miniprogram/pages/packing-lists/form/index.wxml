@@ -15,7 +15,7 @@
     <view class="form-title"
       >{{mode === 'edit' ? '编辑打包清单' : '新建打包清单'}}</view
     >
-    <view class="form-subtitle">按路线和徒步时长命名，例如“一日武功山”。</view>
+    <view class="form-subtitle">清单名称必填；路线/目的地和徒步时长可选。</view>
 
     <view class="field">
       <view class="field-label required">清单名称</view>
@@ -28,7 +28,7 @@
     </view>
 
     <view class="field">
-      <view class="field-label">路线/目的地</view>
+      <view class="field-label">路线/目的地（可选）</view>
       <input
         value="{{form.routeName}}"
         placeholder="例如 武功山"
@@ -38,7 +38,7 @@
     </view>
 
     <view class="field">
-      <view class="field-label">徒步时长</view>
+      <view class="field-label">徒步时长（可选）</view>
       <input
         value="{{form.durationLabel}}"
         placeholder="例如 一日、两天一夜"

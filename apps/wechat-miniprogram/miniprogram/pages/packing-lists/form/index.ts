@@ -28,6 +28,7 @@ Page({
   data: {
     mode: "create" as "create" | "edit",
     id: "",
+    returnTripId: "",
     form: {
       name: "",
       routeName: "",
@@ -43,13 +44,14 @@ Page({
 
   onLoad(options: Record<string, string | undefined>) {
     const id = options.id || "";
-    this.setData({ id, mode: id ? "edit" : "create" });
+    const returnTripId = options.returnTripId || "";
+    this.setData({ id, returnTripId, mode: id ? "edit" : "create" });
     wx.setNavigationBarTitle({ title: id ? "编辑打包清单" : "新建打包清单" });
     if (!hasAccessToken()) {
       this.setData({ requiresLogin: true });
       showLoginPrompt(this, {
         message: "登录后可以创建和编辑自己的打包清单。",
-        redirectUrl: `/pages/packing-lists/form/index${id ? `?id=${encodeURIComponent(id)}` : ""}`,
+        redirectUrl: packingFormUrl(id, returnTripId),
       });
       return;
     }
@@ -84,7 +86,7 @@ Page({
         this.setData({ requiresLogin: true, error: "" });
         showLoginPrompt(this, {
           message: "登录状态已过期，请重新登录后编辑打包清单。",
-          redirectUrl: `/pages/packing-lists/form/index?id=${encodeURIComponent(id)}`,
+          redirectUrl: packingFormUrl(id, this.data.returnTripId),
         });
         return;
       }
@@ -109,7 +111,7 @@ Page({
     if (!hasAccessToken()) {
       showLoginPrompt(this, {
         message: "登录后可以保存打包清单。",
-        redirectUrl: "/pages/packing-lists/form/index",
+        redirectUrl: packingFormUrl(this.data.id, this.data.returnTripId),
       });
       return;
     }
@@ -134,15 +136,18 @@ Page({
           url: `/pages/packing-lists/detail/index?id=${detail.id}`,
         });
       } else {
+        const returnQuery = this.data.returnTripId
+          ? `&returnTripId=${encodeURIComponent(this.data.returnTripId)}`
+          : "";
         wx.redirectTo({
-          url: `/pages/packing-lists/select-gears/index?id=${detail.id}`,
+          url: `/pages/packing-lists/select-gears/index?id=${detail.id}${returnQuery}`,
         });
       }
     } catch (error) {
       if (isLoginRequiredError(error)) {
         showLoginPrompt(this, {
           message: "登录状态已过期，请重新登录后保存打包清单。",
-          redirectUrl: "/pages/packing-lists/form/index",
+          redirectUrl: packingFormUrl(this.data.id, this.data.returnTripId),
         });
         return;
       }
@@ -172,4 +177,15 @@ Page({
 function nullableText(value: string): string | null {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function packingFormUrl(id: string, returnTripId: string): string {
+  const params: string[] = [];
+  if (id) {
+    params.push(`id=${encodeURIComponent(id)}`);
+  }
+  if (returnTripId) {
+    params.push(`returnTripId=${encodeURIComponent(returnTripId)}`);
+  }
+  return `/pages/packing-lists/form/index${params.length ? `?${params.join("&")}` : ""}`;
 }

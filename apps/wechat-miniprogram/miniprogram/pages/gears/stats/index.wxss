@@ -1,0 +1,197 @@
+.gear-stats-page {
+  min-height: 100vh;
+  padding: 24rpx 28rpx 64rpx;
+  background: var(--page-bg);
+  box-sizing: border-box;
+}
+
+.primary-action {
+  min-width: 150rpx;
+  margin: 24rpx auto 0;
+  padding: 0 28rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 26rpx;
+  font-weight: 800;
+  line-height: 72rpx;
+}
+
+.primary-action::after {
+  border: 0;
+}
+
+.overview-card,
+.chart-card,
+.state-card {
+  margin-top: 20rpx;
+  padding: 24rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+  box-sizing: border-box;
+}
+
+.overview-card {
+  margin-top: 4rpx;
+}
+
+.section-title,
+.chart-title,
+.state-title {
+  color: var(--text-color);
+  font-size: 28rpx;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.kpi-card {
+  min-width: 0;
+  padding: 18rpx;
+  border: 1rpx solid var(--soft-border-color);
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.kpi-value {
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: 34rpx;
+  font-weight: 900;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kpi-label {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 22rpx;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.chart-canvas {
+  height: 380rpx;
+  margin-top: 16rpx;
+}
+
+ec-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.empty-chart {
+  margin-top: 16rpx;
+  padding: 52rpx 20rpx;
+  border-radius: var(--card-inner-radius);
+  color: var(--muted-color);
+  background: var(--control-bg);
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.detail-list {
+  margin-top: 18rpx;
+  border-top: 1rpx solid var(--soft-border-color);
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14rpx;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid var(--soft-border-color);
+}
+
+.detail-name,
+.detail-value,
+.detail-percent {
+  color: var(--heading-muted-color);
+  font-size: 23rpx;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.detail-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-color);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-value,
+.detail-percent {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.detail-percent {
+  min-width: 72rpx;
+  color: var(--brand-soft-text);
+  text-align: right;
+}
+
+.state-card {
+  color: var(--muted-color);
+  font-size: 26rpx;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.state-desc {
+  margin-top: 10rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.error-card {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
+.loading-card {
+  color: var(--muted-color);
+}
+
+.gear-stats-page.theme-dark {
+  color: var(--text-color);
+  background: var(--body-gradient);
+}
+
+.gear-stats-page.theme-dark .overview-card,
+.gear-stats-page.theme-dark .chart-card,
+.gear-stats-page.theme-dark .state-card {
+  border-color: var(--border-color);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.gear-stats-page.theme-dark .kpi-card,
+.gear-stats-page.theme-dark .empty-chart {
+  background: var(--control-bg);
+}
+
+.gear-stats-page.theme-dark .primary-action {
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+}
+
+.gear-stats-page.theme-dark .detail-percent {
+  color: var(--brand-color);
+}

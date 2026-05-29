@@ -1,4 +1,4 @@
-//! Gear packing-list repository wrapping SQL for user-owned route preparation lists.
+//! Gear packing-list repository wrapping SQL for user-owned preparation lists.
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, QueryResult};
 use stellartrail_domain::{
@@ -338,7 +338,7 @@ impl GearPackingRepository {
         }
     }
 
-    /// Reads one gear row for detail rendering, including archived or soft-deleted records.
+    /// Reads one gear row for detail rendering, including soft-deleted records.
     pub async fn gear_for_item(
         &self,
         user_id: &str,
@@ -661,16 +661,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn packing_repository_rejects_archived_or_deleted_adds_but_keeps_existing_items() {
+    async fn packing_repository_rejects_deleted_adds_but_keeps_existing_items() {
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
         Migrator::up(&db, None).await.unwrap();
         let user = AuthRepository::new(db.clone())
-            .upsert_mock_user("mock:packing-archive", Some("打包用户".to_owned()), None)
+            .upsert_mock_user("mock:packing-delete", Some("打包用户".to_owned()), None)
             .await
             .unwrap();
         let gear_repo = GearRepository::new(db.clone());
-        let archived = gear_repo
-            .create(&user.id, &gear_draft("会归档的装备", 500))
+        let existing = gear_repo
+            .create(&user.id, &gear_draft("已在清单的装备", 500))
             .await
             .unwrap();
         let deleted = gear_repo
@@ -685,27 +685,27 @@ mod tests {
         };
         draft.validate_and_normalize().unwrap();
         let list = repo.create(&user.id, &draft).await.unwrap();
-        repo.add_items(&user.id, &list.list.id, std::slice::from_ref(&archived.id))
+        repo.add_items(&user.id, &list.list.id, std::slice::from_ref(&existing.id))
             .await
             .unwrap();
 
-        gear_repo.archive(&user.id, &archived.id).await.unwrap();
+        gear_repo.soft_delete(&user.id, &existing.id).await.unwrap();
         gear_repo.soft_delete(&user.id, &deleted.id).await.unwrap();
         let rejected = repo
             .add_items(
                 &user.id,
                 &list.list.id,
-                &[archived.id.clone(), deleted.id.clone()],
+                &[existing.id.clone(), deleted.id.clone()],
             )
             .await
             .unwrap();
         assert_eq!(
             rejected.invalid_gear_ids,
-            vec![archived.id.clone(), deleted.id]
+            vec![existing.id.clone(), deleted.id]
         );
 
         let detail = repo.detail(&user.id, &list.list.id).await.unwrap().unwrap();
         assert_eq!(detail.items.len(), 1);
-        assert_eq!(detail.items[0].gear_id, archived.id);
+        assert_eq!(detail.items[0].gear_id, existing.id);
     }
 }

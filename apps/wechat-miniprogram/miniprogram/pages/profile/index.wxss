@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24rpx;
+  gap: 18rpx;
   border: 1rpx solid var(--border-color);
   border-radius: var(--card-radius);
   background: var(--surface-color);
@@ -62,7 +62,7 @@
   min-width: 0;
   min-height: 96rpx;
   flex: 1;
-  gap: 16rpx;
+  gap: 12rpx;
   cursor: pointer;
 }
 
@@ -71,6 +71,17 @@
   color: var(--text-color);
   font-size: 30rpx;
   font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-subtitle {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -118,10 +129,12 @@
 }
 
 .account-chevron {
-  flex: 0 0 auto;
+  flex: 0 0 28rpx;
   color: var(--muted-color);
   font-size: 34rpx;
   font-weight: 900;
+  line-height: 1;
+  text-align: center;
 }
 
 .account-button {
@@ -136,9 +149,24 @@
   line-height: 70rpx;
 }
 
-.account-button.danger {
+.account-button::after,
+.account-logout-button::after {
+  border: 0;
+}
+
+.account-logout-button {
+  flex: 0 0 auto;
+  min-width: 92rpx;
+  height: 58rpx;
+  margin: 0;
+  padding: 0 22rpx;
+  border: 1rpx solid var(--status-danger-bg);
+  border-radius: 999rpx;
   color: var(--status-danger-text);
   background: var(--status-danger-bg);
+  font-size: 23rpx;
+  font-weight: 900;
+  line-height: 58rpx;
 }
 
 .settings-card {
@@ -203,10 +231,12 @@
 }
 
 .settings-chevron {
-  flex: 0 0 auto;
+  flex: 0 0 28rpx;
   color: var(--muted-color);
   font-size: 34rpx;
   font-weight: 900;
+  line-height: 1;
+  text-align: center;
 }
 
 .profile-modal-mask {

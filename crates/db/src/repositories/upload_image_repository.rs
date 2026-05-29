@@ -179,7 +179,7 @@ impl UploadImageRepository {
             .db
             .query_one(statement(
                 self.db.get_database_backend(),
-                "SELECT COUNT(*) AS count, COALESCE(SUM(size_bytes), 0) AS total_size_bytes FROM upload_images WHERE user_id = ? AND purpose = ? AND is_deleted = FALSE",
+                "SELECT COUNT(*) AS count, CAST(COALESCE(SUM(size_bytes), 0) AS BIGINT) AS total_size_bytes FROM upload_images WHERE user_id = ? AND purpose = ? AND is_deleted = FALSE",
                 vec![user_id.to_owned().into(), purpose.to_owned().into()],
             ))
             .await?;

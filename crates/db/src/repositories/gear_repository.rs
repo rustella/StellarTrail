@@ -304,7 +304,12 @@ impl GearRepository {
             .execute(statement(
                 self.db.get_database_backend(),
                 "UPDATE user_gear_items SET archived_at = ?, updated_at = ? WHERE user_id = ? AND id = ? AND archived_at IS NULL AND is_deleted = FALSE",
-                vec![now.clone().into(), now.into(), user_id.to_owned().into(), id.to_owned().into()],
+                vec![
+                    now.clone().into(),
+                    now.into(),
+                    user_id.to_owned().into(),
+                    id.to_owned().into(),
+                ],
             ))
             .await?;
         Ok(result.rows_affected() > 0)
@@ -371,7 +376,13 @@ impl GearRepository {
             .db
             .query_all(statement(
                 self.db.get_database_backend(),
-                format!("SELECT category, CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY category"),
+                format!(
+                    "SELECT category, \
+                     CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count, \
+                     CAST(COALESCE(SUM(COALESCE(weight_g, 0) * quantity), 0) AS BIGINT) AS total_weight_g, \
+                     CAST(COALESCE(SUM(CASE WHEN purchase_price_currency = 'CNY' THEN COALESCE(purchase_price_cents, 0) * quantity ELSE 0 END), 0) AS BIGINT) AS total_value_cents \
+                     FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY category"
+                ),
                 vec![user_id.to_owned().into()],
             ))
             .await?;
@@ -379,8 +390,13 @@ impl GearRepository {
         for row in rows {
             let raw: String = row.try_get("", "category")?;
             let count: i64 = row.try_get("", "count")?;
+            let total_weight_g: i64 = row.try_get("", "total_weight_g")?;
+            let total_value_cents: i64 = row.try_get("", "total_value_cents")?;
             if let Some(category) = GearCategory::from_key(&raw) {
-                counts.insert(category.as_str(), count);
+                counts.insert(
+                    category.as_str(),
+                    (count, total_weight_g, total_value_cents),
+                );
             }
         }
         Ok(GearCategory::ALL
@@ -388,7 +404,18 @@ impl GearRepository {
             .map(|category| GearCategoryCount {
                 category,
                 label: category.label().to_owned(),
-                count: *counts.get(category.as_str()).unwrap_or(&0),
+                count: counts
+                    .get(category.as_str())
+                    .map(|stats| stats.0)
+                    .unwrap_or(0),
+                total_weight_g: counts
+                    .get(category.as_str())
+                    .map(|stats| stats.1)
+                    .unwrap_or(0),
+                total_value_cents: counts
+                    .get(category.as_str())
+                    .map(|stats| stats.2)
+                    .unwrap_or(0),
             })
             .collect())
     }
@@ -443,7 +470,13 @@ impl GearRepository {
             .db
             .query_all(statement(
                 self.db.get_database_backend(),
-                format!("SELECT status, CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY status"),
+                format!(
+                    "SELECT status, \
+                     CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count, \
+                     CAST(COALESCE(SUM(COALESCE(weight_g, 0) * quantity), 0) AS BIGINT) AS total_weight_g, \
+                     CAST(COALESCE(SUM(CASE WHEN purchase_price_currency = 'CNY' THEN COALESCE(purchase_price_cents, 0) * quantity ELSE 0 END), 0) AS BIGINT) AS total_value_cents \
+                     FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY status"
+                ),
                 vec![user_id.to_owned().into()],
             ))
             .await?;
@@ -451,8 +484,10 @@ impl GearRepository {
         for row in rows {
             let raw: String = row.try_get("", "status")?;
             let count: i64 = row.try_get("", "count")?;
+            let total_weight_g: i64 = row.try_get("", "total_weight_g")?;
+            let total_value_cents: i64 = row.try_get("", "total_value_cents")?;
             if let Some(status) = GearStatus::from_key(&raw) {
-                counts.insert(status.as_str(), count);
+                counts.insert(status.as_str(), (count, total_weight_g, total_value_cents));
             }
         }
         Ok(GearStatus::ALL
@@ -460,7 +495,18 @@ impl GearRepository {
             .map(|status| GearStatusCount {
                 status,
                 label: status.label().to_owned(),
-                count: *counts.get(status.as_str()).unwrap_or(&0),
+                count: counts
+                    .get(status.as_str())
+                    .map(|stats| stats.0)
+                    .unwrap_or(0),
+                total_weight_g: counts
+                    .get(status.as_str())
+                    .map(|stats| stats.1)
+                    .unwrap_or(0),
+                total_value_cents: counts
+                    .get(status.as_str())
+                    .map(|stats| stats.2)
+                    .unwrap_or(0),
             })
             .collect())
     }
@@ -531,6 +577,14 @@ fn apply_deleted_filter(clauses: &mut Vec<String>, deleted: DeletedFilter) {
     }
 }
 
+/// Runs the `archived clause` server-side flow while preserving input validation, error propagation, and state invariants.
+fn archived_clause(tab: GearTab) -> &'static str {
+    match tab {
+        GearTab::Available => "archived_at IS NULL",
+        GearTab::History => "archived_at IS NOT NULL",
+    }
+}
+
 /// Runs the `order by` server-side flow while preserving input validation, error propagation, and state invariants.
 fn order_by(sort: GearSort) -> &'static str {
     match sort {
@@ -540,14 +594,6 @@ fn order_by(sort: GearSort) -> &'static str {
         GearSort::NameAsc => "ORDER BY name ASC, created_at DESC, id DESC",
         GearSort::WeightDesc => "ORDER BY weight_g DESC, created_at DESC, id DESC",
         GearSort::PriceDesc => "ORDER BY purchase_price_cents DESC, created_at DESC, id DESC",
-    }
-}
-
-/// Runs the `archived clause` server-side flow while preserving input validation, error propagation, and state invariants.
-fn archived_clause(tab: GearTab) -> &'static str {
-    match tab {
-        GearTab::Available => "archived_at IS NULL",
-        GearTab::History => "archived_at IS NOT NULL",
     }
 }
 
@@ -892,9 +938,9 @@ mod tests {
         }
     }
 
-    /// Runs the `gear repository crud filter stats archive restore` server-side flow while preserving input validation, error propagation, and state invariants.
+    /// Runs the `gear repository crud filter stats soft delete` server-side flow while preserving input validation, error propagation, and state invariants.
     #[tokio::test]
-    async fn gear_repository_crud_filter_stats_archive_restore() {
+    async fn gear_repository_crud_filter_stats_soft_delete() {
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
         Migrator::up(&db, None).await.unwrap();
         let auth_repo = AuthRepository::new(db.clone());
@@ -928,63 +974,40 @@ mod tests {
         assert_eq!(stats.current_count, 2);
         assert_eq!(stats.total_weight_g, 630);
         assert_eq!(stats.total_value_cents, 127800);
+        let electronics_stats = &stats.by_category[7];
+        assert_eq!(electronics_stats.count, 1);
+        assert_eq!(electronics_stats.total_weight_g, 315);
+        assert_eq!(electronics_stats.total_value_cents, 63900);
+        let available_stats = &stats.by_status[0];
+        assert_eq!(available_stats.count, 2);
+        assert_eq!(available_stats.total_weight_g, 630);
+        assert_eq!(available_stats.total_value_cents, 127800);
 
-        assert!(repo.archive(user_id, &created.id).await.unwrap());
-        let (available, _) = repo
-            .list(user_id, &ListGearOptions::default())
-            .await
-            .unwrap();
-        assert_eq!(available.len(), 1);
-        let (history, _) = repo
-            .list(
-                user_id,
-                &ListGearOptions {
-                    tab: GearTab::History,
-                    ..Default::default()
-                },
-            )
-            .await
-            .unwrap();
-        assert_eq!(history.len(), 1);
-        repo.restore(user_id, &created.id).await.unwrap().unwrap();
         let (available, _) = repo
             .list(user_id, &ListGearOptions::default())
             .await
             .unwrap();
         assert_eq!(available.len(), 2);
 
-        assert!(repo.archive(user_id, &created.id).await.unwrap());
         assert!(repo.soft_delete(user_id, &created.id).await.unwrap());
         assert!(repo.get(user_id, &created.id).await.unwrap().is_none());
-        let stats = repo.stats(user_id, GearTab::History).await.unwrap();
-        assert_eq!(stats.archived_count, 0);
-        let (deleted_history, _) = repo
+        let stats = repo.stats(user_id, GearTab::Available).await.unwrap();
+        assert_eq!(stats.current_count, 1);
+        assert_eq!(stats.by_category[7].count, 0);
+        assert_eq!(stats.by_category[7].total_weight_g, 0);
+        assert_eq!(stats.by_category[7].total_value_cents, 0);
+        let (deleted_items, _) = repo
             .list(
                 user_id,
                 &ListGearOptions {
-                    tab: GearTab::History,
                     deleted: DeletedFilter::Deleted,
                     ..Default::default()
                 },
             )
             .await
             .unwrap();
-        assert_eq!(deleted_history.len(), 1);
-        assert!(deleted_history[0].archived_at.is_some());
-        let undeleted = repo.undelete(user_id, &created.id).await.unwrap().unwrap();
-        assert!(undeleted.archived_at.is_some());
-        assert!(!undeleted.is_deleted);
-        let (history, _) = repo
-            .list(
-                user_id,
-                &ListGearOptions {
-                    tab: GearTab::History,
-                    ..Default::default()
-                },
-            )
-            .await
-            .unwrap();
-        assert_eq!(history.len(), 1);
+        assert_eq!(deleted_items.len(), 1);
+        assert!(deleted_items[0].is_deleted);
     }
 
     /// Verifies duplicate personal gear rows become one quantity-aware inventory row.
@@ -1029,5 +1052,11 @@ mod tests {
         assert_eq!(stats.current_count, 3);
         assert_eq!(stats.total_weight_g, 945);
         assert_eq!(stats.total_value_cents, 191700);
+        assert_eq!(stats.by_category[7].count, 3);
+        assert_eq!(stats.by_category[7].total_weight_g, 945);
+        assert_eq!(stats.by_category[7].total_value_cents, 191700);
+        assert_eq!(stats.by_status[0].count, 3);
+        assert_eq!(stats.by_status[0].total_weight_g, 945);
+        assert_eq!(stats.by_status[0].total_value_cents, 191700);
     }
 }

@@ -10,6 +10,10 @@
   display: flex;
   align-items: center;
   gap: 22rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
 }
 
 .settings-avatar {
@@ -34,6 +38,27 @@
 .settings-hero-copy {
   min-width: 0;
   flex: 1;
+}
+
+.settings-hero-title {
+  color: var(--text-color);
+  font-size: 31rpx;
+  font-weight: 900;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-hero-desc {
+  margin-top: 8rpx;
+  color: var(--muted-color);
+  font-size: 23rpx;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-card,
@@ -102,10 +127,12 @@
 }
 
 .settings-chevron {
-  flex: 0 0 auto;
+  flex: 0 0 28rpx;
   color: var(--muted-color);
   font-size: 34rpx;
   font-weight: 900;
+  line-height: 1;
+  text-align: center;
 }
 
 .settings-error {

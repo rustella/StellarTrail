@@ -1,4 +1,5 @@
 import { getGearStats } from "../../utils/api-gears";
+import { getTripHomeHighlight } from "../../utils/api-trips";
 import {
   consumeOfflineCacheNotice,
   getKnotDisclaimer,
@@ -22,6 +23,7 @@ import {
   type KnotSummary,
   type SkillCard,
 } from "../../utils/skill-utils";
+import type { TripHomeHighlightItem } from "../../utils/trip-utils";
 import {
   getDefaultLoginPrompt,
   hideLoginPrompt,
@@ -48,9 +50,15 @@ interface HomeSkillCard extends SkillCard {
   hasThumbnail: boolean;
 }
 
+interface HomeTripHighlight {
+  id: string;
+  statusText: string;
+  subtitle: string;
+  dateText: string;
+}
+
 const EMPTY_STATS: GearStatsResponse = {
   current_count: 0,
-  archived_count: 0,
   total_value_cents: 0,
   total_weight_g: 0,
   by_category: [],
@@ -59,7 +67,7 @@ const EMPTY_STATS: GearStatsResponse = {
 
 const LOCKED_GEAR_STATS: HomeStatCard[] = [
   {
-    label: "可用装备",
+    label: "装备数量",
     value: "—",
     hint: "登录后可见",
   },
@@ -78,6 +86,7 @@ const LOCKED_GEAR_STATS: HomeStatCard[] = [
 const INITIAL_LOGGED_IN = hasAccessToken();
 const HOME_SOFT_REFRESH_MS = 30_000;
 const GEARS_SHOULD_REFRESH_KEY = "stellartrail_gears_should_refresh";
+const TRIP_HOME_SHOULD_REFRESH_KEY = "stellartrail_home_trip_refresh";
 let lastHomeDashboardLoadedAt = 0;
 let lastHomeDashboardLoginState = INITIAL_LOGGED_IN;
 
@@ -119,6 +128,7 @@ Page({
     gearStatCards: INITIAL_LOGGED_IN
       ? buildGearStatCards(EMPTY_STATS)
       : LOCKED_GEAR_STATS,
+    tripHighlight: null as HomeTripHighlight | null,
     featuredSkills: [] as HomeSkillCard[],
     loginPrompt: getDefaultLoginPrompt(),
     ...getThemeViewData(),
@@ -126,11 +136,19 @@ Page({
 
   onShow() {
     syncPageTheme(this);
-    const shouldRefresh = wx.getStorageSync(GEARS_SHOULD_REFRESH_KEY) === true;
-    if (shouldRefresh) {
+    const shouldRefreshGears =
+      wx.getStorageSync(GEARS_SHOULD_REFRESH_KEY) === true;
+    const shouldRefreshTrip =
+      wx.getStorageSync(TRIP_HOME_SHOULD_REFRESH_KEY) === true;
+    if (shouldRefreshGears) {
       wx.removeStorageSync(GEARS_SHOULD_REFRESH_KEY);
     }
-    void this.loadHomeDashboard({ force: shouldRefresh });
+    if (shouldRefreshTrip) {
+      wx.removeStorageSync(TRIP_HOME_SHOULD_REFRESH_KEY);
+    }
+    void this.loadHomeDashboard({
+      force: shouldRefreshGears || shouldRefreshTrip,
+    });
   },
 
   onPullDownRefresh() {
@@ -162,12 +180,14 @@ Page({
     const tasks = [this.loadFeaturedSkills()];
     if (isLoggedIn) {
       tasks.push(this.loadGearSummary());
+      tasks.push(this.loadTripHighlight());
     } else {
       this.setData({
         gearLoading: false,
         gearError: "",
         heroStatusText: "未登录也可先浏览",
         gearStatCards: LOCKED_GEAR_STATS,
+        tripHighlight: null,
       });
     }
     await Promise.all(tasks);
@@ -176,7 +196,7 @@ Page({
   async loadGearSummary() {
     this.setData({ gearLoading: true, gearError: "" });
     try {
-      const stats = await getGearStats("available");
+      const stats = await getGearStats();
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
         isLoggedIn: true,
@@ -201,6 +221,27 @@ Page({
         gearLoading: false,
         heroStatusText: "装备状态暂时不可用",
       });
+    }
+  },
+
+  async loadTripHighlight() {
+    if (!hasAccessToken()) {
+      this.setData({ tripHighlight: null });
+      return;
+    }
+    try {
+      const response = await getTripHomeHighlight(formatLocalDate());
+      const offlineNotice = consumeOfflineCacheNotice();
+      this.setData({
+        tripHighlight: response.item ? buildTripHighlight(response.item) : null,
+        ...(offlineNotice ? { offlineNotice } : {}),
+      });
+    } catch (error) {
+      if (isLoginRequiredError(error)) {
+        this.setData({ isLoggedIn: false, tripHighlight: null });
+        return;
+      }
+      this.setData({ tripHighlight: null });
     }
   },
 
@@ -271,6 +312,15 @@ Page({
     wx.switchTab({ url: "/pages/skills/index" });
   },
 
+  goTripHighlight(event: WechatMiniprogram.BaseEvent) {
+    const id = event.currentTarget.dataset.id as string | undefined;
+    if (id) {
+      wx.navigateTo({
+        url: `/pages/trips/detail/index?id=${encodeURIComponent(id)}`,
+      });
+    }
+  },
+
   goSkillDetail(event: WechatMiniprogram.BaseEvent) {
     const id = event.currentTarget.dataset.id as string | undefined;
     if (id) {
@@ -292,9 +342,9 @@ Page({
 function buildGearStatCards(stats: GearStatsResponse): HomeStatCard[] {
   return [
     {
-      label: "可用装备",
+      label: "装备数量",
       value: String(stats.current_count),
-      hint: "当前可直接使用",
+      hint: "当前库存",
     },
     {
       label: "总重量",
@@ -311,17 +361,57 @@ function buildGearStatCards(stats: GearStatsResponse): HomeStatCard[] {
 
 function buildHeroStatusText(stats: GearStatsResponse): string {
   const availableCount = stats.current_count;
-  const archivedCount = stats.archived_count;
-  if (availableCount > 0 && archivedCount > 0) {
-    return `可用 ${availableCount} 件 · 已归档 ${archivedCount} 件`;
-  }
   if (availableCount > 0) {
-    return `可用装备 ${availableCount} 件`;
-  }
-  if (archivedCount > 0) {
-    return `已归档装备 ${archivedCount} 件`;
+    return `装备 ${availableCount} 件`;
   }
   return "还没有装备记录";
+}
+
+function buildTripHighlight(item: TripHomeHighlightItem): HomeTripHighlight {
+  const trip = item.trip || item.plan;
+  const dateText = formatTripDateRange(trip.start_date, trip.end_date);
+  return {
+    id: trip.id,
+    statusText:
+      item.status === "ongoing"
+        ? "正在进行"
+        : buildUpcomingTripText(item.days_until_start),
+    subtitle: stripInlineDateFromTripTitle(trip.name, dateText),
+    dateText,
+  };
+}
+
+function buildUpcomingTripText(daysUntilStart: number): string {
+  if (daysUntilStart === 1) {
+    return "明天有行程计划";
+  }
+  return `${Math.max(daysUntilStart, 0)}天后有行程计划`;
+}
+
+function formatTripDateRange(
+  startDate?: string | null,
+  endDate?: string | null,
+): string {
+  if (startDate && endDate && startDate !== endDate) {
+    return `${startDate} 至 ${endDate}`;
+  }
+  return startDate || endDate || "未设置行程时间";
+}
+
+function stripInlineDateFromTripTitle(name: string, dateText: string): string {
+  const trimmed = name.trim();
+  const exactSuffix = ` · ${dateText}`;
+  if (dateText && trimmed.endsWith(exactSuffix)) {
+    return trimmed.slice(0, -exactSuffix.length).trim();
+  }
+  return trimmed.replace(/\s*·\s*\d{4}-\d{2}-\d{2}.*$/, "").trim();
+}
+
+function formatLocalDate(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 async function mapHomeSkillCard(item: KnotSummary): Promise<HomeSkillCard> {

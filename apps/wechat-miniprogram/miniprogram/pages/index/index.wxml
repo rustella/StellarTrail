@@ -21,6 +21,37 @@
     >{{offlineNotice}}</view
   >
 
+  <view
+    wx:if="{{tripHighlight}}"
+    class="plan-highlight-card"
+    data-id="{{tripHighlight.id}}"
+    bindtap="goTripHighlight"
+  >
+    <view class="plan-highlight-copy">
+      <view class="plan-highlight-eyebrow">近期行程</view>
+      <view class="plan-highlight-title">{{tripHighlight.statusText}}</view>
+      <view class="plan-highlight-meta">
+        <text class="plan-highlight-subtitle">{{tripHighlight.subtitle}}</text>
+        <text class="plan-highlight-date">{{tripHighlight.dateText}}</text>
+      </view>
+      <view class="plan-highlight-checklist">
+        <view class="plan-highlight-check-heading">出发前检查</view>
+        <block wx:for="{{checklistItems}}" wx:key="title">
+          <view class="plan-highlight-check-item">
+            <view class="plan-highlight-check-icon">{{item.icon}}</view>
+            <view class="plan-highlight-check-copy">
+              <view class="plan-highlight-check-title">{{item.title}}</view>
+              <view class="plan-highlight-check-desc"
+                >{{item.description}}</view
+              >
+            </view>
+          </view>
+        </block>
+      </view>
+    </view>
+    <view class="plan-highlight-action">查看行程</view>
+  </view>
+
   <view class="section-card">
     <view class="section-header">
       <view>
@@ -120,20 +151,6 @@
         </view>
       </view>
       <view wx:else class="empty-inline">技能内容准备中。</view>
-    </block>
-  </view>
-
-  <view class="section-card checklist-card">
-    <view class="section-eyebrow">出发前</view>
-    <view class="section-title">出发前检查</view>
-    <block wx:for="{{checklistItems}}" wx:key="title">
-      <view class="check-item">
-        <view class="check-icon">{{item.icon}}</view>
-        <view>
-          <view class="check-title">{{item.title}}</view>
-          <view class="check-desc">{{item.description}}</view>
-        </view>
-      </view>
     </block>
   </view>
 

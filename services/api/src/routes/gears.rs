@@ -554,7 +554,7 @@ fn parse_gear_tab_query(value: Option<&String>) -> Result<GearTab, ApiError> {
     GearTab::from_key(value).ok_or_else(|| {
         ApiError::invalid_query_parameter(
             "tab",
-            "query parameter `tab` must be `available` or `history`".to_owned(),
+            "query parameter `tab` must be available or history".to_owned(),
         )
     })
 }
