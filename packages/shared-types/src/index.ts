@@ -384,6 +384,8 @@ export type GearShareStatus =
   | "rejected"
   | "withdrawn";
 
+export type GearTab = "available" | "history";
+
 export type GearSort =
   | "created_at_desc"
   | "created_at_asc"
@@ -439,6 +441,7 @@ export interface GearItem {
   share_enabled: boolean;
   share_status: GearShareStatus;
   notes?: string | null;
+  archived_at?: string | null;
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
@@ -517,6 +520,7 @@ export interface GearStatusCount {
 
 export interface GearStatsResponse {
   current_count: number;
+  archived_count: number;
   total_value_cents: number;
   total_weight_g: number;
   by_category: GearCategoryCount[];
@@ -547,6 +551,7 @@ export interface GearTagSuggestionsResponse {
 }
 
 export interface ListGearsRequest {
+  tab?: GearTab;
   category?: GearCategory;
   status?: GearStatus;
   deleted?: DeletedFilter;
@@ -562,6 +567,7 @@ export interface ListGearsResponse {
 }
 
 export interface GearOverviewRequest {
+  tab?: GearTab;
   limit?: number;
   sort?: GearSort;
 }

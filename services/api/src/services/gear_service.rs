@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use stellartrail_db::repositories::{GearRepository, ListGearOptions};
-use stellartrail_domain::gear::{GearDraft, GearItem};
+use stellartrail_domain::gear::{GearDraft, GearItem, GearTab};
 use stellartrail_domain::validation::FieldViolation;
 
 use crate::{
@@ -64,12 +64,17 @@ pub async fn update_gear(
 }
 
 /// Runs the `list for export` server-side flow while preserving input validation, error propagation, and state invariants.
-pub async fn list_for_export(state: &AppState, user_id: &str) -> Result<Vec<GearItem>, ApiError> {
+pub async fn list_for_export(
+    state: &AppState,
+    user_id: &str,
+    tab: GearTab,
+) -> Result<Vec<GearItem>, ApiError> {
     let repo = GearRepository::new(state.db().clone());
     let (items, _) = repo
         .list(
             user_id,
             &ListGearOptions {
+                tab,
                 limit: 10_000,
                 ..Default::default()
             },

@@ -36,6 +36,7 @@ import type {
   GearItem,
   GearSpecKeyRankingsResponse,
   GearStatsResponse,
+  GearTab,
   GearTagSuggestionsResponse,
   HealthResponse,
   KnotDetail,
@@ -708,12 +709,12 @@ export class StellarTrailApiClient {
     return response;
   }
 
-  async listGearCategories(): Promise<GearCategoriesResponse> {
-    return this.get("/me/gears/categories", true);
+  async listGearCategories(tab?: GearTab): Promise<GearCategoriesResponse> {
+    return this.get(`/me/gears/categories${queryString({ tab })}`, true);
   }
 
-  async getGearStats(): Promise<GearStatsResponse> {
-    return this.get("/me/gears/stats", true);
+  async getGearStats(tab?: GearTab): Promise<GearStatsResponse> {
+    return this.get(`/me/gears/stats${queryString({ tab })}`, true);
   }
 
   async getGearOverview(
@@ -751,7 +752,7 @@ export class StellarTrailApiClient {
     return this.patch(`/me/gears/${encodeURIComponent(id)}`, request, true);
   }
 
-  async deleteGear(id: string): Promise<void> {
+  async archiveGear(id: string): Promise<void> {
     await this.request(
       `/me/gears/${encodeURIComponent(id)}`,
       { method: "DELETE" },
@@ -759,9 +760,33 @@ export class StellarTrailApiClient {
     );
   }
 
-  async exportGearsCsv(): Promise<string> {
+  async deleteGear(id: string): Promise<void> {
+    await this.request(
+      `/me/gears/${encodeURIComponent(id)}/delete`,
+      { method: "POST" },
+      true,
+    );
+  }
+
+  async undeleteGear(id: string): Promise<GearItem> {
+    return this.post(
+      `/me/gears/${encodeURIComponent(id)}/undelete`,
+      undefined,
+      true,
+    );
+  }
+
+  async restoreGear(id: string): Promise<GearItem> {
+    return this.post(
+      `/me/gears/${encodeURIComponent(id)}/restore`,
+      undefined,
+      true,
+    );
+  }
+
+  async exportGearsCsv(tab?: GearTab): Promise<string> {
     const response = await this.request(
-      `/me/gears/export${queryString({ format: "csv" })}`,
+      `/me/gears/export${queryString({ tab, format: "csv" })}`,
       {},
       true,
     );
@@ -842,24 +867,17 @@ export class StellarTrailApiClient {
     return response.json() as Promise<GearPackingListDetail>;
   }
 
-  async listTrips(
-    request: ListTripsRequest = {},
-  ): Promise<ListTripsResponse> {
+  async listTrips(request: ListTripsRequest = {}): Promise<ListTripsResponse> {
     return this.get(`/me/trips${queryString(request)}`, true);
   }
 
   async getTripHomeHighlight(
     today?: string,
   ): Promise<TripHomeHighlightResponse> {
-    return this.get(
-      `/me/trips/home-highlight${queryString({ today })}`,
-      true,
-    );
+    return this.get(`/me/trips/home-highlight${queryString({ today })}`, true);
   }
 
-  async createTrip(
-    request: CreateTripRequest,
-  ): Promise<TripDetail> {
+  async createTrip(request: CreateTripRequest): Promise<TripDetail> {
     return this.post("/me/trips", request, true);
   }
 
@@ -871,11 +889,7 @@ export class StellarTrailApiClient {
     id: string,
     request: UpdateTripRequest,
   ): Promise<TripDetail> {
-    return this.patch(
-      `/me/trips/${encodeURIComponent(id)}`,
-      request,
-      true,
-    );
+    return this.patch(`/me/trips/${encodeURIComponent(id)}`, request, true);
   }
 
   async deleteTrip(id: string): Promise<void> {
@@ -886,9 +900,7 @@ export class StellarTrailApiClient {
     );
   }
 
-  async convertTripToOutdoorExperience(
-    id: string,
-  ): Promise<OutdoorExperience> {
+  async convertTripToOutdoorExperience(id: string): Promise<OutdoorExperience> {
     return this.post(
       `/me/trips/${encodeURIComponent(id)}/convert-to-outdoor-experience`,
       undefined,
@@ -917,9 +929,7 @@ export class StellarTrailApiClient {
     );
   }
 
-  async acceptTripInvitation(
-    token: string,
-  ): Promise<TripDetail> {
+  async acceptTripInvitation(token: string): Promise<TripDetail> {
     return this.post(
       `/me/trip-invitations/${encodeURIComponent(token)}/accept`,
       undefined,
@@ -939,10 +949,7 @@ export class StellarTrailApiClient {
     );
   }
 
-  async removeTripMember(
-    id: string,
-    memberId: string,
-  ): Promise<TripDetail> {
+  async removeTripMember(id: string, memberId: string): Promise<TripDetail> {
     const response = await this.request(
       `/me/trips/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`,
       { method: "DELETE" },
@@ -1069,10 +1076,7 @@ export class StellarTrailApiClient {
     );
   }
 
-  async deleteTripItineraryDay(
-    id: string,
-    dayId: string,
-  ): Promise<TripDetail> {
+  async deleteTripItineraryDay(id: string, dayId: string): Promise<TripDetail> {
     return this.deleteTripRecord(id, "itinerary-days", dayId);
   }
 
@@ -1193,10 +1197,7 @@ export class StellarTrailApiClient {
     );
   }
 
-  async deleteTripFoodMeal(
-    id: string,
-    mealId: string,
-  ): Promise<TripDetail> {
+  async deleteTripFoodMeal(id: string, mealId: string): Promise<TripDetail> {
     return this.deleteTripRecord(id, "food-meals", mealId);
   }
 
@@ -1282,10 +1283,7 @@ export class StellarTrailApiClient {
     );
   }
 
-  async deleteTripMedicalItem(
-    id: string,
-    itemId: string,
-  ): Promise<TripDetail> {
+  async deleteTripMedicalItem(id: string, itemId: string): Promise<TripDetail> {
     return this.deleteTripRecord(id, "medical-items", itemId);
   }
 
@@ -1304,10 +1302,7 @@ export class StellarTrailApiClient {
     return this.updateTripRecord(id, "safety-risks", riskId, request);
   }
 
-  async deleteTripSafetyRisk(
-    id: string,
-    riskId: string,
-  ): Promise<TripDetail> {
+  async deleteTripSafetyRisk(id: string, riskId: string): Promise<TripDetail> {
     return this.deleteTripRecord(id, "safety-risks", riskId);
   }
 
@@ -1348,10 +1343,7 @@ export class StellarTrailApiClient {
     return this.updateTripRecord(id, "budget-items", itemId, request);
   }
 
-  async deleteTripBudgetItem(
-    id: string,
-    itemId: string,
-  ): Promise<TripDetail> {
+  async deleteTripBudgetItem(id: string, itemId: string): Promise<TripDetail> {
     return this.deleteTripRecord(id, "budget-items", itemId);
   }
 
@@ -1370,10 +1362,7 @@ export class StellarTrailApiClient {
     return this.updateTripRecord(id, "goals", goalId, request);
   }
 
-  async deleteTripGoalItem(
-    id: string,
-    goalId: string,
-  ): Promise<TripDetail> {
+  async deleteTripGoalItem(id: string, goalId: string): Promise<TripDetail> {
     return this.deleteTripRecord(id, "goals", goalId);
   }
 

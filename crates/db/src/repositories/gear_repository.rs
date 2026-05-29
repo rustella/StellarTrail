@@ -1,4 +1,4 @@
-//! Gear repository wrapping SQL for user gear CRUD, filtered pagination, statistics, and import/export reads.
+//! Gear repository wrapping SQL for user gear CRUD, filtered pagination, statistics, archive, and restore operations.
 
 use std::collections::HashMap;
 
@@ -9,7 +9,7 @@ use stellartrail_domain::{
     deletion::DeletedFilter,
     gear::{
         GearCategory, GearCategoryCount, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs,
-        GearStats, GearStatus, GearStatusCount, now_rfc3339,
+        GearStats, GearStatus, GearStatusCount, GearTab, now_rfc3339,
     },
 };
 use uuid::Uuid;
@@ -17,6 +17,7 @@ use uuid::Uuid;
 /// Stable data boundary for `ListGearOptions`, exposed by or reused within this module.
 #[derive(Clone, Debug)]
 pub struct ListGearOptions {
+    pub tab: GearTab,
     pub category: Option<GearCategory>,
     pub status: Option<GearStatus>,
     pub deleted: DeletedFilter,
@@ -30,6 +31,7 @@ impl Default for ListGearOptions {
     /// Runs the `default` server-side flow while preserving input validation, error propagation, and state invariants.
     fn default() -> Self {
         Self {
+            tab: GearTab::Available,
             category: None,
             status: None,
             deleted: DeletedFilter::Active,
@@ -105,7 +107,7 @@ impl GearRepository {
             .query_all(statement(
                 self.db.get_database_backend(),
                 format!(
-                    "{} WHERE user_id = ? AND category = ? AND is_deleted = FALSE \
+                    "{} WHERE user_id = ? AND category = ? AND archived_at IS NULL AND is_deleted = FALSE \
                      ORDER BY created_at ASC, id ASC",
                     gear_select_columns()
                 ),
@@ -159,7 +161,7 @@ impl GearRepository {
             .ok_or_else(|| DbErr::Custom("merged gear not found".to_owned()))
     }
 
-    /// Reads one gear record for packing-list history, including soft-deleted items.
+    /// Reads one gear record for packing-list history, including archived or soft-deleted items.
     pub async fn get_any_for_user(
         &self,
         user_id: &str,
@@ -237,7 +239,7 @@ impl GearRepository {
         }
     }
 
-    /// Queries gear by user, category, status, search term, and sort order, using limit+1 to detect the next page.
+    /// Queries gear by user, tab, category, status, search term, and sort order, using limit+1 to detect the next page.
     pub async fn list(
         &self,
         user_id: &str,
@@ -248,6 +250,10 @@ impl GearRepository {
         let mut values: Vec<Value> = vec![user_id.to_owned().into()];
         // user_id is always the first filter, keeping every gear query scoped to the current user.
         let mut clauses = vec!["user_id = ?".to_owned()];
+        match options.tab {
+            GearTab::Available => clauses.push("archived_at IS NULL".to_owned()),
+            GearTab::History => clauses.push("archived_at IS NOT NULL".to_owned()),
+        }
         apply_deleted_filter(&mut clauses, options.deleted);
         if let Some(category) = options.category {
             clauses.push("category = ?".to_owned());
@@ -290,7 +296,44 @@ impl GearRepository {
         Ok((items, next_cursor))
     }
 
-    /// Soft-deletes an item so it no longer appears in normal gear lists.
+    /// Archives the current resource so default lists no longer show it.
+    pub async fn archive(&self, user_id: &str, id: &str) -> Result<bool, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "UPDATE user_gear_items SET archived_at = ?, updated_at = ? WHERE user_id = ? AND id = ? AND archived_at IS NULL AND is_deleted = FALSE",
+                vec![
+                    now.clone().into(),
+                    now.into(),
+                    user_id.to_owned().into(),
+                    id.to_owned().into(),
+                ],
+            ))
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Restores an archived resource so default lists show it again.
+    pub async fn restore(&self, user_id: &str, id: &str) -> Result<Option<GearItem>, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "UPDATE user_gear_items SET archived_at = NULL, updated_at = ? WHERE user_id = ? AND id = ? AND is_deleted = FALSE",
+                vec![now.into(), user_id.to_owned().into(), id.to_owned().into()],
+            ))
+            .await?;
+        if result.rows_affected() == 0 {
+            Ok(None)
+        } else {
+            self.get(user_id, id).await
+        }
+    }
+
+    /// Soft-deletes an item without changing archive state.
     pub async fn soft_delete(&self, user_id: &str, id: &str) -> Result<bool, DbErr> {
         let now = now_rfc3339();
         let result = self
@@ -304,17 +347,42 @@ impl GearRepository {
         Ok(result.rows_affected() > 0)
     }
 
+    /// Restores a soft-deleted item while preserving whether it was archived.
+    pub async fn undelete(&self, user_id: &str, id: &str) -> Result<Option<GearItem>, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "UPDATE user_gear_items SET is_deleted = FALSE, updated_at = ? WHERE user_id = ? AND id = ? AND is_deleted = TRUE",
+                vec![now.into(), user_id.to_owned().into(), id.to_owned().into()],
+            ))
+            .await?;
+        if result.rows_affected() == 0 {
+            Ok(None)
+        } else {
+            self.get(user_id, id).await
+        }
+    }
+
     /// Runs the `category counts` server-side flow while preserving input validation, error propagation, and state invariants.
-    pub async fn category_counts(&self, user_id: &str) -> Result<Vec<GearCategoryCount>, DbErr> {
+    pub async fn category_counts(
+        &self,
+        user_id: &str,
+        tab: GearTab,
+    ) -> Result<Vec<GearCategoryCount>, DbErr> {
+        let archived_clause = archived_clause(tab);
         let rows = self
             .db
             .query_all(statement(
                 self.db.get_database_backend(),
-                "SELECT category, \
+                format!(
+                    "SELECT category, \
                      CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count, \
                      CAST(COALESCE(SUM(COALESCE(weight_g, 0) * quantity), 0) AS BIGINT) AS total_weight_g, \
                      CAST(COALESCE(SUM(CASE WHEN purchase_price_currency = 'CNY' THEN COALESCE(purchase_price_cents, 0) * quantity ELSE 0 END), 0) AS BIGINT) AS total_value_cents \
-                     FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE GROUP BY category",
+                     FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY category"
+                ),
                 vec![user_id.to_owned().into()],
             ))
             .await?;
@@ -353,23 +421,37 @@ impl GearRepository {
     }
 
     /// Runs the `stats` server-side flow while preserving input validation, error propagation, and state invariants.
-    pub async fn stats(&self, user_id: &str) -> Result<GearStats, DbErr> {
+    pub async fn stats(&self, user_id: &str, tab: GearTab) -> Result<GearStats, DbErr> {
+        let archived_clause = archived_clause(tab);
         let summary = self
             .db
             .query_one(statement(
                 self.db.get_database_backend(),
-                "SELECT CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count, \
+                format!(
+                    "SELECT CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count, \
                      CAST(COALESCE(SUM(CASE WHEN purchase_price_currency = 'CNY' THEN COALESCE(purchase_price_cents, 0) * quantity ELSE 0 END), 0) AS BIGINT) AS total_value_cents, \
                      CAST(COALESCE(SUM(COALESCE(weight_g, 0) * quantity), 0) AS BIGINT) AS total_weight_g \
-                     FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE",
+                     FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause}"
+                ),
                 vec![user_id.to_owned().into()],
             ))
             .await?
             .ok_or_else(|| DbErr::Custom("missing stats row".to_owned()))?;
-        let by_category = self.category_counts(user_id).await?;
-        let by_status = self.status_counts(user_id).await?;
+        let archived_count = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                "SELECT CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND archived_at IS NOT NULL",
+                vec![user_id.to_owned().into()],
+            ))
+            .await?
+            .ok_or_else(|| DbErr::Custom("missing archived stats row".to_owned()))?
+            .try_get("", "count")?;
+        let by_category = self.category_counts(user_id, tab).await?;
+        let by_status = self.status_counts(user_id, tab).await?;
         Ok(GearStats {
             current_count: summary.try_get("", "count")?,
+            archived_count,
             total_value_cents: summary.try_get("", "total_value_cents")?,
             total_weight_g: summary.try_get("", "total_weight_g")?,
             by_category,
@@ -378,16 +460,23 @@ impl GearRepository {
     }
 
     /// Runs the `status counts` server-side flow while preserving input validation, error propagation, and state invariants.
-    async fn status_counts(&self, user_id: &str) -> Result<Vec<GearStatusCount>, DbErr> {
+    async fn status_counts(
+        &self,
+        user_id: &str,
+        tab: GearTab,
+    ) -> Result<Vec<GearStatusCount>, DbErr> {
+        let archived_clause = archived_clause(tab);
         let rows = self
             .db
             .query_all(statement(
                 self.db.get_database_backend(),
-                "SELECT status, \
+                format!(
+                    "SELECT status, \
                      CAST(COALESCE(SUM(quantity), 0) AS BIGINT) AS count, \
                      CAST(COALESCE(SUM(COALESCE(weight_g, 0) * quantity), 0) AS BIGINT) AS total_weight_g, \
                      CAST(COALESCE(SUM(CASE WHEN purchase_price_currency = 'CNY' THEN COALESCE(purchase_price_cents, 0) * quantity ELSE 0 END), 0) AS BIGINT) AS total_value_cents \
-                     FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE GROUP BY status",
+                     FROM user_gear_items WHERE user_id = ? AND is_deleted = FALSE AND {archived_clause} GROUP BY status"
+                ),
                 vec![user_id.to_owned().into()],
             ))
             .await?;
@@ -476,7 +565,7 @@ fn gear_select_columns() -> &'static str {
         purchase_date, purchase_price_cents, purchase_price_currency,
         purchase_location, status, storage_location, atlas_item_id, selected_variant_key,
         selected_variant_label, quantity, tags_json,
-        specs_json, share_enabled, share_status, notes, is_deleted, created_at, updated_at
+        specs_json, share_enabled, share_status, notes, archived_at, is_deleted, created_at, updated_at
        FROM user_gear_items"#
 }
 
@@ -485,6 +574,14 @@ fn apply_deleted_filter(clauses: &mut Vec<String>, deleted: DeletedFilter) {
         DeletedFilter::Active => clauses.push("is_deleted = FALSE".to_owned()),
         DeletedFilter::Deleted => clauses.push("is_deleted = TRUE".to_owned()),
         DeletedFilter::All => {}
+    }
+}
+
+/// Runs the `archived clause` server-side flow while preserving input validation, error propagation, and state invariants.
+fn archived_clause(tab: GearTab) -> &'static str {
+    match tab {
+        GearTab::Available => "archived_at IS NULL",
+        GearTab::History => "archived_at IS NOT NULL",
     }
 }
 
@@ -570,6 +667,7 @@ fn map_gear(row: &sea_orm::QueryResult) -> Result<GearItem, DbErr> {
         share_status: GearShareStatus::from_key(&share_status_raw)
             .ok_or_else(|| DbErr::Custom(format!("invalid share status: {share_status_raw}")))?,
         notes: row.try_get("", "notes")?,
+        archived_at: row.try_get("", "archived_at")?,
         is_deleted: row.try_get("", "is_deleted")?,
         created_at: row.try_get("", "created_at")?,
         updated_at: row.try_get("", "updated_at")?,
@@ -872,7 +970,7 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, created.id);
 
-        let stats = repo.stats(user_id).await.unwrap();
+        let stats = repo.stats(user_id, GearTab::Available).await.unwrap();
         assert_eq!(stats.current_count, 2);
         assert_eq!(stats.total_weight_g, 630);
         assert_eq!(stats.total_value_cents, 127800);
@@ -893,7 +991,7 @@ mod tests {
 
         assert!(repo.soft_delete(user_id, &created.id).await.unwrap());
         assert!(repo.get(user_id, &created.id).await.unwrap().is_none());
-        let stats = repo.stats(user_id).await.unwrap();
+        let stats = repo.stats(user_id, GearTab::Available).await.unwrap();
         assert_eq!(stats.current_count, 1);
         assert_eq!(stats.by_category[7].count, 0);
         assert_eq!(stats.by_category[7].total_weight_g, 0);
@@ -950,7 +1048,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(items.len(), 1);
-        let stats = repo.stats(user_id).await.unwrap();
+        let stats = repo.stats(user_id, GearTab::Available).await.unwrap();
         assert_eq!(stats.current_count, 3);
         assert_eq!(stats.total_weight_g, 945);
         assert_eq!(stats.total_value_cents, 191700);

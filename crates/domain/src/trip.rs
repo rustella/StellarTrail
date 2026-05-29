@@ -31,17 +31,12 @@ pub struct FieldConflict {
 }
 
 /// Whether a trip is personal preparation or a collaborative team trip.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TripType {
     Solo,
+    #[default]
     Team,
-}
-
-impl Default for TripType {
-    fn default() -> Self {
-        Self::Team
-    }
 }
 
 /// Date-derived bucket used by the trip home list.
@@ -754,6 +749,7 @@ pub fn validate_route_estimation_settings(
 }
 
 /// Computes Naismith-based estimate minutes with optional route adjustments.
+#[allow(clippy::too_many_arguments)]
 pub fn estimate_route_minutes(
     distance_km: f64,
     ascent_m: i32,

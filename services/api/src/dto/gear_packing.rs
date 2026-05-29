@@ -183,7 +183,13 @@ impl GearPackingListItemResponse {
         gear: &GearItem,
         tag_colors: &HashMap<String, String>,
     ) -> Self {
-        let unavailable_reason = gear.is_deleted.then(|| "deleted".to_owned());
+        let unavailable_reason = if gear.is_deleted {
+            Some("deleted".to_owned())
+        } else if gear.archived_at.is_some() {
+            Some("archived".to_owned())
+        } else {
+            None
+        };
         Self {
             id: item.id,
             gear_id: item.gear_id,
