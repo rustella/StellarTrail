@@ -69,6 +69,7 @@ fun GearListScreen(
     onOpenGear: (String) -> Unit,
     onCreateGear: () -> Unit,
     onOpenAtlas: () -> Unit,
+    onOpenPackingLists: () -> Unit,
     onLogin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -95,7 +96,7 @@ fun GearListScreen(
                     onAction = if (state.isLoggedIn) onCreateGear else onLogin,
                 )
             }
-            item { GearAtlasEntryCard(onOpenAtlas) }
+            item { GearQuickEntries(onOpenAtlas = onOpenAtlas, onOpenPackingLists = onOpenPackingLists, showPackingLists = state.isLoggedIn) }
             if (!state.isLoggedIn) {
                 item { GuestGearLoginCard(onLogin) }
             }
@@ -138,40 +139,48 @@ fun GearListScreen(
 }
 
 @Composable
-private fun GearAtlasEntryCard(onClick: () -> Unit) {
+private fun GearQuickEntries(onOpenAtlas: () -> Unit, onOpenPackingLists: () -> Unit, showPackingLists: Boolean) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        GearEntryCard(
+            title = "装备图鉴",
+            body = "浏览已审核收录的市面装备",
+            icon = "册",
+            onClick = onOpenAtlas,
+            modifier = Modifier.weight(1f),
+        )
+        if (showPackingLists) {
+            GearEntryCard(
+                title = "打包清单",
+                body = "准备出发物品",
+                icon = "✓",
+                onClick = onOpenPackingLists,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun GearEntryCard(title: String, body: String, icon: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val palette = currentTrailPalette()
     SurfaceCard(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
         contentPadding = PaddingValues(horizontal = 13.dp, vertical = 11.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Box(
-                    Modifier
-                        .size(32.dp)
-                        .clip(TrailInnerCardShape)
-                        .background(palette.brandSoft),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        Modifier
-                            .size(width = 18.dp, height = 16.dp)
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(3.dp))
-                            .border(2.dp, palette.brandSoftText, androidx.compose.foundation.shape.RoundedCornerShape(3.dp)),
-                    )
-                }
-                Column(Modifier.weight(1f)) {
-                    Text("装备图鉴", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
-                    Text("浏览已审核收录的市面装备", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .clip(TrailInnerCardShape)
+                    .background(palette.brandSoft),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(icon, color = palette.brandSoftText, fontWeight = FontWeight.ExtraBold)
             }
-            Text(
-                "去浏览 ›",
-                modifier = Modifier.clip(TrailPillShape).background(palette.brandSoft).padding(horizontal = 12.dp, vertical = 6.dp),
-                color = palette.brandSoftText,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.ExtraBold,
-            )
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+                Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
