@@ -1,6 +1,5 @@
 import { getThemeViewData, syncPageTheme } from "../../../utils/theme";
 import {
-  archiveGear,
   consumeOfflineCacheNotice,
   deleteGear,
   getErrorMessage,
@@ -9,7 +8,6 @@ import {
   isOfflineCacheMissError,
   isLoginRequiredError,
   listMyGearAtlasSubmissions,
-  restoreGear,
   submitGearToAtlas,
 } from "../../../utils/api-gears";
 import {
@@ -28,7 +26,6 @@ import {
   type GearAtlasSubmission,
   type GearItem,
   type GearTagView,
-  type GearTab,
 } from "../../../utils/gear-utils";
 import {
   getDefaultLoginPrompt,
@@ -55,7 +52,6 @@ interface DetailGroup {
 Page({
   data: {
     id: "",
-    tab: "available" as GearTab,
     item: null as GearItem | null,
     categoryText: "",
     statusText: "",
@@ -84,7 +80,7 @@ Page({
       this.setData({ error: "没有找到这条内容，请返回后重试" });
       return;
     }
-    this.setData({ id, tab: (options.tab as GearTab) || "available" });
+    this.setData({ id });
     this.loadDetail();
   },
 
@@ -112,7 +108,7 @@ Page({
       });
       showLoginPrompt(this, {
         message: "登录后可以查看自己的装备详情。",
-        redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+        redirectUrl: detailUrl(this.data.id),
       });
       return;
     }
@@ -130,7 +126,7 @@ Page({
         this.setData({ requiresLogin: true, item: null, error: "" });
         showLoginPrompt(this, {
           message: "登录状态已过期，请重新登录后查看装备详情。",
-          redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+          redirectUrl: detailUrl(this.data.id),
         });
         return;
       }
@@ -160,77 +156,6 @@ Page({
     wx.navigateTo({ url: `/pages/gears/form/index?id=${this.data.id}` });
   },
 
-  archiveItem() {
-    if (isOffline()) {
-      showOfflineWriteBlockedToast();
-      return;
-    }
-    if (
-      !requireLoginForAction(this, {
-        message: "登录后可以归档或恢复自己的装备。",
-        redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
-      })
-    ) {
-      return;
-    }
-    wx.showModal({
-      title: "归档装备？",
-      content: "归档后不会出现在可用装备列表，可随时恢复。",
-      confirmText: "归档",
-      confirmColor: "#dc2626",
-      success: async (result) => {
-        if (!result.confirm) {
-          return;
-        }
-        try {
-          await archiveGear(this.data.id);
-          wx.setStorageSync("stellartrail_gears_should_refresh", true);
-          wx.showToast({ title: "已归档", icon: "success" });
-          wx.navigateBack();
-        } catch (error) {
-          if (isLoginRequiredError(error)) {
-            showLoginPrompt(this, {
-              message: "登录状态已过期，请重新登录后更新装备状态。",
-              redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
-            });
-            return;
-          }
-          wx.showToast({ title: getErrorMessage(error), icon: "none" });
-        }
-      },
-    });
-  },
-
-  async restoreItem() {
-    if (isOffline()) {
-      showOfflineWriteBlockedToast();
-      return;
-    }
-    if (
-      !requireLoginForAction(this, {
-        message: "登录后可以把历史装备恢复到可用列表。",
-        redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
-      })
-    ) {
-      return;
-    }
-    try {
-      await restoreGear(this.data.id);
-      wx.setStorageSync("stellartrail_gears_should_refresh", true);
-      wx.showToast({ title: "已恢复", icon: "success" });
-      this.loadDetail();
-    } catch (error) {
-      if (isLoginRequiredError(error)) {
-        showLoginPrompt(this, {
-          message: "登录状态已过期，请重新登录后恢复装备。",
-          redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
-        });
-        return;
-      }
-      wx.showToast({ title: getErrorMessage(error), icon: "none" });
-    }
-  },
-
   deleteItem() {
     if (isOffline()) {
       showOfflineWriteBlockedToast();
@@ -238,15 +163,15 @@ Page({
     }
     if (
       !requireLoginForAction(this, {
-        message: "登录后可以真正删除历史装备。",
-        redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+        message: "登录后可以删除自己的装备。",
+        redirectUrl: detailUrl(this.data.id),
       })
     ) {
       return;
     }
     wx.showModal({
       title: "删除这件装备？",
-      content: "该装备会从历史装备中移除，不再出现在装备列表。",
+      content: "删除后不会出现在装备列表中，已有打包清单会保留历史条目。",
       confirmText: "删除",
       confirmColor: "#dc2626",
       success: async (result) => {
@@ -266,7 +191,7 @@ Page({
           if (isLoginRequiredError(error)) {
             showLoginPrompt(this, {
               message: "登录状态已过期，请重新登录后删除装备。",
-              redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+              redirectUrl: detailUrl(this.data.id),
             });
             return;
           }
@@ -284,7 +209,7 @@ Page({
     if (
       !requireLoginForAction(this, {
         message: "登录后可以把自己的装备投稿到装备图鉴。",
-        redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+        redirectUrl: detailUrl(this.data.id),
       })
     ) {
       return;
@@ -315,7 +240,7 @@ Page({
           if (isLoginRequiredError(error)) {
             showLoginPrompt(this, {
               message: "登录状态已过期，请重新登录后投稿装备。",
-              redirectUrl: `/pages/gears/detail/index?id=${encodeURIComponent(this.data.id)}&tab=${this.data.tab}`,
+              redirectUrl: detailUrl(this.data.id),
             });
             return;
           }
@@ -353,7 +278,6 @@ function buildDetailData(
   item: GearItem,
   submission: GearAtlasSubmission | null,
 ) {
-  const archived = Boolean(item.archived_at);
   return {
     item,
     requiresLogin: false,
@@ -368,9 +292,12 @@ function buildDetailData(
       item.purchase_price_currency,
     ),
     tagViews: createGearTagViews(item.tags ?? [], item.tag_colors ?? {}),
-    tab: (archived ? "history" : "available") as GearTab,
     groups: buildGroups(item),
   };
+}
+
+function detailUrl(id: string): string {
+  return `/pages/gears/detail/index?id=${encodeURIComponent(id)}`;
 }
 
 function buildAtlasSubmissionData(submission: GearAtlasSubmission | null) {

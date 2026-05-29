@@ -11,10 +11,8 @@
       <text wx:else>{{accountProfile.avatarInitial}}</text>
     </view>
     <view class="settings-hero-copy">
-      <view class="title">用户设置</view>
-      <view class="subtitle"
-        >管理名称、邮箱和密码。头像可回到“我的”页点击头像修改。</view
-      >
+      <view class="settings-hero-title">{{accountProfile.displayName}}</view>
+      <view class="settings-hero-desc">{{accountProfile.emailText}}</view>
     </view>
   </view>
 
@@ -52,6 +50,24 @@
           >{{accountProfile.hasEmail ? '通过邮箱验证码更新密码' :
           '需要先绑定邮箱'}}</view
         >
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+    <view class="settings-row" bindtap="openOutdoorProfile">
+      <view class="settings-icon">户</view>
+      <view class="settings-copy">
+        <view class="settings-title">户外资料</view>
+        <view class="settings-desc"
+          >维护身高、血型、紧急联系人和饮食习惯。</view
+        >
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+    <view class="settings-row" bindtap="openOutdoorExperiences">
+      <view class="settings-icon">历</view>
+      <view class="settings-copy">
+        <view class="settings-title">户外经历</view>
+        <view class="settings-desc">记录历史行程和手动补充的户外经历。</view>
       </view>
       <view class="settings-chevron">›</view>
     </view>

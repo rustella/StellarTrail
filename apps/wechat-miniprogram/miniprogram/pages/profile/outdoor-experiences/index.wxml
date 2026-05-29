@@ -1,0 +1,214 @@
+<view class="outdoor-experiences-page container {{themeClass}}">
+  <view class="card experience-hero">
+    <view>
+      <view class="eyebrow">我的账号资料</view>
+      <view class="title">户外经历</view>
+      <view class="subtitle">记录完成过的路线、同行和准备经验。</view>
+    </view>
+    <button
+      wx:if="{{loggedIn}}"
+      class="hero-add-button"
+      bindtap="openCreateEditor"
+    >
+      +
+    </button>
+  </view>
+
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
+  <view wx:if="{{!loggedIn}}" class="card state-card">
+    <view class="state-title">登录后维护户外经历</view>
+    <view class="state-desc">历史行程和手动记录会保存到你的账号中。</view>
+    <button class="primary-button" bindtap="goLogin">登录 / 注册</button>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{error}}" class="error-line">{{error}}</view>
+    <view wx:if="{{loading}}" class="card state-card">正在加载经历...</view>
+
+    <view wx:elif="{{!experiences.length}}" class="card state-card empty">
+      <view class="state-title">还没有户外经历</view>
+      <view class="state-desc"
+        >可以从历史行程转入，也可以手动记录一次完成的路线。</view
+      >
+      <button class="primary-button" bindtap="openCreateEditor">
+        新增经历
+      </button>
+    </view>
+
+    <view wx:else class="experience-list">
+      <block wx:for="{{experiences}}" wx:key="id">
+        <view class="experience-card">
+          <view class="experience-head">
+            <view class="experience-main">
+              <view class="experience-title">{{item.title}}</view>
+              <view class="experience-date">{{item.dateText}}</view>
+              <view class="experience-meta">{{item.metaText}}</view>
+            </view>
+            <view class="experience-source">{{item.sourceText}}</view>
+          </view>
+          <view wx:if="{{item.summaryLines.length}}" class="experience-summary">
+            <block
+              wx:for="{{item.summaryLines}}"
+              wx:for-item="line"
+              wx:key="label"
+            >
+              <view class="summary-line">
+                <text class="summary-label">{{line.label}}</text>
+                <text class="summary-text">{{line.text}}</text>
+              </view>
+            </block>
+          </view>
+          <view class="experience-actions">
+            <button catchtap="openEditEditor" data-id="{{item.id}}">
+              编辑
+            </button>
+            <button
+              class="danger"
+              catchtap="confirmDeleteExperience"
+              data-id="{{item.id}}"
+            >
+              删除
+            </button>
+          </view>
+        </view>
+      </block>
+    </view>
+  </block>
+
+  <view
+    wx:if="{{editorVisible}}"
+    class="experience-sheet-mask"
+    catchtap="closeEditor"
+  >
+    <view class="experience-sheet" catchtap="noop">
+      <view class="sheet-head">
+        <view>
+          <view class="sheet-title">{{editorTitle}}</view>
+          <view class="sheet-desc"
+            >经历会展示在账号资料中，可从历史行程转入。</view
+          >
+        </view>
+        <button class="sheet-close" bindtap="closeEditor">×</button>
+      </view>
+
+      <scroll-view class="sheet-scroll" scroll-y>
+        <view class="form-section">
+          <view class="form-section-title">基础信息</view>
+          <input
+            value="{{experienceForm.title}}"
+            data-field="title"
+            bindinput="onFormInput"
+            placeholder="经历标题，例如：三天两夜罗浮山重装"
+          />
+          <view class="date-grid">
+            <view>
+              <view class="field-label">开始日期</view>
+              <picker
+                mode="date"
+                value="{{experienceForm.startDate}}"
+                bindchange="onStartDateChange"
+              >
+                <view class="picker-value"
+                  >{{experienceForm.startDate || '未设置'}}</view
+                >
+              </picker>
+              <button
+                wx:if="{{experienceForm.startDate}}"
+                class="inline-clear"
+                bindtap="clearStartDate"
+              >
+                清除
+              </button>
+            </view>
+            <view>
+              <view class="field-label">结束日期</view>
+              <picker
+                mode="date"
+                value="{{experienceForm.endDate}}"
+                bindchange="onEndDateChange"
+              >
+                <view class="picker-value"
+                  >{{experienceForm.endDate || '未设置'}}</view
+                >
+              </picker>
+              <button
+                wx:if="{{experienceForm.endDate}}"
+                class="inline-clear"
+                bindtap="clearEndDate"
+              >
+                清除
+              </button>
+            </view>
+          </view>
+          <view class="date-grid">
+            <view>
+              <view class="field-label">天数</view>
+              <input
+                value="{{experienceForm.dayCount}}"
+                data-field="dayCount"
+                bindinput="onFormInput"
+                type="number"
+                placeholder="例如：3"
+              />
+            </view>
+            <view>
+              <view class="field-label">同行人数</view>
+              <input
+                value="{{experienceForm.companionCount}}"
+                data-field="companionCount"
+                bindinput="onFormInput"
+                type="number"
+                placeholder="不含自己"
+              />
+            </view>
+          </view>
+        </view>
+
+        <view class="form-section">
+          <view class="form-section-title">经历摘要</view>
+          <textarea
+            value="{{experienceForm.routeSummary}}"
+            data-field="routeSummary"
+            bindinput="onFormInput"
+            placeholder="路线摘要，例如：罗浮山环线，夜宿拨云寺附近"
+          />
+          <textarea
+            value="{{experienceForm.gearSummary}}"
+            data-field="gearSummary"
+            bindinput="onFormInput"
+            placeholder="装备经验，例如：轻量雨衣够用，睡袋偏冷"
+          />
+          <textarea
+            value="{{experienceForm.foodSummary}}"
+            data-field="foodSummary"
+            bindinput="onFormInput"
+            placeholder="食品经验，例如：早餐偏少，电解质有用"
+          />
+          <textarea
+            value="{{experienceForm.budgetSummary}}"
+            data-field="budgetSummary"
+            bindinput="onFormInput"
+            placeholder="预算摘要，例如：包车 300，人均约 120"
+          />
+          <textarea
+            value="{{experienceForm.notes}}"
+            data-field="notes"
+            bindinput="onFormInput"
+            placeholder="其他备注"
+          />
+        </view>
+      </scroll-view>
+
+      <button
+        class="primary-button"
+        loading="{{saving}}"
+        bindtap="saveExperience"
+      >
+        保存经历
+      </button>
+    </view>
+  </view>
+</view>

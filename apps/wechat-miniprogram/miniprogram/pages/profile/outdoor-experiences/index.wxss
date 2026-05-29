@@ -1,0 +1,332 @@
+.outdoor-experiences-page {
+  min-height: 100vh;
+}
+
+.outdoor-experiences-page.theme-dark {
+  background: var(--body-gradient);
+}
+
+.experience-hero,
+.state-card,
+.experience-card {
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.experience-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+}
+
+.eyebrow {
+  color: var(--accent-color);
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
+.title {
+  margin-top: 12rpx;
+  color: var(--text-color);
+  font-size: 42rpx;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.subtitle,
+.state-desc,
+.experience-date,
+.experience-meta,
+.summary-text,
+.sheet-desc {
+  color: var(--muted-color);
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.subtitle {
+  margin-top: 10rpx;
+}
+
+.hero-add-button {
+  flex: 0 0 auto;
+  width: 72rpx;
+  height: 72rpx;
+  margin: 0;
+  padding: 0;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 34rpx;
+  font-weight: 900;
+  line-height: 72rpx;
+}
+
+.offline-notice,
+.error-line {
+  margin-top: 18rpx;
+  padding: 18rpx 22rpx;
+  border-radius: var(--card-inner-radius);
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.offline-notice {
+  color: var(--notice-text);
+  background: var(--notice-bg);
+}
+
+.error-line {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
+.state-card {
+  margin-top: 24rpx;
+  padding: 30rpx;
+}
+
+.state-title {
+  color: var(--text-color);
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.state-desc {
+  margin-top: 8rpx;
+}
+
+.experience-list {
+  display: grid;
+  gap: 22rpx;
+  margin-top: 24rpx;
+}
+
+.experience-card {
+  padding: 26rpx;
+}
+
+.experience-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.experience-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.experience-title {
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: 30rpx;
+  font-weight: 900;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.experience-source {
+  flex: 0 0 auto;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 22rpx;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.experience-summary {
+  display: grid;
+  gap: 10rpx;
+  margin-top: 18rpx;
+  padding: 18rpx;
+  border-radius: var(--card-inner-radius);
+  background: var(--control-bg);
+}
+
+.summary-line {
+  display: flex;
+  gap: 12rpx;
+  min-width: 0;
+}
+
+.summary-label {
+  flex: 0 0 auto;
+  color: var(--brand-soft-text);
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
+.summary-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.experience-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14rpx;
+  margin-top: 20rpx;
+}
+
+.experience-actions button {
+  margin: 0;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 23rpx;
+  font-weight: 900;
+  line-height: 58rpx;
+}
+
+.experience-actions .danger {
+  color: var(--status-danger-text);
+  background: var(--status-danger-bg);
+}
+
+.primary-button {
+  width: 100%;
+  margin: 24rpx 0 0;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 26rpx;
+  font-weight: 900;
+  line-height: 74rpx;
+}
+
+.primary-button::after,
+.hero-add-button::after,
+.experience-actions button::after,
+.sheet-close::after,
+.inline-clear::after {
+  border: 0;
+}
+
+.experience-sheet-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.experience-sheet {
+  width: 100%;
+  max-height: 88vh;
+  padding: 28rpx;
+  border-radius: 34rpx 34rpx 0 0;
+  background: var(--surface-color);
+  box-sizing: border-box;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.sheet-title {
+  color: var(--text-color);
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.sheet-desc {
+  margin-top: 8rpx;
+}
+
+.sheet-close {
+  width: 64rpx;
+  height: 64rpx;
+  margin: 0;
+  padding: 0;
+  border-radius: 999rpx;
+  color: var(--muted-color);
+  background: var(--control-bg);
+  font-size: 34rpx;
+  font-weight: 900;
+  line-height: 64rpx;
+}
+
+.sheet-scroll {
+  max-height: 62vh;
+  margin-top: 22rpx;
+}
+
+.form-section {
+  margin-top: 18rpx;
+  padding: 20rpx;
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-inner-radius);
+  background: var(--surface-subtle-color);
+}
+
+.form-section:first-child {
+  margin-top: 0;
+}
+
+.form-section-title,
+.field-label {
+  color: var(--muted-color);
+  font-size: 23rpx;
+  font-weight: 900;
+}
+
+.field-label {
+  margin: 16rpx 0 10rpx;
+}
+
+input,
+textarea,
+.picker-value {
+  width: 100%;
+  margin-top: 16rpx;
+  padding: 0 22rpx;
+  border-radius: 20rpx;
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 26rpx;
+  font-weight: 800;
+  box-sizing: border-box;
+}
+
+input,
+.picker-value {
+  height: 76rpx;
+  line-height: 76rpx;
+}
+
+textarea {
+  min-height: 112rpx;
+  padding-top: 20rpx;
+  line-height: 1.45;
+}
+
+.date-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.inline-clear {
+  width: auto;
+  margin: 10rpx 0 0;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+  font-size: 21rpx;
+  font-weight: 900;
+  line-height: 46rpx;
+}

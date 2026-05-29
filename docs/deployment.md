@@ -19,6 +19,22 @@ COMPOSE_PROJECT_NAME=stellartrail_it API_HOST_PORT=18080 POSTGRES_HOST_PORT=1543
 docker compose -f infra/test/docker-compose.yml config
 ```
 
+## 测试机持久环境
+
+测试机的持久联调环境不要使用 `integration-test.sh`，该脚本会在结束时执行 `down -v` 清理临时容器和卷。测试机应固定使用同一套 Compose project 和同一份宿主机数据目录，让不同 worktree 更新的是同一个 Postgres、Redis 和 MinIO 数据集：
+
+```bash
+docker-compose \
+  --env-file .env \
+  -p stellartrail-test \
+  -f infra/test/docker-compose.yml \
+  -f infra/test/docker-compose.testhost.yml \
+  -f infra/test/docker-compose.shared-data.yml \
+  up -d --build
+```
+
+`infra/test/docker-compose.testhost.yml` 和真实 `.env` 仍只保留在测试机本地；仓库只提交共享数据目录覆盖文件。`STELLARTRAIL_TEST_DATA_ROOT` 是必填项，缺失时 Compose 会报错，避免误把数据写进某个 worktree 自己的目录或自动创建新的默认卷。测试机当前使用 docker-compose v1，建议显式传 `--env-file`，不要依赖当前目录自动发现 `.env`。
+
 ## 客户端配置文件
 
 真实客户端配置文件只保留在本地或构建环境，已被 `.gitignore` 忽略；仓库只提交示例文件。需要调整地址时，复制对应示例文件后修改：

@@ -8,14 +8,21 @@ use axum::{
 };
 
 use crate::{
-    dto::profile::ProfileUserResponse, error::ApiError, extractors::AuthenticatedUser,
-    services::profile_service, state::AppState,
+    dto::profile::{OutdoorProfileResponse, ProfileUserResponse, UpdateOutdoorProfileRequest},
+    error::ApiError,
+    extractors::AuthenticatedUser,
+    services::profile_service,
+    state::AppState,
 };
 
 /// Profile route group.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/me/profile", get(current_profile))
+        .route(
+            "/me/profile/outdoor",
+            get(current_outdoor_profile).patch(update_outdoor_profile),
+        )
         .route("/me/profile/avatar", put(upload_avatar).post(upload_avatar))
 }
 
@@ -24,6 +31,27 @@ async fn current_profile(
     AuthenticatedUser(user): AuthenticatedUser,
 ) -> Result<Json<ProfileUserResponse>, ApiError> {
     Ok(Json(profile_service::current_profile(&user)))
+}
+
+/// Returns the authenticated user's reusable outdoor profile defaults.
+async fn current_outdoor_profile(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+) -> Result<Json<OutdoorProfileResponse>, ApiError> {
+    Ok(Json(
+        profile_service::current_outdoor_profile(&state, &user).await?,
+    ))
+}
+
+/// Updates the authenticated user's reusable outdoor profile defaults.
+async fn update_outdoor_profile(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Json(payload): Json<UpdateOutdoorProfileRequest>,
+) -> Result<Json<OutdoorProfileResponse>, ApiError> {
+    Ok(Json(
+        profile_service::update_outdoor_profile(&state, &user, payload.fields).await?,
+    ))
 }
 
 /// Accepts a multipart avatar image upload for the authenticated user.

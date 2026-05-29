@@ -16,6 +16,7 @@ mod meta;
 mod profile;
 mod roadmap;
 mod skills;
+mod trips;
 mod uploads;
 
 use axum::{
@@ -82,6 +83,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(gears::routes())
         .merge(profile::routes())
         .merge(roadmap::routes())
+        .merge(trips::routes())
         .merge(uploads::routes())
         .merge(feedback::routes());
     Router::new()

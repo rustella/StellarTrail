@@ -1,0 +1,137 @@
+<view class="gear-stats-page {{themeClass}}">
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
+  <view wx:if="{{!isLoggedIn}}" class="state-card">
+    <view class="state-title">登录后查看装备统计</view>
+    <view class="state-desc">统计会按你的装备分类、状态、重量和估值生成。</view>
+    <button class="primary-action" bindtap="goLogin">去登录</button>
+  </view>
+
+  <block wx:else>
+    <view class="overview-card">
+      <view class="section-title">总览</view>
+      <view class="kpi-grid">
+        <block wx:for="{{kpiCards}}" wx:key="label">
+          <view class="kpi-card">
+            <view class="kpi-value">{{item.value}}</view>
+            <view class="kpi-label">{{item.label}}</view>
+          </view>
+        </block>
+      </view>
+    </view>
+
+    <view wx:if="{{error}}" class="state-card error-card">
+      <view class="state-title">统计加载失败</view>
+      <view class="state-desc">{{error}}</view>
+      <button class="primary-action" bindtap="loadStats">重试</button>
+    </view>
+
+    <view wx:elif="{{loading}}" class="state-card loading-card"
+      >正在加载统计...</view
+    >
+
+    <block wx:else>
+      <view class="chart-card">
+        <view class="chart-title">分类数量占比</view>
+        <view wx:if="{{categoryCountChartRows.length}}" class="chart-canvas">
+          <ec-canvas
+            id="categoryCountChart"
+            canvas-id="categoryCountChart"
+            echarts="{{echarts}}"
+            ec="{{chartEc}}"
+          ></ec-canvas>
+        </view>
+        <view wx:else class="empty-chart">暂无可统计数据</view>
+        <view wx:if="{{categoryCountRows.length}}" class="detail-list">
+          <block wx:for="{{categoryCountRows}}" wx:key="label">
+            <view class="detail-row">
+              <text class="detail-name">{{item.label}}</text>
+              <text class="detail-value">{{item.valueText}}</text>
+              <text class="detail-percent">{{item.percentageText}}</text>
+            </view>
+          </block>
+        </view>
+      </view>
+
+      <view class="chart-card">
+        <view class="chart-title">分类重量占比</view>
+        <view wx:if="{{categoryWeightChartRows.length}}" class="chart-canvas">
+          <ec-canvas
+            id="categoryWeightChart"
+            canvas-id="categoryWeightChart"
+            echarts="{{echarts}}"
+            ec="{{chartEc}}"
+          ></ec-canvas>
+        </view>
+        <view wx:else class="empty-chart">暂无可统计数据</view>
+        <view wx:if="{{categoryWeightRows.length}}" class="detail-list">
+          <block wx:for="{{categoryWeightRows}}" wx:key="label">
+            <view class="detail-row">
+              <text class="detail-name">{{item.label}}</text>
+              <text class="detail-value">{{item.valueText}}</text>
+              <text class="detail-percent">{{item.percentageText}}</text>
+            </view>
+          </block>
+        </view>
+      </view>
+
+      <view class="chart-card">
+        <view class="chart-title">分类估值占比</view>
+        <view wx:if="{{categoryValueChartRows.length}}" class="chart-canvas">
+          <ec-canvas
+            id="categoryValueChart"
+            canvas-id="categoryValueChart"
+            echarts="{{echarts}}"
+            ec="{{chartEc}}"
+          ></ec-canvas>
+        </view>
+        <view wx:else class="empty-chart">暂无可统计数据</view>
+        <view wx:if="{{categoryValueRows.length}}" class="detail-list">
+          <block wx:for="{{categoryValueRows}}" wx:key="label">
+            <view class="detail-row">
+              <text class="detail-name">{{item.label}}</text>
+              <text class="detail-value">{{item.valueText}}</text>
+              <text class="detail-percent">{{item.percentageText}}</text>
+            </view>
+          </block>
+        </view>
+      </view>
+
+      <view class="chart-card">
+        <view class="chart-title">状态数量占比</view>
+        <view wx:if="{{statusCountChartRows.length}}" class="chart-canvas">
+          <ec-canvas
+            id="statusCountChart"
+            canvas-id="statusCountChart"
+            echarts="{{echarts}}"
+            ec="{{chartEc}}"
+          ></ec-canvas>
+        </view>
+        <view wx:else class="empty-chart">暂无可统计数据</view>
+        <view wx:if="{{statusCountRows.length}}" class="detail-list">
+          <block wx:for="{{statusCountRows}}" wx:key="label">
+            <view class="detail-row">
+              <text class="detail-name">{{item.label}}</text>
+              <text class="detail-value">{{item.valueText}}</text>
+              <text class="detail-percent">{{item.percentageText}}</text>
+            </view>
+          </block>
+        </view>
+      </view>
+    </block>
+  </block>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">暂不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

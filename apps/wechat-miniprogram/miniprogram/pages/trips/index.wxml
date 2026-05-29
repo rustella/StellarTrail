@@ -1,0 +1,141 @@
+<view class="team-page {{themeClass}}">
+  <view class="hero-card">
+    <view>
+      <view class="eyebrow">我的户外行程</view>
+      <view class="hero-title">我的行程</view>
+      <view class="hero-subtitle"
+        >单人准备、多人协作和历史经历都从这里管理。</view
+      >
+    </view>
+    <view class="hero-actions">
+      <button class="secondary-action" bindtap="goJoin">加入</button>
+      <button class="primary-action" bindtap="goCreate">制作行程</button>
+    </view>
+  </view>
+
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+
+  <view wx:if="{{!isLoggedIn}}" class="state-card login-required">
+    <view class="state-title">登录后查看我的行程</view>
+    <view class="state-desc">行程计划、装备分工和历史经历会保存到账号中。</view>
+    <view class="state-actions">
+      <button class="secondary-action" bindtap="goJoin">加入多人行程</button>
+      <button bindtap="goLogin">登录</button>
+    </view>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{error}}" class="state-card error">
+      <view>{{error}}</view>
+      <button bindtap="refreshPage">重试</button>
+    </view>
+
+    <view wx:elif="{{loading}}" class="state-card">正在加载行程...</view>
+
+    <view wx:elif="{{!plans.length}}" class="state-card empty">
+      <view class="state-title">还没有行程</view>
+      <view class="state-desc"
+        >制作一个单人行程，或和队友一起准备多人行程。</view
+      >
+      <button class="primary-action wide" bindtap="goCreate">
+        制作第一份行程
+      </button>
+      <button class="secondary-action wide" bindtap="goJoin">
+        加入多人行程
+      </button>
+    </view>
+
+    <view wx:else class="plan-list">
+      <block wx:for="{{groups}}" wx:key="key">
+        <view class="group-header">
+          <view>
+            <view class="group-title">{{item.title}}</view>
+            <view class="group-subtitle">{{item.subtitle}}</view>
+          </view>
+          <view class="group-count">{{item.trips.length}}</view>
+        </view>
+        <block wx:for="{{item.trips}}" wx:for-item="trip" wx:key="id">
+          <view class="plan-card" data-id="{{trip.id}}" bindtap="goDetail">
+            <view class="card-header">
+              <view>
+                <view class="plan-name">{{trip.name}}</view>
+                <view class="plan-meta"
+                  >{{trip.typeText}} · {{trip.dateText}}</view
+                >
+              </view>
+              <view class="section-pill">{{trip.durationText}}</view>
+            </view>
+            <view class="card-footer">
+              <view class="readiness-text">{{trip.readinessText}}</view>
+              <view class="trip-card-actions">
+                <view
+                  wx:if="{{trip.convertedToExperience}}"
+                  class="experience-recorded"
+                >
+                  已记录
+                </view>
+                <button
+                  wx:elif="{{trip.canConvertToExperience}}"
+                  class="experience-convert-button"
+                  catchtap="convertPlanToExperience"
+                  data-id="{{trip.id}}"
+                  loading="{{convertingTripId === trip.id}}"
+                >
+                  转为经历
+                </button>
+                <button
+                  wx:if="{{trip.canDelete}}"
+                  catchtap="deletePlan"
+                  data-id="{{trip.id}}"
+                >
+                  删除
+                </button>
+              </view>
+            </view>
+          </view>
+        </block>
+      </block>
+    </view>
+
+    <view wx:if="{{loadingMore}}" class="load-more">继续加载...</view>
+    <view wx:elif="{{plans.length && !nextCursor}}" class="load-more muted"
+      >没有更多行程了</view
+    >
+  </block>
+
+  <view
+    wx:if="{{showCreateSheet}}"
+    class="sheet-mask"
+    catchtap="closeCreateSheet"
+  >
+    <view class="create-sheet" catchtap="noop">
+      <view class="sheet-handle"></view>
+      <view class="sheet-title">制作行程计划</view>
+      <button class="sheet-option" bindtap="createSoloTrip">
+        <view class="option-title">单人行程</view>
+        <view class="option-desc"
+          >只有自己的装备、行程、食品、医药和预算准备。</view
+        >
+      </button>
+      <button class="sheet-option" bindtap="createGroupTrip">
+        <view class="option-title">多人行程</view>
+        <view class="option-desc">保留成员协作、邀请加入和公共装备分工。</view>
+      </button>
+      <button class="sheet-cancel" bindtap="closeCreateSheet">取消</button>
+    </view>
+  </view>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">先不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

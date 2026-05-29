@@ -701,6 +701,228 @@ test("getCurrentUser refreshes stored profile from backend", async () => {
   });
 });
 
+test("outdoor profile helpers use authenticated profile outdoor endpoints", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      method: options.method,
+      data: options.data,
+      auth: options.header.authorization,
+    });
+    if (
+      options.url.endsWith("/api/v1/me/profile/outdoor") &&
+      options.method === "GET"
+    ) {
+      options.success({
+        statusCode: 200,
+        data: {
+          profile: {
+            user_id: "u1",
+            outdoor_id: "星星",
+            height_cm: 176,
+            blood_type: "O",
+          },
+        },
+      });
+      return;
+    }
+    if (
+      options.url.endsWith("/api/v1/me/profile/outdoor") &&
+      options.method === "PATCH"
+    ) {
+      options.success({
+        statusCode: 200,
+        data: {
+          profile: {
+            user_id: "u1",
+            ...options.data,
+          },
+        },
+      });
+      return;
+    }
+    throw new Error(`unexpected request ${options.method} ${options.url}`);
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  const {
+    getOutdoorProfile,
+    updateOutdoorProfile,
+  } = require("../.tmp-test/utils/api.js");
+
+  const read = await getOutdoorProfile();
+  const saved = await updateOutdoorProfile({
+    height_cm: 177,
+    blood_type: null,
+  });
+
+  assert.equal(read.profile.outdoor_id, "星星");
+  assert.equal(saved.profile.height_cm, 177);
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.example.test/api/v1/me/profile/outdoor",
+      method: "GET",
+      data: undefined,
+      auth: "Bearer access-old",
+    },
+    {
+      url: "https://api.example.test/api/v1/me/profile/outdoor",
+      method: "PATCH",
+      data: { height_cm: 177, blood_type: null },
+      auth: "Bearer access-old",
+    },
+  ]);
+});
+
+test("outdoor experience helpers use authenticated experience endpoints", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    const path = options.url.replace("https://api.example.test", "");
+    calls.push({
+      path,
+      method: options.method || "GET",
+      data: options.data,
+      auth: options.header && options.header.authorization,
+    });
+    if (path === "/api/v1/me/outdoor-experiences" && options.method === "GET") {
+      options.success({
+        statusCode: 200,
+        data: {
+          items: [
+            {
+              id: "exp-1",
+              user_id: "u1",
+              source_trip_id: "trip-1",
+              trip_type: "team",
+              title: "罗浮山重装",
+              start_date: "2026-05-29",
+              end_date: "2026-05-31",
+              day_count: 3,
+              companion_count: 2,
+              route_summary: "环线",
+              created_at: "2026-05-31T00:00:00Z",
+              updated_at: "2026-05-31T00:00:00Z",
+            },
+          ],
+        },
+      });
+      return;
+    }
+    if (
+      path === "/api/v1/me/outdoor-experiences" &&
+      options.method === "POST"
+    ) {
+      options.success({
+        statusCode: 201,
+        data: {
+          id: "exp-2",
+          user_id: "u1",
+          trip_type: "solo",
+          title: options.data.title,
+          created_at: "2026-06-01T00:00:00Z",
+          updated_at: "2026-06-01T00:00:00Z",
+        },
+      });
+      return;
+    }
+    if (
+      path === "/api/v1/me/outdoor-experiences/exp-1" &&
+      options.method === "PATCH"
+    ) {
+      options.success({
+        statusCode: 200,
+        data: {
+          id: "exp-1",
+          user_id: "u1",
+          trip_type: "team",
+          title: options.data.title,
+          created_at: "2026-05-31T00:00:00Z",
+          updated_at: "2026-06-01T00:00:00Z",
+        },
+      });
+      return;
+    }
+    if (
+      path === "/api/v1/me/outdoor-experiences/exp-1" &&
+      options.method === "DELETE"
+    ) {
+      options.success({ statusCode: 204, data: undefined });
+      return;
+    }
+    if (
+      path === "/api/v1/me/trips/trip-1/convert-to-outdoor-experience" &&
+      options.method === "POST"
+    ) {
+      options.success({
+        statusCode: 201,
+        data: {
+          id: "exp-3",
+          user_id: "u1",
+          source_trip_id: "trip-1",
+          trip_type: "team",
+          title: "历史行程",
+          created_at: "2026-06-02T00:00:00Z",
+          updated_at: "2026-06-02T00:00:00Z",
+        },
+      });
+      return;
+    }
+    throw new Error(`unexpected request ${options.method} ${options.url}`);
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_user", { id: "u1", nickname: "星" });
+  const {
+    listOutdoorExperiences,
+    createOutdoorExperience,
+    updateOutdoorExperience,
+    deleteOutdoorExperience,
+    convertTripToOutdoorExperience,
+  } = require("../.tmp-test/utils/api.js");
+
+  const list = await listOutdoorExperiences();
+  const created = await createOutdoorExperience({ title: "手动经历" });
+  const updated = await updateOutdoorExperience("exp-1", { title: "更新经历" });
+  await deleteOutdoorExperience("exp-1");
+  const converted = await convertTripToOutdoorExperience("trip-1");
+
+  assert.equal(list.items[0].title, "罗浮山重装");
+  assert.equal(created.title, "手动经历");
+  assert.equal(updated.title, "更新经历");
+  assert.equal(converted.source_trip_id, "trip-1");
+  assert.deepEqual(calls, [
+    {
+      path: "/api/v1/me/outdoor-experiences",
+      method: "GET",
+      data: undefined,
+      auth: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/outdoor-experiences",
+      method: "POST",
+      data: { title: "手动经历" },
+      auth: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/outdoor-experiences/exp-1",
+      method: "PATCH",
+      data: { title: "更新经历" },
+      auth: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/outdoor-experiences/exp-1",
+      method: "DELETE",
+      data: undefined,
+      auth: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/trip-1/convert-to-outdoor-experience",
+      method: "POST",
+      data: undefined,
+      auth: "Bearer access-old",
+    },
+  ]);
+});
+
 test("email binding sends authenticated code and stores bound email", async () => {
   const calls = [];
   const storage = installWxMock((options) => {
@@ -895,10 +1117,7 @@ test("authenticated requests refresh once on 401 and retry with the new access t
       authorization: options.header && options.header.authorization,
       data: options.data,
     });
-    if (
-      options.url.endsWith("/api/v1/me/gears/stats?tab=available") &&
-      calls.length === 1
-    ) {
+    if (options.url.endsWith("/api/v1/me/gears/stats") && calls.length === 1) {
       options.success({ statusCode: 401, data: { code: "unauthorized" } });
       return;
     }
@@ -910,12 +1129,11 @@ test("authenticated requests refresh once on 401 and retry with the new access t
       });
       return;
     }
-    if (options.url.endsWith("/api/v1/me/gears/stats?tab=available")) {
+    if (options.url.endsWith("/api/v1/me/gears/stats")) {
       options.success({
         statusCode: 200,
         data: {
           current_count: 0,
-          archived_count: 0,
           total_value_cents: 0,
           total_weight_g: 0,
           by_category: [],
@@ -930,13 +1148,13 @@ test("authenticated requests refresh once on 401 and retry with the new access t
   storage.set("stellartrail_refresh_token", "refresh-old");
   const { getGearStats } = require("../.tmp-test/utils/api.js");
 
-  await assert.doesNotReject(getGearStats("available"));
+  await assert.doesNotReject(getGearStats());
   assert.deepEqual(
     calls.map((call) => call.url.replace("https://api.example.test", "")),
     [
-      "/api/v1/me/gears/stats?tab=available",
+      "/api/v1/me/gears/stats",
       "/api/v1/auth/refresh",
-      "/api/v1/me/gears/stats?tab=available",
+      "/api/v1/me/gears/stats",
     ],
   );
   assert.equal(calls[0].authorization, "Bearer access-old");
@@ -1068,11 +1286,26 @@ test("getGearOverview calls the authenticated first-screen aggregate endpoint", 
         categories: { items: [{ id: "all", label: "全部装备", count: 1 }] },
         stats: {
           current_count: 1,
-          archived_count: 0,
           total_value_cents: 63900,
           total_weight_g: 315,
-          by_category: [],
-          by_status: [],
+          by_category: [
+            {
+              category: "electronics_system",
+              label: "电子系统",
+              count: 1,
+              total_weight_g: 315,
+              total_value_cents: 63900,
+            },
+          ],
+          by_status: [
+            {
+              status: "available",
+              label: "可用",
+              count: 1,
+              total_weight_g: 315,
+              total_value_cents: 63900,
+            },
+          ],
         },
         list: {
           items: [{ id: "gear-1", name: "头灯", tags: [], tag_colors: {} }],
@@ -1086,15 +1319,18 @@ test("getGearOverview calls the authenticated first-screen aggregate endpoint", 
   const { getGearOverview } = require("../.tmp-test/utils/api.js");
 
   const response = await getGearOverview({
-    tab: "available",
     limit: 2,
     sort: "created_at_desc",
   });
 
   assert.equal(response.stats.current_count, 1);
+  assert.equal(response.stats.by_category[0].total_weight_g, 315);
+  assert.equal(response.stats.by_category[0].total_value_cents, 63900);
+  assert.equal(response.stats.by_status[0].total_weight_g, 315);
+  assert.equal(response.stats.by_status[0].total_value_cents, 63900);
   assert.deepEqual(calls, [
     {
-      url: "https://api.example.test/api/v1/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+      url: "https://api.example.test/api/v1/me/gears/overview?limit=2&sort=created_at_desc",
       method: "GET",
       authorization: "Bearer access-old",
     },
@@ -1186,10 +1422,14 @@ test("gear packing list API utilities call authenticated endpoints", async () =>
     listGearPackingLists,
     removeGearPackingItem,
     updateGearPackingItem,
+    updateGearPackingList,
   } = require("../.tmp-test/utils/api.js");
 
   await listGearPackingLists({ limit: 10 });
   await createGearPackingList({
+    name: "武功山一日",
+  });
+  await updateGearPackingList("pack-1", {
     name: "武功山一日",
     route_name: "武功山",
     duration_label: "一日",
@@ -1217,6 +1457,14 @@ test("gear packing list API utilities call authenticated endpoints", async () =>
       {
         path: "/api/v1/me/packing-lists",
         method: "POST",
+        data: {
+          name: "武功山一日",
+        },
+        authorization: "Bearer access-old",
+      },
+      {
+        path: "/api/v1/me/packing-lists/pack-1",
+        method: "PATCH",
         data: {
           name: "武功山一日",
           route_name: "武功山",
@@ -1256,6 +1504,350 @@ test("gear packing list API utilities call authenticated endpoints", async () =>
       },
     ],
   );
+});
+
+test("trip gear API utilities import packing lists and create trip-only gear", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    const path = options.url.replace("https://api.example.test", "");
+    calls.push({
+      path,
+      method: options.method || "GET",
+      data: options.data,
+      authorization: options.header && options.header.authorization,
+    });
+    options.success({
+      statusCode: 200,
+      data: {
+        plan: {
+          id: "team-1",
+          owner_user_id: "u-team",
+          name: "端午重装计划",
+          enabled_sections: ["members", "personal_gear"],
+          itinerary_day_count: 0,
+          field_versions: {},
+          is_deleted: false,
+          created_at: "2026-05-24T00:00:00Z",
+          updated_at: "2026-05-24T00:00:00Z",
+        },
+        members: [],
+        my_member_id: "member-1",
+        personal_gear_items: [],
+        shared_gear_items: [],
+        itinerary_days: [],
+        route_segments: [],
+        food_meals: [],
+        medical_items: [],
+        gear_weight_summaries: [],
+        member_gear_views: [],
+      },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_user", { id: "u-team", nickname: "队长" });
+  const {
+    bindTripSharedGearDemandMyGear,
+    createTripPersonalGearItem,
+    createTripSharedGearDemand,
+    deleteTripSharedGearDemand,
+    fillTripSharedGearDemandConcreteGear,
+    importTripPackingList,
+    updateTripSharedGearDemand,
+  } = require("../.tmp-test/utils/api.js");
+
+  await importTripPackingList("team-1", { packing_list_id: "pack-1" });
+  await createTripPersonalGearItem("team-1", {
+    name: "防水袋",
+    category: "other_gear",
+    planned_quantity: 1,
+    packed_quantity: 0,
+    unit_weight_g: 50,
+    notes: null,
+  });
+  await createTripSharedGearDemand("team-1", {
+    name: "炉头",
+    template_key: "common_stove_burner",
+    demand_name: "炉头",
+    concrete_name: "火枫炉头",
+    source_gear_id: "gear-1",
+    category: "kitchen_system",
+    planned_quantity: 1,
+    packed_quantity: 0,
+    source_member_id: "member-1",
+    responsible_member_id: "member-1",
+  });
+  await updateTripSharedGearDemand("team-1", "shared-1", {
+    responsible_member_id: "member-2",
+    base_field_versions: { responsible_member_id: 1 },
+  });
+  await bindTripSharedGearDemandMyGear("team-1", "shared-1", {
+    source_gear_id: "gear-2",
+    source_member_id: "member-1",
+  });
+  await fillTripSharedGearDemandConcreteGear("team-1", "shared-1", {
+    concrete_name: "火枫 300T",
+    unit_weight_g: 45,
+  });
+  await deleteTripSharedGearDemand("team-1", "shared-2");
+
+  assert.deepEqual(calls, [
+    {
+      path: "/api/v1/me/trips/team-1/personal-gear/import-packing-list",
+      method: "POST",
+      data: { packing_list_id: "pack-1" },
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/team-1/personal-gear",
+      method: "POST",
+      data: {
+        name: "防水袋",
+        category: "other_gear",
+        planned_quantity: 1,
+        packed_quantity: 0,
+        unit_weight_g: 50,
+        notes: null,
+      },
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/team-1/shared-gear-demands",
+      method: "POST",
+      data: {
+        name: "炉头",
+        template_key: "common_stove_burner",
+        demand_name: "炉头",
+        concrete_name: "火枫炉头",
+        source_gear_id: "gear-1",
+        category: "kitchen_system",
+        planned_quantity: 1,
+        packed_quantity: 0,
+        source_member_id: "member-1",
+        responsible_member_id: "member-1",
+      },
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/team-1/shared-gear-demands/shared-1",
+      method: "PATCH",
+      data: {
+        responsible_member_id: "member-2",
+        base_field_versions: { responsible_member_id: 1 },
+      },
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/team-1/shared-gear-demands/shared-1/bind-my-gear",
+      method: "POST",
+      data: {
+        source_gear_id: "gear-2",
+        source_member_id: "member-1",
+      },
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/team-1/shared-gear-demands/shared-1/fill-concrete-gear",
+      method: "POST",
+      data: {
+        concrete_name: "火枫 300T",
+        unit_weight_g: 45,
+      },
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/team-1/shared-gear-demands/shared-2",
+      method: "DELETE",
+      data: undefined,
+      authorization: "Bearer access-old",
+    },
+  ]);
+});
+
+test("trip food API utilities edit meal ingredients and shared supplies", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    const path = options.url.replace("https://api.example.test", "");
+    calls.push({
+      path,
+      method: options.method || "GET",
+      data: options.data,
+      authorization: options.header && options.header.authorization,
+    });
+    options.success({
+      statusCode: 200,
+      data: {
+        plan: {
+          id: "team-1",
+          owner_user_id: "u-team",
+          name: "端午重装计划",
+          enabled_sections: ["members", "food_plan"],
+          itinerary_day_count: 1,
+          field_versions: {},
+          is_deleted: false,
+          created_at: "2026-05-24T00:00:00Z",
+          updated_at: "2026-05-24T00:00:00Z",
+        },
+        members: [],
+        my_member_id: "member-1",
+        personal_gear_items: [],
+        shared_gear_items: [],
+        itinerary_days: [],
+        route_segments: [],
+        food_meals: [],
+        food_supplies: [],
+        medical_items: [],
+        gear_weight_summaries: [],
+        member_gear_views: [],
+      },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_user", { id: "u-team", nickname: "队长" });
+  const {
+    createTripFoodItem,
+    createTripFoodSupply,
+    deleteTripFoodItem,
+    deleteTripFoodSupply,
+    updateTripFoodItem,
+    updateTripFoodSupply,
+  } = require("../.tmp-test/utils/api.js");
+
+  await createTripFoodItem("team-1", "meal-1", {
+    name: "米饭",
+    amount_g: 500,
+    total_price_cents: 1280,
+    responsible_member_id: "member-1",
+    notes: "早餐主食",
+  });
+  await updateTripFoodItem("team-1", "meal-1", "item-1", {
+    amount_g: 450,
+    total_price_cents: 1180,
+    responsible_member_id: "member-2",
+  });
+  await deleteTripFoodItem("team-1", "meal-1", "item-1");
+  await createTripFoodSupply("team-1", {
+    name: "盐",
+    supply_type: "调味",
+    amount_g: 100,
+    total_price_cents: 500,
+    responsible_member_id: "member-1",
+  });
+  await updateTripFoodSupply("team-1", "supply-1", {
+    amount_g: 80,
+    total_price_cents: 450,
+    notes: "公共调味",
+  });
+  await deleteTripFoodSupply("team-1", "supply-1");
+
+  assert.deepEqual(calls, [
+    {
+      path: "/api/v1/me/trips/team-1/food-meals/meal-1/items",
+      method: "POST",
+      data: {
+        name: "米饭",
+        amount_g: 500,
+        total_price_cents: 1280,
+        responsible_member_id: "member-1",
+        notes: "早餐主食",
+      },
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/team-1/food-meals/meal-1/items/item-1",
+      method: "PATCH",
+      data: {
+        amount_g: 450,
+        total_price_cents: 1180,
+        responsible_member_id: "member-2",
+      },
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/team-1/food-meals/meal-1/items/item-1",
+      method: "DELETE",
+      data: undefined,
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/team-1/food-supplies",
+      method: "POST",
+      data: {
+        name: "盐",
+        supply_type: "调味",
+        amount_g: 100,
+        total_price_cents: 500,
+        responsible_member_id: "member-1",
+      },
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/team-1/food-supplies/supply-1",
+      method: "PATCH",
+      data: {
+        amount_g: 80,
+        total_price_cents: 450,
+        notes: "公共调味",
+      },
+      authorization: "Bearer access-old",
+    },
+    {
+      path: "/api/v1/me/trips/team-1/food-supplies/supply-1",
+      method: "DELETE",
+      data: undefined,
+      authorization: "Bearer access-old",
+    },
+  ]);
+});
+
+test("trip home highlight API calls authenticated dated endpoint", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    const path = options.url.replace("https://api.example.test", "");
+    calls.push({
+      path,
+      method: options.method || "GET",
+      data: options.data,
+      authorization: options.header && options.header.authorization,
+    });
+    options.success({
+      statusCode: 200,
+      data: {
+        item: {
+          plan: {
+            id: "team-1",
+            owner_user_id: "u-team",
+            name: "银湖山",
+            start_date: "2026-05-26",
+            end_date: "2026-05-29",
+            enabled_sections: ["members", "personal_gear"],
+            itinerary_day_count: 0,
+            field_versions: {},
+            is_deleted: false,
+            created_at: "2026-05-24T00:00:00Z",
+            updated_at: "2026-05-24T00:00:00Z",
+          },
+          status: "ongoing",
+          days_until_start: 0,
+          days_until_end: 2,
+        },
+      },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_user", { id: "u-team", nickname: "队长" });
+  const { getTripHomeHighlight } = require("../.tmp-test/utils/api.js");
+
+  const response = await getTripHomeHighlight("2026-05-27");
+
+  assert.equal(response.item.plan.name, "银湖山");
+  assert.deepEqual(calls, [
+    {
+      path: "/api/v1/me/trips/home-highlight?today=2026-05-27",
+      method: "GET",
+      data: undefined,
+      authorization: "Bearer access-old",
+    },
+  ]);
 });
 
 test("roadmap API utilities call public and authenticated endpoints", async () => {
@@ -1351,7 +1943,7 @@ test("identical GET requests share one in-flight wx.request", async () => {
     requestCount += 1;
     assert.equal(
       options.url,
-      "https://api.example.test/api/v1/me/gears/overview?tab=available&limit=2",
+      "https://api.example.test/api/v1/me/gears/overview?limit=2",
     );
     setTimeout(() => {
       options.success({
@@ -1360,7 +1952,6 @@ test("identical GET requests share one in-flight wx.request", async () => {
           categories: { items: [] },
           stats: {
             current_count: 0,
-            archived_count: 0,
             total_value_cents: 0,
             total_weight_g: 0,
             by_category: [],
@@ -1376,8 +1967,8 @@ test("identical GET requests share one in-flight wx.request", async () => {
   const { getGearOverview } = require("../.tmp-test/utils/api.js");
 
   const [first, second] = await Promise.all([
-    getGearOverview({ tab: "available", limit: 2 }),
-    getGearOverview({ tab: "available", limit: 2 }),
+    getGearOverview({ limit: 2 }),
+    getGearOverview({ limit: 2 }),
   ]);
 
   assert.equal(requestCount, 1);
@@ -1867,19 +2458,31 @@ test("API errors do not fall back to stale offline cache", async () => {
 
 test("clearLoginState removes user-scoped offline caches", async () => {
   const storage = installWxMock((options) => {
-    assert.equal(
-      options.url,
-      "https://api.example.test/api/v1/me/gears/stats?tab=available",
-    );
+    assert.equal(options.url, "https://api.example.test/api/v1/me/gears/stats");
     options.success({
       statusCode: 200,
       data: {
         current_count: 1,
-        archived_count: 0,
         total_value_cents: 0,
         total_weight_g: 1200,
-        by_category: [],
-        by_status: [],
+        by_category: [
+          {
+            category: "backpack_system",
+            label: "背负系统",
+            count: 1,
+            total_weight_g: 1200,
+            total_value_cents: 0,
+          },
+        ],
+        by_status: [
+          {
+            status: "available",
+            label: "可用",
+            count: 1,
+            total_weight_g: 1200,
+            total_value_cents: 0,
+          },
+        ],
       },
     });
   });

@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "装备统计",
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "ec-canvas": "../../../components/ec-canvas/index"
+  }
+}

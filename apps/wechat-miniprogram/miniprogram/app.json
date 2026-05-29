@@ -8,15 +8,22 @@
     "pages/gears/index",
     "pages/gears/form/index",
     "pages/gears/detail/index",
+    "pages/gears/stats/index",
     "pages/packing-lists/index",
     "pages/packing-lists/form/index",
     "pages/packing-lists/detail/index",
     "pages/packing-lists/select-gears/index",
+    "pages/trips/index",
+    "pages/trips/form/index",
+    "pages/trips/detail/index",
+    "pages/trips/join/index",
     "pages/skills/index",
     "pages/skills/detail/index",
     "pages/profile/index",
     "pages/profile/roadmap/index",
     "pages/profile/settings/index",
+    "pages/profile/outdoor/index",
+    "pages/profile/outdoor-experiences/index",
     "pages/register/index",
     "pages/login/index"
   ],
@@ -42,6 +49,12 @@
         "text": "装备",
         "iconPath": "assets/tabbar/gear-normal.png",
         "selectedIconPath": "assets/tabbar/gear-selected.png"
+      },
+      {
+        "pagePath": "pages/trips/index",
+        "text": "行程",
+        "iconPath": "assets/tabbar/plan-normal.png",
+        "selectedIconPath": "assets/tabbar/plan-selected.png"
       },
       {
         "pagePath": "pages/skills/index",

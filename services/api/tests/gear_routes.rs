@@ -287,7 +287,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (first_status, first) = send_empty(
         &app.router,
         "GET",
-        "/api/v1/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        "/api/v1/me/gears/overview?limit=2&sort=created_at_desc",
         Some(&token),
     )
     .await;
@@ -302,7 +302,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (second_status, second) = send_empty(
         &app.router,
         "GET",
-        "/api/v1/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        "/api/v1/me/gears/overview?limit=2&sort=created_at_desc",
         Some(&token),
     )
     .await;
@@ -342,7 +342,7 @@ async fn gear_overview_aggregates_first_screen_reads_and_uses_cache_version() {
     let (fresh_status, fresh) = send_empty(
         &app.router,
         "GET",
-        "/api/v1/me/gears/overview?tab=available&limit=2&sort=created_at_desc",
+        "/api/v1/me/gears/overview?limit=2&sort=created_at_desc",
         Some(&token),
     )
     .await;
@@ -413,6 +413,40 @@ async fn gear_create_merges_same_item_and_stats_count_physical_quantity() {
     assert_eq!(stats["total_weight_g"], 440);
     assert_eq!(stats["total_value_cents"], 39800);
     assert_eq!(stats["by_category"][7]["count"], 2);
+    assert_eq!(stats["by_category"][7]["total_weight_g"], 440);
+    assert_eq!(stats["by_category"][7]["total_value_cents"], 39800);
+    assert_eq!(stats["by_status"][0]["count"], 2);
+    assert_eq!(stats["by_status"][0]["total_weight_g"], 440);
+    assert_eq!(stats["by_status"][0]["total_value_cents"], 39800);
+
+    let (usd_status, usd_gear) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/gears",
+        Some(&token),
+        json!({
+            "category": "lighting_system",
+            "name": "美元头灯",
+            "weight_g": 100,
+            "purchase_price_cents": 5000,
+            "purchase_price_currency": "USD"
+        }),
+    )
+    .await;
+    assert_eq!(usd_status, StatusCode::CREATED, "{usd_gear}");
+
+    let (stats_status, stats) =
+        send_empty(&app.router, "GET", "/api/v1/me/gears/stats", Some(&token)).await;
+    assert_eq!(stats_status, StatusCode::OK, "{stats}");
+    assert_eq!(stats["current_count"], 3);
+    assert_eq!(stats["total_weight_g"], 540);
+    assert_eq!(stats["total_value_cents"], 39800);
+    assert_eq!(stats["by_category"][5]["count"], 1);
+    assert_eq!(stats["by_category"][5]["total_weight_g"], 100);
+    assert_eq!(stats["by_category"][5]["total_value_cents"], 0);
+    assert_eq!(stats["by_status"][0]["count"], 3);
+    assert_eq!(stats["by_status"][0]["total_weight_g"], 540);
+    assert_eq!(stats["by_status"][0]["total_value_cents"], 39800);
 }
 
 #[tokio::test]
@@ -451,16 +485,33 @@ async fn gear_packing_lists_create_add_check_and_keep_unavailable_items_visible(
         "/api/v1/me/packing-lists",
         Some(&token),
         json!({
+            "name": " 周末清单 "
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["name"], "周末清单");
+    assert!(created["route_name"].is_null());
+    assert!(created["duration_label"].is_null());
+    assert_eq!(created["stats"]["item_count"], 0);
+    let list_id = created["id"].as_str().unwrap();
+
+    let (metadata_status, metadata) = send_json(
+        &app.router,
+        "PATCH",
+        &format!("/api/v1/me/packing-lists/{list_id}"),
+        Some(&token),
+        json!({
             "name": " 武功山一日 ",
             "route_name": "武功山",
             "duration_label": "一日"
         }),
     )
     .await;
-    assert_eq!(create_status, StatusCode::CREATED, "{created}");
-    assert_eq!(created["name"], "武功山一日");
-    assert_eq!(created["stats"]["item_count"], 0);
-    let list_id = created["id"].as_str().unwrap();
+    assert_eq!(metadata_status, StatusCode::OK, "{metadata}");
+    assert_eq!(metadata["name"], "武功山一日");
+    assert_eq!(metadata["route_name"], "武功山");
+    assert_eq!(metadata["duration_label"], "一日");
 
     let (add_status, added) = send_json(
         &app.router,
@@ -507,22 +558,30 @@ async fn gear_packing_lists_create_add_check_and_keep_unavailable_items_visible(
     assert_eq!(list["items"][0]["id"], list_id);
     assert_eq!(list["items"][0]["packed_count"], 1);
 
-    let (archive_status, archive_body) = send_empty(
+    let (delete_backpack_status, delete_backpack_body) = send_empty(
         &app.router,
         "DELETE",
         &format!("/api/v1/me/gears/{backpack_id}"),
         Some(&token),
     )
     .await;
-    assert_eq!(archive_status, StatusCode::NO_CONTENT, "{archive_body}");
-    let (delete_status, delete_body) = send_empty(
+    assert_eq!(
+        delete_backpack_status,
+        StatusCode::NO_CONTENT,
+        "{delete_backpack_body}"
+    );
+    let (delete_headlamp_status, delete_headlamp_body) = send_empty(
         &app.router,
-        "POST",
-        &format!("/api/v1/me/gears/{headlamp_id}/delete"),
+        "DELETE",
+        &format!("/api/v1/me/gears/{headlamp_id}"),
         Some(&token),
     )
     .await;
-    assert_eq!(delete_status, StatusCode::NO_CONTENT, "{delete_body}");
+    assert_eq!(
+        delete_headlamp_status,
+        StatusCode::NO_CONTENT,
+        "{delete_headlamp_body}"
+    );
 
     let (detail_status, detail) = send_empty(
         &app.router,
@@ -538,8 +597,7 @@ async fn gear_packing_lists_create_add_check_and_keep_unavailable_items_visible(
         .iter()
         .map(|item| item["unavailable_reason"].as_str().unwrap())
         .collect::<Vec<_>>();
-    assert!(item_reasons.contains(&"archived"));
-    assert!(item_reasons.contains(&"deleted"));
+    assert_eq!(item_reasons, vec!["deleted", "deleted"]);
 
     let (invalid_add_status, invalid_add) = send_json(
         &app.router,
@@ -1856,28 +1914,25 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
     assert_eq!(available_status, StatusCode::OK, "{available}");
     assert_eq!(available["items"].as_array().unwrap().len(), 0);
 
-    let (history_status, history) = send_empty(
+    let (deleted_list_status, deleted_list) = send_empty(
         &app.router,
         "GET",
-        "/api/v1/me/gears?tab=history",
+        "/api/v1/me/gears?deleted=deleted",
         Some(&token),
     )
     .await;
-    assert_eq!(history_status, StatusCode::OK, "{history}");
-    assert_eq!(history["items"].as_array().unwrap().len(), 1);
+    assert_eq!(deleted_list_status, StatusCode::OK, "{deleted_list}");
+    assert_eq!(deleted_list["items"].as_array().unwrap().len(), 1);
+    assert_eq!(deleted_list["items"][0]["is_deleted"], true);
 
-    let (soft_delete_status, soft_delete_body) = send_empty(
+    let (tab_status, tab_error) = send_empty(
         &app.router,
-        "POST",
-        &format!("/api/v1/me/gears/{gear_id}/delete"),
+        "GET",
+        "/api/v1/me/gears/overview?tab=history",
         Some(&token),
     )
     .await;
-    assert_eq!(
-        soft_delete_status,
-        StatusCode::NO_CONTENT,
-        "{soft_delete_body}"
-    );
+    assert_eq!(tab_status, StatusCode::BAD_REQUEST, "{tab_error}");
 
     let (deleted_detail_status, deleted_detail) = send_empty(
         &app.router,
@@ -1891,48 +1946,6 @@ async fn gear_inventory_full_flow_matches_phase_one_requirements() {
         StatusCode::NOT_FOUND,
         "{deleted_detail}"
     );
-
-    let (hidden_history_status, hidden_history) = send_empty(
-        &app.router,
-        "GET",
-        "/api/v1/me/gears?tab=history",
-        Some(&token),
-    )
-    .await;
-    assert_eq!(hidden_history_status, StatusCode::OK, "{hidden_history}");
-    assert_eq!(hidden_history["items"].as_array().unwrap().len(), 0);
-
-    let (deleted_history_status, deleted_history) = send_empty(
-        &app.router,
-        "GET",
-        "/api/v1/me/gears?tab=history&deleted=deleted",
-        Some(&token),
-    )
-    .await;
-    assert_eq!(deleted_history_status, StatusCode::OK, "{deleted_history}");
-    assert_eq!(deleted_history["items"].as_array().unwrap().len(), 1);
-    assert_eq!(deleted_history["items"][0]["is_deleted"], true);
-
-    let (undelete_status, undeleted) = send_empty(
-        &app.router,
-        "POST",
-        &format!("/api/v1/me/gears/{gear_id}/undelete"),
-        Some(&token),
-    )
-    .await;
-    assert_eq!(undelete_status, StatusCode::OK, "{undeleted}");
-    assert_eq!(undeleted["is_deleted"], false);
-    assert!(!undeleted["archived_at"].is_null());
-
-    let (restore_status, restored) = send_empty(
-        &app.router,
-        "POST",
-        &format!("/api/v1/me/gears/{gear_id}/restore"),
-        Some(&token),
-    )
-    .await;
-    assert_eq!(restore_status, StatusCode::OK, "{restored}");
-    assert!(restored["archived_at"].is_null());
 }
 
 #[tokio::test]

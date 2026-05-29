@@ -1,0 +1,175 @@
+<view class="outdoor-profile-page container {{themeClass}}">
+  <view class="card outdoor-hero">
+    <view class="eyebrow">我的默认资料</view>
+    <view class="title">户外资料</view>
+    <view class="subtitle">可在组队计划书中一键导入到自己的成员信息。</view>
+  </view>
+
+  <view wx:if="{{!loggedIn}}" class="card state-card">
+    <view class="state-title">登录后维护户外资料</view>
+    <view class="state-desc">资料会保存到你的账号中，方便出行计划复用。</view>
+    <button class="primary-button" bindtap="goLogin">登录 / 注册</button>
+  </view>
+
+  <view wx:else class="card form-card">
+    <view wx:if="{{loading}}" class="state-line">正在加载资料...</view>
+    <view wx:if="{{error}}" class="error-line">{{error}}</view>
+
+    <view class="field-label">户外 ID</view>
+    <input
+      value="{{outdoorId}}"
+      data-field="outdoorId"
+      bindinput="onInput"
+      placeholder="例如：星星"
+    />
+
+    <view class="field-label">姓名</view>
+    <input
+      value="{{realName}}"
+      data-field="realName"
+      bindinput="onInput"
+      placeholder="真实姓名"
+    />
+
+    <view class="field-grid">
+      <view>
+        <view class="field-label">性别</view>
+        <picker
+          value="{{genderIndex}}"
+          range="{{genderOptions}}"
+          bindchange="onGenderChange"
+        >
+          <view class="picker-value">{{gender || '未填写'}}</view>
+        </picker>
+      </view>
+      <view>
+        <view class="field-label">出生日期</view>
+        <picker
+          mode="date"
+          start="1900-01-01"
+          end="{{todayDate}}"
+          value="{{birthDate}}"
+          bindchange="onBirthDateChange"
+        >
+          <view class="picker-value">{{birthDate || '未填写'}}</view>
+        </picker>
+      </view>
+    </view>
+
+    <view class="field-grid">
+      <view>
+        <view class="field-label">身高 cm</view>
+        <input
+          value="{{heightCm}}"
+          data-field="heightCm"
+          bindinput="onInput"
+          type="number"
+          placeholder="例如：176"
+        />
+      </view>
+      <view>
+        <view class="field-label">血型</view>
+        <picker
+          value="{{bloodTypeIndex}}"
+          range="{{bloodTypeOptions}}"
+          bindchange="onBloodTypeChange"
+        >
+          <view class="picker-value">{{bloodType || '未填写'}}</view>
+        </picker>
+      </view>
+    </view>
+    <button
+      wx:if="{{birthDate}}"
+      class="inline-clear-button"
+      bindtap="clearBirthDate"
+    >
+      清除出生日期
+    </button>
+
+    <view class="field-label">联系电话</view>
+    <input
+      value="{{phone}}"
+      data-field="phone"
+      bindinput="onInput"
+      type="number"
+      placeholder="手机号"
+    />
+
+    <view class="field-label">紧急联系人</view>
+    <input
+      value="{{emergencyContact}}"
+      data-field="emergencyContact"
+      bindinput="onInput"
+      placeholder="姓名"
+    />
+
+    <view class="field-label">紧急联系人关系</view>
+    <input
+      value="{{emergencyContactRelationship}}"
+      data-field="emergencyContactRelationship"
+      bindinput="onInput"
+      placeholder="例如：家属 / 朋友"
+    />
+
+    <view class="field-label">紧急联系人电话</view>
+    <input
+      value="{{emergencyPhone}}"
+      data-field="emergencyPhone"
+      bindinput="onInput"
+      type="number"
+      placeholder="联系电话"
+    />
+
+    <view class="field-label">既往病</view>
+    <textarea
+      value="{{medicalHistory}}"
+      data-field="medicalHistory"
+      bindinput="onInput"
+      placeholder="无或简要说明"
+    />
+
+    <view class="field-label">过敏史</view>
+    <textarea
+      value="{{allergyHistory}}"
+      data-field="allergyHistory"
+      bindinput="onInput"
+      placeholder="无或简要说明"
+    />
+
+    <view class="field-label">过敏 / 伤病处理方法</view>
+    <textarea
+      value="{{medicalResponseNote}}"
+      data-field="medicalResponseNote"
+      bindinput="onInput"
+      placeholder="例如：随身药、禁忌或处置方式"
+    />
+
+    <view class="field-label">饮食习惯</view>
+    <input
+      value="{{dietPreference}}"
+      data-field="dietPreference"
+      bindinput="onInput"
+      placeholder="例如：清真 / 素食 / 不吃牛羊肉"
+    />
+
+    <view class="field-label">保险单号</view>
+    <input
+      value="{{insurancePolicyNo}}"
+      data-field="insurancePolicyNo"
+      bindinput="onInput"
+      placeholder="户外保险单号"
+    />
+
+    <view class="field-label">保险公司电话</view>
+    <input
+      value="{{insuranceCompanyPhone}}"
+      data-field="insuranceCompanyPhone"
+      bindinput="onInput"
+      placeholder="保险报案电话"
+    />
+
+    <button class="primary-button" loading="{{saving}}" bindtap="saveProfile">
+      保存户外资料
+    </button>
+  </view>
+</view>

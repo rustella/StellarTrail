@@ -1,6 +1,5 @@
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import {
-  archiveGear,
   consumeOfflineCacheNotice,
   deleteGear,
   getErrorMessage,
@@ -9,7 +8,6 @@ import {
   isOfflineCacheMissError,
   isLoginRequiredError,
   listGears,
-  restoreGear,
 } from "../../utils/api-gears";
 import {
   categoryFilterItems,
@@ -18,7 +16,6 @@ import {
   formatGearWeight,
   GEAR_SORT_OPTIONS,
   GEAR_STATUS_FILTER_OPTIONS,
-  GEAR_TAB_OPTIONS,
   getGearCategoryLabel,
   getGearStatusLabel,
   getStatusTone,
@@ -27,7 +24,6 @@ import {
   type GearStatsResponse,
   type GearStatus,
   type GearSummary,
-  type GearTab,
 } from "../../utils/gear-display";
 import {
   getDefaultLoginPrompt,
@@ -63,31 +59,52 @@ interface StatCard {
 
 const EMPTY_STATS: GearStatsResponse = {
   current_count: 0,
-  archived_count: 0,
   total_value_cents: 0,
   total_weight_g: 0,
   by_category: [],
   by_status: [],
 };
+const DEFAULT_CATEGORY = "all";
+const DEFAULT_STATUS = "";
+const DEFAULT_SORT = "created_at_desc" as GearSort;
+const DEFAULT_STATUS_INDEX = Math.max(
+  GEAR_STATUS_FILTER_OPTIONS.findIndex((item) => item.value === DEFAULT_STATUS),
+  0,
+);
+const DEFAULT_SORT_INDEX = Math.max(
+  GEAR_SORT_OPTIONS.findIndex((item) => item.value === DEFAULT_SORT),
+  0,
+);
 let gearListRequestSeq = 0;
 
 Page({
   data: {
-    tabOptions: GEAR_TAB_OPTIONS,
     statusOptions: GEAR_STATUS_FILTER_OPTIONS,
     statusLabels: GEAR_STATUS_FILTER_OPTIONS.map((item) => item.label),
     sortOptions: GEAR_SORT_OPTIONS,
     sortLabels: GEAR_SORT_OPTIONS.map((item) => item.label),
-    tab: "available" as GearTab,
     categories: [{ id: "all", label: "全部装备", count: 0 }],
-    selectedCategory: "all",
-    selectedStatus: "",
-    selectedStatusIndex: 0,
-    selectedSort: "created_at_desc" as GearSort,
-    selectedSortIndex: 0,
+    selectedCategory: DEFAULT_CATEGORY,
+    selectedStatus: DEFAULT_STATUS,
+    selectedStatusIndex: DEFAULT_STATUS_INDEX,
+    selectedSort: DEFAULT_SORT,
+    selectedSortIndex: DEFAULT_SORT_INDEX,
+    draftSelectedCategory: DEFAULT_CATEGORY,
+    draftSelectedStatus: DEFAULT_STATUS,
+    draftSelectedStatusIndex: DEFAULT_STATUS_INDEX,
+    draftSelectedSort: DEFAULT_SORT,
+    draftSelectedSortIndex: DEFAULT_SORT_INDEX,
+    activeFilterText: buildActiveFilterText(
+      [{ id: "all", label: "全部装备", count: 0 }],
+      DEFAULT_CATEGORY,
+      DEFAULT_STATUS_INDEX,
+      DEFAULT_SORT_INDEX,
+    ),
+    activeFilterCount: 0,
+    filterSheetVisible: false,
     q: "",
     stats: EMPTY_STATS,
-    statCards: buildStatCards(EMPTY_STATS),
+    statCards: buildStatCards(EMPTY_STATS, 0),
     gears: [] as GearCard[],
     nextCursor: null as string | null,
     isLoggedIn: hasAccessToken(),
@@ -136,10 +153,11 @@ Page({
         loadingMore: false,
         categories: [{ id: "all", label: "全部装备", count: 0 }],
         stats: EMPTY_STATS,
-        statCards: buildStatCards(EMPTY_STATS),
+        statCards: buildStatCards(EMPTY_STATS, 0),
         gears: [] as GearCard[],
         nextCursor: null,
         emptyText: "登录后查看我的装备",
+        filterSheetVisible: false,
       });
       return;
     }
@@ -147,9 +165,7 @@ Page({
     const requestSeq = ++gearListRequestSeq;
     this.setData({ loading: true, error: "" });
     try {
-      const tab = this.data.tab as GearTab;
       const overview = await getGearOverview({
-        tab,
         limit: 20,
         sort: this.data.selectedSort,
       });
@@ -157,16 +173,33 @@ Page({
         return;
       }
       const offlineNotice = consumeOfflineCacheNotice();
+      const categories = categoryFilterItems(overview.categories.items);
+      const selectedCategory = normalizeSelectedCategory(
+        this.data.selectedCategory as "all" | GearCategory,
+        categories,
+      );
       this.setData({
-        categories: categoryFilterItems(overview.categories.items),
+        categories,
+        selectedCategory,
+        draftSelectedCategory: this.data.filterSheetVisible
+          ? this.data.draftSelectedCategory
+          : selectedCategory,
         stats: overview.stats,
-        statCards: buildStatCards(overview.stats),
+        statCards: buildStatCards(overview.stats, categoryCount(categories)),
         gears: overview.list.items.map(mapGearCard),
         nextCursor: overview.list.next_cursor ?? null,
-        emptyText:
-          tab === "history"
-            ? "历史装备为空，归档后的装备会出现在这里"
-            : "还没有装备，先添加第一件户外装备吧",
+        activeFilterText: buildActiveFilterText(
+          categories,
+          selectedCategory,
+          this.data.selectedStatusIndex,
+          this.data.selectedSortIndex,
+        ),
+        activeFilterCount: buildActiveFilterCount(
+          selectedCategory,
+          this.data.selectedStatus,
+          this.data.selectedSort,
+        ),
+        emptyText: "还没有装备，先添加第一件户外装备吧",
         ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
@@ -282,7 +315,6 @@ Page({
     const selectedCategory = this.data.selectedCategory as "all" | GearCategory;
     const selectedStatus = this.data.selectedStatus as "" | GearStatus;
     return {
-      tab: this.data.tab as GearTab,
       category: selectedCategory === "all" ? undefined : selectedCategory,
       status: selectedStatus || undefined,
       q: this.data.q.trim() || undefined,
@@ -292,58 +324,119 @@ Page({
     };
   },
 
-  switchTab(event: WechatMiniprogram.BaseEvent) {
+  openFilterSheet() {
     if (!this.data.isLoggedIn) {
       return;
     }
-    const tab = event.currentTarget.dataset.value as GearTab;
-    if (!tab || tab === this.data.tab) {
-      return;
-    }
     this.setData({
-      tab,
-      selectedCategory: "all",
-      selectedStatus: "",
-      selectedStatusIndex: 0,
-      nextCursor: null,
-      gears: [],
+      filterSheetVisible: true,
+      draftSelectedCategory: this.data.selectedCategory,
+      draftSelectedStatus: this.data.selectedStatus,
+      draftSelectedStatusIndex: this.data.selectedStatusIndex,
+      draftSelectedSort: this.data.selectedSort,
+      draftSelectedSortIndex: this.data.selectedSortIndex,
     });
-    this.refreshPage();
   },
 
-  selectCategory(event: WechatMiniprogram.BaseEvent) {
+  closeFilterSheet() {
+    this.setData({ filterSheetVisible: false });
+  },
+
+  stopTap() {},
+
+  selectDraftCategory(event: WechatMiniprogram.BaseEvent) {
     if (!this.data.isLoggedIn) {
       return;
     }
     const id = event.currentTarget.dataset.id as "all" | GearCategory;
-    this.setData({ selectedCategory: id, nextCursor: null, gears: [] });
-    this.loadFirstPage();
+    this.setData({ draftSelectedCategory: id || DEFAULT_CATEGORY });
   },
 
-  onStatusChange(event: any) {
+  selectDraftStatus(event: WechatMiniprogram.BaseEvent) {
     if (!this.data.isLoggedIn) {
       return;
     }
-    const index = Number(event.detail.value || 0);
-    const option = GEAR_STATUS_FILTER_OPTIONS[index];
+    const index = Number(event.currentTarget.dataset.index || 0);
+    const option =
+      GEAR_STATUS_FILTER_OPTIONS[index] ||
+      GEAR_STATUS_FILTER_OPTIONS[DEFAULT_STATUS_INDEX];
     this.setData({
-      selectedStatusIndex: index,
-      selectedStatus: option.value,
+      draftSelectedStatusIndex: index,
+      draftSelectedStatus: option.value,
+    });
+  },
+
+  selectDraftSort(event: WechatMiniprogram.BaseEvent) {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
+    const index = Number(
+      event.currentTarget.dataset.index || DEFAULT_SORT_INDEX,
+    );
+    const option =
+      GEAR_SORT_OPTIONS[index] || GEAR_SORT_OPTIONS[DEFAULT_SORT_INDEX];
+    this.setData({
+      draftSelectedSortIndex: index,
+      draftSelectedSort: option.value,
+    });
+  },
+
+  resetFilterDrafts() {
+    this.setData(defaultDraftFilterData());
+  },
+
+  applyFilters() {
+    if (!this.data.isLoggedIn) {
+      return;
+    }
+    const selectedCategory = this.data.draftSelectedCategory as
+      | "all"
+      | GearCategory;
+    const selectedStatus = this.data.draftSelectedStatus as "" | GearStatus;
+    const selectedSort = this.data.draftSelectedSort as GearSort;
+    this.setData({
+      selectedCategory,
+      selectedStatus,
+      selectedStatusIndex: this.data.draftSelectedStatusIndex,
+      selectedSort,
+      selectedSortIndex: this.data.draftSelectedSortIndex,
+      activeFilterText: buildActiveFilterText(
+        this.data.categories,
+        selectedCategory,
+        this.data.draftSelectedStatusIndex,
+        this.data.draftSelectedSortIndex,
+      ),
+      activeFilterCount: buildActiveFilterCount(
+        selectedCategory,
+        selectedStatus,
+        selectedSort,
+      ),
+      filterSheetVisible: false,
       nextCursor: null,
       gears: [],
     });
     this.loadFirstPage();
   },
 
-  onSortChange(event: any) {
+  clearAppliedFilters() {
     if (!this.data.isLoggedIn) {
       return;
     }
-    const index = Number(event.detail.value || 0);
-    const option = GEAR_SORT_OPTIONS[index];
     this.setData({
-      selectedSortIndex: index,
-      selectedSort: option.value,
+      selectedCategory: DEFAULT_CATEGORY,
+      selectedStatus: DEFAULT_STATUS,
+      selectedStatusIndex: DEFAULT_STATUS_INDEX,
+      selectedSort: DEFAULT_SORT,
+      selectedSortIndex: DEFAULT_SORT_INDEX,
+      ...defaultDraftFilterData(),
+      activeFilterText: buildActiveFilterText(
+        this.data.categories,
+        DEFAULT_CATEGORY,
+        DEFAULT_STATUS_INDEX,
+        DEFAULT_SORT_INDEX,
+      ),
+      activeFilterCount: 0,
+      filterSheetVisible: false,
       nextCursor: null,
       gears: [],
     });
@@ -395,6 +488,10 @@ Page({
     wx.navigateTo({ url: "/pages/packing-lists/index" });
   },
 
+  goStatsDetail() {
+    wx.navigateTo({ url: "/pages/gears/stats/index" });
+  },
+
   goLogin() {
     wx.navigateTo({ url: loginPageUrl("/pages/gears/index") });
   },
@@ -402,9 +499,7 @@ Page({
   goDetail(event: WechatMiniprogram.BaseEvent) {
     const id = event.currentTarget.dataset.id;
     if (id) {
-      wx.navigateTo({
-        url: `/pages/gears/detail/index?id=${id}&tab=${this.data.tab}`,
-      });
+      wx.navigateTo({ url: `/pages/gears/detail/index?id=${id}` });
     }
   },
 
@@ -427,77 +522,6 @@ Page({
     }
   },
 
-  archiveItem(event: WechatMiniprogram.BaseEvent) {
-    if (isOffline()) {
-      showOfflineWriteBlockedToast();
-      return;
-    }
-    if (
-      !requireLoginForAction(this, {
-        message: "登录后可以归档或恢复自己的装备。",
-        redirectUrl: "/pages/gears/index",
-      })
-    ) {
-      return;
-    }
-    const id = event.currentTarget.dataset.id as string;
-    wx.showModal({
-      title: "归档装备？",
-      content: "归档后不会出现在可用装备列表，可在历史装备中恢复。",
-      confirmText: "归档",
-      confirmColor: "#dc2626",
-      success: async (result) => {
-        if (!result.confirm) {
-          return;
-        }
-        try {
-          await archiveGear(id);
-          wx.showToast({ title: "已归档", icon: "success" });
-          this.refreshPage();
-        } catch (error) {
-          if (isLoginRequiredError(error)) {
-            showLoginPrompt(this, {
-              message: "登录状态已过期，请重新登录后更新装备状态。",
-              redirectUrl: "/pages/gears/index",
-            });
-            return;
-          }
-          wx.showToast({ title: getErrorMessage(error), icon: "none" });
-        }
-      },
-    });
-  },
-
-  async restoreItem(event: WechatMiniprogram.BaseEvent) {
-    if (isOffline()) {
-      showOfflineWriteBlockedToast();
-      return;
-    }
-    if (
-      !requireLoginForAction(this, {
-        message: "登录后可以把历史装备恢复到可用列表。",
-        redirectUrl: "/pages/gears/index",
-      })
-    ) {
-      return;
-    }
-    const id = event.currentTarget.dataset.id as string;
-    try {
-      await restoreGear(id);
-      wx.showToast({ title: "已恢复", icon: "success" });
-      this.refreshPage();
-    } catch (error) {
-      if (isLoginRequiredError(error)) {
-        showLoginPrompt(this, {
-          message: "登录状态已过期，请重新登录后恢复装备。",
-          redirectUrl: "/pages/gears/index",
-        });
-        return;
-      }
-      wx.showToast({ title: getErrorMessage(error), icon: "none" });
-    }
-  },
-
   deleteItem(event: WechatMiniprogram.BaseEvent) {
     if (isOffline()) {
       showOfflineWriteBlockedToast();
@@ -505,7 +529,7 @@ Page({
     }
     if (
       !requireLoginForAction(this, {
-        message: "登录后可以真正删除历史装备。",
+        message: "登录后可以删除自己的装备。",
         redirectUrl: "/pages/gears/index",
       })
     ) {
@@ -514,7 +538,7 @@ Page({
     const id = event.currentTarget.dataset.id as string;
     wx.showModal({
       title: "删除这件装备？",
-      content: "该装备会从历史装备中移除，不再出现在装备列表。",
+      content: "删除后不会出现在装备列表中，已有打包清单会保留历史条目。",
       confirmText: "删除",
       confirmColor: "#dc2626",
       success: async (result) => {
@@ -569,22 +593,25 @@ function mapGearCard(item: GearSummary): GearCard {
   };
 }
 
-function buildStatCards(stats: GearStatsResponse): StatCard[] {
+function buildStatCards(
+  stats: GearStatsResponse,
+  categoryTotal: number,
+): StatCard[] {
   return [
     {
-      label: "可用装备",
+      label: "装备数量",
       value: String(stats.current_count),
-      hint: "当前可直接使用",
+      hint: "当前库存",
     },
     {
-      label: "历史装备",
-      value: String(stats.archived_count),
-      hint: "已归档",
+      label: "分类数",
+      value: String(categoryTotal),
+      hint: "已有分类",
     },
     {
       label: "总重量",
       value: formatGearWeight(stats.total_weight_g),
-      hint: "按当前筛选统计",
+      hint: "当前库存",
     },
     {
       label: "估值",
@@ -592,4 +619,56 @@ function buildStatCards(stats: GearStatsResponse): StatCard[] {
       hint: "按购买价汇总",
     },
   ];
+}
+
+function categoryCount(
+  categories: Array<{ id: string; label: string; count: number }>,
+): number {
+  return categories.filter((item) => item.id !== DEFAULT_CATEGORY).length;
+}
+
+function normalizeSelectedCategory(
+  selectedCategory: "all" | GearCategory,
+  categories: Array<{ id: string; label: string; count: number }>,
+): "all" | GearCategory {
+  return categories.some((item) => item.id === selectedCategory)
+    ? selectedCategory
+    : DEFAULT_CATEGORY;
+}
+
+function buildActiveFilterText(
+  categories: Array<{ id: string; label: string; count: number }>,
+  selectedCategory: "all" | GearCategory,
+  selectedStatusIndex: number,
+  selectedSortIndex: number,
+): string {
+  const category =
+    categories.find((item) => item.id === selectedCategory)?.label ||
+    "全部装备";
+  const status =
+    GEAR_STATUS_FILTER_OPTIONS[selectedStatusIndex]?.label || "全部状态";
+  const sort = GEAR_SORT_OPTIONS[selectedSortIndex]?.label || "最近添加";
+  return `${category} · ${status} · ${sort}`;
+}
+
+function buildActiveFilterCount(
+  selectedCategory: "all" | GearCategory,
+  selectedStatus: string,
+  selectedSort: GearSort,
+): number {
+  return [
+    selectedCategory !== DEFAULT_CATEGORY,
+    Boolean(selectedStatus),
+    selectedSort !== DEFAULT_SORT,
+  ].filter(Boolean).length;
+}
+
+function defaultDraftFilterData() {
+  return {
+    draftSelectedCategory: DEFAULT_CATEGORY,
+    draftSelectedStatus: DEFAULT_STATUS,
+    draftSelectedStatusIndex: DEFAULT_STATUS_INDEX,
+    draftSelectedSort: DEFAULT_SORT,
+    draftSelectedSortIndex: DEFAULT_SORT_INDEX,
+  };
 }

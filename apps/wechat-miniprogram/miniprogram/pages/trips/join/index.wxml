@@ -1,0 +1,28 @@
+<view class="join-page {{themeClass}}">
+  <view class="join-card">
+    <view class="title">加入组队计划</view>
+    <view class="desc">输入队长发来的邀请口令，加入后可一起编辑计划内容。</view>
+    <input
+      value="{{token}}"
+      bindinput="onInput"
+      placeholder="邀请口令或邀请文案"
+    />
+    <view class="join-actions">
+      <button class="secondary" bindtap="pasteToken">粘贴口令</button>
+      <button loading="{{loading}}" bindtap="accept">加入计划</button>
+    </view>
+  </view>
+  <view wx:if="{{error}}" class="error-card">{{error}}</view>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">先不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

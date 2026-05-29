@@ -1,0 +1,76 @@
+.join-page {
+  min-height: 100vh;
+  padding: 28rpx;
+  background: var(--page-bg);
+  box-sizing: border-box;
+}
+
+.join-card,
+.error-card {
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.join-card {
+  padding: 32rpx;
+}
+
+.title {
+  color: var(--text-color);
+  font-size: 38rpx;
+  font-weight: 900;
+}
+
+.desc {
+  margin-top: 12rpx;
+  color: var(--muted-color);
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+input {
+  width: 100%;
+  min-height: 76rpx;
+  margin-top: 28rpx;
+  padding: 0 22rpx;
+  border-radius: var(--card-inner-radius);
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.join-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+
+button {
+  margin-top: 24rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 28rpx;
+  font-weight: 800;
+  line-height: 88rpx;
+}
+
+.join-actions button {
+  margin-top: 0;
+}
+
+button.secondary {
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+}
+
+.error-card {
+  margin-top: 20rpx;
+  padding: 24rpx;
+  color: #dc2626;
+  font-size: 25rpx;
+}
