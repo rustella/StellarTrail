@@ -19,6 +19,8 @@ import type {
   CreateGearAtlasSubmissionRequest,
   CreateGearPackingListRequest,
   CreateGearRequest,
+  CreateTripInvitationResponse,
+  CreateTripRequest,
   EmailLoginCodeRequest,
   EmailLoginRequest,
   EmailVerificationCodeRequest,
@@ -48,6 +50,7 @@ import type {
   ListRoadmapResponse,
   ImportGearsRequest,
   ImportGearsResponse,
+  ImportTripPackingListRequest,
   ListGearAtlasRequest,
   ListGearAtlasResponse,
   ListGearAtlasSubmissionsRequest,
@@ -58,10 +61,17 @@ import type {
   ListClientVersionsResponse,
   ListGearsRequest,
   ListGearsResponse,
+  ListTripsRequest,
+  ListTripsResponse,
+  TripHomeHighlightResponse,
   MetaResponse,
   PasswordLoginRequest,
   PasswordResetCodeRequest,
   PasswordResetRequest,
+  OutdoorProfileResponse,
+  ListOutdoorExperiencesResponse,
+  OutdoorExperience,
+  OutdoorExperienceRequest,
   ProfileUserResponse,
   RefreshTokenRequest,
   RegisterRequest,
@@ -71,10 +81,16 @@ import type {
   RoadmapItemRequest,
   SkillCategoriesResponse,
   SkillLocale,
+  TripRecordCreateRequest,
+  TripRecordPatchRequest,
+  TripDetail,
   UpdateGearAtlasSubmissionRequest,
   UpdateGearPackingItemRequest,
   UpdateGearPackingListRequest,
   UpdateGearRequest,
+  UpdateOutdoorProfileRequest,
+  UpdateTripSectionsRequest,
+  UpdateTripRequest,
   WechatLoginRequest,
   WechatLoginResponse,
 } from "@stellartrail/shared-types";
@@ -584,6 +600,63 @@ export class StellarTrailApiClient {
     return this.get<ProfileUserResponse>("/me/profile", true);
   }
 
+  async getOutdoorProfile(): Promise<OutdoorProfileResponse> {
+    return this.get<OutdoorProfileResponse>("/me/profile/outdoor", true);
+  }
+
+  async updateOutdoorProfile(
+    request: UpdateOutdoorProfileRequest,
+  ): Promise<OutdoorProfileResponse> {
+    return this.patch<OutdoorProfileResponse>(
+      "/me/profile/outdoor",
+      request,
+      true,
+    );
+  }
+
+  async listOutdoorExperiences(): Promise<ListOutdoorExperiencesResponse> {
+    return this.get<ListOutdoorExperiencesResponse>(
+      "/me/outdoor-experiences",
+      true,
+    );
+  }
+
+  async createOutdoorExperience(
+    request: OutdoorExperienceRequest,
+  ): Promise<OutdoorExperience> {
+    return this.post<OutdoorExperience>(
+      "/me/outdoor-experiences",
+      request,
+      true,
+    );
+  }
+
+  async getOutdoorExperience(id: string): Promise<OutdoorExperience> {
+    return this.get<OutdoorExperience>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}`,
+      true,
+    );
+  }
+
+  async updateOutdoorExperience(
+    id: string,
+    request: OutdoorExperienceRequest,
+  ): Promise<OutdoorExperience> {
+    return this.patch<OutdoorExperience>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteOutdoorExperience(id: string): Promise<void> {
+    await this.request(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
   async uploadProfileAvatar(
     file: Blob,
     filename = "avatar.png",
@@ -635,16 +708,12 @@ export class StellarTrailApiClient {
     return response;
   }
 
-  async listGearCategories(
-    tab?: "available" | "history",
-  ): Promise<GearCategoriesResponse> {
-    return this.get(`/me/gears/categories${queryString({ tab })}`, true);
+  async listGearCategories(): Promise<GearCategoriesResponse> {
+    return this.get("/me/gears/categories", true);
   }
 
-  async getGearStats(
-    tab?: "available" | "history",
-  ): Promise<GearStatsResponse> {
-    return this.get(`/me/gears/stats${queryString({ tab })}`, true);
+  async getGearStats(): Promise<GearStatsResponse> {
+    return this.get("/me/gears/stats", true);
   }
 
   async getGearOverview(
@@ -682,7 +751,7 @@ export class StellarTrailApiClient {
     return this.patch(`/me/gears/${encodeURIComponent(id)}`, request, true);
   }
 
-  async archiveGear(id: string): Promise<void> {
+  async deleteGear(id: string): Promise<void> {
     await this.request(
       `/me/gears/${encodeURIComponent(id)}`,
       { method: "DELETE" },
@@ -690,33 +759,9 @@ export class StellarTrailApiClient {
     );
   }
 
-  async deleteGear(id: string): Promise<void> {
-    await this.request(
-      `/me/gears/${encodeURIComponent(id)}/delete`,
-      { method: "POST" },
-      true,
-    );
-  }
-
-  async undeleteGear(id: string): Promise<GearItem> {
-    return this.post(
-      `/me/gears/${encodeURIComponent(id)}/undelete`,
-      undefined,
-      true,
-    );
-  }
-
-  async restoreGear(id: string): Promise<GearItem> {
-    return this.post(
-      `/me/gears/${encodeURIComponent(id)}/restore`,
-      undefined,
-      true,
-    );
-  }
-
-  async exportGearsCsv(tab?: "available" | "history"): Promise<string> {
+  async exportGearsCsv(): Promise<string> {
     const response = await this.request(
-      `/me/gears/export${queryString({ tab, format: "csv" })}`,
+      `/me/gears/export${queryString({ format: "csv" })}`,
       {},
       true,
     );
@@ -795,6 +840,579 @@ export class StellarTrailApiClient {
       true,
     );
     return response.json() as Promise<GearPackingListDetail>;
+  }
+
+  async listTrips(
+    request: ListTripsRequest = {},
+  ): Promise<ListTripsResponse> {
+    return this.get(`/me/trips${queryString(request)}`, true);
+  }
+
+  async getTripHomeHighlight(
+    today?: string,
+  ): Promise<TripHomeHighlightResponse> {
+    return this.get(
+      `/me/trips/home-highlight${queryString({ today })}`,
+      true,
+    );
+  }
+
+  async createTrip(
+    request: CreateTripRequest,
+  ): Promise<TripDetail> {
+    return this.post("/me/trips", request, true);
+  }
+
+  async getTrip(id: string): Promise<TripDetail> {
+    return this.get(`/me/trips/${encodeURIComponent(id)}`, true);
+  }
+
+  async updateTrip(
+    id: string,
+    request: UpdateTripRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTrip(id: string): Promise<void> {
+    await this.request(
+      `/me/trips/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async convertTripToOutdoorExperience(
+    id: string,
+  ): Promise<OutdoorExperience> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/convert-to-outdoor-experience`,
+      undefined,
+      true,
+    );
+  }
+
+  async updateTripSections(
+    id: string,
+    request: UpdateTripSectionsRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}/sections`,
+      request,
+      true,
+    );
+  }
+
+  async createTripInvitation(
+    id: string,
+  ): Promise<CreateTripInvitationResponse> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/invitations`,
+      undefined,
+      true,
+    );
+  }
+
+  async acceptTripInvitation(
+    token: string,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trip-invitations/${encodeURIComponent(token)}/accept`,
+      undefined,
+      true,
+    );
+  }
+
+  async updateTripMember(
+    id: string,
+    memberId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`,
+      request,
+      true,
+    );
+  }
+
+  async removeTripMember(
+    id: string,
+    memberId: string,
+  ): Promise<TripDetail> {
+    const response = await this.request(
+      `/me/trips/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`,
+      { method: "DELETE" },
+      true,
+    );
+    return response.json() as Promise<TripDetail>;
+  }
+
+  async importTripPackingList(
+    id: string,
+    request: ImportTripPackingListRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/personal-gear/import-packing-list`,
+      request,
+      true,
+    );
+  }
+
+  async createTripPersonalGearItem(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/personal-gear`,
+      request,
+      true,
+    );
+  }
+
+  async updateTripPersonalGearItem(
+    id: string,
+    itemId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}/personal-gear/${encodeURIComponent(itemId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTripPersonalGearItem(
+    id: string,
+    itemId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "personal-gear", itemId);
+  }
+
+  async createTripSharedGearDemand(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/shared-gear-demands`,
+      request,
+      true,
+    );
+  }
+
+  async updateTripSharedGearDemand(
+    id: string,
+    itemId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}/shared-gear-demands/${encodeURIComponent(itemId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTripSharedGearDemand(
+    id: string,
+    itemId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "shared-gear-demands", itemId);
+  }
+
+  async bindTripSharedGearDemandMyGear(
+    id: string,
+    itemId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/shared-gear-demands/${encodeURIComponent(itemId)}/bind-my-gear`,
+      request,
+      true,
+    );
+  }
+
+  async fillTripSharedGearDemandConcreteGear(
+    id: string,
+    itemId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/shared-gear-demands/${encodeURIComponent(itemId)}/fill-concrete-gear`,
+      request,
+      true,
+    );
+  }
+
+  async createTripItineraryDay(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/itinerary-days`,
+      request,
+      true,
+    );
+  }
+
+  async updateTripItineraryDay(
+    id: string,
+    dayId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}/itinerary-days/${encodeURIComponent(dayId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTripItineraryDay(
+    id: string,
+    dayId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "itinerary-days", dayId);
+  }
+
+  async createTripItineraryTimeSlot(
+    id: string,
+    dayId: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/itinerary-days/${encodeURIComponent(dayId)}/time-slots`,
+      request,
+      true,
+    );
+  }
+
+  async updateTripItineraryTimeSlot(
+    id: string,
+    dayId: string,
+    slotId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}/itinerary-days/${encodeURIComponent(dayId)}/time-slots/${encodeURIComponent(slotId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTripItineraryTimeSlot(
+    id: string,
+    dayId: string,
+    slotId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(
+      id,
+      `itinerary-days/${encodeURIComponent(dayId)}/time-slots`,
+      slotId,
+    );
+  }
+
+  async createTripRouteSegment(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/route-segments`,
+      request,
+      true,
+    );
+  }
+
+  async updateTripRouteSegment(
+    id: string,
+    segmentId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}/route-segments/${encodeURIComponent(segmentId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTripRouteSegment(
+    id: string,
+    segmentId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "route-segments", segmentId);
+  }
+
+  async createTripSegmentAssignment(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.createTripRecord(id, "segment-assignments", request);
+  }
+
+  async updateTripSegmentAssignment(
+    id: string,
+    assignmentId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.updateTripRecord(
+      id,
+      "segment-assignments",
+      assignmentId,
+      request,
+    );
+  }
+
+  async deleteTripSegmentAssignment(
+    id: string,
+    assignmentId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "segment-assignments", assignmentId);
+  }
+
+  async createTripFoodMeal(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/food-meals`,
+      request,
+      true,
+    );
+  }
+
+  async updateTripFoodMeal(
+    id: string,
+    mealId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}/food-meals/${encodeURIComponent(mealId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTripFoodMeal(
+    id: string,
+    mealId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "food-meals", mealId);
+  }
+
+  async createTripFoodItem(
+    id: string,
+    mealId: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/food-meals/${encodeURIComponent(mealId)}/items`,
+      request,
+      true,
+    );
+  }
+
+  async updateTripFoodItem(
+    id: string,
+    mealId: string,
+    itemId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}/food-meals/${encodeURIComponent(mealId)}/items/${encodeURIComponent(itemId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTripFoodItem(
+    id: string,
+    mealId: string,
+    itemId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(
+      id,
+      `food-meals/${encodeURIComponent(mealId)}/items`,
+      itemId,
+    );
+  }
+
+  async createTripFoodSupply(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.createTripRecord(id, "food-supplies", request);
+  }
+
+  async updateTripFoodSupply(
+    id: string,
+    supplyId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.updateTripRecord(id, "food-supplies", supplyId, request);
+  }
+
+  async deleteTripFoodSupply(
+    id: string,
+    supplyId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "food-supplies", supplyId);
+  }
+
+  async createTripMedicalItem(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/medical-items`,
+      request,
+      true,
+    );
+  }
+
+  async updateTripMedicalItem(
+    id: string,
+    itemId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}/medical-items/${encodeURIComponent(itemId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTripMedicalItem(
+    id: string,
+    itemId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "medical-items", itemId);
+  }
+
+  async createTripSafetyRisk(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.createTripRecord(id, "safety-risks", request);
+  }
+
+  async updateTripSafetyRisk(
+    id: string,
+    riskId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.updateTripRecord(id, "safety-risks", riskId, request);
+  }
+
+  async deleteTripSafetyRisk(
+    id: string,
+    riskId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "safety-risks", riskId);
+  }
+
+  async createTripRescueContact(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.createTripRecord(id, "rescue-contacts", request);
+  }
+
+  async updateTripRescueContact(
+    id: string,
+    contactId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.updateTripRecord(id, "rescue-contacts", contactId, request);
+  }
+
+  async deleteTripRescueContact(
+    id: string,
+    contactId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "rescue-contacts", contactId);
+  }
+
+  async createTripBudgetItem(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.createTripRecord(id, "budget-items", request);
+  }
+
+  async updateTripBudgetItem(
+    id: string,
+    itemId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.updateTripRecord(id, "budget-items", itemId, request);
+  }
+
+  async deleteTripBudgetItem(
+    id: string,
+    itemId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "budget-items", itemId);
+  }
+
+  async createTripGoalItem(
+    id: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.createTripRecord(id, "goals", request);
+  }
+
+  async updateTripGoalItem(
+    id: string,
+    goalId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.updateTripRecord(id, "goals", goalId, request);
+  }
+
+  async deleteTripGoalItem(
+    id: string,
+    goalId: string,
+  ): Promise<TripDetail> {
+    return this.deleteTripRecord(id, "goals", goalId);
+  }
+
+  private async createTripRecord(
+    id: string,
+    collectionPath: string,
+    request: TripRecordCreateRequest,
+  ): Promise<TripDetail> {
+    return this.post(
+      `/me/trips/${encodeURIComponent(id)}/${collectionPath}`,
+      request,
+      true,
+    );
+  }
+
+  private async updateTripRecord(
+    id: string,
+    collectionPath: string,
+    recordId: string,
+    request: TripRecordPatchRequest,
+  ): Promise<TripDetail> {
+    return this.patch(
+      `/me/trips/${encodeURIComponent(id)}/${collectionPath}/${encodeURIComponent(recordId)}`,
+      request,
+      true,
+    );
+  }
+
+  private async deleteTripRecord(
+    id: string,
+    collectionPath: string,
+    recordId: string,
+  ): Promise<TripDetail> {
+    const response = await this.request(
+      `/me/trips/${encodeURIComponent(id)}/${collectionPath}/${encodeURIComponent(recordId)}`,
+      { method: "DELETE" },
+      true,
+    );
+    return response.json() as Promise<TripDetail>;
   }
 
   private async get<T>(

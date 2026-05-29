@@ -27,6 +27,7 @@
           <view class="account-name-row">
             <view class="account-desc">{{accountProfile.displayName}}</view>
           </view>
+          <view class="account-subtitle">查看账号资料与户外资料</view>
           <view wx:if="{{accountError}}" class="account-error"
             >{{accountError}}</view
           >
@@ -35,12 +36,13 @@
       </view>
       <view wx:else class="account-copy">
         <view class="account-desc">未登录</view>
+        <view class="account-subtitle">登录后同步装备、计划和个人资料</view>
       </view>
     </view>
     <button wx:if="{{!loggedIn}}" class="account-button" bindtap="goLogin">
       登录 / 注册
     </button>
-    <button wx:else class="account-button danger" bindtap="logout">退出</button>
+    <button wx:else class="account-logout-button" bindtap="logout">退出</button>
   </view>
 
   <view class="card settings-card">

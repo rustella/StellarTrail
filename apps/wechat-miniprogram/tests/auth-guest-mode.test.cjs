@@ -140,10 +140,12 @@ test("navigation helper rejects external redirects and switches tab pages", () =
   );
 
   navigateToRedirect("/pages/profile/index");
+  navigateToRedirect("/pages/trips/index");
   navigateToRedirect("/pages/gears/detail/index?id=g1");
 
   assert.deepEqual(calls, [
     { type: "switchTab", url: "/pages/profile/index" },
+    { type: "switchTab", url: "/pages/trips/index" },
     { type: "redirectTo", url: "/pages/gears/detail/index?id=g1" },
   ]);
 });

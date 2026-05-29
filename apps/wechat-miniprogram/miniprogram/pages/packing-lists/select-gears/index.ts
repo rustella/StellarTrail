@@ -7,6 +7,7 @@ import {
   isLoginRequiredError,
   listGears,
 } from "../../../utils/api-gears";
+import { importTripPackingList } from "../../../utils/api-trips";
 import {
   formatGearPrice,
   formatGearQuantity,
@@ -62,6 +63,7 @@ let selectGearRequestSeq = 0;
 Page({
   data: {
     id: "",
+    returnTripId: "",
     categoryOptions: CATEGORY_OPTIONS,
     statusOptions: GEAR_STATUS_FILTER_OPTIONS,
     statusLabels: GEAR_STATUS_FILTER_OPTIONS.map((item) => item.label),
@@ -92,7 +94,7 @@ Page({
       this.setData({ error: "没有找到这份打包清单，请返回后重试" });
       return;
     }
-    this.setData({ id });
+    this.setData({ id, returnTripId: options.returnTripId || "" });
     this.refreshPage();
   },
 
@@ -117,7 +119,10 @@ Page({
     if (!isLoggedIn) {
       showLoginPrompt(this, {
         message: "登录后可以从个人装备中挑选打包物品。",
-        redirectUrl: `/pages/packing-lists/select-gears/index?id=${encodeURIComponent(this.data.id)}`,
+        redirectUrl: selectGearPageUrl(
+          this.data.id,
+          this.data.returnTripId,
+        ),
       });
       return;
     }
@@ -144,7 +149,10 @@ Page({
         this.setData({ isLoggedIn: false, loading: false });
         showLoginPrompt(this, {
           message: "登录状态已过期，请重新登录后挑选装备。",
-          redirectUrl: `/pages/packing-lists/select-gears/index?id=${encodeURIComponent(this.data.id)}`,
+          redirectUrl: selectGearPageUrl(
+            this.data.id,
+            this.data.returnTripId,
+          ),
         });
         return;
       }
@@ -180,7 +188,10 @@ Page({
       if (isLoginRequiredError(error)) {
         showLoginPrompt(this, {
           message: "登录状态已过期，请重新登录后挑选装备。",
-          redirectUrl: `/pages/packing-lists/select-gears/index?id=${encodeURIComponent(this.data.id)}`,
+          redirectUrl: selectGearPageUrl(
+            this.data.id,
+            this.data.returnTripId,
+          ),
         });
         return;
       }
@@ -194,7 +205,6 @@ Page({
     const selectedCategory = this.data.selectedCategory;
     const selectedStatus = this.data.selectedStatus;
     return {
-      tab: "available" as const,
       category: selectedCategory === "all" ? undefined : selectedCategory,
       status: selectedStatus || undefined,
       q: this.data.q.trim() || undefined,
@@ -272,6 +282,16 @@ Page({
     try {
       await addGearPackingItems(this.data.id, this.data.selectedIds);
       wx.setStorageSync("stellartrail_packing_lists_should_refresh", true);
+      if (this.data.returnTripId) {
+        await importTripPackingList(this.data.returnTripId, {
+          packing_list_id: this.data.id,
+        });
+        wx.setStorageSync("stellartrail_trips_refresh", true);
+        wx.redirectTo({
+          url: `/pages/trips/detail/index?id=${encodeURIComponent(this.data.returnTripId)}&section=personal_gear`,
+        });
+        return;
+      }
       wx.redirectTo({
         url: `/pages/packing-lists/detail/index?id=${this.data.id}`,
       });
@@ -279,7 +299,10 @@ Page({
       if (isLoginRequiredError(error)) {
         showLoginPrompt(this, {
           message: "登录状态已过期，请重新登录后加入装备。",
-          redirectUrl: `/pages/packing-lists/select-gears/index?id=${encodeURIComponent(this.data.id)}`,
+          redirectUrl: selectGearPageUrl(
+            this.data.id,
+            this.data.returnTripId,
+          ),
         });
         return;
       }
@@ -314,4 +337,12 @@ function mapGearCard(item: GearSummary, selectedIds: string[]): GearSelectCard {
     ),
     brandModelText: brandModel || "未填写品牌型号",
   };
+}
+
+function selectGearPageUrl(id: string, returnTripId: string): string {
+  const params = [`id=${encodeURIComponent(id)}`];
+  if (returnTripId) {
+    params.push(`returnTripId=${encodeURIComponent(returnTripId)}`);
+  }
+  return `/pages/packing-lists/select-gears/index?${params.join("&")}`;
 }

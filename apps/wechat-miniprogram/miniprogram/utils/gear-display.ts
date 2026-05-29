@@ -5,7 +5,6 @@ import type {
   GearCurrency,
   GearSort,
   GearStatus,
-  GearTab,
   OptionItem,
 } from "./gear-utils";
 
@@ -18,7 +17,6 @@ export type {
   GearStatsResponse,
   GearStatus,
   GearSummary,
-  GearTab,
 } from "./gear-utils";
 
 export const GEAR_CATEGORY_OPTIONS: Array<OptionItem<GearCategory>> = [
@@ -58,11 +56,6 @@ export const GEAR_SORT_OPTIONS: Array<OptionItem<GearSort>> = [
   { value: "name_asc", label: "名称 A-Z" },
   { value: "weight_desc", label: "重量优先" },
   { value: "price_desc", label: "价格优先" },
-];
-
-export const GEAR_TAB_OPTIONS: Array<OptionItem<GearTab>> = [
-  { value: "available", label: "可用装备" },
-  { value: "history", label: "历史装备" },
 ];
 
 const GEAR_CURRENCY_OPTIONS: Array<OptionItem<GearCurrency>> = [

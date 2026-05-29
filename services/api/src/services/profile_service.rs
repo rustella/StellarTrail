@@ -1,15 +1,19 @@
 //! Profile service for authenticated current-user display data and public avatar uploads.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
+use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
-use stellartrail_db::repositories::{AuthRepository, UserRecord};
+use stellartrail_db::repositories::{AuthRepository, OutdoorProfileRepository, UserRecord};
 use stellartrail_domain::upload::{detect_image_type, validate_image_upload};
 use uuid::Uuid;
 
 use crate::{
-    dto::profile::ProfileUserResponse, error::ApiError, object_store::PutObjectRequest,
-    services::auth_service, state::AppState,
+    dto::profile::{OutdoorProfileResponse, ProfileUserResponse},
+    error::ApiError,
+    object_store::PutObjectRequest,
+    services::auth_service,
+    state::AppState,
 };
 
 const CACHE_CONTROL_AVATAR: &str = "public, max-age=31536000, immutable";
@@ -19,6 +23,30 @@ pub fn current_profile(user: &UserRecord) -> ProfileUserResponse {
     ProfileUserResponse {
         user: auth_service::login_user_response(user.clone()),
     }
+}
+
+/// Reads the authenticated user's saved outdoor profile defaults.
+pub async fn current_outdoor_profile(
+    state: &AppState,
+    user: &UserRecord,
+) -> Result<OutdoorProfileResponse, ApiError> {
+    let profile = OutdoorProfileRepository::new(state.db().clone())
+        .get(&user.id)
+        .await?;
+    Ok(OutdoorProfileResponse { profile })
+}
+
+/// Applies sparse changes to the authenticated user's outdoor profile defaults.
+pub async fn update_outdoor_profile(
+    state: &AppState,
+    user: &UserRecord,
+    fields: BTreeMap<String, JsonValue>,
+) -> Result<OutdoorProfileResponse, ApiError> {
+    let repo = OutdoorProfileRepository::new(state.db().clone());
+    let mut profile = repo.get(&user.id).await?;
+    profile.apply_sparse_patch(fields)?;
+    let profile = repo.upsert(&profile).await?;
+    Ok(OutdoorProfileResponse { profile })
 }
 
 /// Validates and uploads the authenticated user's avatar, then updates the user row.

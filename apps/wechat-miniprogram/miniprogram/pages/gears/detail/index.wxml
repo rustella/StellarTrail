@@ -54,17 +54,7 @@
 
     <view class="action-row">
       <button bindtap="goEdit">编辑装备</button>
-      <button
-        wx:if="{{tab === 'available'}}"
-        class="danger"
-        bindtap="archiveItem"
-      >
-        归档
-      </button>
-      <button wx:else class="restore" bindtap="restoreItem">恢复可用</button>
-      <button wx:if="{{tab === 'history'}}" class="danger" bindtap="deleteItem">
-        删除
-      </button>
+      <button class="danger" bindtap="deleteItem">删除</button>
     </view>
 
     <view class="atlas-submit-card">

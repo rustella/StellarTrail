@@ -105,7 +105,7 @@ Page({
     this.setData({ loading: true, error: "", notice: "" });
     try {
       await loginWithWechat();
-      this.afterLoginSuccess("/pages/index/index");
+      this.afterLoginSuccess();
     } catch (error) {
       this.setData({ error: getErrorMessage(error) });
     } finally {

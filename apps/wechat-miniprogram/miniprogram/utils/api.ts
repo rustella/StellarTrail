@@ -38,6 +38,22 @@ import type {
   ListSkillsResponse,
   SkillLocale,
 } from "./skill-utils";
+import type {
+  CreateTripInvitationResponse,
+  CreateTripRequest,
+  ImportTripPackingListRequest,
+  ListTripsResponse,
+  ListOutdoorExperiencesResponse,
+  OutdoorExperience,
+  OutdoorExperienceRequest,
+  TripRecordCreateRequest,
+  TripRecordPatchRequest,
+  TripHomeHighlightResponse,
+  TripDetail,
+  TripSummary,
+  UpdateTripSectionsRequest,
+  UpdateTripRequest,
+} from "./trip-utils";
 import type { ClientDomainCandidate } from "./client-config";
 import {
   clearUserOfflineCaches,
@@ -59,6 +75,11 @@ export {
   isOfflineCacheMissError,
   isOfflineWriteBlockedError,
 } from "./network-state";
+export type {
+  ListOutdoorExperiencesResponse,
+  OutdoorExperience,
+  OutdoorExperienceRequest,
+} from "./trip-utils";
 
 const TOKEN_STORAGE_KEY = "stellartrail_access_token";
 const ACCESS_TOKEN_EXPIRES_AT_STORAGE_KEY =
@@ -109,6 +130,37 @@ interface WechatLoginRequest {
 
 interface ProfileUserResponse {
   user: WechatLoginResponse["user"];
+}
+
+export interface OutdoorProfile {
+  user_id: string;
+  outdoor_id?: string | null;
+  real_name?: string | null;
+  gender?: string | null;
+  birth_date?: string | null;
+  height_cm?: number | null;
+  phone?: string | null;
+  emergency_contact?: string | null;
+  emergency_contact_relationship?: string | null;
+  emergency_phone?: string | null;
+  blood_type?: string | null;
+  medical_history?: string | null;
+  allergy_history?: string | null;
+  medical_response_note?: string | null;
+  diet_preference?: string | null;
+  insurance_policy_no?: string | null;
+  insurance_company_phone?: string | null;
+  experience_note?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export type UpdateOutdoorProfileRequest = Partial<
+  Omit<OutdoorProfile, "user_id" | "created_at" | "updated_at">
+>;
+
+export interface OutdoorProfileResponse {
+  profile: OutdoorProfile;
 }
 
 export interface EmailVerificationCodeRequest {
@@ -539,6 +591,73 @@ export async function getCurrentUser(): Promise<WechatLoginResponse["user"]> {
   return response.user;
 }
 
+export function getOutdoorProfile(): Promise<OutdoorProfileResponse> {
+  return requestJson("/api/v1/me/profile/outdoor", {
+    auth: true,
+  });
+}
+
+export function updateOutdoorProfile(
+  data: UpdateOutdoorProfileRequest,
+): Promise<OutdoorProfileResponse> {
+  return requestJson("/api/v1/me/profile/outdoor", {
+    method: "PATCH",
+    auth: true,
+    data,
+  });
+}
+
+export async function listOutdoorExperiences(): Promise<ListOutdoorExperiencesResponse> {
+  const response = await requestJson<ListOutdoorExperiencesResponse>(
+    "/api/v1/me/outdoor-experiences",
+    {
+      auth: true,
+    },
+  );
+  return {
+    ...response,
+    items: (response.items || []).map(normalizeOutdoorExperience),
+  };
+}
+
+export async function createOutdoorExperience(
+  request: OutdoorExperienceRequest,
+): Promise<OutdoorExperience> {
+  return normalizeOutdoorExperience(
+    await requestJson("/api/v1/me/outdoor-experiences", {
+      method: "POST",
+      auth: true,
+      data: request,
+    }),
+  );
+}
+
+export async function updateOutdoorExperience(
+  id: string,
+  request: OutdoorExperienceRequest,
+): Promise<OutdoorExperience> {
+  return normalizeOutdoorExperience(
+    await requestJson(
+      `/api/v1/me/outdoor-experiences/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        auth: true,
+        data: request,
+      },
+    ),
+  );
+}
+
+export function deleteOutdoorExperience(id: string): Promise<void> {
+  return requestJson(
+    `/api/v1/me/outdoor-experiences/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+      auth: true,
+    },
+  );
+}
+
 export function sendBindEmailCode(
   email: string,
 ): Promise<EmailVerificationCodeResponse> {
@@ -833,18 +952,14 @@ export async function listMyGearAtlasSubmissions(
   );
 }
 
-export async function listGearCategories(
-  tab: "available" | "history",
-): Promise<GearCategoriesResponse> {
-  return requestJson(`/api/v1/me/gears/categories${queryString({ tab })}`, {
+export async function listGearCategories(): Promise<GearCategoriesResponse> {
+  return requestJson("/api/v1/me/gears/categories", {
     auth: true,
   });
 }
 
-export async function getGearStats(
-  tab: "available" | "history",
-): Promise<GearStatsResponse> {
-  return requestJson(`/api/v1/me/gears/stats${queryString({ tab })}`, {
+export async function getGearStats(): Promise<GearStatsResponse> {
+  return requestJson("/api/v1/me/gears/stats", {
     auth: true,
   });
 }
@@ -859,7 +974,6 @@ export async function getGearSpecKeyRankings(
 }
 
 export async function getGearOverview(request: {
-  tab?: "available" | "history";
   limit?: number;
   sort?: string;
 }): Promise<GearOverviewResponse> {
@@ -981,6 +1095,719 @@ export async function removeGearPackingItem(
   );
 }
 
+export async function listTrips(
+  request: {
+    limit?: number;
+    cursor?: string;
+    bucket?: string;
+    trip_type?: string;
+  } = {},
+): Promise<ListTripsResponse> {
+  const response = await requestJson<ListTripsResponse>(
+    `/api/v1/me/trips${queryString(request)}`,
+    {
+      auth: true,
+    },
+  );
+  return {
+    ...response,
+    items: (response.items || []).map(normalizeTripSummary),
+  };
+}
+
+export async function getTripHomeHighlight(
+  today: string,
+): Promise<TripHomeHighlightResponse> {
+  const response = await requestJson<TripHomeHighlightResponse>(
+    `/api/v1/me/trips/home-highlight${queryString({ today })}`,
+    {
+      auth: true,
+    },
+  );
+  if (!response.item) {
+    return response;
+  }
+  const trip = normalizeTripSummary(response.item.trip || response.item.plan);
+  return {
+    ...response,
+    item: {
+      ...response.item,
+      trip,
+      plan: trip,
+    },
+  };
+}
+
+export async function createTrip(
+  request: CreateTripRequest,
+): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson("/api/v1/me/trips", {
+      method: "POST",
+      data: request,
+      auth: true,
+    }),
+  );
+}
+
+export async function getTrip(id: string): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(`/api/v1/me/trips/${encodeURIComponent(id)}`, {
+      auth: true,
+    }),
+  );
+}
+
+export async function convertTripToOutdoorExperience(
+  id: string,
+): Promise<OutdoorExperience> {
+  return normalizeOutdoorExperience(
+    await requestJson(
+      `/api/v1/me/trips/${encodeURIComponent(id)}/convert-to-outdoor-experience`,
+      {
+        method: "POST",
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function updateTrip(
+  id: string,
+  request: UpdateTripRequest,
+): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(`/api/v1/me/trips/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      data: request,
+      auth: true,
+    }),
+  );
+}
+
+export async function deleteTrip(id: string): Promise<void> {
+  await requestJson<void>(`/api/v1/me/trips/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    auth: true,
+  });
+}
+
+export async function updateTripSections(
+  id: string,
+  request: UpdateTripSectionsRequest,
+): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(`/api/v1/me/trips/${encodeURIComponent(id)}/sections`, {
+      method: "PATCH",
+      data: request,
+      auth: true,
+    }),
+  );
+}
+
+export async function createTripInvitation(
+  id: string,
+): Promise<CreateTripInvitationResponse> {
+  return requestJson(`/api/v1/me/trips/${encodeURIComponent(id)}/invitations`, {
+    method: "POST",
+    auth: true,
+  });
+}
+
+export async function acceptTripInvitation(token: string): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(
+      `/api/v1/me/trip-invitations/${encodeURIComponent(token)}/accept`,
+      {
+        method: "POST",
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function updateTripMember(
+  id: string,
+  memberId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(
+      `/api/v1/me/trips/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`,
+      {
+        method: "PATCH",
+        data: request,
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function removeTripMember(
+  id: string,
+  memberId: string,
+): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(
+      `/api/v1/me/trips/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`,
+      {
+        method: "DELETE",
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function importTripPackingList(
+  id: string,
+  request: ImportTripPackingListRequest,
+): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(
+      `/api/v1/me/trips/${encodeURIComponent(id)}/personal-gear/import-packing-list`,
+      {
+        method: "POST",
+        data: request,
+        auth: true,
+      },
+    ),
+  );
+}
+
+export function createTripPersonalGearItem(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "personal-gear", request);
+}
+
+export function updateTripPersonalGearItem(
+  id: string,
+  itemId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "personal-gear", itemId, request);
+}
+
+export function deleteTripPersonalGearItem(
+  id: string,
+  itemId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "personal-gear", itemId);
+}
+
+export function createTripSharedGearDemand(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "shared-gear-demands", request);
+}
+
+export function updateTripSharedGearDemand(
+  id: string,
+  itemId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "shared-gear-demands", itemId, request);
+}
+
+export function deleteTripSharedGearDemand(
+  id: string,
+  itemId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "shared-gear-demands", itemId);
+}
+
+export async function bindTripSharedGearDemandMyGear(
+  id: string,
+  itemId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(
+      `/api/v1/me/trips/${encodeURIComponent(id)}/shared-gear-demands/${encodeURIComponent(itemId)}/bind-my-gear`,
+      {
+        method: "POST",
+        data: request,
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function fillTripSharedGearDemandConcreteGear(
+  id: string,
+  itemId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(
+      `/api/v1/me/trips/${encodeURIComponent(id)}/shared-gear-demands/${encodeURIComponent(itemId)}/fill-concrete-gear`,
+      {
+        method: "POST",
+        data: request,
+        auth: true,
+      },
+    ),
+  );
+}
+
+export function createTripItineraryDay(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "itinerary-days", request);
+}
+
+export function updateTripItineraryDay(
+  id: string,
+  dayId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "itinerary-days", dayId, request);
+}
+
+export function deleteTripItineraryDay(
+  id: string,
+  dayId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "itinerary-days", dayId);
+}
+
+export function createTripItineraryTimeSlot(
+  id: string,
+  dayId: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(
+    id,
+    `itinerary-days/${encodeURIComponent(dayId)}/time-slots`,
+    request,
+  );
+}
+
+export function updateTripItineraryTimeSlot(
+  id: string,
+  dayId: string,
+  slotId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(
+    id,
+    `itinerary-days/${encodeURIComponent(dayId)}/time-slots`,
+    slotId,
+    request,
+  );
+}
+
+export function deleteTripItineraryTimeSlot(
+  id: string,
+  dayId: string,
+  slotId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(
+    id,
+    `itinerary-days/${encodeURIComponent(dayId)}/time-slots`,
+    slotId,
+  );
+}
+
+export function createTripRouteSegment(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "route-segments", request);
+}
+
+export function updateTripRouteSegment(
+  id: string,
+  segmentId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "route-segments", segmentId, request);
+}
+
+export function deleteTripRouteSegment(
+  id: string,
+  segmentId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "route-segments", segmentId);
+}
+
+export function createTripSegmentAssignment(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "segment-assignments", request);
+}
+
+export function updateTripSegmentAssignment(
+  id: string,
+  assignmentId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "segment-assignments", assignmentId, request);
+}
+
+export function deleteTripSegmentAssignment(
+  id: string,
+  assignmentId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "segment-assignments", assignmentId);
+}
+
+export function updateTripFoodMeal(
+  id: string,
+  mealId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "food-meals", mealId, request);
+}
+
+export function createTripFoodMeal(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "food-meals", request);
+}
+
+export function deleteTripFoodMeal(
+  id: string,
+  mealId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "food-meals", mealId);
+}
+
+export function createTripFoodItem(
+  id: string,
+  mealId: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(
+    id,
+    `food-meals/${encodeURIComponent(mealId)}/items`,
+    request,
+  );
+}
+
+export function updateTripFoodItem(
+  id: string,
+  mealId: string,
+  itemId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(
+    id,
+    `food-meals/${encodeURIComponent(mealId)}/items`,
+    itemId,
+    request,
+  );
+}
+
+export function deleteTripFoodItem(
+  id: string,
+  mealId: string,
+  itemId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(
+    id,
+    `food-meals/${encodeURIComponent(mealId)}/items`,
+    itemId,
+  );
+}
+
+export function createTripFoodSupply(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "food-supplies", request);
+}
+
+export function updateTripFoodSupply(
+  id: string,
+  supplyId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "food-supplies", supplyId, request);
+}
+
+export function deleteTripFoodSupply(
+  id: string,
+  supplyId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "food-supplies", supplyId);
+}
+
+export function createTripMedicalItem(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "medical-items", request);
+}
+
+export function updateTripMedicalItem(
+  id: string,
+  itemId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "medical-items", itemId, request);
+}
+
+export function deleteTripMedicalItem(
+  id: string,
+  itemId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "medical-items", itemId);
+}
+
+export function createTripSafetyRisk(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "safety-risks", request);
+}
+
+export function updateTripSafetyRisk(
+  id: string,
+  riskId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "safety-risks", riskId, request);
+}
+
+export function deleteTripSafetyRisk(
+  id: string,
+  riskId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "safety-risks", riskId);
+}
+
+export function createTripRescueContact(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "rescue-contacts", request);
+}
+
+export function updateTripRescueContact(
+  id: string,
+  contactId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "rescue-contacts", contactId, request);
+}
+
+export function deleteTripRescueContact(
+  id: string,
+  contactId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "rescue-contacts", contactId);
+}
+
+export function createTripBudgetItem(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "budget-items", request);
+}
+
+export function updateTripBudgetItem(
+  id: string,
+  itemId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "budget-items", itemId, request);
+}
+
+export function deleteTripBudgetItem(
+  id: string,
+  itemId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "budget-items", itemId);
+}
+
+export function createTripGoalItem(
+  id: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return createTripRecord(id, "goals", request);
+}
+
+export function updateTripGoalItem(
+  id: string,
+  goalId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return updateTripRecord(id, "goals", goalId, request);
+}
+
+export function deleteTripGoalItem(
+  id: string,
+  goalId: string,
+): Promise<TripDetail> {
+  return deleteTripRecord(id, "goals", goalId);
+}
+
+async function createTripRecord(
+  id: string,
+  collectionPath: string,
+  request: TripRecordCreateRequest,
+): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(
+      `/api/v1/me/trips/${encodeURIComponent(id)}/${collectionPath}`,
+      {
+        method: "POST",
+        data: request,
+        auth: true,
+      },
+    ),
+  );
+}
+
+async function updateTripRecord(
+  id: string,
+  collectionPath: string,
+  recordId: string,
+  request: TripRecordPatchRequest,
+): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(
+      `/api/v1/me/trips/${encodeURIComponent(id)}/${collectionPath}/${encodeURIComponent(recordId)}`,
+      {
+        method: "PATCH",
+        data: request,
+        auth: true,
+      },
+    ),
+  );
+}
+
+async function deleteTripRecord(
+  id: string,
+  collectionPath: string,
+  recordId: string,
+): Promise<TripDetail> {
+  return normalizeTripDetail(
+    await requestJson(
+      `/api/v1/me/trips/${encodeURIComponent(id)}/${collectionPath}/${encodeURIComponent(recordId)}`,
+      {
+        method: "DELETE",
+        auth: true,
+      },
+    ),
+  );
+}
+
+function normalizeTripSummary(value: any): TripSummary {
+  const source = value || {};
+  const title = source.title ?? source.name ?? "";
+  const dayCount = Number(source.day_count ?? source.itinerary_day_count ?? 0);
+  return {
+    ...source,
+    trip_type: source.trip_type ?? "team",
+    title,
+    name: title,
+    enabled_sections: source.enabled_sections ?? [],
+    route_use_slope_adjustment: !!source.route_use_slope_adjustment,
+    route_use_high_altitude_adjustment:
+      !!source.route_use_high_altitude_adjustment,
+    day_count: dayCount,
+    itinerary_day_count: dayCount,
+    time_bucket: source.time_bucket ?? "undated",
+    days_until_start: source.days_until_start ?? null,
+    days_until_end: source.days_until_end ?? null,
+    member_count: Number(source.member_count ?? 1),
+    readiness: source.readiness ?? {
+      missing_count: 0,
+      missing_labels: [],
+      completion_percent: 0,
+    },
+    outdoor_experience_id: source.outdoor_experience_id ?? null,
+    field_versions: source.field_versions ?? {},
+    is_deleted: !!source.is_deleted,
+    created_at: source.created_at ?? "",
+    updated_at: source.updated_at ?? "",
+  };
+}
+
+function normalizeOutdoorExperience(value: any): OutdoorExperience {
+  const source = value || {};
+  return {
+    id: String(source.id ?? ""),
+    user_id: String(source.user_id ?? ""),
+    source_trip_id: source.source_trip_id ?? null,
+    trip_type: source.trip_type ?? "team",
+    title: String(source.title ?? ""),
+    start_date: source.start_date ?? null,
+    end_date: source.end_date ?? null,
+    day_count: normalizeOptionalNumber(source.day_count),
+    companion_count: normalizeOptionalNumber(source.companion_count),
+    route_summary: source.route_summary ?? null,
+    gear_summary: source.gear_summary ?? null,
+    food_summary: source.food_summary ?? null,
+    budget_summary: source.budget_summary ?? null,
+    notes: source.notes ?? null,
+    created_at: source.created_at ?? "",
+    updated_at: source.updated_at ?? "",
+  };
+}
+
+function normalizeOptionalNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function normalizeTripDetail(value: any): TripDetail {
+  const source = value || {};
+  const trip = normalizeTripSummary(source.trip ?? source.plan);
+  const members = (source.members || []).map((member: any) => ({
+    ...member,
+    trip_id: member.trip_id ?? member.plan_id ?? trip.id,
+    plan_id: member.plan_id ?? member.trip_id ?? trip.id,
+  }));
+  const personalGear = source.personal_gear ?? source.personal_gear_items ?? [];
+  const sharedGear = (
+    source.shared_gear_demands ??
+    source.shared_gear_items ??
+    []
+  ).map((item: any) => ({
+    ...item,
+    template_key: item.template_key ?? item.slot_key ?? null,
+    demand_name: item.demand_name ?? item.slot_name ?? null,
+    slot_key: item.slot_key ?? item.template_key ?? null,
+    slot_name: item.slot_name ?? item.demand_name ?? item.name ?? null,
+  }));
+  const sharedTemplates = (source.shared_gear_demand_templates || []).map(
+    (item: any) => ({
+      ...item,
+      template_key: item.template_key ?? item.slot_key,
+      demand_name: item.demand_name ?? item.slot_name,
+      slot_key: item.slot_key ?? item.template_key,
+      slot_name: item.slot_name ?? item.demand_name,
+    }),
+  );
+  const weightSummaries =
+    source.weight_summaries ?? source.gear_weight_summaries ?? [];
+  return {
+    ...source,
+    trip,
+    plan: trip,
+    sections: source.sections ?? trip.enabled_sections,
+    members,
+    personal_gear: personalGear,
+    personal_gear_items: personalGear,
+    shared_gear_demands: sharedGear,
+    shared_gear_items: sharedGear,
+    shared_gear_demand_templates: sharedTemplates,
+    weight_summaries: weightSummaries,
+    gear_weight_summaries: weightSummaries,
+  } as TripDetail;
+}
+
 export async function getGear(id: string): Promise<GearItem> {
   return requestJson(`/api/v1/me/gears/${encodeURIComponent(id)}`, {
     auth: true,
@@ -1008,30 +1835,9 @@ export async function updateGear(
   });
 }
 
-export async function archiveGear(id: string): Promise<void> {
+export async function deleteGear(id: string): Promise<void> {
   await requestJson<void>(`/api/v1/me/gears/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    auth: true,
-  });
-}
-
-export async function deleteGear(id: string): Promise<void> {
-  await requestJson<void>(`/api/v1/me/gears/${encodeURIComponent(id)}/delete`, {
-    method: "POST",
-    auth: true,
-  });
-}
-
-export async function undeleteGear(id: string): Promise<GearItem> {
-  return requestJson(`/api/v1/me/gears/${encodeURIComponent(id)}/undelete`, {
-    method: "POST",
-    auth: true,
-  });
-}
-
-export async function restoreGear(id: string): Promise<GearItem> {
-  return requestJson(`/api/v1/me/gears/${encodeURIComponent(id)}/restore`, {
-    method: "POST",
     auth: true,
   });
 }
@@ -1506,6 +2312,10 @@ function isUserCacheablePath(path: string): boolean {
     path === "/api/v1/me/packing-lists" ||
     path.startsWith("/api/v1/me/packing-lists?") ||
     path.startsWith("/api/v1/me/packing-lists/") ||
+    path === "/api/v1/me/outdoor-experiences" ||
+    path.startsWith("/api/v1/me/outdoor-experiences?") ||
+    path === "/api/v1/me/trips/home-highlight" ||
+    path.startsWith("/api/v1/me/trips/home-highlight?") ||
     path === "/api/v1/me/skills/knots/disclaimer" ||
     path === "/api/v1/me/roadmap" ||
     path.startsWith("/api/v1/me/roadmap?") ||

@@ -1,0 +1,2378 @@
+<view class="detail-page {{themeClass}}">
+  <view wx:if="{{offlineNotice}}" class="offline-notice"
+    >{{offlineNotice}}</view
+  >
+  <view wx:if="{{error}}" class="state-card error">{{error}}</view>
+  <view wx:elif="{{loading}}" class="state-card">正在加载组队计划书...</view>
+
+  <block wx:elif="{{detail}}">
+    <view class="plan-header">
+      <view>
+        <view class="plan-title">{{detail.plan.name}}</view>
+        <view class="plan-meta">{{planMetaText}}</view>
+      </view>
+      <view class="plan-header-actions">
+        <button bindtap="goEditPlan">编辑</button>
+        <button
+          wx:if="{{canDeletePlan}}"
+          class="danger-action"
+          bindtap="confirmDeletePlan"
+          loading="{{mutating}}"
+        >
+          删除
+        </button>
+      </view>
+    </view>
+
+    <scroll-view
+      class="tabs"
+      scroll-x
+      enable-flex
+      scroll-with-animation
+      scroll-into-view="{{activeSectionTabId}}"
+    >
+      <view class="tab-row">
+        <block wx:for="{{sectionTabs}}" wx:key="key">
+          <view
+            id="{{item.id}}"
+            class="tab {{selectedSection === item.key ? 'active' : ''}}"
+            data-key="{{item.key}}"
+            bindtap="switchSection"
+          >
+            {{item.label}}
+          </view>
+        </block>
+        <button
+          class="section-add-button"
+          aria-label="添加计划项"
+          bindtap="openSectionSheet"
+        >
+          +
+        </button>
+      </view>
+    </scroll-view>
+
+    <view wx:if="{{selectedSection === 'members'}}" class="section">
+      <view class="section-head">
+        <view class="section-title">成员信息</view>
+        <button bindtap="createInvite" loading="{{mutating}}">邀请</button>
+      </view>
+      <block wx:for="{{members}}" wx:key="id">
+        <view class="row-card member-card">
+          <view class="member-card-head">
+            <view>
+              <view class="row-title">{{item.displayName}}</view>
+              <view wx:if="{{item.is_owner}}" class="owner-badge">队长</view>
+            </view>
+            <view class="member-card-actions">
+              <button
+                wx:if="{{item.canEdit}}"
+                class="small-action"
+                data-id="{{item.id}}"
+                bindtap="openMemberEditor"
+                disabled="{{mutating}}"
+              >
+                编辑
+              </button>
+              <button
+                wx:if="{{item.canDelete}}"
+                class="delete-inline-button member-delete-button"
+                data-id="{{item.id}}"
+                bindtap="confirmRemoveMember"
+                disabled="{{mutating}}"
+              >
+                删除
+              </button>
+            </view>
+          </view>
+          <view class="row-meta">{{item.roleText}} · {{item.contactText}}</view>
+          <view class="row-meta">{{item.profileSummaryText}}</view>
+          <view class="row-meta">{{item.healthText}}</view>
+          <view wx:if="{{item.hasCarrySummary}}" class="member-carry-summary">
+            <view class="carry-breakdown member-carry-breakdown">
+              <text>公共 {{item.sharedWeightText}}</text>
+              <text>个人 {{item.personalWeightText}}</text>
+              <text wx:if="{{item.showFoodWeight}}"
+                >食材 {{item.foodWeightText}}</text
+              >
+            </view>
+            <view class="carry-total member-carry-total">
+              {{item.totalWeightText}}
+            </view>
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <view wx:elif="{{selectedSection === 'personal_gear'}}" class="section">
+      <view class="section-head personal-gear-section-head">
+        <view class="section-title">个人装备</view>
+        <button
+          class="section-add-button personal-gear-add-button"
+          aria-label="添加个人装备"
+          bindtap="openPersonalGearActionSheet"
+        >
+          +
+        </button>
+      </view>
+      <view wx:if="{{myGearView}}" class="weight-card">
+        <view>
+          <view class="weight-value">{{myGearView.all_weight_g}} g</view>
+          <view class="weight-label">所有装备重量</view>
+        </view>
+        <view>
+          <view class="weight-value">{{myGearView.actual_weight_g}} g</view>
+          <view class="weight-label">实际装备重量</view>
+        </view>
+      </view>
+      <block wx:for="{{myGearView.items}}" wx:key="id">
+        <view class="gear-row">
+          <view class="gear-row-head">
+            <view class="row-title">{{item.name}}</view>
+            <button
+              wx:if="{{item.source === 'personal' && sharedGearEnabled}}"
+              class="small-action"
+              data-id="{{item.id}}"
+              catchtap="confirmMovePersonalGearToShared"
+              loading="{{mutating}}"
+            >
+              移到公共
+            </button>
+          </view>
+          <view class="row-meta"
+            >{{item.category_label}} · {{item.planned_quantity}} 件</view
+          >
+          <view class="labels">
+            <block wx:for="{{item.labels}}" wx:key="*this">
+              <text>{{item}}</text>
+            </block>
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <view wx:elif="{{selectedSection === 'shared_gear'}}" class="section">
+      <view class="section-title">公共装备</view>
+      <view class="editor-card shared-gear-action-card">
+        <view class="personal-gear-action-copy">
+          <view class="label">公共装备需求</view>
+          <view class="action-hint"
+            >先列出炉头、煮锅等公共装备需求，再为每项导入或填写具体装备。</view
+          >
+        </view>
+        <view class="personal-gear-actions">
+          <button bindtap="openSharedGearForm">新增需求项</button>
+        </view>
+      </view>
+      <scroll-view
+        wx:if="{{sharedGearCategoryOptions.length > 1}}"
+        class="shared-gear-filter"
+        scroll-x
+        enable-flex
+      >
+        <view class="shared-gear-filter-row">
+          <button
+            wx:for="{{sharedGearCategoryOptions}}"
+            wx:key="value"
+            class="shared-gear-filter-chip {{item.selected ? 'active' : ''}}"
+            data-value="{{item.value}}"
+            bindtap="switchSharedGearCategory"
+          >
+            <text class="shared-gear-filter-label">{{item.label}}</text>
+            <text class="shared-gear-filter-count">{{item.count}}</text>
+          </button>
+        </view>
+      </scroll-view>
+      <block wx:for="{{sharedGearRows}}" wx:key="id">
+        <view
+          class="row-card shared-gear-row {{item.hasConcreteGear ? 'filled' : 'empty'}}"
+        >
+          <view class="shared-gear-head">
+            <view class="shared-gear-main">
+              <view class="row-title">{{item.slotName}}</view>
+              <view class="row-meta"
+                >{{item.slotGroup}} · {{item.categoryLabel}} · 需求
+                {{item.plannedQuantityText}}</view
+              >
+            </view>
+            <view class="shared-gear-actions">
+              <button
+                class="shared-gear-action"
+                data-id="{{item.id}}"
+                bindtap="openSharedSlotSheet"
+              >
+                {{item.actionText}}
+              </button>
+              <button
+                class="shared-gear-action shared-gear-delete"
+                data-id="{{item.id}}"
+                catchtap="confirmDeleteSharedGear"
+                loading="{{mutating}}"
+              >
+                删除
+              </button>
+            </view>
+          </view>
+          <view wx:if="{{item.hasConcreteGear}}" class="row-meta">
+            具体装备：{{item.concreteName}} · {{item.weightText}}
+          </view>
+          <view wx:else class="row-meta shared-gear-empty-text">
+            待填写具体装备，不计入背负重量
+          </view>
+          <view class="row-meta"
+            >负责人（背负/保管）：{{item.responsibleText}}</view
+          >
+          <view class="row-meta">
+            归属：{{item.sourceText}} · 来源：{{item.createdByText}}
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <view wx:elif="{{selectedSection === 'itinerary'}}" class="section">
+      <view class="section-head">
+        <view class="section-title">行程安排</view>
+        <view class="itinerary-head-actions">
+          <button class="small-action" bindtap="openRouteEstimateSheet">
+            设置
+          </button>
+          <button bindtap="addItineraryDay" loading="{{mutating}}">
+            新增一天
+          </button>
+        </view>
+      </view>
+      <view wx:if="{{activeItineraryDay}}" class="itinerary-day-switcher">
+        <button
+          class="itinerary-day-switch-button {{canSwitchPrevDay ? '' : 'disabled'}}"
+          disabled="{{!canSwitchPrevDay}}"
+          catchtap="switchPrevItineraryDay"
+        >
+          ‹
+        </button>
+        <view
+          class="itinerary-day-pager"
+          bindtouchstart="onItineraryTouchStart"
+          bindtouchend="onItineraryTouchEnd"
+        >
+          {{activeItineraryDay.title}} · {{itineraryDayPagerText}}
+        </view>
+        <button
+          class="itinerary-day-switch-button {{canSwitchNextDay ? '' : 'disabled'}}"
+          disabled="{{!canSwitchNextDay}}"
+          catchtap="switchNextItineraryDay"
+        >
+          ›
+        </button>
+      </view>
+      <view wx:if="{{activeItineraryDay}}" class="itinerary-workbench">
+        <view class="row-card itinerary-day-card">
+          <view class="itinerary-day-head">
+            <view
+              class="itinerary-day-main"
+              bindtouchstart="onItineraryTouchStart"
+              bindtouchend="onItineraryTouchEnd"
+            >
+              <view class="itinerary-day-title-row">
+                <view class="row-title itinerary-day-title"
+                  >{{activeItineraryDay.title}}</view
+                >
+              </view>
+              <view class="row-meta itinerary-day-meta"
+                >{{activeItineraryDay.estimateText}} ·
+                {{activeItineraryDay.dateText}}</view
+              >
+              <button
+                class="itinerary-day-info-action"
+                data-id="{{activeItineraryDay.id}}"
+                catchtap="openDayInfoEditor"
+              >
+                编辑日信息
+              </button>
+            </view>
+            <view class="itinerary-day-actions">
+              <button
+                class="delete-inline-button"
+                data-id="{{activeItineraryDay.id}}"
+                catchtap="confirmDeleteItineraryDay"
+                loading="{{mutating}}"
+              >
+                删除
+              </button>
+            </view>
+          </view>
+          <view class="itinerary-day-body">
+            <view
+              class="itinerary-route-list"
+              bindtouchstart="onItineraryTouchStart"
+              bindtouchend="onItineraryTouchEnd"
+            >
+              <view
+                wx:if="{{!activeItineraryDay.routeSegments.length}}"
+                class="route-empty"
+                >暂无路段</view
+              >
+              <block
+                wx:for="{{activeItineraryDay.routeSegments}}"
+                wx:for-item="segment"
+                wx:key="id"
+              >
+                <view class="route-segment-row">
+                  <view class="route-segment-main">
+                    <view class="row-title route-segment-title"
+                      >{{segment.name}}</view
+                    >
+                    <view class="route-segment-metrics">
+                      <text
+                        wx:for="{{segment.metricChips}}"
+                        wx:for-item="chip"
+                        wx:key="*this"
+                        class="route-segment-chip"
+                        >{{chip}}</text
+                      >
+                    </view>
+                    <view
+                      wx:if="{{segment.detailText}}"
+                      class="row-meta route-segment-meta"
+                      >{{segment.detailText}}</view
+                    >
+                    <view class="row-meta route-segment-estimate"
+                      >{{segment.estimateText}}</view
+                    >
+                    <view
+                      wx:if="{{segment.altitudeText}}"
+                      class="row-meta route-segment-altitude"
+                      >{{segment.altitudeText}}</view
+                    >
+                    <view
+                      wx:if="{{segment.safetyText}}"
+                      class="row-meta route-segment-meta"
+                      >{{segment.safetyText}}</view
+                    >
+                  </view>
+                  <view class="route-segment-actions">
+                    <button
+                      class="edit-inline-button"
+                      data-id="{{segment.id}}"
+                      catchtap="openEditRouteEditor"
+                      loading="{{mutating}}"
+                    >
+                      编辑
+                    </button>
+                    <button
+                      class="delete-inline-button"
+                      data-id="{{segment.id}}"
+                      catchtap="confirmDeleteRouteSegment"
+                      loading="{{mutating}}"
+                    >
+                      删除
+                    </button>
+                  </view>
+                </view>
+              </block>
+            </view>
+            <button class="route-editor-trigger" bindtap="openRouteEditor">
+              + 添加路段
+            </button>
+          </view>
+        </view>
+        <view wx:if="{{itineraryDayCount > 1}}" class="itinerary-swipe-hint">
+          点箭头或左右滑动切换行程日
+        </view>
+      </view>
+      <view wx:if="{{orphanRouteSegments.length}}" class="orphan-route-card">
+        <view class="label">未分配路段</view>
+        <block
+          wx:for="{{orphanRouteSegments}}"
+          wx:for-item="segment"
+          wx:key="id"
+        >
+          <view class="route-segment-row">
+            <view class="route-segment-main">
+              <view class="row-title route-segment-title"
+                >{{segment.name}}</view
+              >
+              <view class="route-segment-metrics">
+                <text
+                  wx:for="{{segment.metricChips}}"
+                  wx:for-item="chip"
+                  wx:key="*this"
+                  class="route-segment-chip"
+                  >{{chip}}</text
+                >
+              </view>
+              <view
+                wx:if="{{segment.detailText}}"
+                class="row-meta route-segment-meta"
+                >{{segment.detailText}}</view
+              >
+              <view class="row-meta route-segment-estimate"
+                >{{segment.estimateText}}</view
+              >
+              <view
+                wx:if="{{segment.altitudeText}}"
+                class="row-meta route-segment-altitude"
+                >{{segment.altitudeText}}</view
+              >
+            </view>
+            <view class="route-segment-actions">
+              <button
+                class="edit-inline-button"
+                data-id="{{segment.id}}"
+                catchtap="openEditRouteEditor"
+                loading="{{mutating}}"
+              >
+                编辑
+              </button>
+              <button
+                class="delete-inline-button"
+                data-id="{{segment.id}}"
+                catchtap="confirmDeleteRouteSegment"
+                loading="{{mutating}}"
+              >
+                删除
+              </button>
+            </view>
+          </view>
+        </block>
+      </view>
+      <view wx:if="{{!itineraryDays.length}}" class="state-card">
+        先新增一天，再添加这一天的路段。
+      </view>
+    </view>
+
+    <view wx:elif="{{selectedSection === 'food_plan'}}" class="section">
+      <view class="section-head">
+        <view>
+          <view class="section-title">食品计划</view>
+          <view class="row-meta">食材重量进入背负统计，费用进入财务预算。</view>
+        </view>
+        <button class="small-action" bindtap="openFoodSupplyEditor">
+          公共食材
+        </button>
+      </view>
+      <view wx:if="{{foodBlocked}}" class="state-card"
+        >先添加行程日后才能编辑食品计划。</view
+      >
+      <block wx:else>
+        <view wx:if="{{activeFoodDay}}" class="food-day-switcher">
+          <button
+            class="itinerary-day-switch-button {{canSwitchPrevFoodDay ? '' : 'disabled'}}"
+            disabled="{{!canSwitchPrevFoodDay}}"
+            catchtap="switchPrevFoodDay"
+          >
+            ‹
+          </button>
+          <view class="food-day-pager">
+            {{activeFoodDay.title}} · {{foodDayPagerText}}
+          </view>
+          <button
+            class="itinerary-day-switch-button {{canSwitchNextFoodDay ? '' : 'disabled'}}"
+            disabled="{{!canSwitchNextFoodDay}}"
+            catchtap="switchNextFoodDay"
+          >
+            ›
+          </button>
+        </view>
+        <view wx:if="{{activeFoodDay}}" class="food-workbench">
+          <view class="food-day-summary">
+            <view>
+              <view class="food-day-title">{{activeFoodDay.dateText}}</view>
+              <view class="row-meta">{{activeFoodDay.summaryText}}</view>
+            </view>
+          </view>
+          <block
+            wx:for="{{activeFoodDay.meals}}"
+            wx:for-item="meal"
+            wx:key="id"
+          >
+            <view class="food-meal-card {{meal.skipped ? 'skipped' : ''}}">
+              <view class="food-meal-head">
+                <view class="food-meal-main">
+                  <view class="food-meal-title-row">
+                    <view class="row-title food-meal-title"
+                      >{{meal.label}}</view
+                    >
+                    <view wx:if="{{meal.meal_type}}" class="food-meal-type">
+                      {{meal.meal_type}}
+                    </view>
+                  </view>
+                  <view class="food-meal-dish">{{meal.summaryText}}</view>
+                  <view class="row-meta">
+                    负责人：{{meal.responsibleText}} · {{meal.itemCountText}} ·
+                    {{meal.weightText}}
+                  </view>
+                </view>
+                <view class="food-meal-actions">
+                  <button
+                    class="edit-inline-button"
+                    data-id="{{meal.id}}"
+                    catchtap="openFoodMealEditor"
+                    loading="{{mutating}}"
+                  >
+                    编辑
+                  </button>
+                  <button
+                    class="{{meal.skipped ? 'edit-inline-button' : 'delete-inline-button'}}"
+                    data-id="{{meal.id}}"
+                    catchtap="toggleMealSkip"
+                    loading="{{mutating}}"
+                  >
+                    {{meal.skipped ? '恢复' : '跳过'}}
+                  </button>
+                </view>
+              </view>
+              <view wx:if="{{!meal.skipped}}" class="food-item-list">
+                <view wx:if="{{!meal.items.length}}" class="food-empty">
+                  还没有食材，添加后会计入食材背负重量。
+                </view>
+                <block wx:for="{{meal.items}}" wx:for-item="food" wx:key="id">
+                  <view class="food-item-row">
+                    <view class="food-item-main">
+                      <view class="food-item-title">{{food.name}}</view>
+                      <view class="row-meta">
+                        {{food.weightText}} · {{food.costText}} · 负责人
+                        {{food.responsibleText}}
+                      </view>
+                      <view wx:if="{{food.notesText}}" class="row-meta">
+                        {{food.notesText}}
+                      </view>
+                    </view>
+                    <view class="food-row-actions">
+                      <button
+                        class="edit-inline-button"
+                        data-meal-id="{{meal.id}}"
+                        data-id="{{food.id}}"
+                        catchtap="openFoodItemEditor"
+                        loading="{{mutating}}"
+                      >
+                        编辑
+                      </button>
+                      <button
+                        class="delete-inline-button"
+                        data-meal-id="{{meal.id}}"
+                        data-id="{{food.id}}"
+                        catchtap="confirmDeleteFoodItem"
+                        loading="{{mutating}}"
+                      >
+                        删除
+                      </button>
+                    </view>
+                  </view>
+                </block>
+                <button
+                  class="food-add-button"
+                  data-meal-id="{{meal.id}}"
+                  bindtap="openFoodItemEditor"
+                >
+                  + 添加食材
+                </button>
+              </view>
+            </view>
+          </block>
+        </view>
+        <view wx:if="{{foodSupplyRows.length}}" class="food-supply-section">
+          <view class="section-subtitle">跨餐公共食材</view>
+          <block wx:for="{{foodSupplyRows}}" wx:key="id">
+            <view class="food-item-row food-supply-row">
+              <view class="food-item-main">
+                <view class="food-item-title">{{item.name}}</view>
+                <view class="row-meta">
+                  {{item.typeText}} · {{item.weightText}} · {{item.costText}} ·
+                  负责人 {{item.responsibleText}}
+                </view>
+                <view wx:if="{{item.notesText}}" class="row-meta">
+                  {{item.notesText}}
+                </view>
+              </view>
+              <view class="food-row-actions">
+                <button
+                  class="edit-inline-button"
+                  data-id="{{item.id}}"
+                  catchtap="openFoodSupplyEditor"
+                  loading="{{mutating}}"
+                >
+                  编辑
+                </button>
+                <button
+                  class="delete-inline-button"
+                  data-id="{{item.id}}"
+                  catchtap="confirmDeleteFoodSupply"
+                  loading="{{mutating}}"
+                >
+                  删除
+                </button>
+              </view>
+            </view>
+          </block>
+        </view>
+      </block>
+    </view>
+
+    <view wx:elif="{{selectedSection === 'medical_kit'}}" class="section">
+      <view class="section-head medical-kit-head">
+        <view>
+          <view class="section-title">医药包</view>
+          <view class="row-meta">公共急救和个人药品提醒集中管理。</view>
+        </view>
+        <button
+          class="small-action medical-add-button"
+          bindtap="openMedicalEditor"
+        >
+          新增物品
+        </button>
+      </view>
+      <view wx:if="{{medicalSummary.hasItems}}" class="medical-summary">
+        <view class="medical-summary-cell">
+          <view class="medical-summary-value"
+            >{{medicalSummary.itemCountText}}</view
+          >
+          <view class="medical-summary-label">条目</view>
+        </view>
+        <view class="medical-summary-cell">
+          <view class="medical-summary-value"
+            >{{medicalSummary.requiredText}}</view
+          >
+          <view class="medical-summary-label">计划</view>
+        </view>
+        <view class="medical-summary-cell">
+          <view class="medical-summary-value"
+            >{{medicalSummary.packedText}}</view
+          >
+          <view class="medical-summary-label">已带</view>
+        </view>
+        <view class="medical-summary-cell">
+          <view class="medical-summary-value"
+            >{{medicalSummary.shortageText}}</view
+          >
+          <view class="medical-summary-label">缺少</view>
+        </view>
+      </view>
+      <block wx:for="{{medicalItems}}" wx:key="id">
+        <view class="row-card medical-item-row">
+          <view class="medical-item-main">
+            <view class="medical-item-title-row">
+              <view class="row-title">{{item.name}}</view>
+              <text class="medical-scope-chip {{item.scopeClass}}">
+                {{item.scopeText}}
+              </text>
+            </view>
+            <view class="row-meta">{{item.typeText}}</view>
+            <view class="medical-item-meta">
+              <text>{{item.quantityText}}</text>
+              <text wx:if="{{item.suggestedText}}">{{item.suggestedText}}</text>
+            </view>
+            <text class="medical-status-chip {{item.statusClass}}">
+              {{item.statusText}}
+            </text>
+          </view>
+          <view class="medical-item-actions">
+            <button
+              class="edit-inline-button"
+              data-id="{{item.id}}"
+              catchtap="openEditMedicalEditor"
+              loading="{{mutating}}"
+            >
+              编辑
+            </button>
+            <button
+              class="delete-inline-button"
+              data-id="{{item.id}}"
+              catchtap="confirmDeleteMedicalItem"
+              loading="{{mutating}}"
+            >
+              删除
+            </button>
+          </view>
+        </view>
+      </block>
+      <view wx:if="{{!medicalSummary.hasItems}}" class="medical-empty-state">
+        <view class="medical-empty-title">还没有医药包物品</view>
+        <view class="row-meta">先添加创可贴、弹力绷带、常用药等条目。</view>
+        <button class="sheet-secondary-button" bindtap="openMedicalEditor">
+          新增物品
+        </button>
+      </view>
+    </view>
+
+    <view wx:elif="{{selectedSection === 'safety_plan'}}" class="section">
+      <view class="section-title">安全预案</view>
+      <view class="editor-card">
+        <input
+          value="{{safetyRiskType}}"
+          data-field="safetyRiskType"
+          bindinput="onInput"
+          placeholder="例如：下撤路线 / 失温 / 暴雨"
+        />
+        <textarea
+          value="{{safetyPrevention}}"
+          data-field="safetyPrevention"
+          bindinput="onInput"
+          placeholder="例如：提前确认下撤口、集合点和备用交通"
+        />
+        <textarea
+          value="{{safetyResponse}}"
+          data-field="safetyResponse"
+          bindinput="onInput"
+          placeholder="例如：从 XX 垭口下撤到 XX 村，联系 XX 车辆"
+        />
+        <picker
+          value="{{safetyResponsibleIndex}}"
+          range="{{members}}"
+          range-key="displayName"
+          bindchange="onSafetyResponsibleChange"
+        >
+          <view class="picker-value"
+            >负责人：{{members[safetyResponsibleIndex].displayName ||
+            '选择队员'}}</view
+          >
+        </picker>
+        <button bindtap="addSafetyRisk" loading="{{mutating}}">添加预案</button>
+      </view>
+      <block wx:for="{{safetyRisks}}" wx:key="id">
+        <view class="row-card">
+          <view class="row-title">{{item.risk_type}}</view>
+          <view class="row-meta"
+            >{{item.prevention || '未填写预防'}} · {{item.response ||
+            '未填写处置'}}</view
+          >
+          <button
+            class="delete-inline-button"
+            data-id="{{item.id}}"
+            bindtap="deleteSafetyRisk"
+            loading="{{mutating}}"
+          >
+            删除
+          </button>
+        </view>
+      </block>
+    </view>
+
+    <view wx:elif="{{selectedSection === 'rescue_info'}}" class="section">
+      <view class="section-title">救援信息</view>
+      <view class="editor-card">
+        <input
+          value="{{rescueOrganization}}"
+          data-field="rescueOrganization"
+          bindinput="onInput"
+          placeholder="医院 / 派出所 / 救援队"
+        />
+        <input
+          value="{{rescuePhone}}"
+          data-field="rescuePhone"
+          bindinput="onInput"
+          placeholder="电话"
+        />
+        <input
+          value="{{rescueAddress}}"
+          data-field="rescueAddress"
+          bindinput="onInput"
+          placeholder="地址或位置"
+        />
+        <button bindtap="addRescueContact" loading="{{mutating}}">
+          添加救援信息
+        </button>
+      </view>
+      <block wx:for="{{rescueContacts}}" wx:key="id">
+        <view class="row-card">
+          <view class="row-title">{{item.organization}}</view>
+          <view class="row-meta"
+            >{{item.phone || '未填写电话'}} · {{item.address ||
+            '未填写地址'}}</view
+          >
+          <button
+            class="delete-inline-button"
+            data-id="{{item.id}}"
+            bindtap="deleteRescueContact"
+            loading="{{mutating}}"
+          >
+            删除
+          </button>
+        </view>
+      </block>
+    </view>
+
+    <view wx:elif="{{selectedSection === 'budget'}}" class="section">
+      <view class="section-head">
+        <view class="section-title">财务预算</view>
+        <view class="row-meta"
+          >{{budgetTotalText}} {{budgetPerPersonText}}</view
+        >
+      </view>
+      <view wx:if="{{foodBudgetSummary.visible}}" class="budget-food-summary">
+        <view>
+          <view class="budget-source-kicker">自动纳入</view>
+          <view class="budget-source-title">食品计划食材</view>
+          <view class="row-meta"
+            >{{foodBudgetSummary.itemCountText}} ·
+            {{foodBudgetSummary.pendingText}}</view
+          >
+        </view>
+        <view class="budget-source-amount"
+          >{{foodBudgetSummary.totalText}}</view
+        >
+      </view>
+      <block wx:for="{{budgetItems}}" wx:key="id">
+        <view class="row-card">
+          <view class="row-title">{{item.name}}</view>
+          <view class="row-meta"
+            >{{item.category || '未分类'}} · 数量 {{item.quantity}} ·
+            {{item.linked_shared_gear_deleted ? '原关联装备已删除' :
+            (item.linked_shared_gear_name || '未关联公共装备')}}</view
+          >
+          <button
+            class="delete-inline-button"
+            data-id="{{item.id}}"
+            bindtap="deleteBudgetItem"
+            loading="{{mutating}}"
+          >
+            删除
+          </button>
+        </view>
+      </block>
+      <button class="budget-add-button" bindtap="openBudgetEditor">
+        + 添加预算
+      </button>
+    </view>
+
+    <view wx:elif="{{selectedSection === 'goals'}}" class="section">
+      <view class="section-head">
+        <view>
+          <view class="section-title">目标</view>
+        </view>
+      </view>
+      <block wx:for="{{goals}}" wx:key="id">
+        <view class="row-card goal-row-card">
+          <view class="row-title">{{item.titleText}}</view>
+          <view class="row-meta">{{item.content}}</view>
+          <button
+            class="goal-delete-button"
+            data-id="{{item.id}}"
+            bindtap="deleteGoalItem"
+            loading="{{mutating}}"
+          >
+            ×
+          </button>
+        </view>
+      </block>
+      <button class="goal-add-button" bindtap="openGoalEditor">+</button>
+    </view>
+  </block>
+
+  <view
+    wx:if="{{goalEditorVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeGoalEditor"
+  >
+    <view class="section-sheet goal-editor-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">添加目标</view>
+        </view>
+        <view class="section-sheet-close" bindtap="closeGoalEditor">×</view>
+      </view>
+      <view class="sheet-form">
+        <view class="goal-editor-card">
+          <textarea
+            value="{{goalContent}}"
+            data-field="goalContent"
+            bindinput="onInput"
+            placeholder="例如：安全完成全程；按计划完成三天两夜路线"
+          />
+        </view>
+        <button
+          class="sheet-primary-button"
+          loading="{{mutating}}"
+          bindtap="addGoalItem"
+        >
+          添加目标
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{budgetEditorVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeBudgetEditor"
+  >
+    <view class="section-sheet budget-editor-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">添加预算</view>
+          <view class="section-sheet-desc"
+            >记录交通、住宿、装备采购等手动费用；食材费用会自动纳入。</view
+          >
+        </view>
+        <view class="section-sheet-close" bindtap="closeBudgetEditor">×</view>
+      </view>
+      <view class="sheet-form">
+        <view class="budget-editor-card">
+          <picker
+            value="{{budgetLinkedSharedGearIndex}}"
+            range="{{budgetSharedGearLabels}}"
+            bindchange="onBudgetSharedGearChange"
+          >
+            <view class="picker-value"
+              >关联公共装备：{{budgetSharedGearLabels[budgetLinkedSharedGearIndex]
+              || '不关联'}}</view
+            >
+          </picker>
+          <input
+            value="{{budgetCategory}}"
+            data-field="budgetCategory"
+            bindinput="onInput"
+            placeholder="类目，例如交通 / 装备 / 食品"
+          />
+          <input
+            value="{{budgetName}}"
+            data-field="budgetName"
+            bindinput="onInput"
+            placeholder="预算名称"
+          />
+          <view class="mini-grid">
+            <input
+              value="{{budgetQuantity}}"
+              data-field="budgetQuantity"
+              bindinput="onInput"
+              type="number"
+              placeholder="数量"
+            />
+            <input
+              value="{{budgetUnitPriceYuan}}"
+              data-field="budgetUnitPriceYuan"
+              bindinput="onInput"
+              type="digit"
+              placeholder="单价 元"
+            />
+          </view>
+          <input
+            value="{{budgetSplitMemberCount}}"
+            data-field="budgetSplitMemberCount"
+            bindinput="onInput"
+            type="number"
+            placeholder="分摊人数（可选）"
+          />
+        </view>
+        <button
+          class="sheet-primary-button"
+          bindtap="addBudgetItem"
+          loading="{{mutating}}"
+        >
+          添加预算
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{personalGearActionSheetVisible}}"
+    class="section-sheet-mask"
+    bindtap="closePersonalGearActionSheet"
+  >
+    <view class="section-sheet personal-gear-action-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">添加个人装备</view>
+          <view class="section-sheet-desc"
+            >从打包清单批量导入，或从我的装备里添加单件装备。</view
+          >
+        </view>
+        <view class="section-sheet-close" bindtap="closePersonalGearActionSheet"
+          >×</view
+        >
+      </view>
+      <view class="editor-card personal-gear-action-card sheet-action-card">
+        <view class="personal-gear-action-copy">
+          <view class="label">个人装备清单</view>
+          <view class="action-hint">选择一种方式加入这份计划。</view>
+        </view>
+        <view class="personal-gear-actions">
+          <button bindtap="openImportSheet" loading="{{importLoading}}">
+            导入装备清单
+          </button>
+          <button class="secondary-action" bindtap="openMyGearImportSheet">
+            导入我的装备
+          </button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{sectionSheetVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeSectionSheet"
+  >
+    <view class="section-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">添加计划项</view>
+          <view class="section-sheet-desc">隐藏不会删除已经填写的内容。</view>
+        </view>
+        <view class="section-sheet-close" bindtap="closeSectionSheet">×</view>
+      </view>
+      <view class="section-sheet-list">
+        <view
+          wx:for="{{optionalSections}}"
+          wx:key="key"
+          class="section-sheet-option {{item.enabled ? 'enabled' : ''}}"
+          data-key="{{item.key}}"
+          bindtap="selectOptionalSection"
+        >
+          <view class="section-sheet-option-copy">
+            <view class="section-sheet-option-title">{{item.label}}</view>
+            <view class="section-sheet-option-desc-row">
+              <view class="section-sheet-option-desc"
+                >{{item.enabled ? '已在导航中，点此可隐藏' :
+                '加入这份计划书'}}</view
+              >
+              <view class="section-sheet-loading-slot">
+                <view
+                  wx:if="{{sectionActionLoadingKey === item.key}}"
+                  class="section-sheet-spinner"
+                ></view>
+              </view>
+            </view>
+          </view>
+          <view class="section-sheet-order-controls" catchtap="stopTap">
+            <view
+              class="section-sheet-order-button {{item.canMoveUp ? '' : 'disabled'}}"
+              data-key="{{item.key}}"
+              data-direction="-1"
+              catchtap="moveOptionalSection"
+              >↑</view
+            >
+            <view
+              class="section-sheet-order-button {{item.canMoveDown ? '' : 'disabled'}}"
+              data-key="{{item.key}}"
+              data-direction="1"
+              catchtap="moveOptionalSection"
+              >↓</view
+            >
+          </view>
+          <text class="section-sheet-action-text">{{item.actionText}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{routeEstimateSheetVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeRouteEstimateSheet"
+  >
+    <view class="section-sheet route-estimate-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">估算规则</view>
+          <view class="section-sheet-desc">
+            Naismith 固定启用，坡度和高海拔修正可以同时开启。
+          </view>
+        </view>
+        <view class="section-sheet-close" bindtap="closeRouteEstimateSheet"
+          >×</view
+        >
+      </view>
+      <view class="route-estimate-current">
+        <view class="route-estimate-eyebrow">当前规则</view>
+        <view class="route-estimate-title">{{routeEstimateSummaryText}}</view>
+        <view class="route-estimate-desc">{{routeEstimateDetailText}}</view>
+      </view>
+      <view class="route-estimate-rule-list">
+        <view
+          wx:for="{{routeEstimateRules}}"
+          wx:key="key"
+          class="route-estimate-rule {{item.enabled ? 'enabled' : ''}} {{item.locked ? 'locked' : ''}}"
+          data-key="{{item.key}}"
+          bindtap="toggleRouteEstimateRule"
+        >
+          <view class="route-rule-copy">
+            <view class="route-rule-title-row">
+              <view class="route-rule-title">{{item.title}}</view>
+              <view
+                class="route-rule-info"
+                data-key="{{item.key}}"
+                catchtap="showRouteEstimateRuleInfo"
+                >i</view
+              >
+            </view>
+            <view class="route-rule-desc">{{item.desc}}</view>
+          </view>
+          <view class="route-rule-status">{{item.actionText}}</view>
+        </view>
+      </view>
+      <view
+        wx:if="{{routeUseHighAltitudeAdjustmentDraft}}"
+        class="route-altitude-field"
+      >
+        <view class="field-label required">计划起点海拔</view>
+        <view class="route-altitude-control">
+          <input
+            type="number"
+            value="{{routeStartAltitudeDraft}}"
+            bindinput="onRouteStartAltitudeInput"
+            placeholder="例如 3200"
+          />
+          <text>m</text>
+        </view>
+      </view>
+      <view class="sheet-action-grid route-estimate-actions">
+        <button
+          class="sheet-secondary-button"
+          bindtap="closeRouteEstimateSheet"
+        >
+          取消
+        </button>
+        <button
+          class="sheet-primary-button"
+          loading="{{mutating}}"
+          bindtap="saveRouteEstimateSettings"
+        >
+          保存
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{routeEditorVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeRouteEditor"
+  >
+    <view class="section-sheet route-editor-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title"
+            >{{routeEditorSegmentId ? "编辑路段" : "添加路段"}}</view
+          >
+          <view class="section-sheet-desc"
+            >{{routeEditorSegmentId ? "修改路段信息，保存后会更新当前路段。" :
+            "添加到当前行程日，保存后会自动收起。"}}</view
+          >
+        </view>
+        <view class="section-sheet-close" bindtap="closeRouteEditor">×</view>
+      </view>
+      <scroll-view class="route-editor-scroll" scroll-y>
+        <view class="route-editor-card">
+          <view class="route-editor-section">
+            <view class="route-editor-section-title">基础信息</view>
+            <view class="route-editor-grid">
+              <input
+                value="{{routeName}}"
+                data-field="routeName"
+                bindinput="onInput"
+                placeholder="路段名称"
+              />
+              <input
+                value="{{routeCheckpoint}}"
+                data-field="routeCheckpoint"
+                bindinput="onInput"
+                placeholder="检查点（可选）"
+              />
+            </view>
+          </view>
+          <view class="route-editor-section">
+            <view class="route-editor-section-title">路程数据</view>
+            <view class="route-metric-grid">
+              <view class="route-metric-field">
+                <view class="route-metric-label">距离</view>
+                <view class="route-metric-control">
+                  <input
+                    value="{{routeDistanceKm}}"
+                    data-field="routeDistanceKm"
+                    bindinput="onInput"
+                    placeholder="5"
+                  />
+                  <text class="route-metric-unit">km</text>
+                </view>
+              </view>
+              <view class="route-metric-field">
+                <view class="route-metric-label">爬升</view>
+                <view class="route-metric-control">
+                  <input
+                    value="{{routeAscentM}}"
+                    data-field="routeAscentM"
+                    bindinput="onInput"
+                    placeholder="300"
+                  />
+                  <text class="route-metric-unit">m</text>
+                </view>
+              </view>
+              <view class="route-metric-field">
+                <view class="route-metric-label">下降</view>
+                <view class="route-metric-control">
+                  <input
+                    value="{{routeDescentM}}"
+                    data-field="routeDescentM"
+                    bindinput="onInput"
+                    placeholder="0"
+                  />
+                  <text class="route-metric-unit">m</text>
+                </view>
+              </view>
+            </view>
+          </view>
+          <view class="route-editor-section">
+            <view class="route-editor-section-title">路况补充</view>
+            <input
+              value="{{routeTrailCondition}}"
+              data-field="routeTrailCondition"
+              bindinput="onInput"
+              placeholder="路况描述（可选）"
+            />
+          </view>
+          <button
+            class="sheet-primary-button"
+            data-day-id="{{activeItineraryDay.id}}"
+            bindtap="saveRouteSegment"
+            loading="{{mutating}}"
+          >
+            {{routeEditorSegmentId ? "保存路段" : "添加路段"}}
+          </button>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{dayInfoEditorVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeDayInfoEditor"
+  >
+    <view class="section-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">编辑日信息</view>
+          <view class="section-sheet-desc"
+            >记录当天的天气、温度和营地条件。</view
+          >
+        </view>
+        <view class="section-sheet-close" bindtap="closeDayInfoEditor">×</view>
+      </view>
+      <scroll-view class="member-editor-scroll" scroll-y>
+        <view class="field-label">天气</view>
+        <input
+          value="{{dayInfoForm.weather}}"
+          data-field="weather"
+          bindinput="onDayInfoInput"
+          placeholder="例如：多云转晴"
+        />
+        <view class="mini-grid">
+          <input
+            value="{{dayInfoForm.lowTemperatureC}}"
+            data-field="lowTemperatureC"
+            bindinput="onDayInfoInput"
+            type="number"
+            placeholder="最低温 °C"
+          />
+          <input
+            value="{{dayInfoForm.highTemperatureC}}"
+            data-field="highTemperatureC"
+            bindinput="onDayInfoInput"
+            type="number"
+            placeholder="最高温 °C"
+          />
+        </view>
+        <input
+          value="{{dayInfoForm.weatherSummary}}"
+          data-field="weatherSummary"
+          bindinput="onDayInfoInput"
+          placeholder="结论"
+        />
+        <textarea
+          value="{{dayInfoForm.weatherNotes}}"
+          data-field="weatherNotes"
+          bindinput="onDayInfoInput"
+          placeholder="天气注意事项"
+        />
+        <view class="field-label">营地信息</view>
+        <input
+          value="{{dayInfoForm.campName}}"
+          data-field="campName"
+          bindinput="onDayInfoInput"
+          placeholder="营地名称"
+        />
+        <view class="mini-grid">
+          <input
+            value="{{dayInfoForm.campAltitudeM}}"
+            data-field="campAltitudeM"
+            bindinput="onDayInfoInput"
+            type="number"
+            placeholder="海拔 m"
+          />
+          <input
+            value="{{dayInfoForm.campTerrain}}"
+            data-field="campTerrain"
+            bindinput="onDayInfoInput"
+            placeholder="地形"
+          />
+        </view>
+        <view class="mini-grid">
+          <input
+            value="{{dayInfoForm.campSlope}}"
+            data-field="campSlope"
+            bindinput="onDayInfoInput"
+            placeholder="坡度"
+          />
+          <input
+            value="{{dayInfoForm.campArea}}"
+            data-field="campArea"
+            bindinput="onDayInfoInput"
+            placeholder="面积"
+          />
+        </view>
+        <input
+          value="{{dayInfoForm.campWaterSource}}"
+          data-field="campWaterSource"
+          bindinput="onDayInfoInput"
+          placeholder="水源"
+        />
+        <textarea
+          value="{{dayInfoForm.campNotes}}"
+          data-field="campNotes"
+          bindinput="onDayInfoInput"
+          placeholder="营地备注"
+        />
+        <button
+          class="sheet-primary-button"
+          loading="{{mutating}}"
+          bindtap="saveDayInfo"
+        >
+          保存
+        </button>
+      </scroll-view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{foodMealEditorVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeFoodMealEditor"
+  >
+    <view class="section-sheet food-editor-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title"
+            >编辑{{foodMealEditorMeal.label}}</view
+          >
+          <view class="section-sheet-desc">
+            填写这餐吃什么、谁负责，食材可在餐次卡片里继续添加。
+          </view>
+        </view>
+        <view class="section-sheet-close" bindtap="closeFoodMealEditor">×</view>
+      </view>
+      <view class="sheet-form">
+        <view class="food-editor-section">
+          <view class="route-editor-section-title">餐食信息</view>
+          <input
+            value="{{foodMealForm.mealType}}"
+            data-field="mealType"
+            bindinput="onFoodMealInput"
+            placeholder="餐食类型，例如：热食 / 路餐"
+          />
+          <input
+            value="{{foodMealForm.dishName}}"
+            data-field="dishName"
+            bindinput="onFoodMealInput"
+            placeholder="菜品，例如：番茄牛肉面"
+          />
+        </view>
+        <view class="food-editor-section">
+          <view class="route-editor-section-title">负责人</view>
+          <picker
+            value="{{foodMealForm.responsibleIndex}}"
+            range="{{members}}"
+            range-key="displayName"
+            bindchange="onFoodMealResponsibleChange"
+          >
+            <view class="picker-value">
+              {{members[foodMealForm.responsibleIndex].displayName ||
+              '选择队员'}}
+            </view>
+          </picker>
+        </view>
+        <view class="food-editor-section">
+          <view class="route-editor-section-title">备注</view>
+          <textarea
+            value="{{foodMealForm.notes}}"
+            data-field="notes"
+            bindinput="onFoodMealInput"
+            placeholder="过敏、口味或准备方式（可选）"
+          />
+        </view>
+        <button
+          class="sheet-primary-button"
+          loading="{{mutating}}"
+          bindtap="saveFoodMeal"
+        >
+          保存餐次
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{foodItemEditorVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeFoodItemEditor"
+  >
+    <view class="section-sheet food-editor-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">
+            {{foodItemEditorItem ? '编辑食材' : '添加食材'}}
+          </view>
+          <view class="section-sheet-desc">
+            保存后会计入负责人食材背负重量。
+          </view>
+        </view>
+        <view class="section-sheet-close" bindtap="closeFoodItemEditor">×</view>
+      </view>
+      <view class="sheet-form">
+        <view class="food-editor-section">
+          <view class="route-editor-section-title">基础信息</view>
+          <input
+            value="{{foodItemForm.name}}"
+            data-field="name"
+            bindinput="onFoodItemInput"
+            placeholder="食材名称"
+          />
+          <textarea
+            value="{{foodItemForm.notes}}"
+            data-field="notes"
+            bindinput="onFoodItemInput"
+            placeholder="备注（可选）"
+          />
+        </view>
+        <view class="food-editor-section">
+          <view class="route-editor-section-title">重量与负责人</view>
+          <view class="mini-grid food-editor-two-col">
+            <view>
+              <view class="field-label">总重量 g</view>
+              <input
+                value="{{foodItemForm.amountG}}"
+                data-field="amountG"
+                bindinput="onFoodItemInput"
+                type="number"
+                placeholder="例如 300"
+              />
+            </view>
+            <view>
+              <view class="field-label">食材费用 元</view>
+              <input
+                value="{{foodItemForm.costYuan}}"
+                data-field="costYuan"
+                bindinput="onFoodItemInput"
+                type="digit"
+                placeholder="例如 12.5"
+              />
+            </view>
+            <view class="food-editor-full-field">
+              <view class="field-label">负责人</view>
+              <picker
+                value="{{foodItemForm.responsibleIndex}}"
+                range="{{members}}"
+                range-key="displayName"
+                bindchange="onFoodItemResponsibleChange"
+              >
+                <view class="picker-value">
+                  {{members[foodItemForm.responsibleIndex].displayName ||
+                  '选择队员'}}
+                </view>
+              </picker>
+            </view>
+          </view>
+        </view>
+        <button
+          class="sheet-primary-button"
+          loading="{{mutating}}"
+          bindtap="saveFoodItem"
+        >
+          {{foodItemEditorItem ? '保存食材' : '添加食材'}}
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{foodSupplyEditorVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeFoodSupplyEditor"
+  >
+    <view class="section-sheet food-editor-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">
+            {{foodSupplyEditorItem ? '编辑公共食材' : '添加公共食材'}}
+          </view>
+          <view class="section-sheet-desc">
+            适合调味品、咖啡、备用能量胶等跨餐共享食材。
+          </view>
+        </view>
+        <view class="section-sheet-close" bindtap="closeFoodSupplyEditor"
+          >×</view
+        >
+      </view>
+      <view class="sheet-form">
+        <view class="food-editor-section">
+          <view class="route-editor-section-title">基础信息</view>
+          <input
+            value="{{foodSupplyForm.name}}"
+            data-field="name"
+            bindinput="onFoodSupplyInput"
+            placeholder="例如：盐、油、咖啡"
+          />
+          <input
+            value="{{foodSupplyForm.supplyType}}"
+            data-field="supplyType"
+            bindinput="onFoodSupplyInput"
+            placeholder="类型，例如：调味品 / 饮品"
+          />
+          <textarea
+            value="{{foodSupplyForm.notes}}"
+            data-field="notes"
+            bindinput="onFoodSupplyInput"
+            placeholder="备注（可选）"
+          />
+        </view>
+        <view class="food-editor-section">
+          <view class="route-editor-section-title">重量与负责人</view>
+          <view class="mini-grid food-editor-two-col">
+            <view>
+              <view class="field-label">总重量 g</view>
+              <input
+                value="{{foodSupplyForm.amountG}}"
+                data-field="amountG"
+                bindinput="onFoodSupplyInput"
+                type="number"
+                placeholder="例如 100"
+              />
+            </view>
+            <view>
+              <view class="field-label">食材费用 元</view>
+              <input
+                value="{{foodSupplyForm.costYuan}}"
+                data-field="costYuan"
+                bindinput="onFoodSupplyInput"
+                type="digit"
+                placeholder="例如 8"
+              />
+            </view>
+            <view class="food-editor-full-field">
+              <view class="field-label">负责人</view>
+              <picker
+                value="{{foodSupplyForm.responsibleIndex}}"
+                range="{{members}}"
+                range-key="displayName"
+                bindchange="onFoodSupplyResponsibleChange"
+              >
+                <view class="picker-value">
+                  {{members[foodSupplyForm.responsibleIndex].displayName ||
+                  '选择队员'}}
+                </view>
+              </picker>
+            </view>
+          </view>
+        </view>
+        <button
+          class="sheet-primary-button"
+          loading="{{mutating}}"
+          bindtap="saveFoodSupply"
+        >
+          {{foodSupplyEditorItem ? '保存公共食材' : '添加公共食材'}}
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{medicalEditorVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeMedicalEditor"
+  >
+    <view class="section-sheet medical-editor-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">
+            {{medicalEditorItem ? '编辑物品' : '新增物品'}}
+          </view>
+          <view class="section-sheet-desc">
+            记录药品、急救用品和需要提醒携带的个人药品。
+          </view>
+        </view>
+        <view class="section-sheet-close" bindtap="closeMedicalEditor">×</view>
+      </view>
+      <view class="sheet-form">
+        <view class="medical-editor-section">
+          <view class="route-editor-section-title">基础信息</view>
+          <input
+            value="{{medicalForm.name}}"
+            data-field="name"
+            bindinput="onMedicalFormInput"
+            placeholder="药品或急救用品"
+          />
+          <input
+            value="{{medicalForm.itemType}}"
+            data-field="itemType"
+            bindinput="onMedicalFormInput"
+            placeholder="分类，例如：外伤 / 常用药"
+          />
+        </view>
+        <view class="medical-editor-section">
+          <view class="route-editor-section-title">使用范围</view>
+          <picker
+            value="{{medicalScopeIndex}}"
+            range="{{medicalScopeLabels}}"
+            bindchange="onMedicalScopeChange"
+          >
+            <view class="picker-value">
+              {{medicalScopeLabels[medicalScopeIndex] || '公共急救用品'}}
+            </view>
+          </picker>
+        </view>
+        <view class="medical-editor-section">
+          <view class="route-editor-section-title">数量</view>
+          <view class="mini-grid medical-quantity-grid">
+            <view>
+              <view class="field-label">计划数量</view>
+              <input
+                value="{{medicalForm.requiredQuantity}}"
+                data-field="requiredQuantity"
+                bindinput="onMedicalFormInput"
+                type="number"
+                placeholder="例如 2"
+              />
+            </view>
+            <view>
+              <view class="field-label">已带数量</view>
+              <input
+                value="{{medicalForm.packedQuantity}}"
+                data-field="packedQuantity"
+                bindinput="onMedicalFormInput"
+                type="number"
+                placeholder="例如 1"
+              />
+            </view>
+            <view>
+              <view class="field-label">建议数量</view>
+              <input
+                value="{{medicalForm.suggestedQuantity}}"
+                data-field="suggestedQuantity"
+                bindinput="onMedicalFormInput"
+                type="number"
+                placeholder="可选"
+              />
+            </view>
+          </view>
+        </view>
+        <button
+          class="sheet-primary-button"
+          loading="{{mutating}}"
+          bindtap="saveMedicalItem"
+        >
+          {{medicalEditorItem ? '保存物品' : '添加物品'}}
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{importSheetVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeImportSheet"
+  >
+    <view class="section-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">导入装备清单</view>
+          <view class="section-sheet-desc"
+            >导入后会生成当前计划的装备快照。</view
+          >
+        </view>
+        <view class="section-sheet-close" bindtap="closeImportSheet">×</view>
+      </view>
+      <view wx:if="{{importError}}" class="sheet-state error">
+        {{importError}}
+      </view>
+      <view wx:elif="{{importLoading}}" class="sheet-state">
+        正在加载打包清单...
+      </view>
+      <view wx:elif="{{!importLists.length}}" class="sheet-state">
+        暂无可导入的打包清单
+      </view>
+      <view wx:else class="import-list">
+        <button
+          wx:for="{{importLists}}"
+          wx:key="id"
+          class="import-list-option"
+          data-id="{{item.id}}"
+          loading="{{mutating}}"
+          bindtap="selectImportPackingList"
+        >
+          <view class="import-list-main">
+            <view class="import-list-title">{{item.name}}</view>
+            <view class="import-list-meta">{{item.metaText}}</view>
+          </view>
+          <view class="import-list-stats">
+            <text>{{item.progressText}}</text>
+            <text>{{item.weightText}}</text>
+          </view>
+        </button>
+        <button
+          wx:if="{{importNextCursor}}"
+          class="load-sheet-more"
+          loading="{{importLoadingMore}}"
+          bindtap="loadMoreImportLists"
+        >
+          继续加载
+        </button>
+      </view>
+      <button
+        class="sheet-secondary-button"
+        bindtap="goCreateReusablePackingList"
+      >
+        新建装备清单
+      </button>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{sharedSlotSheetVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeSharedSlotSheet"
+  >
+    <view class="section-sheet shared-slot-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">
+            {{selectedSharedGearSlot.slotName}}
+          </view>
+          <view class="section-sheet-desc">
+            {{selectedSharedGearSlot.slotGroup}} ·
+            {{selectedSharedGearSlot.categoryLabel}}
+          </view>
+        </view>
+        <view class="section-sheet-close" bindtap="closeSharedSlotSheet"
+          >×</view
+        >
+      </view>
+      <view class="sheet-form">
+        <view
+          wx:if="{{selectedSharedGearSlot.hasConcreteGear}}"
+          class="slot-current"
+        >
+          <view class="field-label">当前具体装备</view>
+          <view class="slot-current-name"
+            >{{selectedSharedGearSlot.concreteName}}</view
+          >
+          <view class="row-meta">
+            {{selectedSharedGearSlot.weightText}} · 归属
+            {{selectedSharedGearSlot.sourceText}}
+          </view>
+        </view>
+        <view wx:else class="slot-current empty">
+          <view class="slot-current-name">待填写具体装备</view>
+          <view class="row-meta">未绑定前不计入公共装备背负统计</view>
+        </view>
+        <view class="mini-grid">
+          <view>
+            <view class="field-label required">总需求量</view>
+            <input
+              type="number"
+              value="{{sharedSlotPlannedQuantity}}"
+              bindinput="onSharedSlotQuantityInput"
+              placeholder="1"
+            />
+          </view>
+          <view>
+            <view class="field-label required">负责人</view>
+            <picker
+              value="{{sharedSlotResponsibleIndex}}"
+              range="{{members}}"
+              range-key="displayName"
+              bindchange="onSharedSlotResponsibleChange"
+            >
+              <view class="picker-value">
+                {{members[sharedSlotResponsibleIndex].displayName ||
+                '选择队员'}}
+              </view>
+            </picker>
+          </view>
+        </view>
+        <button
+          class="sheet-secondary-button"
+          loading="{{mutating}}"
+          bindtap="saveSharedSlotDemand"
+        >
+          保存需求设置
+        </button>
+        <view class="sheet-action-grid">
+          <button
+            class="sheet-primary-button"
+            bindtap="openSharedSlotImportSheet"
+          >
+            导入我的装备
+          </button>
+          <button
+            class="sheet-secondary-button"
+            bindtap="openSharedSlotConcreteForm"
+          >
+            手动填写具体装备
+          </button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{sharedSlotFormVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeSharedSlotForm"
+  >
+    <view class="section-sheet shared-slot-form-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">新增公共装备需求</view>
+          <view class="section-sheet-desc">
+            先保存需求项，之后再导入或填写具体装备。
+          </view>
+        </view>
+        <view class="section-sheet-close" bindtap="closeSharedSlotForm">×</view>
+      </view>
+      <view class="sheet-form">
+        <view class="field-label required">需求名称</view>
+        <input
+          value="{{sharedSlotForm.name}}"
+          data-field="name"
+          bindinput="onSharedSlotFormInput"
+          placeholder="例如 炉头"
+        />
+        <view class="field-label">需求分类</view>
+        <picker
+          value="{{sharedSlotCategoryIndex}}"
+          range="{{gearCategoryLabels}}"
+          bindchange="onSharedSlotCategoryChange"
+        >
+          <view class="picker-value">
+            {{gearCategoryLabels[sharedSlotCategoryIndex]}}
+          </view>
+        </picker>
+        <view class="mini-grid">
+          <view>
+            <view class="field-label required">总需求量</view>
+            <input
+              type="number"
+              value="{{sharedSlotForm.plannedQuantity}}"
+              data-field="plannedQuantity"
+              bindinput="onSharedSlotFormInput"
+              placeholder="1"
+            />
+          </view>
+          <view>
+            <view class="field-label required">默认负责人</view>
+            <picker
+              value="{{sharedSlotResponsibleIndex}}"
+              range="{{members}}"
+              range-key="displayName"
+              bindchange="onSharedSlotResponsibleChange"
+            >
+              <view class="picker-value">
+                {{members[sharedSlotResponsibleIndex].displayName ||
+                '选择队员'}}
+              </view>
+            </picker>
+          </view>
+        </view>
+        <button
+          class="sheet-primary-button"
+          loading="{{mutating}}"
+          bindtap="createSharedSlotOnly"
+        >
+          新增需求项
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{myGearImportSheetVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeMyGearImportSheet"
+  >
+    <view class="section-sheet my-gear-import-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title"
+            >{{myGearImportTarget === 'shared' ? '导入到公共装备需求' :
+            '导入我的装备'}}</view
+          >
+          <view class="section-sheet-desc"
+            >{{myGearImportTarget === 'shared' ?
+            '选择一件已有装备，绑定到当前公共装备需求。' :
+            '选择一件已有装备，导入为当前计划的装备快照。'}}</view
+          >
+        </view>
+        <view class="section-sheet-close" bindtap="closeMyGearImportSheet"
+          >×</view
+        >
+      </view>
+
+      <view class="my-gear-import-filter">
+        <input
+          value="{{myGearImportQ}}"
+          placeholder="搜索装备名、品牌、型号"
+          confirm-type="search"
+          bindinput="onMyGearImportSearchInput"
+          bindconfirm="submitMyGearImportSearch"
+        />
+        <view class="my-gear-import-filter-actions">
+          <button bindtap="submitMyGearImportSearch">搜索</button>
+          <button
+            wx:if="{{myGearImportQ}}"
+            class="secondary-action"
+            bindtap="clearMyGearImportSearch"
+          >
+            清除
+          </button>
+        </view>
+        <view class="mini-grid">
+          <picker
+            value="{{myGearImportCategoryIndex}}"
+            range="{{myGearImportCategoryLabels}}"
+            bindchange="onMyGearImportCategoryChange"
+          >
+            <view class="picker-value"
+              >{{myGearImportCategoryLabels[myGearImportCategoryIndex]}}</view
+            >
+          </picker>
+          <picker
+            value="{{myGearImportStatusIndex}}"
+            range="{{myGearImportStatusLabels}}"
+            bindchange="onMyGearImportStatusChange"
+          >
+            <view class="picker-value"
+              >{{myGearImportStatusLabels[myGearImportStatusIndex]}}</view
+            >
+          </picker>
+        </view>
+      </view>
+
+      <view wx:if="{{myGearImportError}}" class="sheet-state error">
+        {{myGearImportError}}
+      </view>
+      <view wx:elif="{{myGearImportLoading}}" class="sheet-state">
+        正在加载我的装备...
+      </view>
+      <view wx:elif="{{!myGearImportItems.length}}" class="sheet-state">
+        没有符合条件的装备
+      </view>
+      <view wx:else class="my-gear-import-list">
+        <button
+          wx:for="{{myGearImportItems}}"
+          wx:key="id"
+          class="my-gear-import-option"
+          data-id="{{item.id}}"
+          loading="{{mutating}}"
+          bindtap="importMyGearItem"
+        >
+          <view class="import-list-main">
+            <view class="import-list-title">{{item.name}}</view>
+            <view class="import-list-meta">{{item.brandModelText}}</view>
+            <view class="gear-tags">
+              <text>{{item.categoryText}}</text>
+              <text>{{item.statusText}}</text>
+              <text>{{item.quantityText}}</text>
+              <text>{{item.weightText}}</text>
+            </view>
+          </view>
+        </button>
+        <button
+          wx:if="{{myGearImportNextCursor}}"
+          class="load-sheet-more"
+          loading="{{myGearImportLoadingMore}}"
+          bindtap="loadMoreMyGearImportItems"
+        >
+          继续加载
+        </button>
+      </view>
+      <button class="sheet-secondary-button" bindtap="openPlanGearForm">
+        {{myGearImportTarget === 'shared' ? '手动填写具体装备' :
+        '手动添加计划装备'}}
+      </button>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{planGearFormVisible}}"
+    class="section-sheet-mask"
+    bindtap="closePlanGearForm"
+  >
+    <view class="section-sheet plan-gear-form-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title"
+            >{{planGearFormTarget === 'shared' ? '填写具体装备' :
+            '只加到本计划'}}</view
+          >
+          <view
+            wx:if="{{planGearFormTarget === 'shared'}}"
+            class="section-sheet-desc"
+            >为「{{selectedSharedGearSlot.slotName}}」填写实际装备；保存后按数量和单件重量计入公共装备统计。</view
+          >
+        </view>
+        <view class="section-sheet-close" bindtap="closePlanGearForm">×</view>
+      </view>
+      <view class="sheet-form">
+        <view class="field-label required">
+          {{planGearFormTarget === 'shared' ? '具体装备名称' : '装备名称'}}
+        </view>
+        <input
+          value="{{planGearForm.name}}"
+          data-field="name"
+          bindinput="onPlanGearInput"
+          placeholder="{{planGearFormTarget === 'shared' ? '例如 火枫 xxx' : '例如 防水袋'}}"
+        />
+        <view wx:if="{{planGearFormTarget === 'shared'}}">
+          <view class="field-label">需求分类</view>
+          <view class="picker-value"
+            >{{gearCategoryLabels[planGearCategoryIndex]}}</view
+          >
+        </view>
+        <view wx:else class="field-label">装备分类</view>
+        <picker
+          wx:if="{{planGearFormTarget !== 'shared'}}"
+          value="{{planGearCategoryIndex}}"
+          range="{{gearCategoryLabels}}"
+          bindchange="onPlanGearCategoryChange"
+        >
+          <view class="picker-value"
+            >{{gearCategoryLabels[planGearCategoryIndex]}}</view
+          >
+        </picker>
+        <view class="mini-grid">
+          <view>
+            <view class="field-label">数量</view>
+            <input
+              type="number"
+              value="{{planGearForm.plannedQuantity}}"
+              data-field="plannedQuantity"
+              bindinput="onPlanGearInput"
+              placeholder="1"
+            />
+          </view>
+          <view>
+            <view class="field-label">单件重量 g</view>
+            <input
+              type="number"
+              value="{{planGearForm.unitWeightG}}"
+              data-field="unitWeightG"
+              bindinput="onPlanGearInput"
+              placeholder="可选"
+            />
+          </view>
+        </view>
+        <view class="mini-grid">
+          <view>
+            <view class="field-label">品牌</view>
+            <input
+              value="{{planGearForm.brand}}"
+              data-field="brand"
+              bindinput="onPlanGearInput"
+              placeholder="可选"
+            />
+          </view>
+          <view>
+            <view class="field-label">型号</view>
+            <input
+              value="{{planGearForm.model}}"
+              data-field="model"
+              bindinput="onPlanGearInput"
+              placeholder="可选"
+            />
+          </view>
+        </view>
+        <view wx:if="{{planGearFormTarget === 'shared'}}">
+          <view class="field-label required">负责人（背负/保管）</view>
+          <picker
+            value="{{sharedResponsibleIndex}}"
+            range="{{members}}"
+            range-key="displayName"
+            bindchange="onResponsibleChange"
+          >
+            <view class="picker-value"
+              >{{members[sharedResponsibleIndex].displayName ||
+              '选择队员'}}</view
+            >
+          </picker>
+        </view>
+        <view class="field-label">备注</view>
+        <input
+          value="{{planGearForm.notes}}"
+          data-field="notes"
+          bindinput="onPlanGearInput"
+          placeholder="可选"
+        />
+        <button
+          class="sheet-primary-button"
+          loading="{{mutating}}"
+          bindtap="createPlanGearOnly"
+        >
+          {{planGearFormTarget === 'shared' ? '保存具体装备' : '添加到计划'}}
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{memberEditorVisible}}"
+    class="section-sheet-mask"
+    bindtap="closeMemberEditor"
+  >
+    <view class="section-sheet member-editor-sheet" catchtap="stopTap">
+      <view class="section-sheet-head">
+        <view>
+          <view class="section-sheet-title">编辑成员信息</view>
+          <view class="section-sheet-desc"
+            >这些信息只保存在当前组队计划书里。</view
+          >
+        </view>
+        <view class="section-sheet-close" bindtap="closeMemberEditor">×</view>
+      </view>
+      <scroll-view class="member-editor-scroll" scroll-y>
+        <button
+          wx:if="{{memberEditorMember && memberEditorMember.isMine}}"
+          class="sheet-secondary-button"
+          loading="{{mutating}}"
+          bindtap="importMyOutdoorProfile"
+        >
+          一键导入我的资料
+        </button>
+
+        <view class="field-label required">显示名</view>
+        <input
+          value="{{memberEditorForm.displayName}}"
+          data-field="displayName"
+          bindinput="onMemberEditorInput"
+          placeholder="成员显示名"
+        />
+
+        <view class="mini-grid">
+          <view>
+            <view class="field-label">户外 ID</view>
+            <input
+              value="{{memberEditorForm.outdoorId}}"
+              data-field="outdoorId"
+              bindinput="onMemberEditorInput"
+              placeholder="例如：星星"
+            />
+          </view>
+          <view>
+            <view class="field-label">姓名</view>
+            <input
+              value="{{memberEditorForm.realName}}"
+              data-field="realName"
+              bindinput="onMemberEditorInput"
+              placeholder="真实姓名"
+            />
+          </view>
+        </view>
+
+        <view class="mini-grid">
+          <view>
+            <view class="field-label">性别</view>
+            <picker
+              value="{{memberGenderIndex}}"
+              range="{{memberGenderOptions}}"
+              bindchange="onMemberGenderChange"
+            >
+              <view class="picker-value"
+                >{{memberEditorForm.gender || '未填写'}}</view
+              >
+            </picker>
+          </view>
+          <view>
+            <view class="field-label">年龄</view>
+            <input
+              value="{{memberEditorForm.age}}"
+              data-field="age"
+              bindinput="onMemberEditorInput"
+              type="number"
+              placeholder="例如：32"
+            />
+          </view>
+        </view>
+
+        <view class="mini-grid">
+          <view>
+            <view class="field-label">身高 cm</view>
+            <input
+              value="{{memberEditorForm.heightCm}}"
+              data-field="heightCm"
+              bindinput="onMemberEditorInput"
+              type="number"
+              placeholder="例如：176"
+            />
+          </view>
+          <view>
+            <view class="field-label">血型</view>
+            <picker
+              value="{{memberBloodTypeIndex}}"
+              range="{{memberBloodTypeOptions}}"
+              bindchange="onMemberBloodTypeChange"
+            >
+              <view class="picker-value"
+                >{{memberEditorForm.bloodType || '未填写'}}</view
+              >
+            </picker>
+          </view>
+        </view>
+
+        <view class="field-label">联系电话</view>
+        <input
+          value="{{memberEditorForm.phone}}"
+          data-field="phone"
+          bindinput="onMemberEditorInput"
+          type="number"
+          placeholder="手机号"
+        />
+
+        <view class="field-label">紧急联系人</view>
+        <input
+          value="{{memberEditorForm.emergencyContact}}"
+          data-field="emergencyContact"
+          bindinput="onMemberEditorInput"
+          placeholder="姓名"
+        />
+
+        <view class="field-label">紧急联系人关系</view>
+        <input
+          value="{{memberEditorForm.emergencyContactRelationship}}"
+          data-field="emergencyContactRelationship"
+          bindinput="onMemberEditorInput"
+          placeholder="例如：家属 / 朋友"
+        />
+
+        <view class="field-label">紧急联系人电话</view>
+        <input
+          value="{{memberEditorForm.emergencyPhone}}"
+          data-field="emergencyPhone"
+          bindinput="onMemberEditorInput"
+          type="number"
+          placeholder="联系电话"
+        />
+
+        <view class="field-label">既往病</view>
+        <textarea
+          value="{{memberEditorForm.medicalHistory}}"
+          data-field="medicalHistory"
+          bindinput="onMemberEditorInput"
+          placeholder="无或简要说明"
+        />
+
+        <view class="field-label">过敏史</view>
+        <textarea
+          value="{{memberEditorForm.allergyHistory}}"
+          data-field="allergyHistory"
+          bindinput="onMemberEditorInput"
+          placeholder="无或简要说明"
+        />
+
+        <view class="field-label">过敏 / 伤病处理方法</view>
+        <textarea
+          value="{{memberEditorForm.medicalResponseNote}}"
+          data-field="medicalResponseNote"
+          bindinput="onMemberEditorInput"
+          placeholder="例如：随身药、禁忌或处置方式"
+        />
+
+        <view class="field-label">饮食习惯</view>
+        <input
+          value="{{memberEditorForm.dietPreference}}"
+          data-field="dietPreference"
+          bindinput="onMemberEditorInput"
+          placeholder="例如：清真 / 素食 / 不吃牛羊肉"
+        />
+
+        <view class="field-label">保险单号</view>
+        <input
+          value="{{memberEditorForm.insurancePolicyNo}}"
+          data-field="insurancePolicyNo"
+          bindinput="onMemberEditorInput"
+          placeholder="户外保险单号"
+        />
+
+        <view class="field-label">保险公司电话</view>
+        <input
+          value="{{memberEditorForm.insuranceCompanyPhone}}"
+          data-field="insuranceCompanyPhone"
+          bindinput="onMemberEditorInput"
+          placeholder="保险报案电话"
+        />
+
+        <view class="field-label">户外经历 / 经验</view>
+        <textarea
+          value="{{memberEditorForm.experienceNote}}"
+          data-field="experienceNote"
+          bindinput="onMemberEditorInput"
+          placeholder="例如：四姑娘山三峰，贡嘎环线等"
+        />
+
+        <view class="field-label">角色分工</view>
+        <view class="role-option-row">
+          <block wx:for="{{memberRoleOptions}}" wx:key="label">
+            <button
+              class="role-option {{item.selected ? 'selected' : ''}}"
+              data-label="{{item.label}}"
+              bindtap="toggleMemberRoleOption"
+            >
+              {{item.label}}
+            </button>
+          </block>
+        </view>
+        <input
+          value="{{memberEditorForm.roleLabel}}"
+          data-field="roleLabel"
+          bindinput="onMemberEditorInput"
+          placeholder="选择常见分工或自定义"
+        />
+
+        <button
+          class="sheet-primary-button"
+          loading="{{mutating}}"
+          bindtap="saveMemberProfile"
+        >
+          保存成员信息
+        </button>
+      </scroll-view>
+    </view>
+  </view>
+
+  <view
+    wx:if="{{inviteVisible}}"
+    class="invite-mask"
+    bindtap="closeInvitePanel"
+  >
+    <view class="invite-panel" catchtap="stopTap">
+      <view class="invite-title">邀请队员加入</view>
+      <view class="invite-desc">邀请说明已复制，也可以直接分享到微信群。</view>
+      <view class="invite-token">{{inviteToken}}</view>
+      <view class="invite-actions">
+        <button open-type="share" class="primary">分享微信群</button>
+        <button class="secondary" bindtap="copyInviteToken">复制口令</button>
+      </view>
+      <button class="ghost" bindtap="closeInvitePanel">完成</button>
+    </view>
+  </view>
+
+  <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">
+    <view class="login-prompt-card">
+      <view class="login-prompt-close" bindtap="loginPromptClose">×</view>
+      <view class="login-prompt-title">{{loginPrompt.title}}</view>
+      <view class="login-prompt-message">{{loginPrompt.message}}</view>
+      <view class="login-prompt-actions">
+        <button class="secondary" bindtap="loginPromptClose">先不登录</button>
+        <button class="primary" bindtap="loginPromptGoLogin">去登录</button>
+      </view>
+    </view>
+  </view>
+</view>

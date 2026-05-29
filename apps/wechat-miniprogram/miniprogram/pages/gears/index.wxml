@@ -1,54 +1,33 @@
 <view class="gear-page {{themeClass}}">
-  <view class="hero-card">
-    <view>
-      <view class="eyebrow">寻径星野装备库</view>
-      <view class="hero-title"
-        >{{isLoggedIn ? '我的户外装备' : '户外装备库'}}</view
-      >
-      <view class="hero-subtitle"
-        >{{isLoggedIn ? '按分类、状态和关键词快速管理装备。' :
-        '可以先浏览装备图鉴和户外技能；登录后记录自己的装备。'}}</view
-      >
-    </view>
-    <button class="primary-action" bindtap="goCreate">+ 添加</button>
-  </view>
-
   <view wx:if="{{offlineNotice}}" class="offline-notice"
     >{{offlineNotice}}</view
   >
 
-  <view class="atlas-entry-card" bindtap="goGearAtlas">
-    <view class="atlas-entry-main">
-      <view class="atlas-entry-icon" aria-hidden="true">
-        <view class="book-icon">
-          <view class="book-page left"></view>
-          <view class="book-page right"></view>
-        </view>
-      </view>
-      <view class="atlas-entry-copy">
-        <view class="atlas-entry-title">装备图鉴</view>
-        <view class="atlas-entry-desc">浏览已审核收录的市面装备</view>
-      </view>
-    </view>
-    <view class="atlas-entry-cta">去浏览 ›</view>
-  </view>
-
-  <view class="atlas-entry-card packing-entry-card" bindtap="goPackingLists">
-    <view class="atlas-entry-main">
-      <view class="atlas-entry-icon packing-entry-icon" aria-hidden="true">
-        <view class="packing-check">✓</view>
-      </view>
-      <view class="atlas-entry-copy">
-        <view class="atlas-entry-title">打包清单</view>
-        <view class="atlas-entry-desc">按路线挑选并勾选出发装备</view>
-      </view>
-    </view>
-    <view class="atlas-entry-cta">去准备 ›</view>
-  </view>
-
   <block wx:if="{{!isLoggedIn}}">
+    <view class="quick-entry-grid guest-quick-entry">
+      <button class="quick-entry-card" bindtap="goGearAtlas">
+        <view class="quick-entry-icon book-icon-wrap" aria-hidden="true">
+          <view class="book-icon">
+            <view class="book-page left"></view>
+            <view class="book-page right"></view>
+          </view>
+        </view>
+        <view class="quick-entry-copy">
+          <view class="quick-entry-title">装备图鉴</view>
+          <view class="quick-entry-desc">浏览市面装备</view>
+        </view>
+      </button>
+      <button class="quick-entry-card" bindtap="goPackingLists">
+        <view class="quick-entry-icon packing-entry-icon" aria-hidden="true">
+          <view class="packing-check">✓</view>
+        </view>
+        <view class="quick-entry-copy">
+          <view class="quick-entry-title">打包清单</view>
+          <view class="quick-entry-desc">准备出发物品</view>
+        </view>
+      </button>
+    </view>
     <view class="guest-card">
-      <view class="guest-icon">🎒</view>
       <view>
         <view class="guest-title">未登录也可先浏览</view>
         <view class="guest-desc"
@@ -60,101 +39,81 @@
   </block>
 
   <block wx:else>
-    <view class="stats-grid">
-      <block wx:for="{{statCards}}" wx:key="label">
-        <view class="stat-card">
-          <view class="stat-value">{{item.value}}</view>
-          <view class="stat-label">{{item.label}}</view>
-          <view class="stat-hint">{{item.hint}}</view>
+    <view class="quick-entry-grid">
+      <button class="quick-entry-card" bindtap="goGearAtlas">
+        <view class="quick-entry-icon book-icon-wrap" aria-hidden="true">
+          <view class="book-icon">
+            <view class="book-page left"></view>
+            <view class="book-page right"></view>
+          </view>
         </view>
-      </block>
+        <view class="quick-entry-copy">
+          <view class="quick-entry-title">装备图鉴</view>
+          <view class="quick-entry-desc">浏览市面装备</view>
+        </view>
+      </button>
+      <button class="quick-entry-card" bindtap="goPackingLists">
+        <view class="quick-entry-icon packing-entry-icon" aria-hidden="true">
+          <view class="packing-check">✓</view>
+        </view>
+        <view class="quick-entry-copy">
+          <view class="quick-entry-title">打包清单</view>
+          <view class="quick-entry-desc">准备出发物品</view>
+        </view>
+      </button>
     </view>
 
-    <view class="tab-card">
-      <view class="tab-card-header">
-        <view class="tab-card-title">列表范围</view>
-        <view class="tab-card-hint"
-          >{{tab === 'available' ? '当前可用' : '已归档'}}</view
-        >
+    <view class="stats-panel">
+      <view class="stats-panel-header">
+        <view class="stats-panel-title">当前库存汇总</view>
+        <button class="stats-detail-link" bindtap="goStatsDetail">
+          详细统计
+        </button>
       </view>
-      <view class="tab-switch">
-        <block wx:for="{{tabOptions}}" wx:key="value">
-          <view
-            class="tab-item {{tab === item.value ? 'active' : ''}}"
-            data-value="{{item.value}}"
-            bindtap="switchTab"
-          >
-            <text class="tab-item-title">{{item.label}}</text>
-            <text class="tab-item-hint"
-              >{{item.value === 'available' ? '当前库存' : '归档记录'}}</text
-            >
+      <view class="stats-grid">
+        <block wx:for="{{statCards}}" wx:key="label">
+          <view class="stat-card">
+            <view class="stat-value">{{item.value}}</view>
+            <view class="stat-label">{{item.label}}</view>
           </view>
         </block>
       </view>
     </view>
 
-    <view class="filter-panel">
-      <view class="filter-panel-header">
-        <view class="filter-panel-title">筛选</view>
-        <view class="filter-panel-hint">分类、状态、排序</view>
+    <view class="gear-toolbar">
+      <view class="toolbar-search">
+        <input
+          class="toolbar-search-input"
+          value="{{q}}"
+          placeholder="搜索装备名、品牌、型号"
+          confirm-type="search"
+          bindinput="onSearchInput"
+          bindconfirm="submitSearch"
+        />
+        <button wx:if="{{q}}" class="toolbar-clear" bindtap="clearSearch">
+          ×
+        </button>
       </view>
-
-      <view class="filter-section-label">分类</view>
-      <scroll-view class="category-scroll" scroll-x enable-flex>
-        <block wx:for="{{categories}}" wx:key="id">
-          <view
-            class="category-chip {{selectedCategory === item.id ? 'active' : ''}}"
-            data-id="{{item.id}}"
-            bindtap="selectCategory"
-          >
-            <text>{{item.label}}</text>
-            <text class="chip-count">{{item.count}}</text>
-          </view>
-        </block>
-      </scroll-view>
-
-      <view class="filter-select-grid">
-        <picker
-          class="filter-select-picker"
-          value="{{selectedStatusIndex}}"
-          range="{{statusLabels}}"
-          bindchange="onStatusChange"
+      <button
+        class="toolbar-filter {{activeFilterCount ? 'active' : ''}}"
+        bindtap="openFilterSheet"
+      >
+        筛选
+        <text wx:if="{{activeFilterCount}}" class="toolbar-filter-count"
+          >{{activeFilterCount}}</text
         >
-          <view class="filter-select">
-            <text class="filter-label">状态</text>
-            <text class="filter-value"
-              >{{statusLabels[selectedStatusIndex]}}</text
-            >
-            <text class="filter-caret">⌄</text>
-          </view>
-        </picker>
-        <picker
-          class="filter-select-picker"
-          value="{{selectedSortIndex}}"
-          range="{{sortLabels}}"
-          bindchange="onSortChange"
-        >
-          <view class="filter-select">
-            <text class="filter-label">排序</text>
-            <text class="filter-value">{{sortLabels[selectedSortIndex]}}</text>
-            <text class="filter-caret">⌄</text>
-          </view>
-        </picker>
-      </view>
+      </button>
+      <button class="toolbar-add" bindtap="goCreate">+</button>
     </view>
 
-    <view class="search-card">
-      <input
-        class="search-input"
-        value="{{q}}"
-        placeholder="搜索装备名、品牌、型号"
-        confirm-type="search"
-        bindinput="onSearchInput"
-        bindconfirm="submitSearch"
-      />
-      <button class="search-button" bindtap="submitSearch">搜索</button>
-      <button wx:if="{{q}}" class="clear-button" bindtap="clearSearch">
-        清除
+    <view class="filter-summary">
+      <view class="filter-summary-text">{{activeFilterText}}</view>
+      <button
+        wx:if="{{activeFilterCount}}"
+        class="filter-summary-reset"
+        bindtap="clearAppliedFilters"
+      >
+        重置
       </button>
     </view>
 
@@ -171,11 +130,7 @@
         <view class="empty-subtitle"
           >用装备卡片记录重量、价格、存放位置和标签备注。</view
         >
-        <button
-          wx:if="{{tab === 'available'}}"
-          class="primary-action wide"
-          bindtap="goCreate"
-        >
+        <button class="primary-action wide" bindtap="goCreate">
           添加第一件装备
         </button>
       </view>
@@ -183,53 +138,27 @@
       <view wx:else class="gear-list">
         <block wx:for="{{gears}}" wx:key="id">
           <view class="gear-card" data-id="{{item.id}}" bindtap="goDetail">
-            <view class="card-topline">
-              <view class="category-badge">{{item.categoryText}}</view>
-              <view class="status-badge {{item.statusTone}}"
-                >{{item.statusText}}</view
-              >
-            </view>
             <view class="gear-title-row">
               <view class="gear-name">{{item.name}}</view>
               <view wx:if="{{item.showQuantityBadge}}" class="quantity-badge"
                 >{{item.quantityText}}</view
               >
             </view>
+            <view class="gear-badge-row">
+              <view class="category-badge">{{item.categoryText}}</view>
+              <view class="status-badge {{item.statusTone}}"
+                >{{item.statusText}}</view
+              >
+            </view>
             <view class="gear-meta">{{item.brandModelText}}</view>
-            <view class="metrics-row">
-              <view class="metric">
-                <view class="metric-value">{{item.weightText}}</view>
-                <view class="metric-label">重量</view>
-              </view>
-              <view class="metric">
-                <view class="metric-value">{{item.priceText}}</view>
-                <view class="metric-label">价格</view>
-              </view>
-              <view class="metric">
-                <view class="metric-value">{{item.purchaseDateText}}</view>
-                <view class="metric-label">购买日期</view>
-              </view>
+            <view class="gear-facts">
+              <text>重量 {{item.weightText}}</text>
+              <text>估价 {{item.priceText}}</text>
+              <text>购入 {{item.purchaseDateText}}</text>
             </view>
             <view class="card-actions">
               <button catchtap="goEdit" data-id="{{item.id}}">编辑</button>
               <button
-                wx:if="{{tab === 'available'}}"
-                class="danger"
-                catchtap="archiveItem"
-                data-id="{{item.id}}"
-              >
-                归档
-              </button>
-              <button
-                wx:else
-                class="restore"
-                catchtap="restoreItem"
-                data-id="{{item.id}}"
-              >
-                恢复
-              </button>
-              <button
-                wx:if="{{tab === 'history'}}"
                 class="danger"
                 catchtap="deleteItem"
                 data-id="{{item.id}}"
@@ -246,6 +175,77 @@
         >没有更多装备了</view
       >
     </block>
+
+    <view
+      wx:if="{{filterSheetVisible}}"
+      class="filter-sheet-mask"
+      bindtap="closeFilterSheet"
+    >
+      <view class="filter-sheet" catchtap="stopTap">
+        <view class="filter-sheet-header">
+          <view>
+            <view class="filter-sheet-title">筛选装备</view>
+            <view class="filter-sheet-subtitle"
+              >选择分类、状态和排序后再应用。</view
+            >
+          </view>
+          <button class="filter-sheet-close" bindtap="closeFilterSheet">
+            ×
+          </button>
+        </view>
+
+        <view class="filter-sheet-section">
+          <view class="filter-sheet-label">分类</view>
+          <scroll-view class="sheet-chip-scroll" scroll-x enable-flex>
+            <block wx:for="{{categories}}" wx:key="id">
+              <button
+                class="sheet-chip {{draftSelectedCategory === item.id ? 'active' : ''}}"
+                data-id="{{item.id}}"
+                bindtap="selectDraftCategory"
+              >
+                <text>{{item.label}}</text>
+                <text class="chip-count">{{item.count}}</text>
+              </button>
+            </block>
+          </scroll-view>
+        </view>
+
+        <view class="filter-sheet-section">
+          <view class="filter-sheet-label">状态</view>
+          <view class="sheet-chip-grid">
+            <button
+              wx:for="{{statusOptions}}"
+              wx:key="value"
+              class="sheet-chip {{draftSelectedStatusIndex === index ? 'active' : ''}}"
+              data-index="{{index}}"
+              bindtap="selectDraftStatus"
+            >
+              {{item.label}}
+            </button>
+          </view>
+        </view>
+
+        <view class="filter-sheet-section">
+          <view class="filter-sheet-label">排序</view>
+          <view class="sheet-chip-grid">
+            <button
+              wx:for="{{sortOptions}}"
+              wx:key="value"
+              class="sheet-chip {{draftSelectedSortIndex === index ? 'active' : ''}}"
+              data-index="{{index}}"
+              bindtap="selectDraftSort"
+            >
+              {{item.label}}
+            </button>
+          </view>
+        </view>
+
+        <view class="filter-sheet-actions">
+          <button class="sheet-reset" bindtap="resetFilterDrafts">重置</button>
+          <button class="sheet-apply" bindtap="applyFilters">应用</button>
+        </view>
+      </view>
+    </view>
   </block>
 
   <view wx:if="{{loginPrompt.visible}}" class="login-prompt-mask">

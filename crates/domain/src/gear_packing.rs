@@ -1,4 +1,4 @@
-//! Gear packing-list domain model for route-specific pre-hike preparation.
+//! Gear packing-list domain model for personal pre-hike preparation.
 
 use serde::{Deserialize, Serialize};
 

@@ -12,6 +12,7 @@ pub mod gear_packing;
 pub mod profile;
 pub mod roadmap;
 pub mod skill_favorites;
+pub mod trip;
 pub mod upload;
 
 pub mod knot_media;

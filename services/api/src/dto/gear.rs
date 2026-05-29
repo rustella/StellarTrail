@@ -7,15 +7,14 @@ use stellartrail_domain::{
     deletion::DeletedFilter,
     gear::{
         GearCategory, GearDraft, GearItem, GearShareStatus, GearSort, GearSpecs, GearStats,
-        GearStatus, GearTab,
+        GearStatus,
     },
 };
 
 /// Stable data boundary for `ListGearQuery`, exposed by or reused within this module.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ListGearQuery {
-    #[serde(default)]
-    pub tab: GearTab,
     pub category: Option<GearCategory>,
     pub status: Option<GearStatus>,
     #[serde(default)]
@@ -25,13 +24,6 @@ pub struct ListGearQuery {
     pub sort: GearSort,
     pub limit: Option<u64>,
     pub cursor: Option<String>,
-}
-
-/// Stable data boundary for `GearStatsQuery`, exposed by or reused within this module.
-#[derive(Debug, Deserialize)]
-pub struct GearStatsQuery {
-    #[serde(default)]
-    pub tab: GearTab,
 }
 
 /// Query parameters for the per-user spec-field ranking endpoint.
@@ -48,9 +40,8 @@ pub struct GearTagSuggestionsQuery {
 
 /// Stable data boundary for `GearExportQuery`, exposed by or reused within this module.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GearExportQuery {
-    #[serde(default)]
-    pub tab: GearTab,
     #[serde(default = "default_csv_format")]
     pub format: String,
 }

@@ -61,6 +61,37 @@ async fn fresh_schema_contains_folded_migration_columns() {
             &["planned_quantity", "packed_quantity"][..],
         ),
         ("knot_localizations", &["aliases_json"][..]),
+        (
+            "user_outdoor_profiles",
+            &[
+                "outdoor_id",
+                "real_name",
+                "gender",
+                "birth_date",
+                "height_cm",
+                "phone",
+                "emergency_contact",
+                "emergency_contact_relationship",
+                "emergency_phone",
+                "blood_type",
+                "medical_history",
+                "allergy_history",
+                "medical_response_note",
+                "diet_preference",
+                "insurance_policy_no",
+                "insurance_company_phone",
+                "experience_note",
+            ][..],
+        ),
+        ("trip_shared_gear_demands", &["created_by_user_id"][..]),
+        (
+            "trips",
+            &[
+                "route_use_slope_adjustment",
+                "route_use_high_altitude_adjustment",
+                "route_start_altitude_m",
+            ][..],
+        ),
     ] {
         for column in columns {
             assert!(
@@ -96,13 +127,13 @@ async fn fresh_schema_contains_folded_migration_columns() {
 }
 
 #[test]
-fn folded_schema_patch_migrations_are_not_registered() {
+fn folded_schema_patch_migrations_keep_history_compatibility() {
     let names = Migrator::migrations()
         .into_iter()
         .map(|migration| migration.name().to_owned())
         .collect::<Vec<_>>();
 
-    for removed_name in [
+    for compatibility_name in [
         "m20260516_000003_add_password_auth",
         "m20260516_000008_add_refresh_tokens",
         "m20260518_000001_add_email_code_failed_attempts",
@@ -115,11 +146,17 @@ fn folded_schema_patch_migrations_are_not_registered() {
         "m20260523_000004_add_soft_delete_flags",
         "m20260524_000004_add_gear_quantities",
         "m20260525_000001_add_knot_localization_aliases",
-        "m20260526_000001_alter_media_resources_size_bytes_bigint",
     ] {
         assert!(
-            !names.iter().any(|name| name == removed_name),
-            "folded migration is still registered: {removed_name}"
+            names.iter().any(|name| name == compatibility_name),
+            "folded migration history marker is missing: {compatibility_name}"
+        );
+    }
+
+    for unregistered_name in ["m20260526_000001_alter_media_resources_size_bytes_bigint"] {
+        assert!(
+            !names.iter().any(|name| name == unregistered_name),
+            "folded migration is unexpectedly registered: {unregistered_name}"
         );
     }
 }

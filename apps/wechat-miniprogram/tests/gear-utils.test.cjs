@@ -9,6 +9,7 @@ const {
   formatGearPrice,
   formatGearQuantity,
   formatGearWeight,
+  formatPackingMeta,
   GEAR_SPEC_FIELDS,
   GEAR_TAG_COLOR_OPTIONS,
   GEAR_WEIGHT_UNIT_OPTIONS,
@@ -37,6 +38,14 @@ test("formatGearPrice formats cents as Chinese Yuan", () => {
 test("formatGearQuantity formats stock badges", () => {
   assert.equal(formatGearQuantity(null), "x1");
   assert.equal(formatGearQuantity(2), "x2");
+});
+
+test("formatPackingMeta only shows provided optional metadata", () => {
+  assert.equal(formatPackingMeta("武功山", "一日"), "武功山 · 一日");
+  assert.equal(formatPackingMeta("武功山", null), "武功山");
+  assert.equal(formatPackingMeta(null, "两天一夜"), "两天一夜");
+  assert.equal(formatPackingMeta(null, null), "");
+  assert.equal(formatPackingMeta(" ", " "), "");
 });
 
 test("parseTagsInput accepts comma, Chinese comma and semicolon separators", () => {

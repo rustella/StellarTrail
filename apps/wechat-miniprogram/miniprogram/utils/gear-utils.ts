@@ -28,8 +28,6 @@ export type GearShareStatus =
   | "rejected"
   | "withdrawn";
 
-export type GearTab = "available" | "history";
-
 export type DeletedFilter = "active" | "deleted" | "all";
 
 export type GearSort =
@@ -119,7 +117,6 @@ export interface GearItem {
   share_enabled: boolean;
   share_status: GearShareStatus;
   notes?: string | null;
-  archived_at?: string | null;
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
@@ -240,11 +237,22 @@ export type UpdateGearRequest = Partial<CreateGearRequest>;
 
 export interface GearStatsResponse {
   current_count: number;
-  archived_count: number;
   total_value_cents: number;
   total_weight_g: number;
-  by_category: Array<{ category: GearCategory; label: string; count: number }>;
-  by_status: Array<{ status: GearStatus; label: string; count: number }>;
+  by_category: Array<{
+    category: GearCategory;
+    label: string;
+    count: number;
+    total_weight_g: number;
+    total_value_cents: number;
+  }>;
+  by_status: Array<{
+    status: GearStatus;
+    label: string;
+    count: number;
+    total_weight_g: number;
+    total_value_cents: number;
+  }>;
 }
 
 export interface GearCategoryFilter {
@@ -266,7 +274,6 @@ export interface GearTagSuggestionsResponse {
 }
 
 export interface ListGearsRequest {
-  tab?: GearTab;
   category?: GearCategory;
   status?: GearStatus;
   deleted?: DeletedFilter;
@@ -322,7 +329,7 @@ export interface GearPackingListItem {
   packed_quantity: number;
   packed: boolean;
   unavailable: boolean;
-  unavailable_reason?: "archived" | "deleted" | string | null;
+  unavailable_reason?: "deleted" | string | null;
   gear: GearSummary;
   created_at: string;
   updated_at: string;
@@ -481,11 +488,6 @@ export const PURCHASE_LOCATION_OPTIONS = [
   "线下户外店",
   "朋友赠送",
   "其他",
-];
-
-export const GEAR_TAB_OPTIONS: Array<OptionItem<GearTab>> = [
-  { value: "available", label: "可用装备" },
-  { value: "history", label: "历史装备" },
 ];
 
 const CAPACITY_UNITS = ["L", "ml", "fl oz"];
@@ -995,7 +997,7 @@ export function formatPackingMeta(
   const parts = [routeName, durationLabel]
     .map((item) => item?.trim())
     .filter(Boolean);
-  return parts.length ? parts.join(" · ") : "未填写路线和时长";
+  return parts.join(" · ");
 }
 
 export function getGearCategoryLabel(value: GearCategory): string {

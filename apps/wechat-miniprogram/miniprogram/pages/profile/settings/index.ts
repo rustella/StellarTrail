@@ -307,6 +307,22 @@ Page({
     });
   },
 
+  openOutdoorProfile() {
+    if (!this.data.loggedIn) {
+      this.goLogin();
+      return;
+    }
+    wx.navigateTo({ url: "/pages/profile/outdoor/index" });
+  },
+
+  openOutdoorExperiences() {
+    if (!this.data.loggedIn) {
+      this.goLogin();
+      return;
+    }
+    wx.navigateTo({ url: "/pages/profile/outdoor-experiences/index" });
+  },
+
   closePasswordModal() {
     if (this.data.passwordCodeLoading || this.data.passwordLoading) {
       return;

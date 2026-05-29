@@ -1,0 +1,80 @@
+.form-page {
+  min-height: 100vh;
+  padding: 28rpx;
+  background: var(--page-bg);
+  box-sizing: border-box;
+}
+
+.form-card,
+.state-card {
+  border: 1rpx solid var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.form-card {
+  padding: 28rpx;
+}
+
+.state-card {
+  margin-bottom: 20rpx;
+  padding: 24rpx;
+  color: var(--muted-color);
+  font-size: 26rpx;
+}
+
+.form-card > .field + .field,
+.form-card > .two-col {
+  margin-top: 24rpx;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18rpx;
+}
+
+.two-col .field + .field {
+  margin-top: 0;
+}
+
+.label {
+  margin-bottom: 10rpx;
+  color: var(--muted-color);
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+input,
+textarea,
+.picker-value {
+  width: 100%;
+  min-height: 76rpx;
+  padding: 0 22rpx;
+  border-radius: var(--card-inner-radius);
+  color: var(--text-color);
+  background: var(--control-bg);
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+textarea {
+  min-height: 180rpx;
+  padding-top: 18rpx;
+  line-height: 1.5;
+}
+
+.picker-value {
+  line-height: 76rpx;
+}
+
+.submit-button {
+  margin-top: 28rpx;
+  border-radius: 999rpx;
+  color: var(--brand-text-color);
+  background: var(--brand-color);
+  font-size: 28rpx;
+  font-weight: 800;
+  line-height: 88rpx;
+}

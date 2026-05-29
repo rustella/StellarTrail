@@ -345,17 +345,13 @@ function mapItemView(item: GearPackingListItem): PackingItemView {
     canDecreasePlanned: item.planned_quantity > 1,
     canIncreasePlanned: item.planned_quantity < stockQuantity,
     statusText:
-      item.unavailable_reason === "archived"
-        ? "已归档"
-        : item.unavailable_reason === "deleted"
-          ? "已删除"
-          : getGearStatusLabel(item.gear.status),
+      item.unavailable_reason === "deleted"
+        ? "已删除"
+        : getGearStatusLabel(item.gear.status),
     brandModelText: brandModel || "未填写品牌型号",
     unavailableText:
-      item.unavailable_reason === "archived"
-        ? "这件装备已归档，仍保留在旧清单中"
-        : item.unavailable_reason === "deleted"
-          ? "这件装备已删除，仍保留在旧清单中"
-          : "",
+      item.unavailable_reason === "deleted"
+        ? "这件装备已删除，仍保留在旧清单中"
+        : "",
   };
 }
