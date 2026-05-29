@@ -379,7 +379,9 @@ impl GearPackingRepository {
         let mut invalid = Vec::new();
         for gear_id in gear_ids {
             let gear = gear_repo.get_any_for_user(user_id, gear_id).await?;
-            let addable = gear.as_ref().is_some_and(|item| !item.is_deleted);
+            let addable = gear
+                .as_ref()
+                .is_some_and(|item| !item.is_deleted && item.archived_at.is_none());
             if !addable {
                 invalid.push(gear_id.clone());
             }

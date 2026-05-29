@@ -34,6 +34,7 @@ async fn fresh_schema_contains_folded_migration_columns() {
                 "selected_variant_key",
                 "selected_variant_label",
                 "quantity",
+                "archived_at",
                 "is_deleted",
             ][..],
         ),
@@ -153,12 +154,11 @@ fn folded_schema_patch_migrations_keep_history_compatibility() {
         );
     }
 
-    for unregistered_name in ["m20260526_000001_alter_media_resources_size_bytes_bigint"] {
-        assert!(
-            !names.iter().any(|name| name == unregistered_name),
-            "folded migration is unexpectedly registered: {unregistered_name}"
-        );
-    }
+    let unregistered_name = "m20260526_000001_alter_media_resources_size_bytes_bigint";
+    assert!(
+        !names.iter().any(|name| name == unregistered_name),
+        "folded migration is unexpectedly registered: {unregistered_name}"
+    );
 }
 
 async fn table_has_column(db: &sea_orm::DatabaseConnection, table: &str, column: &str) -> bool {

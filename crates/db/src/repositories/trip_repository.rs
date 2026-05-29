@@ -710,6 +710,7 @@ impl TripRepository {
     }
 
     /// Updates a typed record payload with field-level optimistic concurrency.
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_record(
         &self,
         user_id: &str,
@@ -1159,6 +1160,7 @@ impl TripRepository {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn insert_record(
         &self,
         user_id: &str,
@@ -1431,18 +1433,16 @@ impl TripRepository {
                     .get("source_member_id")
                     .and_then(JsonValue::as_str)
                     .filter(|value| !value.trim().is_empty())
-                {
-                    if self
+                    && self
                         .member_by_id(trip_id, source_member_id)
                         .await?
                         .is_none()
-                    {
-                        return Err(ValidationError::single(
-                            "source_member_id",
-                            "source member does not belong to this trip",
-                        )
-                        .into());
-                    }
+                {
+                    return Err(ValidationError::single(
+                        "source_member_id",
+                        "source member does not belong to this trip",
+                    )
+                    .into());
                 }
             }
             KIND_ITINERARY_DAY | KIND_TIME_SLOT | KIND_ROUTE_SEGMENT | KIND_SEGMENT_ASSIGNMENT => {
@@ -1630,11 +1630,10 @@ fn build_detail(
     for record in records {
         match record.kind.as_str() {
             KIND_PERSONAL_GEAR => personal_gear.push(record_typed(record)?),
-            KIND_SHARED_GEAR => {
-                if !is_food_generated_shared_gear_payload(&record.payload) {
-                    shared_gear_demands.push(record_typed(record)?);
-                }
+            KIND_SHARED_GEAR if !is_food_generated_shared_gear_payload(&record.payload) => {
+                shared_gear_demands.push(record_typed(record)?);
             }
+            KIND_SHARED_GEAR => {}
             KIND_ITINERARY_DAY => itinerary_days.push(record_typed(record)?),
             KIND_TIME_SLOT => time_slots.push(record_typed(record)?),
             KIND_ROUTE_SEGMENT => route_segments.push(record_typed(record)?),

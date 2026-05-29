@@ -1,4 +1,4 @@
-//! User gear table migration creating gear fields and common query indexes.
+//! User gear table migration creating gear fields, archive state, and common query indexes.
 
 use sea_orm_migration::prelude::*;
 
@@ -44,13 +44,14 @@ impl MigrationTrait for Migration {
                 share_enabled BOOLEAN NOT NULL DEFAULT FALSE,
                 share_status TEXT NOT NULL DEFAULT 'not_shared',
                 notes TEXT NULL,
+                archived_at TEXT NULL,
                 is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )"#,
         )
         .await?;
-        db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_user_gear_user_deleted_created ON user_gear_items(user_id, is_deleted, created_at)")
+        db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_user_gear_user_archived_created ON user_gear_items(user_id, archived_at, created_at)")
             .await?;
         db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_user_gear_user_category ON user_gear_items(user_id, category)")
             .await?;
@@ -59,6 +60,8 @@ impl MigrationTrait for Migration {
         db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_user_gear_user_purchase_date ON user_gear_items(user_id, purchase_date)")
             .await?;
         db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_user_gear_items_atlas_item ON user_gear_items(atlas_item_id)")
+            .await?;
+        db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_user_gear_user_deleted_archived_created ON user_gear_items(user_id, is_deleted, archived_at, created_at)")
             .await?;
         Ok(())
     }

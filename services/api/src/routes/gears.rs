@@ -1,4 +1,4 @@
-//! Gear inventory routes for the current user, including list, detail, import/export, deletion, and statistics endpoints.
+//! Gear inventory routes for the current user, including list, detail, import/export, archive/restore, and statistics endpoints.
 
 use std::collections::HashMap;
 
@@ -11,12 +11,12 @@ use axum::{
 };
 use serde_json::json;
 use stellartrail_db::repositories::{GearRepository, ListGearOptions};
-use stellartrail_domain::gear::{GearItem, GearSort, GearStats};
+use stellartrail_domain::gear::{GearItem, GearSort, GearStats, GearTab};
 
 use crate::{
     dto::gear::{
         CreateGearRequest, GearCategoriesResponse, GearCategoryFilterResponse, GearExportQuery,
-        GearItemResponse, GearSpecKeyRankingsQuery, GearSpecKeyRankingsResponse,
+        GearItemResponse, GearSpecKeyRankingsQuery, GearSpecKeyRankingsResponse, GearStatsQuery,
         GearSummaryResponse, GearTagSuggestionResponse, GearTagSuggestionsQuery,
         GearTagSuggestionsResponse, ImportGearError, ImportGearsRequest, ImportGearsResponse,
         ListGearQuery, ListGearResponse, UpdateGearRequest,
@@ -38,10 +38,10 @@ pub fn routes() -> Router<AppState> {
         .route("/me/gears/export", get(export_csv))
         .route("/me/gears/import", post(import_json))
         .route("/me/gears", get(list).post(create))
-        .route(
-            "/me/gears/:id",
-            get(get_one).patch(update).delete(delete_one),
-        )
+        .route("/me/gears/:id", get(get_one).patch(update).delete(archive))
+        .route("/me/gears/:id/delete", post(soft_delete))
+        .route("/me/gears/:id/undelete", post(undelete))
+        .route("/me/gears/:id/restore", post(restore))
 }
 
 /// Returns the first-screen categories, stats, and list payload in one cached read.
@@ -50,8 +50,9 @@ async fn overview(
     AuthenticatedUser(user): AuthenticatedUser,
     Query(query): Query<HashMap<String, String>>,
 ) -> Result<Json<crate::dto::gear::GearOverviewResponse>, ApiError> {
-    let (limit, sort) = parse_overview_query(&query)?;
+    let (tab, limit, sort) = parse_overview_query(&query)?;
     let cache_payload = json!({
+        "tab": tab.as_str(),
         "limit": limit,
         "sort": sort.as_str(),
     })
@@ -70,13 +71,14 @@ async fn overview(
     }
 
     let repo = GearRepository::new(state.db().clone());
-    let categories = build_categories_response(&repo, &user.id).await?;
-    let stats = repo.stats(&user.id).await?;
+    let categories = build_categories_response(&repo, &user.id, tab).await?;
+    let stats = repo.stats(&user.id, tab).await?;
     let list = build_list_response(
         &state,
         &repo,
         &user.id,
         ListGearOptions {
+            tab,
             sort,
             limit,
             ..ListGearOptions::default()
@@ -98,10 +100,9 @@ async fn overview(
 async fn categories(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
-    Query(query): Query<HashMap<String, String>>,
+    Query(query): Query<GearStatsQuery>,
 ) -> Result<Json<GearCategoriesResponse>, ApiError> {
-    reject_query_params(&query)?;
-    let cache_payload = "{}".to_owned();
+    let cache_payload = json!({ "tab": query.tab }).to_string();
     // High-traffic read endpoints try the read-through cache first and skip it naturally when unavailable.
     let cache_key = state
         .cache()
@@ -114,7 +115,7 @@ async fn categories(
     }
 
     let repo = GearRepository::new(state.db().clone());
-    let response = build_categories_response(&repo, &user.id).await?;
+    let response = build_categories_response(&repo, &user.id, query.tab).await?;
     if let Some(key) = cache_key.as_deref() {
         state.cache().set_json(key, &response).await;
     }
@@ -125,10 +126,9 @@ async fn categories(
 async fn stats(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
-    Query(query): Query<HashMap<String, String>>,
+    Query(query): Query<GearStatsQuery>,
 ) -> Result<Json<GearStats>, ApiError> {
-    reject_query_params(&query)?;
-    let cache_payload = "{}".to_owned();
+    let cache_payload = json!({ "tab": query.tab }).to_string();
     let cache_key = state
         .cache()
         .gear_response_key(&user.id, "stats", &cache_payload)
@@ -140,7 +140,7 @@ async fn stats(
     }
 
     let stats = GearRepository::new(state.db().clone())
-        .stats(&user.id)
+        .stats(&user.id, query.tab)
         .await?;
     if let Some(key) = cache_key.as_deref() {
         state.cache().set_json(key, &stats).await;
@@ -186,6 +186,7 @@ async fn list(
 ) -> Result<Json<ListGearResponse>, ApiError> {
     let limit = query.limit.unwrap_or(20);
     let cache_payload = json!({
+        "tab": query.tab,
         "category": query.category,
         "status": query.status,
         "deleted": query.deleted,
@@ -210,6 +211,7 @@ async fn list(
         &GearRepository::new(state.db().clone()),
         &user.id,
         ListGearOptions {
+            tab: query.tab,
             category: query.category,
             status: query.status,
             deleted: query.deleted,
@@ -226,8 +228,8 @@ async fn list(
     Ok(Json(response))
 }
 
-/// Deletes a gear item from normal inventory views.
-async fn delete_one(
+/// Soft-deletes a gear item while preserving archive state for future undelete.
+async fn soft_delete(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
@@ -241,6 +243,21 @@ async fn delete_one(
     } else {
         Err(ApiError::NotFound)
     }
+}
+
+/// Restores a soft-deleted gear item without changing whether it belongs in history.
+async fn undelete(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(id): Path<String>,
+) -> Result<Json<GearItemResponse>, ApiError> {
+    let item = GearRepository::new(state.db().clone())
+        .undelete(&user.id, &id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let tag_colors = state.cache().gear_tag_colors(&user.id, &item.tags).await;
+    state.cache().invalidate_user_gear(&user.id).await;
+    Ok(Json(GearItemResponse::from_item(item, &tag_colors)))
 }
 
 /// Creates the current resource and triggers follow-up state maintenance when needed.
@@ -303,6 +320,38 @@ async fn update(
     Ok(Json(GearItemResponse::from_item(item, &tag_colors)))
 }
 
+/// Archives the current resource so default lists no longer show it.
+async fn archive(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let archived = GearRepository::new(state.db().clone())
+        .archive(&user.id, &id)
+        .await?;
+    if archived {
+        state.cache().invalidate_user_gear(&user.id).await;
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound)
+    }
+}
+
+/// Restores an archived resource so default lists show it again.
+async fn restore(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(id): Path<String>,
+) -> Result<Json<GearItemResponse>, ApiError> {
+    let item = GearRepository::new(state.db().clone())
+        .restore(&user.id, &id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let tag_colors = state.cache().gear_tag_colors(&user.id, &item.tags).await;
+    state.cache().invalidate_user_gear(&user.id).await;
+    Ok(Json(GearItemResponse::from_item(item, &tag_colors)))
+}
+
 /// Exports gear as CSV using the current filter conditions.
 async fn export_csv(
     State(state): State<AppState>,
@@ -314,7 +363,7 @@ async fn export_csv(
             "only csv export is supported".to_owned(),
         ));
     }
-    let items = gear_service::list_for_export(&state, &user.id).await?;
+    let items = gear_service::list_for_export(&state, &user.id, query.tab).await?;
     let mut writer = csv::Writer::from_writer(Vec::new());
     writer
         .write_record([
@@ -440,8 +489,9 @@ async fn import_json(
 async fn build_categories_response(
     repo: &GearRepository,
     user_id: &str,
+    tab: GearTab,
 ) -> Result<GearCategoriesResponse, ApiError> {
-    let counts = repo.category_counts(user_id).await?;
+    let counts = repo.category_counts(user_id, tab).await?;
     let total = counts.iter().map(|item| item.count).sum();
     let mut items = vec![GearCategoryFilterResponse {
         id: "all".to_owned(),
@@ -475,30 +525,38 @@ async fn build_list_response(
     })
 }
 
-/// Rejects unsupported query parameters for unfiltered aggregate endpoints.
-fn reject_query_params(query: &HashMap<String, String>) -> Result<(), ApiError> {
-    if let Some(key) = query.keys().next() {
-        return Err(ApiError::unsupported_query_parameter(key.clone()));
-    }
-    Ok(())
-}
-
 /// Parses the restricted overview query shape and rejects list-filter parameters.
-fn parse_overview_query(query: &HashMap<String, String>) -> Result<(u64, GearSort), ApiError> {
-    for key in ["cursor", "q", "category", "status", "tab"] {
+fn parse_overview_query(
+    query: &HashMap<String, String>,
+) -> Result<(GearTab, u64, GearSort), ApiError> {
+    for key in ["cursor", "q", "category", "status"] {
         if query.contains_key(key) {
             return Err(ApiError::unsupported_query_parameter(key));
         }
     }
     for key in query.keys() {
-        if !matches!(key.as_str(), "limit" | "sort") {
+        if !matches!(key.as_str(), "tab" | "limit" | "sort") {
             return Err(ApiError::unsupported_query_parameter(key.clone()));
         }
     }
     Ok((
+        parse_gear_tab_query(query.get("tab"))?,
         parse_u64_query(query.get("limit"), "limit", 20)?,
         parse_gear_sort_query(query.get("sort"))?,
     ))
+}
+
+/// Parses the `tab` query value for overview reads.
+fn parse_gear_tab_query(value: Option<&String>) -> Result<GearTab, ApiError> {
+    let Some(value) = normalized_query_value(value) else {
+        return Ok(GearTab::default());
+    };
+    GearTab::from_key(value).ok_or_else(|| {
+        ApiError::invalid_query_parameter(
+            "tab",
+            "query parameter `tab` must be available or history".to_owned(),
+        )
+    })
 }
 
 /// Parses the `sort` query value for overview reads.

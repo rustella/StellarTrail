@@ -207,6 +207,34 @@ impl std::fmt::Display for GearShareStatus {
     }
 }
 
+/// Stable enum boundary for available and historical gear inventory tabs.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GearTab {
+    #[default]
+    Available,
+    History,
+}
+
+impl GearTab {
+    /// Returns the stable wire key used by API query parameters and JSON payloads.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Available => "available",
+            Self::History => "history",
+        }
+    }
+
+    /// Parses a stable wire key into a gear tab.
+    pub fn from_key(value: &str) -> Option<Self> {
+        match value {
+            "available" => Some(Self::Available),
+            "history" => Some(Self::History),
+            _ => None,
+        }
+    }
+}
+
 /// Stable enum boundary for `GearSort`, exposed by or reused within this module.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -289,6 +317,7 @@ pub struct GearItem {
     pub share_enabled: bool,
     pub share_status: GearShareStatus,
     pub notes: Option<String>,
+    pub archived_at: Option<String>,
     pub is_deleted: bool,
     pub created_at: String,
     pub updated_at: String,
@@ -770,6 +799,7 @@ pub struct GearStatusCount {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GearStats {
     pub current_count: i64,
+    pub archived_count: i64,
     pub total_value_cents: i64,
     pub total_weight_g: i64,
     pub by_category: Vec<GearCategoryCount>,
