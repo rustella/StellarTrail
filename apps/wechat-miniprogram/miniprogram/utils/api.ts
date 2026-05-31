@@ -88,6 +88,8 @@ const REFRESH_TOKEN_STORAGE_KEY = "stellartrail_refresh_token";
 const REFRESH_TOKEN_EXPIRES_AT_STORAGE_KEY =
   "stellartrail_refresh_token_expires_at";
 const USER_STORAGE_KEY = "stellartrail_user";
+const KNOT_DISCLAIMER_ACCEPTANCE_STORAGE_KEY =
+  "stellartrail_knot_disclaimer_acceptance_v1";
 const API_BASE_URL_STORAGE_KEY = "stellartrail_api_base_url";
 const ASSETS_BASE_URL_STORAGE_KEY = "stellartrail_assets_base_url";
 const DEFAULT_API_BASE_URL = "https://api.example.invalid";
@@ -130,6 +132,12 @@ interface WechatLoginRequest {
 
 interface ProfileUserResponse {
   user: WechatLoginResponse["user"];
+}
+
+interface StoredKnotDisclaimerAcceptance {
+  userId: string;
+  version: string;
+  acceptedAt: string;
 }
 
 export interface OutdoorProfile {
@@ -445,6 +453,17 @@ export function isNotFoundApiError(error: unknown): boolean {
   return isApiResponseError(error) && error.statusCode === 404;
 }
 
+function isRefreshAuthInvalidError(error: unknown): boolean {
+  return (
+    isApiResponseError(error) &&
+    (error.statusCode === 401 || error.statusCode === 403)
+  );
+}
+
+function isRefreshNetworkFailureError(error: unknown): boolean {
+  return !isApiResponseError(error);
+}
+
 export function consumeOfflineCacheNotice(): string {
   if (!offlineCacheNoticePending) {
     return "";
@@ -719,8 +738,12 @@ export async function ensureAccessToken(): Promise<string> {
   if (readRefreshToken()) {
     try {
       return await refreshAccessToken();
-    } catch {
-      clearLoginState();
+    } catch (error) {
+      if (isRefreshAuthInvalidError(error)) {
+        clearLoginState();
+      } else if (cached && isRefreshNetworkFailureError(error)) {
+        return cached;
+      }
     }
   }
   throw new LoginRequiredError("登录后继续");
@@ -897,6 +920,7 @@ export function clearLoginState(): void {
   wx.removeStorageSync(REFRESH_TOKEN_STORAGE_KEY);
   wx.removeStorageSync(REFRESH_TOKEN_EXPIRES_AT_STORAGE_KEY);
   wx.removeStorageSync(USER_STORAGE_KEY);
+  wx.removeStorageSync(KNOT_DISCLAIMER_ACCEPTANCE_STORAGE_KEY);
 }
 
 export async function listGearTemplates(): Promise<ListGearTemplatesResponse> {
@@ -1880,20 +1904,85 @@ export async function getKnotOfflineManifest(
 }
 
 export async function getKnotDisclaimer(): Promise<KnotDisclaimerResponse> {
-  return requestJson("/api/v1/me/skills/knots/disclaimer", {
-    auth: true,
-  });
+  const response = await requestJson<KnotDisclaimerResponse>(
+    "/api/v1/me/skills/knots/disclaimer",
+    {
+      auth: true,
+    },
+  );
+  rememberKnotDisclaimerAcceptance(response);
+  return response;
+}
+
+export function hasLocalKnotDisclaimerAcceptance(): boolean {
+  const userId = getStoredUser()?.id;
+  if (!userId) {
+    return false;
+  }
+  const acceptance = readStoredKnotDisclaimerAcceptance();
+  return Boolean(
+    acceptance &&
+      acceptance.userId === userId &&
+      typeof acceptance.version === "string" &&
+      acceptance.version.trim(),
+  );
 }
 
 export async function acceptKnotDisclaimer(
   request: AcceptKnotDisclaimerRequest = {},
 ): Promise<KnotDisclaimerResponse> {
-  return requestJson("/api/v1/me/skills/knots/disclaimer/acceptance", {
-    method: "POST",
-    auth: true,
-    cache: false,
-    data: request,
-  });
+  const response = await requestJson<KnotDisclaimerResponse>(
+    "/api/v1/me/skills/knots/disclaimer/acceptance",
+    {
+      method: "POST",
+      auth: true,
+      cache: false,
+      data: request,
+    },
+  );
+  rememberKnotDisclaimerAcceptance(response);
+  return response;
+}
+
+function rememberKnotDisclaimerAcceptance(
+  response: KnotDisclaimerResponse,
+): void {
+  if (!response.accepted || !response.version) {
+    return;
+  }
+  const userId = getStoredUser()?.id;
+  if (!userId) {
+    return;
+  }
+  const acceptance: StoredKnotDisclaimerAcceptance = {
+    userId,
+    version: response.version,
+    acceptedAt: response.accepted_at ?? new Date().toISOString(),
+  };
+  try {
+    wx.setStorageSync(KNOT_DISCLAIMER_ACCEPTANCE_STORAGE_KEY, acceptance);
+  } catch {
+    // Local acceptance only improves offline UX; online server state remains authoritative.
+  }
+}
+
+function readStoredKnotDisclaimerAcceptance(): StoredKnotDisclaimerAcceptance | null {
+  try {
+    const stored = wx.getStorageSync(
+      KNOT_DISCLAIMER_ACCEPTANCE_STORAGE_KEY,
+    ) as StoredKnotDisclaimerAcceptance | undefined;
+    if (
+      !stored ||
+      typeof stored.userId !== "string" ||
+      typeof stored.version !== "string" ||
+      typeof stored.acceptedAt !== "string"
+    ) {
+      return null;
+    }
+    return stored;
+  } catch {
+    return null;
+  }
 }
 
 export async function listFavoriteSkills(
@@ -2107,7 +2196,19 @@ async function requestJsonOnce<T>(
             .then(() => requestJson<T>(path, options, true))
             .then(resolve)
             .catch((error) => {
-              clearLoginState();
+              if (isRefreshAuthInvalidError(error)) {
+                clearLoginState();
+                reject(new LoginRequiredError("登录状态已过期，请重新登录"));
+                return;
+              }
+              if (cacheDescriptor && isRefreshNetworkFailureError(error)) {
+                const cached = readOfflineCache<T>(cacheDescriptor);
+                if (cached) {
+                  offlineCacheNoticePending = true;
+                  resolve(cached.data);
+                  return;
+                }
+              }
               reject(
                 error instanceof Error
                   ? error

@@ -3,6 +3,7 @@ import { getTripHomeHighlight } from "../../utils/api-trips";
 import {
   consumeOfflineCacheNotice,
   getKnotDisclaimer,
+  hasLocalKnotDisclaimerAcceptance,
   isOfflineCacheMissError,
   listKnots,
   resolveAssetUrl,
@@ -263,8 +264,10 @@ Page({
         return;
       }
     } catch {
-      this.hideFeaturedSkills();
-      return;
+      if (!hasLocalKnotDisclaimerAcceptance()) {
+        this.hideFeaturedSkills();
+        return;
+      }
     }
     try {
       const response = await listKnots({ offset: 0, limit: 3 });

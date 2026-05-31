@@ -9,6 +9,7 @@ export {
   getKnotFilters,
   getKnotOfflineManifest,
   hasAccessToken,
+  hasLocalKnotDisclaimerAcceptance,
   isOfflineCacheMissError,
   listFavoriteSkills,
   listKnots,

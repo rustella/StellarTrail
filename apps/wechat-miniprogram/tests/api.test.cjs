@@ -1163,6 +1163,111 @@ test("authenticated requests refresh once on 401 and retry with the new access t
   assert.equal(storage.get("stellartrail_refresh_token"), "refresh-new");
 });
 
+test("expired access token is kept when refresh fails because of network", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push(options.url.replace("https://api.example.test", ""));
+    assert.equal(options.url, "https://api.example.test/api/v1/auth/refresh");
+    options.fail({ errMsg: "request:fail timeout" });
+  });
+  storage.set("stellartrail_access_token", "access-offline");
+  storage.set("stellartrail_access_token_expires_at", "2020-01-01T00:00:00Z");
+  storage.set("stellartrail_refresh_token", "refresh-offline");
+  storage.set("stellartrail_user", { id: "u1", nickname: "离线用户" });
+  const { ensureAccessToken } = require("../.tmp-test/utils/api.js");
+
+  const token = await ensureAccessToken();
+
+  assert.equal(token, "access-offline");
+  assert.deepEqual(calls, ["/api/v1/auth/refresh"]);
+  assert.equal(storage.get("stellartrail_access_token"), "access-offline");
+  assert.equal(storage.get("stellartrail_refresh_token"), "refresh-offline");
+  assert.deepEqual(storage.get("stellartrail_user"), {
+    id: "u1",
+    nickname: "离线用户",
+  });
+});
+
+test("expired access token is cleared when refresh is explicitly unauthorized", async () => {
+  const storage = installWxMock((options) => {
+    assert.equal(options.url, "https://api.example.test/api/v1/auth/refresh");
+    options.success({
+      statusCode: 401,
+      data: { code: "unauthorized", message: "refresh token expired" },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-expired");
+  storage.set("stellartrail_access_token_expires_at", "2020-01-01T00:00:00Z");
+  storage.set("stellartrail_refresh_token", "refresh-expired");
+  storage.set("stellartrail_user", { id: "u1", nickname: "过期用户" });
+  const {
+    ensureAccessToken,
+    isLoginRequiredError,
+  } = require("../.tmp-test/utils/api.js");
+
+  await assert.rejects(
+    () => ensureAccessToken(),
+    (error) => {
+      assert.equal(isLoginRequiredError(error), true);
+      return true;
+    },
+  );
+
+  assert.equal(storage.get("stellartrail_access_token"), undefined);
+  assert.equal(storage.get("stellartrail_refresh_token"), undefined);
+  assert.equal(storage.get("stellartrail_user"), undefined);
+});
+
+test("authenticated GET falls back to user offline cache when refresh retry has network failure", async () => {
+  let statsCallCount = 0;
+  const storage = installWxMock((options) => {
+    const path = options.url.replace("https://api.example.test", "");
+    if (path === "/api/v1/me/gears/stats") {
+      statsCallCount += 1;
+      if (statsCallCount === 1) {
+        options.success({
+          statusCode: 200,
+          data: {
+            current_count: 3,
+            archived_count: 0,
+            total_value_cents: 0,
+            total_weight_g: 900,
+            by_category: [],
+            by_status: [],
+          },
+        });
+        return;
+      }
+      options.success({
+        statusCode: 401,
+        data: { code: "unauthorized", message: "access token expired" },
+      });
+      return;
+    }
+    if (path === "/api/v1/auth/refresh") {
+      options.fail({ errMsg: "request:fail timeout" });
+      return;
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_refresh_token", "refresh-old");
+  storage.set("stellartrail_user", { id: "u-cache", nickname: "缓存用户" });
+  const {
+    consumeOfflineCacheNotice,
+    getGearStats,
+  } = require("../.tmp-test/utils/api.js");
+  require("../.tmp-test/utils/network-state.js").initNetworkState();
+
+  const online = await getGearStats();
+  const offline = await getGearStats();
+
+  assert.deepEqual(offline, online);
+  assert.equal(storage.get("stellartrail_access_token"), "access-old");
+  assert.equal(storage.get("stellartrail_refresh_token"), "refresh-old");
+  assert.equal(consumeOfflineCacheNotice(), "当前离线，正在显示已缓存内容");
+});
+
 test("knot disclaimer reads and writes authenticated acceptance", async () => {
   const calls = [];
   const storage = installWxMock((options) => {
@@ -1207,6 +1312,7 @@ test("knot disclaimer reads and writes authenticated acceptance", async () => {
   const {
     acceptKnotDisclaimer,
     getKnotDisclaimer,
+    hasLocalKnotDisclaimerAcceptance,
   } = require("../.tmp-test/utils/api.js");
 
   const disclaimer = await getKnotDisclaimer();
@@ -1218,6 +1324,12 @@ test("knot disclaimer reads and writes authenticated acceptance", async () => {
 
   assert.equal(disclaimer.accepted, false);
   assert.equal(accepted.accepted, true);
+  assert.equal(hasLocalKnotDisclaimerAcceptance(), true);
+  assert.deepEqual(storage.get("stellartrail_knot_disclaimer_acceptance_v1"), {
+    userId: "u1",
+    version: "v1",
+    acceptedAt: "2026-05-24T00:00:00Z",
+  });
   assert.deepEqual(
     calls.map((call) => ({
       path: call.url.replace("https://api.example.test", ""),
@@ -1244,6 +1356,41 @@ test("knot disclaimer reads and writes authenticated acceptance", async () => {
       },
     ],
   );
+});
+
+test("accepted knot disclaimer read is saved for offline fallback", async () => {
+  const storage = installWxMock((options) => {
+    assert.equal(
+      options.url,
+      "https://api.example.test/api/v1/me/skills/knots/disclaimer",
+    );
+    options.success({
+      statusCode: 200,
+      data: {
+        key: "knot_tutorial_disclaimer",
+        version: "v1",
+        title: "绳结教程免责声明",
+        content: "仅供参考",
+        accepted: true,
+        accepted_at: "2026-05-31T00:00:00Z",
+      },
+    });
+  });
+  storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_user", { id: "u1" });
+  const {
+    getKnotDisclaimer,
+    hasLocalKnotDisclaimerAcceptance,
+  } = require("../.tmp-test/utils/api.js");
+
+  await getKnotDisclaimer();
+
+  assert.equal(hasLocalKnotDisclaimerAcceptance(), true);
+  assert.deepEqual(storage.get("stellartrail_knot_disclaimer_acceptance_v1"), {
+    userId: "u1",
+    version: "v1",
+    acceptedAt: "2026-05-31T00:00:00Z",
+  });
 });
 
 test("getGearSpecKeyRankings calls authenticated category endpoint", async () => {
