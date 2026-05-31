@@ -6,6 +6,7 @@ import {
   getKnotDisclaimer,
   getKnotFilters,
   hasAccessToken,
+  hasLocalKnotDisclaimerAcceptance,
   isOfflineCacheMissError,
   listFavoriteSkills,
   listKnots,
@@ -242,6 +243,14 @@ Page({
       });
     } catch (error) {
       this.setData({ checkingKnotDisclaimer: false });
+      if (hasLocalKnotDisclaimerAcceptance()) {
+        this.enterKnotsList();
+        wx.showToast({
+          title: "当前离线，正在显示已缓存绳结",
+          icon: "none",
+        });
+        return;
+      }
       if (!hasAccessToken()) {
         requireLoginForAction(this, {
           message: "登录并同意绳结教程免责声明后，可以查看绳结列表。",
@@ -249,7 +258,13 @@ Page({
         });
         return;
       }
-      wx.showToast({ title: getErrorMessage(error), icon: "none" });
+      wx.showToast({
+        title:
+          isOffline() || isOfflineCacheMissError(error)
+            ? "当前离线，请联网确认绳结免责声明后再查看"
+            : getErrorMessage(error),
+        icon: "none",
+      });
     }
   },
 

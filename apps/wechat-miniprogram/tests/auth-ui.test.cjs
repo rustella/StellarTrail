@@ -897,6 +897,7 @@ test("home page hides featured knots until the user accepts the disclaimer", () 
   const ts = read("pages/index/index.ts");
 
   assert.match(ts, /getKnotDisclaimer/);
+  assert.match(ts, /hasLocalKnotDisclaimerAcceptance/);
   assert.match(ts, /if \(!hasAccessToken\(\)\) \{/);
   assert.match(ts, /if \(!disclaimer\.accepted\) \{/);
   assert.match(ts, /this\.hideFeaturedSkills\(\)/);
@@ -912,9 +913,11 @@ test("skills page gates knot list behind disclaimer acceptance", () => {
   const ts = read("pages/skills/index.ts");
 
   assert.match(ts, /getKnotDisclaimer/);
+  assert.match(ts, /hasLocalKnotDisclaimerAcceptance/);
   assert.match(ts, /submitKnotDisclaimerAcceptance/);
   assert.match(ts, /enterKnotsList/);
   assert.match(ts, /rejectKnotDisclaimer/);
+  assert.match(ts, /当前离线，请联网确认绳结免责声明后再查看/);
   assert.match(wxml, /knotDisclaimerVisible/);
   assert.match(wxml, /我已阅读并同意/);
   assert.match(wxml, /拒绝并退出/);
