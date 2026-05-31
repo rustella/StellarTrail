@@ -93,18 +93,18 @@ struct GearListView: View {
                 TrailMetricTile(value: Formatters.price(viewModel.state.stats.totalValueCents), label: "估算价值")
             }
 
+            NavigationLink(destination: GearStatsView(environment: environment)) {
+                GearActionCard(title: "装备统计", subtitle: "查看分类、状态、重量和价值概览。", badge: "统计", systemImage: "chart.pie.fill")
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink(destination: PackingListView(environment: environment)) {
+                GearActionCard(title: "打包清单", subtitle: "按行程挑选装备，出发前逐项确认。", badge: "清单", systemImage: "checklist")
+            }
+            .buttonStyle(.plain)
+
             NavigationLink(destination: GearAtlasListView(environment: environment)) {
-                TrailSurfaceCard {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            TrailBadge(text: "装备图鉴", tone: .info)
-                            Text("查看公开装备规格，也可以投稿自己的装备")
-                                .font(.headline.weight(.heavy))
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                    }
-                }
+                GearActionCard(title: "装备图鉴", subtitle: "查看公开装备规格，也可以投稿自己的装备。", badge: "图鉴", systemImage: "square.grid.2x2.fill")
             }
             .buttonStyle(.plain)
 
@@ -190,6 +190,38 @@ struct GearListView: View {
                 ForEach(GearSort.allCases) { sort in Text(sort.label).tag(sort) }
             }
             .pickerStyle(.menu)
+        }
+    }
+}
+
+private struct GearActionCard: View {
+    @Environment(\.trailPalette) private var palette
+    let title: String
+    let subtitle: String
+    let badge: String
+    let systemImage: String
+
+    var body: some View {
+        TrailSurfaceCard {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(palette.brand)
+                    .frame(width: 34, height: 34)
+                    .background(palette.brandSoft)
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 8) {
+                    TrailBadge(text: badge, tone: .info)
+                    Text(title)
+                        .font(.headline.weight(.heavy))
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(palette.textMuted)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(palette.textMuted)
+            }
         }
     }
 }

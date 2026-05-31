@@ -3,6 +3,7 @@ import SwiftUI
 enum RootTab: String, CaseIterable, Identifiable {
     case home
     case gear
+    case trips
     case skills
     case profile
 
@@ -12,6 +13,7 @@ enum RootTab: String, CaseIterable, Identifiable {
         switch self {
         case .home: return "首页"
         case .gear: return "装备"
+        case .trips: return "行程"
         case .skills: return "技能"
         case .profile: return "我的"
         }
@@ -21,6 +23,7 @@ enum RootTab: String, CaseIterable, Identifiable {
         switch self {
         case .home: return "house.fill"
         case .gear: return "backpack.fill"
+        case .trips: return "map.fill"
         case .skills: return "figure.hiking"
         case .profile: return "person.crop.circle.fill"
         }
@@ -56,6 +59,12 @@ struct RootTabView: View {
             }
             .tabItem { Label(RootTab.gear.title, systemImage: RootTab.gear.systemImage) }
             .tag(RootTab.gear)
+
+            NavigationStack {
+                TripsView(environment: environment)
+            }
+            .tabItem { Label(RootTab.trips.title, systemImage: RootTab.trips.systemImage) }
+            .tag(RootTab.trips)
 
             NavigationStack {
                 SkillsView(environment: environment)

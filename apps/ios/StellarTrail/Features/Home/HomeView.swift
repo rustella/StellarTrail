@@ -13,7 +13,8 @@ struct HomeView: View {
             gearRepository: environment.gearRepository,
             gearAtlasRepository: environment.gearAtlasRepository,
             skillRepository: environment.skillRepository,
-            contentRepository: environment.contentRepository
+            contentRepository: environment.contentRepository,
+            tripRepository: environment.tripRepository
         ))
     }
 
@@ -24,9 +25,9 @@ struct HomeView: View {
                     eyebrow: "寻径星野 · 出发前检查",
                     title: "今天准备好出发了吗？",
                     subtitle: "跟着清单确认背包、技能和个人设置，轻松开始下一段路线。",
-                    chips: [viewModel.state.isLoggedIn ? "我的装备已保存" : "可先浏览清单", "绳结教学可直接看"]
+                    chips: [viewModel.state.isLoggedIn ? "我的装备已保存" : "可浏览装备图鉴", "行程提醒", "绳结教学"]
                 ) {
-                    TrailBadge(text: "首页 · 装备 · 技能 · 我的", tone: .brand)
+                    TrailBadge(text: "首页 · 装备 · 行程 · 技能 · 我的", tone: .brand)
                 }
 
                 quickActions
@@ -42,10 +43,12 @@ struct HomeView: View {
                     showingAuth = true
                 }
 
-                if viewModel.state.isLoggedIn && !viewModel.state.recentGears.isEmpty {
-                    TrailSectionTitle(title: "最近装备", subtitle: "快速查看近期更新。")
-                    ForEach(viewModel.state.recentGears) { gear in
-                        GearPreviewCard(gear: gear)
+                if viewModel.state.isLoggedIn {
+                    TripHighlightCard(item: viewModel.state.tripHighlight)
+                } else {
+                    TrailSurfaceCard {
+                        TrailSectionTitle(title: "登录后继续准备", subtitle: "当前先开放装备图鉴和技能浏览；个人装备、打包清单和行程会保存到账号。")
+                        TrailPrimaryButton(title: "账号登录") { showingAuth = true }
                     }
                 }
 
@@ -93,14 +96,18 @@ struct HomeView: View {
             FeatureTile(title: "新增装备", subtitle: viewModel.state.isLoggedIn ? "记录新物品" : "登录后可用", systemImage: "plus.circle.fill") {
                 viewModel.state.isLoggedIn ? (showingCreateGear = true) : (showingAuth = true)
             }
+            NavigationLink(destination: TripsView(environment: environment)) {
+                FeatureTileCard(title: "行程", subtitle: "出发计划", systemImage: "map.fill")
+            }
+            .buttonStyle(.plain)
+            NavigationLink(destination: PackingListView(environment: environment)) {
+                FeatureTileCard(title: "打包清单", subtitle: "逐项确认", systemImage: "checklist")
+            }
+            .buttonStyle(.plain)
             NavigationLink(destination: GearAtlasListView(environment: environment)) {
                 FeatureTileCard(title: "装备图鉴", subtitle: "公开规格", systemImage: "square.grid.2x2.fill")
             }
             .buttonStyle(.plain)
-            FeatureTile(title: "技能", subtitle: "绳结步骤", systemImage: "figure.hiking") {}
-            FeatureTile(title: "我的", subtitle: viewModel.state.isLoggedIn ? "已登录" : "待登录", systemImage: "person.crop.circle") {
-                if !viewModel.state.isLoggedIn { showingAuth = true }
-            }
         }
     }
 }
@@ -167,24 +174,32 @@ private struct GearOverviewCard: View {
     }
 }
 
-private struct GearPreviewCard: View {
+private struct TripHighlightCard: View {
     @Environment(\.trailPalette) private var palette
-    let gear: GearSummary
+    let item: TripHomeHighlightItem?
 
     var body: some View {
         TrailSurfaceCard {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    TrailBadge(text: gear.categoryLabel, tone: .brand)
-                    Text(gear.name)
-                        .font(.headline.weight(.heavy))
-                        .foregroundStyle(palette.textPrimary)
-                    Text(gear.brandModel.nilIfBlank ?? "未填写品牌型号")
-                        .font(.subheadline)
-                        .foregroundStyle(palette.textMuted)
-                }
+                TrailSectionTitle(title: "近期行程", subtitle: item == nil ? "暂无即将开始的行程。" : "小程序同款行程提醒。")
                 Spacer()
-                TrailBadge(text: gear.statusLabel, tone: gear.status.badgeTone)
+                TrailBadge(text: item?.status.label ?? "空态", tone: item == nil ? .neutral : .warning)
+            }
+            if let item {
+                Text(item.trip.title)
+                    .font(.headline.weight(.heavy))
+                    .foregroundStyle(palette.textPrimary)
+                Text("\(item.trip.tripType.label) · \(item.trip.dateText) · \(item.trip.durationText)")
+                    .font(.subheadline)
+                    .foregroundStyle(palette.textMuted)
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    TrailMetricTile(value: "\(item.trip.readiness.completionPercent)%", label: "准备进度")
+                    TrailMetricTile(value: item.trip.readiness.missingCount == 0 ? "完成" : "\(item.trip.readiness.missingCount) 项", label: "待确认")
+                }
+            } else {
+                Text("创建行程后，这里会显示正在进行或即将出发的提醒。")
+                    .font(.subheadline)
+                    .foregroundStyle(palette.textMuted)
             }
         }
     }

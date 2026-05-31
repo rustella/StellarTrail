@@ -1,10 +1,13 @@
 import SwiftUI
 
 struct SkillsView: View {
+    @ObservedObject var environment: AppEnvironment
     @StateObject private var viewModel: SkillsViewModel
+    @State private var showingAuth = false
 
     init(environment: AppEnvironment) {
-        _viewModel = StateObject(wrappedValue: SkillsViewModel(repository: environment.skillRepository, mediaCache: environment.mediaCache))
+        self.environment = environment
+        _viewModel = StateObject(wrappedValue: SkillsViewModel(repository: environment.skillRepository, mediaCache: environment.mediaCache, sessionStore: environment.sessionStore))
     }
 
     var body: some View {
@@ -14,7 +17,7 @@ struct SkillsView: View {
                     eyebrow: "寻径星野技能库",
                     title: "户外技能",
                     subtitle: "按分类学习常用绳结，步骤清晰，出发前快速复习。",
-                    chips: ["绳结库", "媒体缓存", viewModel.state.selectedCategoryTitle]
+                    chips: ["绳结库", viewModel.state.disclaimer?.accepted == true ? "已确认安全说明" : "待确认", viewModel.state.selectedCategoryTitle]
                 ) {
                     TrailPrimaryButton(title: viewModel.state.loading ? "处理中…" : "缓存全部") {
                         Task { await viewModel.cacheAllKnots() }
@@ -34,44 +37,48 @@ struct SkillsView: View {
                     }
                 }
 
+                disclaimerGate
+
                 TrailSectionTitle(title: "技能分类", subtitle: "先从主题分类进入，再查看具体绳结步骤。")
                 ForEach(viewModel.state.categories) { category in
                     SkillCategoryCard(category: category)
                 }
 
-                TrailSurfaceCard {
-                    TrailSectionTitle(title: "搜索筛选")
-                    TextField("搜索绳结名称或用途", text: Binding(
-                        get: { viewModel.state.searchQuery },
-                        set: { viewModel.updateSearchQuery($0) }
-                    ))
-                    .trailFormField()
-                    TrailPrimaryButton(title: "搜索绳结") { Task { await viewModel.submitSearch() } }
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            TrailPillButton(title: "全部", isSelected: viewModel.state.selectedCategoryID == nil) {
-                                Task { await viewModel.selectCategory(nil) }
-                            }
-                            ForEach(viewModel.state.filterOptions) { option in
-                                TrailPillButton(title: option.title, isSelected: viewModel.state.selectedCategoryID == option.id) {
-                                    Task { await viewModel.selectCategory(option.id) }
+                if viewModel.state.disclaimer?.accepted == true {
+                    TrailSurfaceCard {
+                        TrailSectionTitle(title: "搜索筛选")
+                        TextField("搜索绳结名称或用途", text: Binding(
+                            get: { viewModel.state.searchQuery },
+                            set: { viewModel.updateSearchQuery($0) }
+                        ))
+                        .trailFormField()
+                        TrailPrimaryButton(title: "搜索绳结") { Task { await viewModel.submitSearch() } }
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                TrailPillButton(title: "全部", isSelected: viewModel.state.selectedCategoryID == nil) {
+                                    Task { await viewModel.selectCategory(nil) }
+                                }
+                                ForEach(viewModel.state.filterOptions) { option in
+                                    TrailPillButton(title: option.title, isSelected: viewModel.state.selectedCategoryID == option.id) {
+                                        Task { await viewModel.selectCategory(option.id) }
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                TrailSectionTitle(title: "绳结库", subtitle: "点击条目查看步骤和媒体展示。")
-                ForEach(viewModel.state.knots) { knot in
-                    Button { Task { await viewModel.openKnot(knot.id) } } label: {
-                        KnotCard(knot: knot, thumbnailURL: knot.media.thumbnailAsset.flatMap { viewModel.resolvedMediaURL(for: $0) })
+                    TrailSectionTitle(title: "绳结库", subtitle: "点击条目查看步骤、媒体展示和安全提示。")
+                    ForEach(viewModel.state.knots) { knot in
+                        Button { Task { await viewModel.openKnot(knot.id) } } label: {
+                            KnotCard(knot: knot, thumbnailURL: knot.media.thumbnailAsset.flatMap { viewModel.resolvedMediaURL(for: $0) })
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(knot.title)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(knot.title)
-                }
-                if viewModel.state.nextOffset != nil {
-                    TrailPrimaryButton(title: viewModel.state.loadingMore ? "加载中…" : "加载更多绳结") {
-                        Task { await viewModel.loadMoreKnots() }
+                    if viewModel.state.nextOffset != nil {
+                        TrailPrimaryButton(title: viewModel.state.loadingMore ? "加载中…" : "加载更多绳结") {
+                            Task { await viewModel.loadMoreKnots() }
+                        }
                     }
                 }
             }
@@ -80,12 +87,39 @@ struct SkillsView: View {
         .trailScreenBackground()
         .navigationTitle("技能")
         .task { await viewModel.load() }
+        .onReceive(environment.sessionStore.$currentSession) { _ in Task { await viewModel.load() } }
         .refreshable { await viewModel.load() }
+        .sheet(isPresented: $showingAuth, onDismiss: { Task { await viewModel.load() } }) {
+            AuthView(environment: environment, mode: .password)
+        }
         .sheet(item: Binding<KnotDetail?>(
             get: { viewModel.state.selectedKnot },
             set: { if $0 == nil { viewModel.closeKnot() } }
         )) { knot in
             KnotDetailSheet(knot: knot, resolvedURL: { viewModel.resolvedMediaURL(for: $0) }, onClose: viewModel.closeKnot)
+        }
+    }
+
+    private var disclaimerGate: some View {
+        Group {
+            if !viewModel.state.isLoggedIn {
+                TrailSurfaceCard {
+                    TrailSectionTitle(title: "绳结安全说明", subtitle: "登录后确认安全说明，确认记录会同步到账号。")
+                    TrailPrimaryButton(title: "账号登录") { showingAuth = true }
+                }
+            } else if let disclaimer = viewModel.state.disclaimer, !disclaimer.accepted {
+                TrailSurfaceCard {
+                    TrailSectionTitle(title: disclaimer.title, subtitle: "版本 \(disclaimer.version)")
+                    Text(disclaimer.content)
+                    TrailPrimaryButton(title: "我已阅读并同意") {
+                        Task { await viewModel.acceptDisclaimer() }
+                    }
+                }
+            } else if let disclaimer = viewModel.state.disclaimer {
+                TrailSurfaceCard {
+                    TrailSectionTitle(title: "安全说明已确认", subtitle: disclaimer.acceptedAt.map { "确认时间 \(Formatters.date($0))" })
+                }
+            }
         }
     }
 }
@@ -177,6 +211,11 @@ private struct KnotDetailSheet: View {
                         subtitle: knot.description ?? knot.summary,
                         chips: ["步骤 \(knot.steps.count)", "素材 \(knot.mediaCount)"]
                     )
+                    TrailSurfaceCard {
+                        TrailSectionTitle(title: "安全提示")
+                        Text("绳结教学仅用于辅助学习。实际户外活动前请在安全环境中反复练习，并根据装备状态、载荷方向和现场风险重新确认。")
+                            .foregroundStyle(palette.textMuted)
+                    }
                     mediaStage
                     TrailSurfaceCard {
                         TrailSectionTitle(title: "步骤")

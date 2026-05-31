@@ -56,6 +56,30 @@ enum Formatters {
         value?.nilIfBlank.map { String($0.prefix(10)) } ?? "未记录"
     }
 
+    static func dateRange(startDate: String?, endDate: String?) -> String {
+        let start = startDate?.nilIfBlank.map { String($0.prefix(10)) }
+        let end = endDate?.nilIfBlank.map { String($0.prefix(10)) }
+        switch (start, end) {
+        case let (start?, end?) where start != end:
+            return "\(start) 至 \(end)"
+        case let (start?, _):
+            return start
+        case let (_, end?):
+            return end
+        default:
+            return "未设置时间"
+        }
+    }
+
+    static func localDateString(_ date: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
     static func bytes(_ value: Int?) -> String {
         guard let value, value > 0 else { return "0 B" }
         let units = ["B", "KB", "MB", "GB"]

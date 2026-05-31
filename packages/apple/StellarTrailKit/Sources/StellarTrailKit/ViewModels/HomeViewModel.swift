@@ -8,7 +8,7 @@ final class HomeViewModel: ObservableObject {
         var error: String?
         var isLoggedIn = false
         var stats = GearStatsResponse.empty
-        var recentGears: [GearSummary] = []
+        var tripHighlight: TripHomeHighlightItem?
         var templates: [GearTemplate] = []
         var skills: [SkillCategorySummary] = []
         var atlasItems: [GearAtlasPublicItem] = []
@@ -21,13 +21,15 @@ final class HomeViewModel: ObservableObject {
     private let gearAtlasRepository: any GearAtlasRepositorying
     private let skillRepository: any SkillRepositorying
     private let contentRepository: any ContentRepositorying
+    private let tripRepository: any TripRepositorying
 
-    init(sessionStore: SessionStore, gearRepository: any GearRepositorying, gearAtlasRepository: any GearAtlasRepositorying, skillRepository: any SkillRepositorying, contentRepository: any ContentRepositorying) {
+    init(sessionStore: SessionStore, gearRepository: any GearRepositorying, gearAtlasRepository: any GearAtlasRepositorying, skillRepository: any SkillRepositorying, contentRepository: any ContentRepositorying, tripRepository: any TripRepositorying) {
         self.sessionStore = sessionStore
         self.gearRepository = gearRepository
         self.gearAtlasRepository = gearAtlasRepository
         self.skillRepository = skillRepository
         self.contentRepository = contentRepository
+        self.tripRepository = tripRepository
     }
 
     func load() async {
@@ -39,12 +41,12 @@ final class HomeViewModel: ObservableObject {
             let skills = try await skillRepository.categories().items
             let atlasItems = try await gearAtlasRepository.list(ListGearAtlasRequest(limit: 2)).items
             var stats = GearStatsResponse.empty
-            var recent: [GearSummary] = []
+            var tripHighlight: TripHomeHighlightItem?
             if sessionStore.isLoggedIn {
                 stats = try await gearRepository.stats(tab: .available)
-                recent = try await gearRepository.list(ListGearsRequest(limit: 3)).items
+                tripHighlight = try await tripRepository.homeHighlight(today: Formatters.localDateString(Date())).item
             }
-            state = State(loading: false, error: nil, isLoggedIn: sessionStore.isLoggedIn, stats: stats, recentGears: recent, templates: templates, skills: skills, atlasItems: atlasItems)
+            state = State(loading: false, error: nil, isLoggedIn: sessionStore.isLoggedIn, stats: stats, tripHighlight: tripHighlight, templates: templates, skills: skills, atlasItems: atlasItems)
         } catch {
             state.loading = false
             state.error = error.localizedDescription

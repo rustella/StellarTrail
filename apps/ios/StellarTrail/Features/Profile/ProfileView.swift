@@ -96,6 +96,21 @@ struct ProfileView: View {
                     }
                 }
 
+                TrailSurfaceCard {
+                    TrailSectionTitle(title: "产品与反馈")
+                    ProfileNavigationRow(title: "产品路线图", subtitle: "查看 iOS 后续计划并投票订阅。", systemImage: "map.fill", destination: RoadmapView(environment: environment))
+                    ProfileNavigationRow(title: "反馈", subtitle: "提交问题、建议或内容纠错。", systemImage: "bubble.left.and.text.bubble.right.fill", destination: FeedbackView(environment: environment))
+                    ProfileNavigationRow(title: "版本信息", subtitle: "查看 client_key=ios 的版本公告。", systemImage: "info.circle.fill", destination: ClientVersionsView(environment: environment))
+                }
+
+                if viewModel.session != nil {
+                    TrailSurfaceCard {
+                        TrailSectionTitle(title: "户外档案")
+                        ProfileNavigationRow(title: "户外资料", subtitle: "维护紧急联系人、血型、饮食和保险信息。", systemImage: "person.text.rectangle.fill", destination: OutdoorProfileView(environment: environment))
+                        ProfileNavigationRow(title: "户外经历", subtitle: "管理历史行程和手动补充的复盘记录。", systemImage: "figure.hiking", destination: OutdoorExperiencesView(environment: environment))
+                    }
+                }
+
                 if viewModel.canEditBaseURL {
                     TrailSurfaceCard {
                         TrailSectionTitle(title: "本地调试地址")
@@ -133,6 +148,40 @@ struct ProfileView: View {
         .sheet(isPresented: $showingAuth) {
             AuthView(environment: environment, mode: .password)
         }
+    }
+}
+
+private struct ProfileNavigationRow<Destination: View>: View {
+    @Environment(\.trailPalette) private var palette
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let destination: Destination
+
+    var body: some View {
+        NavigationLink(destination: destination) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(palette.brand)
+                    .frame(width: 32, height: 32)
+                    .background(palette.brandSoft)
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline.weight(.heavy))
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(palette.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(palette.textMuted)
+            }
+            .padding(.vertical, 6)
+        }
+        .buttonStyle(.plain)
     }
 }
 
