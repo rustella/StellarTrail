@@ -48,11 +48,74 @@ protocol SkillRepositorying {
     func knots(_ request: ListKnotsRequest) async throws -> KnotListResponse
     func knotDetail(id: String) async throws -> KnotDetail
     func offlineManifest() async throws -> KnotOfflineManifestResponse
+    func knotDisclaimer() async throws -> KnotDisclaimerResponse
+    func acceptKnotDisclaimer(_ request: AcceptKnotDisclaimerRequest) async throws -> KnotDisclaimerResponse
 }
 
 @MainActor
 protocol ContentRepositorying {
     func gearTemplates() async throws -> GearTemplatesResponse
+}
+
+@MainActor
+protocol GearPackingRepositorying {
+    func list(_ request: ListGearPackingListsRequest) async throws -> ListGearPackingListsResponse
+    func create(_ request: CreateGearPackingListRequest) async throws -> GearPackingListDetail
+    func get(id: String) async throws -> GearPackingListDetail
+    func update(id: String, request: UpdateGearPackingListRequest) async throws -> GearPackingListDetail
+    func delete(id: String) async throws
+    func addItems(id: String, request: AddGearPackingItemsRequest) async throws -> GearPackingListDetail
+    func updateItem(id: String, itemId: String, request: UpdateGearPackingItemRequest) async throws -> GearPackingListDetail
+    func deleteItem(id: String, itemId: String) async throws -> GearPackingListDetail
+}
+
+@MainActor
+protocol TripRepositorying {
+    func list(_ request: ListTripsRequest) async throws -> ListTripsResponse
+    func homeHighlight(today: String) async throws -> TripHomeHighlightResponse
+    func create(_ request: CreateTripRequest) async throws -> TripDetail
+    func get(id: String) async throws -> TripDetail
+    func update(id: String, request: UpdateTripRequest) async throws -> TripDetail
+    func delete(id: String) async throws
+    func updateSections(id: String, request: UpdateTripSectionsRequest) async throws -> TripDetail
+    func createInvitation(id: String) async throws -> CreateTripInvitationResponse
+    func acceptInvitation(token: String) async throws -> TripDetail
+    func importPackingList(id: String, request: ImportTripPackingListRequest) async throws -> TripDetail
+    func createRecord(id: String, collectionPath: String, request: TripRecordCreateRequest) async throws -> TripDetail
+    func updateRecord(id: String, collectionPath: String, recordId: String, request: TripRecordPatchRequest) async throws -> TripDetail
+    func deleteRecord(id: String, collectionPath: String, recordId: String) async throws -> TripDetail
+    func convertToOutdoorExperience(id: String, today: String) async throws -> OutdoorExperience
+    func listOutdoorExperiences() async throws -> ListOutdoorExperiencesResponse
+    func createOutdoorExperience(_ request: OutdoorExperienceRequest) async throws -> OutdoorExperience
+    func updateOutdoorExperience(id: String, request: OutdoorExperienceRequest) async throws -> OutdoorExperience
+    func deleteOutdoorExperience(id: String) async throws
+}
+
+@MainActor
+protocol ProfileRepositorying {
+    func outdoorProfile() async throws -> OutdoorProfileResponse
+    func updateOutdoorProfile(_ request: UpdateOutdoorProfileRequest) async throws -> OutdoorProfileResponse
+}
+
+@MainActor
+protocol RoadmapRepositorying {
+    func list(_ request: ListRoadmapRequest, includeUserState: Bool) async throws -> ListRoadmapResponse
+    func vote(id: String) async throws -> RoadmapItem
+    func unvote(id: String) async throws -> RoadmapItem
+    func subscribe(id: String) async throws -> RoadmapItem
+    func unsubscribe(id: String) async throws -> RoadmapItem
+}
+
+@MainActor
+protocol FeedbackRepositorying {
+    func uploadImage(data: Data, fileName: String, mimeType: String) async throws -> UploadImageInfo
+    func create(_ request: CreateFeedbackRequest) async throws -> FeedbackResponse
+}
+
+@MainActor
+protocol ClientVersionRepositorying {
+    func list(_ request: ListClientVersionsRequest) async throws -> ListClientVersionsResponse
+    func current(clientKey: ClientKey) async throws -> ClientVersion
 }
 
 @MainActor
@@ -251,6 +314,14 @@ final class SkillRepository: SkillRepositorying {
     func offlineManifest() async throws -> KnotOfflineManifestResponse {
         try await client.send(.get("/skills/knots/offline-manifest"), requiresAuth: false)
     }
+
+    func knotDisclaimer() async throws -> KnotDisclaimerResponse {
+        try await client.send(.get("/me/skills/knots/disclaimer"), requiresAuth: true)
+    }
+
+    func acceptKnotDisclaimer(_ request: AcceptKnotDisclaimerRequest) async throws -> KnotDisclaimerResponse {
+        try await client.send(try APIRequest.post("/me/skills/knots/disclaimer/acceptance", body: request), requiresAuth: true)
+    }
 }
 
 @MainActor
@@ -261,6 +332,196 @@ final class ContentRepository: ContentRepositorying {
 
     func gearTemplates() async throws -> GearTemplatesResponse {
         try await client.send(.get("/gear-templates"), requiresAuth: false)
+    }
+}
+
+@MainActor
+final class GearPackingRepository: GearPackingRepositorying {
+    private let client: APIClient
+
+    init(client: APIClient) { self.client = client }
+
+    func list(_ request: ListGearPackingListsRequest) async throws -> ListGearPackingListsResponse {
+        try await client.send(.get("/me/packing-lists", queryItems: request.queryItems), requiresAuth: true)
+    }
+
+    func create(_ request: CreateGearPackingListRequest) async throws -> GearPackingListDetail {
+        try await client.send(try APIRequest.post("/me/packing-lists", body: request), requiresAuth: true)
+    }
+
+    func get(id: String) async throws -> GearPackingListDetail {
+        try await client.send(.get("/me/packing-lists/\(id.urlPathEscaped)"), requiresAuth: true)
+    }
+
+    func update(id: String, request: UpdateGearPackingListRequest) async throws -> GearPackingListDetail {
+        try await client.send(try APIRequest.patch("/me/packing-lists/\(id.urlPathEscaped)", body: request), requiresAuth: true)
+    }
+
+    func delete(id: String) async throws {
+        try await client.sendEmpty(.delete("/me/packing-lists/\(id.urlPathEscaped)"), requiresAuth: true)
+    }
+
+    func addItems(id: String, request: AddGearPackingItemsRequest) async throws -> GearPackingListDetail {
+        try await client.send(try APIRequest.post("/me/packing-lists/\(id.urlPathEscaped)/items", body: request), requiresAuth: true)
+    }
+
+    func updateItem(id: String, itemId: String, request: UpdateGearPackingItemRequest) async throws -> GearPackingListDetail {
+        try await client.send(try APIRequest.patch("/me/packing-lists/\(id.urlPathEscaped)/items/\(itemId.urlPathEscaped)", body: request), requiresAuth: true)
+    }
+
+    func deleteItem(id: String, itemId: String) async throws -> GearPackingListDetail {
+        try await client.send(.delete("/me/packing-lists/\(id.urlPathEscaped)/items/\(itemId.urlPathEscaped)"), requiresAuth: true)
+    }
+}
+
+@MainActor
+final class TripRepository: TripRepositorying {
+    private let client: APIClient
+
+    init(client: APIClient) { self.client = client }
+
+    func list(_ request: ListTripsRequest) async throws -> ListTripsResponse {
+        try await client.send(.get("/me/trips", queryItems: request.queryItems), requiresAuth: true)
+    }
+
+    func homeHighlight(today: String) async throws -> TripHomeHighlightResponse {
+        try await client.send(.get("/me/trips/home-highlight", queryItems: [URLQueryItem(name: "today", value: today)]), requiresAuth: true)
+    }
+
+    func create(_ request: CreateTripRequest) async throws -> TripDetail {
+        try await client.send(try APIRequest.post("/me/trips", body: request), requiresAuth: true)
+    }
+
+    func get(id: String) async throws -> TripDetail {
+        try await client.send(.get("/me/trips/\(id.urlPathEscaped)"), requiresAuth: true)
+    }
+
+    func update(id: String, request: UpdateTripRequest) async throws -> TripDetail {
+        try await client.send(try APIRequest.patch("/me/trips/\(id.urlPathEscaped)", body: request), requiresAuth: true)
+    }
+
+    func delete(id: String) async throws {
+        try await client.sendEmpty(.delete("/me/trips/\(id.urlPathEscaped)"), requiresAuth: true)
+    }
+
+    func updateSections(id: String, request: UpdateTripSectionsRequest) async throws -> TripDetail {
+        try await client.send(try APIRequest.patch("/me/trips/\(id.urlPathEscaped)/sections", body: request), requiresAuth: true)
+    }
+
+    func createInvitation(id: String) async throws -> CreateTripInvitationResponse {
+        try await client.send(.post("/me/trips/\(id.urlPathEscaped)/invitations"), requiresAuth: true)
+    }
+
+    func acceptInvitation(token: String) async throws -> TripDetail {
+        try await client.send(.post("/me/trip-invitations/\(token.urlPathEscaped)/accept"), requiresAuth: true)
+    }
+
+    func importPackingList(id: String, request: ImportTripPackingListRequest) async throws -> TripDetail {
+        try await client.send(try APIRequest.post("/me/trips/\(id.urlPathEscaped)/personal-gear/import-packing-list", body: request), requiresAuth: true)
+    }
+
+    func createRecord(id: String, collectionPath: String, request: TripRecordCreateRequest) async throws -> TripDetail {
+        try await client.send(try APIRequest.post("/me/trips/\(id.urlPathEscaped)/\(collectionPath)", body: request), requiresAuth: true)
+    }
+
+    func updateRecord(id: String, collectionPath: String, recordId: String, request: TripRecordPatchRequest) async throws -> TripDetail {
+        try await client.send(try APIRequest.patch("/me/trips/\(id.urlPathEscaped)/\(collectionPath)/\(recordId.urlPathEscaped)", body: request), requiresAuth: true)
+    }
+
+    func deleteRecord(id: String, collectionPath: String, recordId: String) async throws -> TripDetail {
+        try await client.send(.delete("/me/trips/\(id.urlPathEscaped)/\(collectionPath)/\(recordId.urlPathEscaped)"), requiresAuth: true)
+    }
+
+    func convertToOutdoorExperience(id: String, today: String) async throws -> OutdoorExperience {
+        try await client.send(.post("/me/trips/\(id.urlPathEscaped)/convert-to-outdoor-experience", queryItems: [URLQueryItem(name: "today", value: today)]), requiresAuth: true)
+    }
+
+    func listOutdoorExperiences() async throws -> ListOutdoorExperiencesResponse {
+        try await client.send(.get("/me/outdoor-experiences"), requiresAuth: true)
+    }
+
+    func createOutdoorExperience(_ request: OutdoorExperienceRequest) async throws -> OutdoorExperience {
+        try await client.send(try APIRequest.post("/me/outdoor-experiences", body: request), requiresAuth: true)
+    }
+
+    func updateOutdoorExperience(id: String, request: OutdoorExperienceRequest) async throws -> OutdoorExperience {
+        try await client.send(try APIRequest.patch("/me/outdoor-experiences/\(id.urlPathEscaped)", body: request), requiresAuth: true)
+    }
+
+    func deleteOutdoorExperience(id: String) async throws {
+        try await client.sendEmpty(.delete("/me/outdoor-experiences/\(id.urlPathEscaped)"), requiresAuth: true)
+    }
+}
+
+@MainActor
+final class ProfileRepository: ProfileRepositorying {
+    private let client: APIClient
+
+    init(client: APIClient) { self.client = client }
+
+    func outdoorProfile() async throws -> OutdoorProfileResponse {
+        try await client.send(.get("/me/profile/outdoor"), requiresAuth: true)
+    }
+
+    func updateOutdoorProfile(_ request: UpdateOutdoorProfileRequest) async throws -> OutdoorProfileResponse {
+        try await client.send(try APIRequest.patch("/me/profile/outdoor", body: request), requiresAuth: true)
+    }
+}
+
+@MainActor
+final class RoadmapRepository: RoadmapRepositorying {
+    private let client: APIClient
+
+    init(client: APIClient) { self.client = client }
+
+    func list(_ request: ListRoadmapRequest, includeUserState: Bool) async throws -> ListRoadmapResponse {
+        try await client.send(.get(includeUserState ? "/me/roadmap" : "/roadmap", queryItems: request.queryItems), requiresAuth: includeUserState)
+    }
+
+    func vote(id: String) async throws -> RoadmapItem {
+        try await client.send(.put("/me/roadmap/\(id.urlPathEscaped)/vote"), requiresAuth: true)
+    }
+
+    func unvote(id: String) async throws -> RoadmapItem {
+        try await client.send(.delete("/me/roadmap/\(id.urlPathEscaped)/vote"), requiresAuth: true)
+    }
+
+    func subscribe(id: String) async throws -> RoadmapItem {
+        try await client.send(.put("/me/roadmap/\(id.urlPathEscaped)/subscription"), requiresAuth: true)
+    }
+
+    func unsubscribe(id: String) async throws -> RoadmapItem {
+        try await client.send(.delete("/me/roadmap/\(id.urlPathEscaped)/subscription"), requiresAuth: true)
+    }
+}
+
+@MainActor
+final class FeedbackRepository: FeedbackRepositorying {
+    private let client: APIClient
+
+    init(client: APIClient) { self.client = client }
+
+    func uploadImage(data: Data, fileName: String, mimeType: String) async throws -> UploadImageInfo {
+        try await client.uploadFeedbackImage(data: data, fileName: fileName, mimeType: mimeType)
+    }
+
+    func create(_ request: CreateFeedbackRequest) async throws -> FeedbackResponse {
+        try await client.send(try APIRequest.post("/me/feedback", body: request), requiresAuth: true)
+    }
+}
+
+@MainActor
+final class ClientVersionRepository: ClientVersionRepositorying {
+    private let client: APIClient
+
+    init(client: APIClient) { self.client = client }
+
+    func list(_ request: ListClientVersionsRequest) async throws -> ListClientVersionsResponse {
+        try await client.send(.get("/client-versions", queryItems: request.queryItems), requiresAuth: false)
+    }
+
+    func current(clientKey: ClientKey) async throws -> ClientVersion {
+        try await client.send(.get("/client-versions/current", queryItems: [URLQueryItem(name: "client_key", value: clientKey.rawValue)]), requiresAuth: false)
     }
 }
 

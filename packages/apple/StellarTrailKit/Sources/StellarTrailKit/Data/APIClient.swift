@@ -30,6 +30,14 @@ struct APIRequest {
         APIRequest(method: .post, path: path, queryItems: [], body: nil)
     }
 
+    static func post(_ path: String, queryItems: [URLQueryItem]) -> APIRequest {
+        APIRequest(method: .post, path: path, queryItems: queryItems, body: nil)
+    }
+
+    static func put(_ path: String) -> APIRequest {
+        APIRequest(method: .put, path: path, queryItems: [], body: nil)
+    }
+
     static func put<Body: Encodable>(_ path: String, body: Body) throws -> APIRequest {
         APIRequest(method: .put, path: path, queryItems: [], body: try JSONEncoder.stellarTrail.encode(body))
     }
@@ -76,7 +84,14 @@ final class APIClient {
     }
 
     func uploadAvatar(data: Data, fileName: String = "avatar.jpg", mimeType: String = "image/jpeg", retryOnUnauthorized: Bool = true) async throws -> ProfileUserResponse {
-        let responseData = try await uploadAvatarData(data: data, fileName: fileName, mimeType: mimeType, retryOnUnauthorized: retryOnUnauthorized)
+        let responseData = try await uploadMultipartFileData(
+            path: "/me/profile/avatar",
+            method: .put,
+            data: data,
+            fileName: fileName,
+            mimeType: mimeType,
+            retryOnUnauthorized: retryOnUnauthorized
+        )
         do {
             return try JSONDecoder.stellarTrail.decode(ProfileUserResponse.self, from: responseData)
         } catch {
@@ -84,11 +99,34 @@ final class APIClient {
         }
     }
 
-    private func uploadAvatarData(data: Data, fileName: String, mimeType: String, retryOnUnauthorized: Bool) async throws -> Data {
+    func uploadFeedbackImage(data: Data, fileName: String = "feedback.jpg", mimeType: String = "image/jpeg", retryOnUnauthorized: Bool = true) async throws -> UploadImageInfo {
+        let responseData = try await uploadMultipartFileData(
+            path: "/me/uploads",
+            method: .post,
+            data: data,
+            fileName: fileName,
+            mimeType: mimeType,
+            retryOnUnauthorized: retryOnUnauthorized
+        )
+        do {
+            return try JSONDecoder.stellarTrail.decode(UploadImageInfo.self, from: responseData)
+        } catch {
+            throw AppError.decoding(error.localizedDescription)
+        }
+    }
+
+    private func uploadMultipartFileData(
+        path: String,
+        method: HTTPMethod,
+        data: Data,
+        fileName: String,
+        mimeType: String,
+        retryOnUnauthorized: Bool
+    ) async throws -> Data {
         let boundary = "Boundary-\(UUID().uuidString)"
-        let url = try await buildURL(path: "/me/profile/avatar", queryItems: [])
+        let url = try await buildURL(path: path, queryItems: [])
         var request = URLRequest(url: url)
-        request.httpMethod = HTTPMethod.put.rawValue
+        request.httpMethod = method.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("zh-CN", forHTTPHeaderField: "X-StellarTrail-Locale")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
@@ -97,7 +135,14 @@ final class APIClient {
         request.httpBody = Self.multipartBody(data: data, fieldName: "file", fileName: fileName, mimeType: mimeType, boundary: boundary)
 
         return try await performURLRequest(request, requiresAuth: true, retryOnUnauthorized: retryOnUnauthorized) {
-            try await self.uploadAvatarData(data: data, fileName: fileName, mimeType: mimeType, retryOnUnauthorized: false)
+            try await self.uploadMultipartFileData(
+                path: path,
+                method: method,
+                data: data,
+                fileName: fileName,
+                mimeType: mimeType,
+                retryOnUnauthorized: false
+            )
         }
     }
 

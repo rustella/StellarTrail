@@ -10,6 +10,12 @@ final class AppEnvironment: ObservableObject {
     let gearAtlasRepository: any GearAtlasRepositorying
     let skillRepository: any SkillRepositorying
     let contentRepository: any ContentRepositorying
+    let gearPackingRepository: any GearPackingRepositorying
+    let tripRepository: any TripRepositorying
+    let profileRepository: any ProfileRepositorying
+    let roadmapRepository: any RoadmapRepositorying
+    let feedbackRepository: any FeedbackRepositorying
+    let clientVersionRepository: any ClientVersionRepositorying
     let mediaCache: any MediaCacheManaging
     let screenshotMode: Bool
 
@@ -21,6 +27,12 @@ final class AppEnvironment: ObservableObject {
         gearAtlasRepository: any GearAtlasRepositorying,
         skillRepository: any SkillRepositorying,
         contentRepository: any ContentRepositorying,
+        gearPackingRepository: any GearPackingRepositorying,
+        tripRepository: any TripRepositorying,
+        profileRepository: any ProfileRepositorying,
+        roadmapRepository: any RoadmapRepositorying,
+        feedbackRepository: any FeedbackRepositorying,
+        clientVersionRepository: any ClientVersionRepositorying,
         mediaCache: any MediaCacheManaging,
         screenshotMode: Bool = false
     ) {
@@ -31,6 +43,12 @@ final class AppEnvironment: ObservableObject {
         self.gearAtlasRepository = gearAtlasRepository
         self.skillRepository = skillRepository
         self.contentRepository = contentRepository
+        self.gearPackingRepository = gearPackingRepository
+        self.tripRepository = tripRepository
+        self.profileRepository = profileRepository
+        self.roadmapRepository = roadmapRepository
+        self.feedbackRepository = feedbackRepository
+        self.clientVersionRepository = clientVersionRepository
         self.mediaCache = mediaCache
         self.screenshotMode = screenshotMode
     }
@@ -44,7 +62,15 @@ final class AppEnvironment: ObservableObject {
             let defaults = UserDefaults(suiteName: defaultsSuiteName) ?? .standard
             defaults.removePersistentDomain(forName: defaultsSuiteName)
             let settingsStore = AppSettingsStore(defaults: defaults)
+            if arguments.contains("--stellartrail-screenshot-dark") {
+                settingsStore.themeMode = .dark
+            } else if arguments.contains("--stellartrail-screenshot-light") {
+                settingsStore.themeMode = .light
+            }
             let sessionStore = SessionStore(keychainStore: InMemoryKeychainStore())
+            if arguments.contains("--stellartrail-screenshot-signed-in") {
+                sessionStore.replace(with: Session.fixture)
+            }
             let fixture = FixtureRepository()
             return AppEnvironment(
                 settingsStore: settingsStore,
@@ -54,6 +80,12 @@ final class AppEnvironment: ObservableObject {
                 gearAtlasRepository: fixture,
                 skillRepository: fixture,
                 contentRepository: fixture,
+                gearPackingRepository: fixture,
+                tripRepository: fixture,
+                profileRepository: fixture,
+                roadmapRepository: fixture,
+                feedbackRepository: fixture,
+                clientVersionRepository: fixture,
                 mediaCache: FixtureMediaCacheManager(),
                 screenshotMode: true
             )
@@ -71,6 +103,12 @@ final class AppEnvironment: ObservableObject {
             gearAtlasRepository: GearAtlasRepository(client: client),
             skillRepository: SkillRepository(client: client),
             contentRepository: ContentRepository(client: client),
+            gearPackingRepository: GearPackingRepository(client: client),
+            tripRepository: TripRepository(client: client),
+            profileRepository: ProfileRepository(client: client),
+            roadmapRepository: RoadmapRepository(client: client),
+            feedbackRepository: FeedbackRepository(client: client),
+            clientVersionRepository: ClientVersionRepository(client: client),
             mediaCache: MediaCacheManager(),
             screenshotMode: false
         )

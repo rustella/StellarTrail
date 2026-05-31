@@ -6,10 +6,7 @@ final class ScreenshotFlowUITests: XCTestCase {
     }
 
     func testReviewScreenshotFlow() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["--stellartrail-screenshot-fixtures"]
-        app.launchEnvironment["STELLARTRAIL_SCREENSHOT_MODE"] = "1"
-        app.launch()
+        var app = launchScreenshotApp(theme: "light")
 
         XCTAssertTrue(app.tabBars.buttons["首页"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["今天准备好出发了吗？"].waitForExistence(timeout: 8))
@@ -23,90 +20,18 @@ final class ScreenshotFlowUITests: XCTestCase {
         capture("03-login-password-light", app: app)
         tap("邮箱验证码", app: app)
         capture("04-login-email-light", app: app)
-        tap("找回密码", app: app)
-        capture("05-password-reset-light", app: app)
-        tap("注册账号", app: app)
-        capture("06-register-light", app: app)
-        tap("账号登录", app: app)
-        signIn(app)
 
-        tapTab("首页", app: app)
-        XCTAssertTrue(app.staticTexts["我的装备已保存"].waitForExistence(timeout: 8))
-        capture("07-home-signed-in-light", app: app)
+        app.terminate()
+        app = launchScreenshotApp(signedIn: true, theme: "light")
 
-        tapTab("装备", app: app)
-        XCTAssertTrue(app.staticTexts["可用装备"].waitForExistence(timeout: 8))
-        capture("08-gears-available-light", app: app)
-        tapVisibleOrScroll("历史", app: app)
-        capture("09-gears-history-light", app: app)
-        tapVisibleOrScroll("可用", app: app)
-        app.swipeDown()
-
-        tapVisibleOrScroll("装备图鉴", app: app)
-        XCTAssertTrue(app.staticTexts["搜索筛选"].waitForExistence(timeout: 8))
-        capture("10-gear-atlas-list-light", app: app)
-        tapVisibleOrScroll("山野 45L 轻量背包", app: app)
-        XCTAssertTrue(app.staticTexts["基本信息"].waitForExistence(timeout: 8))
-        capture("11-gear-atlas-detail-light", app: app)
-        goBack(app)
-        tapVisibleOrScroll("投稿装备", app: app)
-        XCTAssertTrue(app.staticTexts["提交公开装备信息"].waitForExistence(timeout: 8))
-        capture("12-gear-atlas-submit-top-light", app: app)
-        app.swipeUp()
-        capture("13-gear-atlas-submit-bottom-light", app: app)
-        tap("关闭", app: app)
-        goBack(app)
-
-        tapIdentifier("gear-row-gear-1", app: app)
-        XCTAssertTrue(app.staticTexts["图鉴投稿"].waitForExistence(timeout: 8))
-        capture("14-gear-detail-light", app: app)
-        tap("编辑装备", app: app)
-        capture("15-gear-edit-top-light", app: app)
-        app.swipeUp()
-        capture("16-gear-edit-bottom-light", app: app)
-        tap("关闭", app: app)
-        goBack(app)
-        tap("添加", app: app)
-        capture("17-gear-create-top-light", app: app)
-        app.swipeUp()
-        capture("18-gear-create-bottom-light", app: app)
-        tap("关闭", app: app)
-
-        tapTab("技能", app: app)
-        XCTAssertTrue(app.staticTexts["技能分类"].waitForExistence(timeout: 8))
-        capture("19-skills-light", app: app)
-        tap("缓存全部", app: app)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "已缓存")).firstMatch.waitForExistence(timeout: 8))
-        capture("20-skills-cache-light", app: app)
-        tapVisibleOrScroll("单套结", app: app)
-        XCTAssertTrue(app.staticTexts["媒体展示"].waitForExistence(timeout: 8))
-        capture("21-knot-detail-light", app: app)
-        tap("关闭", app: app)
-
-        tapTab("我的", app: app)
-        capture("22-profile-signed-in-light", app: app)
-        app.swipeUp()
-        capture("23-profile-edit-email-light", app: app)
-        tapVisibleOrScroll("深色", app: app)
-        capture("24-profile-signed-in-dark", app: app)
-        tapTab("首页", app: app)
-        capture("25-home-signed-in-dark", app: app)
-        tapTab("装备", app: app)
-        capture("26-gears-signed-in-dark", app: app)
+        captureSignedInParityFlow(app, suffix: "light", includeSkillDetail: true)
     }
 
     func testDarkScreenshotFlow() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["--stellartrail-screenshot-fixtures"]
-        app.launchEnvironment["STELLARTRAIL_SCREENSHOT_MODE"] = "1"
-        app.launch()
+        let app = launchScreenshotApp(theme: "dark")
 
         XCTAssertTrue(app.tabBars.buttons["首页"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["今天准备好出发了吗？"].waitForExistence(timeout: 8))
-        tapTab("我的", app: app)
-        XCTAssertTrue(app.staticTexts["主题"].waitForExistence(timeout: 8))
-        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "去登录")).count, 1)
-        tapVisibleOrScroll("深色", app: app)
 
         tapTab("首页", app: app)
         XCTAssertTrue(app.staticTexts["今天准备好出发了吗？"].waitForExistence(timeout: 8))
@@ -116,90 +41,89 @@ final class ScreenshotFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["出行装备参考"].waitForExistence(timeout: 8))
         capture("02-gears-guest-dark", app: app)
 
-        tap("账号登录", app: app)
-        capture("03-login-password-dark", app: app)
-        tap("邮箱验证码", app: app)
-        capture("04-login-email-dark", app: app)
-        tap("找回密码", app: app)
-        capture("05-password-reset-dark", app: app)
-        tap("注册账号", app: app)
-        capture("06-register-dark", app: app)
-        tap("账号登录", app: app)
-        signIn(app)
-
-        tapTab("首页", app: app)
-        XCTAssertTrue(app.staticTexts["我的装备已保存"].waitForExistence(timeout: 8))
-        capture("07-home-signed-in-dark", app: app)
-
-        tapTab("装备", app: app)
-        XCTAssertTrue(app.staticTexts["可用装备"].waitForExistence(timeout: 8))
-        capture("08-gears-available-dark", app: app)
-        tapVisibleOrScroll("历史", app: app)
-        capture("09-gears-history-dark", app: app)
-        tapVisibleOrScroll("可用", app: app)
-        app.swipeDown()
-
-        tapVisibleOrScroll("装备图鉴", app: app)
-        XCTAssertTrue(app.staticTexts["搜索筛选"].waitForExistence(timeout: 8))
-        capture("10-gear-atlas-list-dark", app: app)
-        tapVisibleOrScroll("山野 45L 轻量背包", app: app)
-        XCTAssertTrue(app.staticTexts["基本信息"].waitForExistence(timeout: 8))
-        capture("11-gear-atlas-detail-dark", app: app)
-        goBack(app)
-        tapVisibleOrScroll("投稿装备", app: app)
-        XCTAssertTrue(app.staticTexts["提交公开装备信息"].waitForExistence(timeout: 8))
-        capture("12-gear-atlas-submit-top-dark", app: app)
-        app.swipeUp()
-        capture("13-gear-atlas-submit-bottom-dark", app: app)
-        tap("关闭", app: app)
-        goBack(app)
-
-        tapIdentifier("gear-row-gear-1", app: app)
-        XCTAssertTrue(app.staticTexts["图鉴投稿"].waitForExistence(timeout: 8))
-        capture("14-gear-detail-dark", app: app)
-        tap("编辑装备", app: app)
-        capture("15-gear-edit-top-dark", app: app)
-        app.swipeUp()
-        capture("16-gear-edit-bottom-dark", app: app)
-        tap("关闭", app: app)
-        goBack(app)
-        tap("添加", app: app)
-        capture("17-gear-create-top-dark", app: app)
-        app.swipeUp()
-        capture("18-gear-create-bottom-dark", app: app)
-        tap("关闭", app: app)
+        tapTab("行程", app: app)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "登录后可以加入多人行程")).firstMatch.waitForExistence(timeout: 8))
+        capture("03-trips-guest-dark", app: app)
 
         tapTab("技能", app: app)
         XCTAssertTrue(app.staticTexts["技能分类"].waitForExistence(timeout: 8))
-        capture("19-skills-dark", app: app)
-        tap("缓存全部", app: app)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "已缓存")).firstMatch.waitForExistence(timeout: 8))
-        capture("20-skills-cache-dark", app: app)
-        tapVisibleOrScroll("单套结", app: app)
-        XCTAssertTrue(app.staticTexts["媒体展示"].waitForExistence(timeout: 8))
-        capture("21-knot-detail-dark", app: app)
-        tap("关闭", app: app)
+        capture("04-skills-guest-dark", app: app)
 
         tapTab("我的", app: app)
-        capture("22-profile-signed-in-dark", app: app)
-        app.swipeUp()
-        capture("23-profile-edit-email-dark", app: app)
+        capture("05-profile-guest-dark", app: app)
     }
 
-    private func signIn(_ app: XCUIApplication) {
-        tap("邮箱验证码", app: app)
-        let email = app.textFields["邮箱"]
-        if email.waitForExistence(timeout: 3) {
-            email.tap()
-            email.typeText("alice@example.com")
+    func testDarkSignedInScreenshotFlow() throws {
+        let app = launchScreenshotApp(signedIn: true, theme: "dark")
+
+        captureSignedInParityFlow(app, suffix: "dark", includeSkillDetail: false)
+    }
+
+    private func launchScreenshotApp(signedIn: Bool = false, theme: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += ["--stellartrail-screenshot-fixtures", "--stellartrail-screenshot-\(theme)"]
+        if signedIn {
+            app.launchArguments += ["--stellartrail-screenshot-signed-in"]
         }
-        let code = app.textFields["邮箱验证码"]
-        if code.waitForExistence(timeout: 3) {
-            code.tap()
-            code.typeText("654321")
-        }
-        app.buttons["邮箱登录"].firstMatch.tap()
+        app.launchEnvironment["STELLARTRAIL_SCREENSHOT_MODE"] = "1"
+        app.launch()
+        return app
+    }
+
+    private func captureSignedInParityFlow(_ app: XCUIApplication, suffix: String, includeSkillDetail: Bool) {
+        tapTab("首页", app: app)
+        XCTAssertTrue(app.staticTexts["我的装备已保存"].waitForExistence(timeout: 8))
+        capture("05-home-signed-in-\(suffix)", app: app)
+
+        tapTab("装备", app: app)
         XCTAssertTrue(app.staticTexts["可用装备"].waitForExistence(timeout: 8))
+        capture("06-gears-available-\(suffix)", app: app)
+        tapVisibleOrScroll("打包清单", app: app)
+        XCTAssertTrue(app.staticTexts["武功山两日穿越"].waitForExistence(timeout: 8))
+        capture("07-packing-list-\(suffix)", app: app)
+        tapIdentifier("packing-row-packing-1", app: app)
+        XCTAssertTrue(app.staticTexts["挑选装备"].waitForExistence(timeout: 8))
+        capture("08-packing-detail-\(suffix)", app: app)
+        goBack(app)
+        goBack(app)
+
+        tapTab("行程", app: app)
+        XCTAssertTrue(app.staticTexts["武功山两日穿越"].waitForExistence(timeout: 8))
+        capture("09-trips-\(suffix)", app: app)
+        tapIdentifier("trip-row-trip-team-1", app: app)
+        XCTAssertTrue(app.staticTexts["公共装备"].waitForExistence(timeout: 8))
+        capture("10-trip-detail-team-\(suffix)", app: app)
+        tapVisibleOrScroll("公共装备", app: app)
+        capture("11-trip-shared-gear-\(suffix)", app: app)
+        goBack(app)
+
+        tapTab("技能", app: app)
+        XCTAssertTrue(app.staticTexts["安全说明已确认"].waitForExistence(timeout: 8))
+        capture("12-skills-\(suffix)", app: app)
+        if includeSkillDetail {
+            tap("缓存全部", app: app)
+            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "已缓存")).firstMatch.waitForExistence(timeout: 8))
+            capture("13-skills-cache-\(suffix)", app: app)
+            tapVisibleOrScroll("单套结", app: app)
+            XCTAssertTrue(app.staticTexts["媒体展示"].waitForExistence(timeout: 8))
+            capture("14-knot-detail-\(suffix)", app: app)
+            tap("关闭", app: app)
+        }
+
+        tapTab("我的", app: app)
+        capture("15-profile-signed-in-\(suffix)", app: app)
+        tapVisibleOrScroll("产品路线图", app: app)
+        XCTAssertTrue(app.staticTexts["client_key=ios"].waitForExistence(timeout: 8))
+        capture("16-roadmap-\(suffix)", app: app)
+        goBack(app)
+        tapVisibleOrScroll("户外资料", app: app)
+        XCTAssertTrue(app.staticTexts["紧急与健康"].waitForExistence(timeout: 8))
+        capture("17-outdoor-profile-\(suffix)", app: app)
+        goBack(app)
+        tapVisibleOrScroll("户外经历", app: app)
+        XCTAssertTrue(app.staticTexts["历史行程和复盘"].waitForExistence(timeout: 8))
+        capture("18-outdoor-experiences-\(suffix)", app: app)
+        goBack(app)
     }
 
     private func tapTab(_ title: String, app: XCUIApplication) {
@@ -219,12 +143,21 @@ final class ScreenshotFlowUITests: XCTestCase {
         if tapFirstHittable(app.tabBars.buttons.matching(NSPredicate(format: "label == %@", title))) {
             return
         }
+        let indexByTitle = ["首页": 0, "装备": 1, "行程": 2, "技能": 3, "我的": 4]
+        if let index = indexByTitle[title] {
+            let indexedButton = app.tabBars.buttons.element(boundBy: index)
+            if indexedButton.exists {
+                indexedButton.tap()
+                return
+            }
+        }
         let offsetX: CGFloat
         switch title {
         case "首页": offsetX = 0.125
-        case "装备": offsetX = 0.375
-        case "技能": offsetX = 0.625
-        case "我的": offsetX = 0.875
+        case "装备": offsetX = 0.300
+        case "行程": offsetX = 0.500
+        case "技能": offsetX = 0.700
+        case "我的": offsetX = 0.900
         default:
             XCTFail("Unknown tab \(title)")
             return

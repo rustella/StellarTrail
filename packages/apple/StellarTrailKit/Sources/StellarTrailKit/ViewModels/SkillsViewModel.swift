@@ -14,6 +14,8 @@ final class SkillsViewModel: ObservableObject {
         var detailLoading = false
         var error: String?
         var detailError: String?
+        var isLoggedIn = false
+        var disclaimer: KnotDisclaimerResponse?
         var categories: [SkillCategorySummary] = []
         var categorySummary: SkillCategorySummary?
         var filterOptions: [KnotFilterOption] = SkillsViewModel.defaultFilterOptions
@@ -37,27 +39,59 @@ final class SkillsViewModel: ObservableObject {
     @Published private(set) var state = State()
     private let repository: any SkillRepositorying
     private let mediaCache: any MediaCacheManaging
+    private let sessionStore: SessionStore
 
-    init(repository: any SkillRepositorying, mediaCache: any MediaCacheManaging) {
+    init(repository: any SkillRepositorying, mediaCache: any MediaCacheManaging, sessionStore: SessionStore) {
         self.repository = repository
         self.mediaCache = mediaCache
+        self.sessionStore = sessionStore
     }
 
     func load() async {
         state.loading = true
         state.error = nil
+        state.isLoggedIn = sessionStore.isLoggedIn
         do {
             async let categoriesResponse = repository.categories()
-            async let knotsResponse = repository.knots(currentRequest(offset: 0))
             let categoriesPayload = try await categoriesResponse
             let categories = categoriesPayload.items
-            let knots = try await knotsResponse
             state.categories = categories
             state.categorySummary = categories.first { $0.slug == "knots" || $0.id == "knots" }
-            apply(knots, appending: false)
+            if sessionStore.isLoggedIn {
+                let disclaimer = try await repository.knotDisclaimer()
+                state.disclaimer = disclaimer
+                if disclaimer.accepted {
+                    let knots = try await repository.knots(currentRequest(offset: 0))
+                    apply(knots, appending: false)
+                } else {
+                    state.knots = []
+                    state.nextOffset = nil
+                }
+            } else {
+                state.disclaimer = nil
+                state.knots = []
+                state.nextOffset = nil
+            }
             state.loading = false
         } catch {
             state.loading = false
+            state.error = error.localizedDescription
+        }
+    }
+
+    func acceptDisclaimer() async {
+        guard sessionStore.isLoggedIn else {
+            state.error = "请先登录后确认绳结安全说明"
+            return
+        }
+        state.loading = true
+        state.error = nil
+        defer { state.loading = false }
+        do {
+            state.disclaimer = try await repository.acceptKnotDisclaimer(AcceptKnotDisclaimerRequest())
+            let knots = try await repository.knots(currentRequest(offset: 0))
+            apply(knots, appending: false)
+        } catch {
             state.error = error.localizedDescription
         }
     }
@@ -105,6 +139,10 @@ final class SkillsViewModel: ObservableObject {
     }
 
     func openKnot(_ id: String) async {
+        guard state.disclaimer?.accepted == true else {
+            state.detailError = "请先确认绳结安全说明"
+            return
+        }
         let switchingKnot = state.selectedKnotID != id
         state.selectedKnotID = id
         state.detailLoading = true
@@ -131,6 +169,10 @@ final class SkillsViewModel: ObservableObject {
     }
 
     func cacheAllKnots() async {
+        guard state.disclaimer?.accepted == true else {
+            state.error = state.isLoggedIn ? "请先确认绳结安全说明" : "请先登录后缓存绳结"
+            return
+        }
         guard !state.loading else { return }
         state.loading = true
         state.error = nil
