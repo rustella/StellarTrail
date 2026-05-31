@@ -40,7 +40,7 @@ async fn list_public_versions(
     Ok(Json(ListClientVersionsResponse {
         items: records
             .iter()
-            .map(ClientVersionResponse::from_record)
+            .map(ClientVersionResponse::from_record_public)
             .collect(),
         next_cursor,
     }))
@@ -51,7 +51,7 @@ async fn current_public_version(
     Query(query): Query<ClientVersionPublicQuery>,
 ) -> Result<Json<ClientVersionResponse>, ApiError> {
     let record = client_version_service::current_public(&state, query.client_key).await?;
-    Ok(Json(ClientVersionResponse::from_record(&record)))
+    Ok(Json(ClientVersionResponse::from_record_public(&record)))
 }
 
 async fn list_admin_versions(
@@ -71,7 +71,7 @@ async fn list_admin_versions(
     Ok(Json(ListClientVersionsResponse {
         items: records
             .iter()
-            .map(ClientVersionResponse::from_record)
+            .map(ClientVersionResponse::from_record_admin)
             .collect(),
         next_cursor,
     }))
@@ -86,7 +86,7 @@ async fn create_admin_version(
     let record = client_version_service::create_admin(&state, &user.id, payload.into()).await?;
     Ok((
         StatusCode::CREATED,
-        Json(ClientVersionResponse::from_record(&record)),
+        Json(ClientVersionResponse::from_record_admin(&record)),
     ))
 }
 
@@ -99,5 +99,5 @@ async fn update_admin_version(
     admin_service::ensure_admin(&state, &user).await?;
     let record =
         client_version_service::update_admin(&state, &user.id, &id, payload.into()).await?;
-    Ok(Json(ClientVersionResponse::from_record(&record)))
+    Ok(Json(ClientVersionResponse::from_record_admin(&record)))
 }

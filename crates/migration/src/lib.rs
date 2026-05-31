@@ -6,6 +6,7 @@
 
 use sea_orm_migration::prelude::*;
 
+mod add_client_version_commit_hash;
 mod add_outdoor_profile_birth_date;
 mod add_outdoor_profile_trip_safety_fields;
 mod add_public_content_localizations;
@@ -86,6 +87,7 @@ impl MigratorTrait for Migrator {
             Box::new(add_outdoor_profile_birth_date::Migration),
             Box::new(add_outdoor_profile_trip_safety_fields::Migration),
             Box::new(update_shared_gear_demand_templates::Migration),
+            Box::new(add_client_version_commit_hash::Migration),
         ]
     }
 }
@@ -138,6 +140,7 @@ mod tests {
             "m20260527_000002_add_outdoor_profile_birth_date",
             "add_outdoor_profile_trip_safety_fields",
             "update_shared_gear_demand_templates",
+            "add_client_version_commit_hash",
         ]
         .into_iter()
         .map(str::to_owned)

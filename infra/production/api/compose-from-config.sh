@@ -191,6 +191,7 @@ done <<< "$assignments"
 
 export STELLARTAIL_DEPLOY_ROOT="$DEPLOY_ROOT"
 export STELLARTAIL_DEPLOY_TIMEZONE="${STELLARTAIL_DEPLOY_TIMEZONE:-$(detect_deploy_timezone)}"
+export APP_COMMIT_HASH="${APP_COMMIT_HASH:-$(git -C "$DEPLOY_ROOT" rev-parse HEAD 2>/dev/null || true)}"
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-stellartail-api}"
 
 if [[ "${1:-}" == "--print-derived-env" ]]; then
@@ -198,6 +199,7 @@ if [[ "${1:-}" == "--print-derived-env" ]]; then
     COMPOSE_PROJECT_NAME \
     STELLARTAIL_DEPLOY_ROOT \
     STELLARTAIL_DEPLOY_TIMEZONE \
+    APP_COMMIT_HASH \
     POSTGRES_USER \
     POSTGRES_PASSWORD \
     POSTGRES_DB \

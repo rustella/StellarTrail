@@ -37,6 +37,7 @@ struct FileAppConfig {
     env: Option<String>,
     host: Option<String>,
     port: Option<u16>,
+    commit_hash: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -421,6 +422,7 @@ pub struct ApiConfig {
     pub app_env: String,
     pub host: String,
     pub port: u16,
+    pub commit_hash: Option<String>,
     pub database: DatabaseConfig,
     pub wechat_mock_login: bool,
     pub wechat_app_id: Option<String>,
@@ -459,6 +461,10 @@ impl ApiConfig {
         let app_env = config_string_env("APP_ENV", app.env, "local");
         let host = config_string_env("APP_HOST", app.host, "127.0.0.1");
         let port = config_u16_env("APP_PORT", app.port, 8080)?;
+        let commit_hash = normalize_config_commit_hash(config_optional_string_env(
+            "APP_COMMIT_HASH",
+            app.commit_hash,
+        ))?;
         let database_url =
             config_string_env("DATABASE_URL", database.url, "sqlite://stellartrail.db");
         let wechat_mock_login =
@@ -753,6 +759,7 @@ impl ApiConfig {
             app_env,
             host,
             port,
+            commit_hash,
             database: DatabaseConfig::new(database_url)?,
             wechat_mock_login,
             wechat_app_id,
@@ -815,6 +822,19 @@ fn config_string_env_alias(
 
 fn config_optional_string_env(name: &str, file_value: Option<String>) -> Option<String> {
     optional_env(name).or_else(|| normalize_file_string(file_value))
+}
+
+fn normalize_config_commit_hash(value: Option<String>) -> anyhow::Result<Option<String>> {
+    let Some(value) = value.map(|value| value.trim().to_ascii_lowercase()) else {
+        return Ok(None);
+    };
+    if value.is_empty() {
+        return Ok(None);
+    }
+    if !(7..=40).contains(&value.len()) || !value.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        anyhow::bail!("APP_COMMIT_HASH must be a 7 to 40 character hexadecimal Git commit hash");
+    }
+    Ok(Some(value))
 }
 
 fn optional_env_alias(name: &str, aliases: &[&str]) -> Option<String> {
@@ -1081,6 +1101,10 @@ mod tests {
             env::set_var("APP_PORT", "8080");
             env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
             env::set_var("WECHAT_MOCK_LOGIN", "false");
+            env::set_var(
+                "APP_COMMIT_HASH",
+                " 376FD6C1EF08636477D5257AB720BC783BEEB358 ",
+            );
             env::set_var("WECHAT_APP_ID", " wx-app-id ");
             env::set_var("WECHAT_APP_SECRET", " wx-secret ");
         }
@@ -1089,6 +1113,10 @@ mod tests {
 
         assert_eq!(config.app_env, "production");
         assert!(!config.wechat_mock_login);
+        assert_eq!(
+            config.commit_hash.as_deref(),
+            Some("376fd6c1ef08636477d5257ab720bc783beeb358"),
+        );
         assert_eq!(config.wechat_app_id.as_deref(), Some("wx-app-id"));
         assert_eq!(config.wechat_app_secret.as_deref(), Some("wx-secret"));
         assert_eq!(config.upload, UploadConfig::default());
@@ -1612,6 +1640,7 @@ public_api:
         "APP_ENV",
         "APP_HOST",
         "APP_PORT",
+        "APP_COMMIT_HASH",
         "DATABASE_URL",
         "WECHAT_MOCK_LOGIN",
         "WECHAT_APP_ID",
