@@ -25,6 +25,10 @@ struct TestApp {
 }
 
 async fn test_app() -> TestApp {
+    test_app_with_commit_hash(None).await
+}
+
+async fn test_app_with_commit_hash(commit_hash: Option<&str>) -> TestApp {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
@@ -34,6 +38,7 @@ async fn test_app() -> TestApp {
         app_env: "local".to_owned(),
         host: "127.0.0.1".to_owned(),
         port: 0,
+        commit_hash: commit_hash.map(str::to_owned),
         database,
         wechat_mock_login: true,
         wechat_app_id: None,
@@ -168,17 +173,20 @@ async fn public_client_versions_return_seeded_wechat_release() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{current}");
-    assert_eq!(current["version"], "0.1.0");
+    assert_eq!(current["version"], "0.2.1");
+    assert_eq!(current["title"], "0.2.1 离线绳结访问修复");
     assert_eq!(current["status"], "published");
-    assert!(current["release_notes"].as_array().unwrap().len() >= 3);
+    assert!(current.get("commit_hash").is_none());
+    assert_eq!(current["release_notes"].as_array().unwrap().len(), 3);
     assert_eq!(current["release_note_sections"][0]["key"], "feature");
     assert_eq!(current["release_note_sections"][0]["title"], "Feature");
-    assert!(
-        current["release_note_sections"][0]["items"]
+    assert_eq!(current["release_note_sections"][1]["key"], "bug_fix");
+    assert_eq!(
+        current["release_note_sections"][1]["items"]
             .as_array()
             .unwrap()
-            .len()
-            >= 3
+            .len(),
+        2,
     );
 
     let (list_status, list) = send_empty_json(
@@ -189,7 +197,15 @@ async fn public_client_versions_return_seeded_wechat_release() {
     )
     .await;
     assert_eq!(list_status, StatusCode::OK, "{list}");
-    assert_eq!(list["items"][0]["version"], "0.1.0");
+    assert_eq!(list["items"][0]["version"], "0.2.1");
+    assert!(list["items"][0].get("commit_hash").is_none());
+    assert!(
+        list["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["version"] == "0.1.0")
+    );
 }
 
 #[tokio::test]
@@ -327,13 +343,15 @@ async fn admin_can_create_publish_update_and_list_client_versions() {
                 {"key": "feature", "title": "Feature", "items": ["新增 Android 客户端"]},
                 {"key": "bug_fix", "title": "BugFix", "items": ["支持多域名探测"]}
             ],
-            "status": "published"
+            "status": "published",
+            "commit_hash": "ABCDEF1"
         }),
     )
     .await;
     assert_eq!(update_status, StatusCode::OK, "{updated}");
     assert!(updated["published_at"].as_str().is_some());
     assert_eq!(updated["release_notes"].as_array().unwrap().len(), 2);
+    assert_eq!(updated["commit_hash"], "abcdef1");
     assert_eq!(updated["release_note_sections"][0]["key"], "feature");
     assert_eq!(updated["release_note_sections"][1]["key"], "bug_fix");
 
@@ -346,6 +364,7 @@ async fn admin_can_create_publish_update_and_list_client_versions() {
     .await;
     assert_eq!(admin_list_status, StatusCode::OK, "{admin_list}");
     assert_eq!(admin_list["items"][0]["title"], "Android 0.1.0");
+    assert_eq!(admin_list["items"][0]["commit_hash"], "abcdef1");
 
     let (public_status, public_list) = send_empty_json(
         &app.router,
@@ -356,6 +375,45 @@ async fn admin_can_create_publish_update_and_list_client_versions() {
     .await;
     assert_eq!(public_status, StatusCode::OK, "{public_list}");
     assert_eq!(public_list["items"][0]["version"], "0.1.0");
+    assert!(public_list["items"][0].get("commit_hash").is_none());
+}
+
+#[tokio::test]
+async fn admin_create_defaults_commit_hash_from_config() {
+    let app = test_app_with_commit_hash(Some("376fd6c1ef08636477d5257ab720bc783beeb358")).await;
+    let admin_token = grant_admin_role(&app, "commit_default").await;
+
+    let (create_status, created) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/admin/client-versions",
+        Some(&admin_token),
+        json!({
+            "client_key": "web",
+            "version": "0.3.0",
+            "title": "Web 0.3.0",
+            "release_note_sections": [
+                {"key": "feature", "title": "Feature", "items": ["新增后台追踪"]}
+            ],
+            "status": "published"
+        }),
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::CREATED, "{created}");
+    assert_eq!(
+        created["commit_hash"],
+        "376fd6c1ef08636477d5257ab720bc783beeb358"
+    );
+
+    let (public_status, public_value) = send_empty_json(
+        &app.router,
+        "GET",
+        "/api/v1/client-versions/current?client_key=web",
+        None,
+    )
+    .await;
+    assert_eq!(public_status, StatusCode::OK, "{public_value}");
+    assert!(public_value.get("commit_hash").is_none());
 }
 
 #[tokio::test]
@@ -403,7 +461,8 @@ async fn admin_client_versions_require_admin_and_validate_payload() {
             "release_note_sections": [
                 {"key": "notes", "title": "Notes", "items": ["只有备注"]}
             ],
-            "status": "live"
+            "status": "live",
+            "commit_hash": "not-a-hash"
         }),
     )
     .await;
@@ -417,6 +476,7 @@ async fn admin_client_versions_require_admin_and_validate_payload() {
             .any(|field| field["field"] == "release_note_sections")
     );
     assert!(fields.iter().any(|field| field["field"] == "status"));
+    assert!(fields.iter().any(|field| field["field"] == "commit_hash"));
 }
 
 #[tokio::test]

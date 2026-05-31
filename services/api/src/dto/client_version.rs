@@ -32,6 +32,8 @@ pub struct ClientVersionResponse {
     pub release_notes: Vec<String>,
     pub release_note_sections: Vec<ClientVersionReleaseNoteSection>,
     pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit_hash: Option<String>,
     pub published_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
@@ -75,6 +77,8 @@ pub struct ClientVersionRequest {
     #[serde(default)]
     pub release_note_sections: Vec<ClientVersionReleaseNoteSection>,
     pub status: String,
+    #[serde(default)]
+    pub commit_hash: Option<String>,
 }
 
 impl From<ClientVersionRequest> for ValidatedClientVersionDraft {
@@ -84,6 +88,7 @@ impl From<ClientVersionRequest> for ValidatedClientVersionDraft {
             version: value.version,
             title: value.title,
             release_notes: value.release_notes,
+            commit_hash: value.commit_hash,
             release_note_sections: value
                 .release_note_sections
                 .into_iter()
@@ -99,8 +104,17 @@ impl From<ClientVersionRequest> for ValidatedClientVersionDraft {
 }
 
 impl ClientVersionResponse {
-    /// Converts a persisted record to an API response.
-    pub fn from_record(record: &ClientVersionRecord) -> Self {
+    /// Converts a persisted record to a public API response without internal commit tracking.
+    pub fn from_record_public(record: &ClientVersionRecord) -> Self {
+        Self::from_record(record, None)
+    }
+
+    /// Converts a persisted record to an administrator API response with internal commit tracking.
+    pub fn from_record_admin(record: &ClientVersionRecord) -> Self {
+        Self::from_record(record, record.commit_hash.clone())
+    }
+
+    fn from_record(record: &ClientVersionRecord, commit_hash: Option<String>) -> Self {
         let release_note_sections = parse_release_note_sections(&record.release_notes_json);
         let release_notes = release_note_sections
             .iter()
@@ -114,6 +128,7 @@ impl ClientVersionResponse {
             release_notes,
             release_note_sections,
             status: record.status.clone(),
+            commit_hash,
             published_at: record.published_at.clone(),
             created_at: record.created_at.clone(),
             updated_at: record.updated_at.clone(),

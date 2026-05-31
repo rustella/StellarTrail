@@ -14,6 +14,7 @@ pub struct ClientVersionRecord {
     pub version: String,
     pub title: String,
     pub release_notes_json: String,
+    pub commit_hash: Option<String>,
     pub status: String,
     pub published_at: Option<String>,
     pub created_by_user_id: Option<String>,
@@ -29,6 +30,7 @@ pub struct ClientVersionDraft {
     pub version: String,
     pub title: String,
     pub release_notes_json: String,
+    pub commit_hash: Option<String>,
     pub status: String,
 }
 
@@ -155,15 +157,16 @@ impl ClientVersionRepository {
             .execute(statement(
                 self.db.get_database_backend(),
                 r#"INSERT INTO client_versions (
-                    id, client_key, version, title, release_notes_json, status, published_at,
+                    id, client_key, version, title, release_notes_json, commit_hash, status, published_at,
                     created_by_user_id, updated_by_user_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
                 vec![
                     id.clone().into(),
                     draft.client_key.clone().into(),
                     draft.version.clone().into(),
                     draft.title.clone().into(),
                     draft.release_notes_json.clone().into(),
+                    draft.commit_hash.clone().into(),
                     draft.status.clone().into(),
                     published_at.clone().into(),
                     actor_user_id.to_owned().into(),
@@ -201,13 +204,14 @@ impl ClientVersionRepository {
                 self.db.get_database_backend(),
                 r#"UPDATE client_versions
                    SET client_key = ?, version = ?, title = ?, release_notes_json = ?,
-                       status = ?, published_at = ?, updated_by_user_id = ?, updated_at = ?
+                       commit_hash = ?, status = ?, published_at = ?, updated_by_user_id = ?, updated_at = ?
                    WHERE id = ?"#,
                 vec![
                     draft.client_key.clone().into(),
                     draft.version.clone().into(),
                     draft.title.clone().into(),
                     draft.release_notes_json.clone().into(),
+                    draft.commit_hash.clone().into(),
                     draft.status.clone().into(),
                     published_at.into(),
                     actor_user_id.to_owned().into(),
@@ -272,7 +276,7 @@ fn paged_rows(
 }
 
 fn select_columns() -> &'static str {
-    r#"SELECT id, client_key, version, title, release_notes_json, status, published_at,
+    r#"SELECT id, client_key, version, title, release_notes_json, commit_hash, status, published_at,
         created_by_user_id, updated_by_user_id, created_at, updated_at
        FROM client_versions"#
 }
@@ -284,6 +288,7 @@ fn map_record(row: &QueryResult) -> Result<ClientVersionRecord, DbErr> {
         version: row.try_get("", "version")?,
         title: row.try_get("", "title")?,
         release_notes_json: row.try_get("", "release_notes_json")?,
+        commit_hash: row.try_get("", "commit_hash")?,
         status: row.try_get("", "status")?,
         published_at: row.try_get("", "published_at")?,
         created_by_user_id: row.try_get("", "created_by_user_id")?,

@@ -36,6 +36,7 @@ export interface ClientVersion {
   release_notes: string[];
   release_note_sections: ClientVersionReleaseNoteSection[];
   status: ClientVersionStatus;
+  commit_hash?: string | null;
   published_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -60,6 +61,7 @@ export interface ClientVersionRequest {
   release_notes?: string[];
   release_note_sections?: ClientVersionReleaseNoteSection[];
   status: ClientVersionStatus;
+  commit_hash?: string | null;
 }
 
 export type RoadmapStatus =

@@ -30,6 +30,7 @@ async fn test_app() -> TestApp {
         app_env: "local".to_owned(),
         host: "127.0.0.1".to_owned(),
         port: 0,
+        commit_hash: None,
         database,
         wechat_mock_login: true,
         wechat_app_id: None,

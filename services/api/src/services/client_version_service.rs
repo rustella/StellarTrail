@@ -21,6 +21,7 @@ pub struct ValidatedClientVersionDraft {
     pub version: String,
     pub title: String,
     pub release_notes: Vec<String>,
+    pub commit_hash: Option<String>,
     pub release_note_sections: Vec<ValidatedReleaseNoteSection>,
     pub status: String,
 }
@@ -85,7 +86,7 @@ pub async fn create_admin(
     actor_user_id: &str,
     input: ValidatedClientVersionDraft,
 ) -> Result<ClientVersionRecord, ApiError> {
-    let draft = normalize_draft(input)?;
+    let draft = normalize_draft(input, state.config().commit_hash.as_deref())?;
     let repo = ClientVersionRepository::new(state.db().clone());
     ensure_unique_version(&repo, &draft.client_key, &draft.version, None).await?;
     repo.create(actor_user_id, &draft)
@@ -104,7 +105,7 @@ pub async fn update_admin(
     if id.is_empty() {
         return Err(ApiError::NotFound);
     }
-    let draft = normalize_draft(input)?;
+    let draft = normalize_draft(input, None)?;
     let repo = ClientVersionRepository::new(state.db().clone());
     ensure_unique_version(&repo, &draft.client_key, &draft.version, Some(id)).await?;
     repo.update(id, actor_user_id, &draft)
@@ -129,7 +130,10 @@ async fn ensure_unique_version(
     Ok(())
 }
 
-fn normalize_draft(input: ValidatedClientVersionDraft) -> Result<ClientVersionDraft, ApiError> {
+fn normalize_draft(
+    input: ValidatedClientVersionDraft,
+    default_commit_hash: Option<&str>,
+) -> Result<ClientVersionDraft, ApiError> {
     let mut errors = Vec::new();
     let client_key = normalize_client_key_with_errors(input.client_key, &mut errors);
     let status = normalize_status_with_errors(input.status, &mut errors);
@@ -140,6 +144,12 @@ fn normalize_draft(input: ValidatedClientVersionDraft) -> Result<ClientVersionDr
         input.release_note_sections,
         &mut errors,
     );
+    let commit_hash = normalize_commit_hash(
+        input
+            .commit_hash
+            .or_else(|| default_commit_hash.map(str::to_owned)),
+        &mut errors,
+    );
     if !errors.is_empty() {
         return Err(ApiError::Validation(errors));
     }
@@ -148,6 +158,7 @@ fn normalize_draft(input: ValidatedClientVersionDraft) -> Result<ClientVersionDr
         version,
         title,
         release_notes_json: release_notes_json.map_err(ApiError::internal)?,
+        commit_hash,
         status,
     })
 }
@@ -230,6 +241,23 @@ fn normalize_text(
         ));
     }
     value
+}
+
+fn normalize_commit_hash(
+    value: Option<String>,
+    errors: &mut Vec<FieldViolation>,
+) -> Option<String> {
+    let value = value.map(|value| value.trim().to_ascii_lowercase())?;
+    if value.is_empty() {
+        return None;
+    }
+    if !(7..=40).contains(&value.len()) || !value.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        errors.push(FieldViolation::new(
+            "commit_hash",
+            "must be a 7 to 40 character hexadecimal Git commit hash",
+        ));
+    }
+    Some(value)
 }
 
 fn normalize_release_notes_json(
