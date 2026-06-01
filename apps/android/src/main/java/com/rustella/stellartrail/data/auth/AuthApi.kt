@@ -1,6 +1,9 @@
 package com.rustella.stellartrail.data.auth
 
 import com.rustella.stellartrail.core.network.ApiClient
+import com.rustella.stellartrail.domain.auth.BindEmailCodeRequest
+import com.rustella.stellartrail.domain.auth.BindEmailRequest
+import com.rustella.stellartrail.domain.auth.BindEmailResponse
 import com.rustella.stellartrail.domain.auth.CaptchaChallengeRequest
 import com.rustella.stellartrail.domain.auth.CaptchaChallengeResponse
 import com.rustella.stellartrail.domain.auth.EmailVerificationCodeRequest
@@ -30,6 +33,12 @@ class AuthApi(private val apiClient: ApiClient) {
 
     suspend fun resetPassword(request: PasswordResetRequest): LoginResponse =
         apiClient.post("/auth/password-reset", request)
+
+    suspend fun sendBindEmailCode(request: BindEmailCodeRequest): EmailVerificationCodeResponse =
+        apiClient.post("/me/email-binding-code", request)
+
+    suspend fun bindEmail(request: BindEmailRequest): BindEmailResponse =
+        apiClient.post("/me/email-binding", request)
 
     suspend fun createCaptcha(request: CaptchaChallengeRequest): CaptchaChallengeResponse =
         apiClient.post("/auth/captcha", request)

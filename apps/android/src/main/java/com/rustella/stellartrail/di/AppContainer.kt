@@ -20,6 +20,9 @@ import com.rustella.stellartrail.data.gear.GearRepositoryContract
 import com.rustella.stellartrail.data.packing.PackingApi
 import com.rustella.stellartrail.data.packing.PackingRepository
 import com.rustella.stellartrail.data.packing.PackingRepositoryContract
+import com.rustella.stellartrail.data.profile.ProfileApi
+import com.rustella.stellartrail.data.profile.ProfileRepository
+import com.rustella.stellartrail.data.profile.ProfileRepositoryContract
 import com.rustella.stellartrail.data.skills.SkillApi
 import com.rustella.stellartrail.data.skills.SkillRepository
 import com.rustella.stellartrail.data.skills.SkillRepositoryContract
@@ -38,6 +41,7 @@ interface AppContainer {
     val packingRepository: PackingRepositoryContract
     val skillRepository: SkillRepositoryContract
     val tripRepository: TripRepositoryContract
+    val profileRepository: ProfileRepositoryContract
 }
 
 class DefaultAppContainer(context: Context) : AppContainer {
@@ -57,4 +61,5 @@ class DefaultAppContainer(context: Context) : AppContainer {
     override val packingRepository: PackingRepositoryContract = PackingRepository(PackingApi(apiClient))
     override val skillRepository: SkillRepositoryContract = SkillRepository(SkillApi(apiClient))
     override val tripRepository: TripRepositoryContract = TripRepository(TripApi(apiClient))
+    override val profileRepository: ProfileRepositoryContract = ProfileRepository(ProfileApi(apiClient))
 }

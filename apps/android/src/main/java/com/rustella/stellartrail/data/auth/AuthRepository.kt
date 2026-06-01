@@ -1,6 +1,8 @@
 package com.rustella.stellartrail.data.auth
 
 import com.rustella.stellartrail.core.session.SessionStore
+import com.rustella.stellartrail.domain.auth.BindEmailCodeRequest
+import com.rustella.stellartrail.domain.auth.BindEmailRequest
 import com.rustella.stellartrail.domain.auth.CaptchaChallengeResponse
 import com.rustella.stellartrail.domain.auth.EmailLoginCodeRequest
 import com.rustella.stellartrail.domain.auth.EmailLoginRequest
@@ -11,6 +13,7 @@ import com.rustella.stellartrail.domain.auth.PasswordLoginRequest
 import com.rustella.stellartrail.domain.auth.PasswordResetCodeRequest
 import com.rustella.stellartrail.domain.auth.PasswordResetRequest
 import com.rustella.stellartrail.domain.auth.RegisterRequest
+import com.rustella.stellartrail.domain.auth.LoginUser
 import com.rustella.stellartrail.domain.auth.UserSession
 import kotlinx.coroutines.flow.StateFlow
 
@@ -21,6 +24,8 @@ interface AuthRepositoryContract {
     suspend fun loginWithEmailCode(email: String, emailCode: String): LoginResponse
     suspend fun sendPasswordResetCode(email: String): EmailVerificationCodeResponse
     suspend fun resetPassword(email: String, emailCode: String, password: String, confirmPassword: String): LoginResponse
+    suspend fun sendBindEmailCode(email: String): EmailVerificationCodeResponse
+    suspend fun bindEmail(email: String, emailCode: String): LoginUser
     suspend fun createCaptcha(account: String): CaptchaChallengeResponse
     suspend fun login(account: String, password: String, captchaTicket: String? = null, captchaAnswer: String? = null): LoginResponse
     suspend fun register(request: RegisterRequest): LoginResponse
@@ -64,6 +69,15 @@ class AuthRepository(
         )
         sessionStore.save(response)
         return response
+    }
+
+    override suspend fun sendBindEmailCode(email: String): EmailVerificationCodeResponse =
+        api.sendBindEmailCode(BindEmailCodeRequest(email.trim()))
+
+    override suspend fun bindEmail(email: String, emailCode: String): LoginUser {
+        val response = api.bindEmail(BindEmailRequest(email.trim(), emailCode.trim()))
+        sessionStore.session.value?.copy(user = response.user)?.let(sessionStore::save)
+        return response.user
     }
 
     override suspend fun createCaptcha(account: String): CaptchaChallengeResponse =

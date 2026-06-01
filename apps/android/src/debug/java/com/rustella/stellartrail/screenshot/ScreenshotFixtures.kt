@@ -15,6 +15,7 @@ import com.rustella.stellartrail.data.atlas.GearAtlasRepositoryContract
 import com.rustella.stellartrail.data.auth.AuthRepositoryContract
 import com.rustella.stellartrail.data.gear.GearRepositoryContract
 import com.rustella.stellartrail.data.packing.PackingRepositoryContract
+import com.rustella.stellartrail.data.profile.ProfileRepositoryContract
 import com.rustella.stellartrail.data.skills.SkillRepositoryContract
 import com.rustella.stellartrail.data.trip.TripRepositoryContract
 import com.rustella.stellartrail.di.AppContainer
@@ -58,6 +59,14 @@ import com.rustella.stellartrail.domain.packing.ListGearPackingListsRequest
 import com.rustella.stellartrail.domain.packing.ListGearPackingListsResponse
 import com.rustella.stellartrail.domain.packing.UpdateGearPackingItemRequest
 import com.rustella.stellartrail.domain.gear.label
+import com.rustella.stellartrail.domain.profile.ListOutdoorExperiencesResponse
+import com.rustella.stellartrail.domain.profile.ListRoadmapResponse
+import com.rustella.stellartrail.domain.profile.OutdoorExperienceRequest
+import com.rustella.stellartrail.domain.profile.OutdoorProfile
+import com.rustella.stellartrail.domain.profile.OutdoorProfileResponse
+import com.rustella.stellartrail.domain.profile.ProfileUserResponse
+import com.rustella.stellartrail.domain.profile.RoadmapItem
+import com.rustella.stellartrail.domain.profile.RoadmapStatusFilter
 import com.rustella.stellartrail.domain.skills.KnotDetail
 import com.rustella.stellartrail.domain.skills.KnotListResponse
 import com.rustella.stellartrail.domain.skills.KnotMediaAsset
@@ -142,6 +151,7 @@ private class FixtureAppContainer(
     override val packingRepository: PackingRepositoryContract = FixturePackingRepository()
     override val skillRepository: SkillRepositoryContract = FixtureSkillRepository()
     override val tripRepository: TripRepositoryContract = FixtureTripRepository()
+    override val profileRepository: ProfileRepositoryContract = FixtureProfileRepository(sessionStore)
 }
 
 private fun fixtureSession(): UserSession = UserSession(
@@ -164,6 +174,17 @@ private class FixtureAuthRepository(private val sessionStore: SessionStore) : Au
     override suspend fun loginWithEmailCode(email: String, emailCode: String): LoginResponse = login(email)
     override suspend fun sendPasswordResetCode(email: String): EmailVerificationCodeResponse = codeResponse(email)
     override suspend fun resetPassword(email: String, emailCode: String, password: String, confirmPassword: String): LoginResponse = login(email)
+    override suspend fun sendBindEmailCode(email: String): EmailVerificationCodeResponse = codeResponse(email)
+    override suspend fun bindEmail(email: String, emailCode: String): LoginUser {
+        val user = sessionStore.session.value?.user?.copy(email = email) ?: LoginUser(
+            id = "fixture-user",
+            username = "trail_user",
+            email = email,
+            nickname = "星野徒步者",
+        )
+        sessionStore.session.value?.copy(user = user)?.let(sessionStore::save)
+        return user
+    }
     override suspend fun createCaptcha(account: String): CaptchaChallengeResponse =
         CaptchaChallengeResponse("fixture-ticket", "image", "<svg />", "2099-01-01T00:00:00Z", "1234")
     override suspend fun login(account: String, password: String, captchaTicket: String?, captchaAnswer: String?): LoginResponse = login(account)
@@ -178,6 +199,109 @@ private class FixtureAuthRepository(private val sessionStore: SessionStore) : Au
         refreshExpiresAt = "2099-01-02T00:00:00Z",
         user = LoginUser(id = "fixture-user", username = account, email = "trail@example.test", nickname = "星野徒步者"),
     ).also(sessionStore::save)
+}
+
+private class FixtureProfileRepository(private val sessionStore: SessionStore) : ProfileRepositoryContract {
+    private val experiences = listOf(
+        OutdoorExperience(
+            id = "experience-1",
+            userId = "fixture-user",
+            sourceTripId = null,
+            tripType = TripType.SOLO,
+            title = "罗浮山三天两夜重装",
+            startDate = "2026-05-01",
+            endDate = "2026-05-03",
+            dayCount = 3,
+            companionCount = 2,
+            routeSummary = "罗浮山环线，夜宿拨云寺附近。",
+            gearSummary = "轻量雨衣够用，睡袋夜间略冷。",
+            foodSummary = "早餐偏少，电解质很有帮助。",
+            budgetSummary = "包车 300，人均约 120。",
+            notes = "第二天下午注意补水。",
+            createdAt = "2026-05-04T00:00:00Z",
+            updatedAt = "2026-05-04T00:00:00Z",
+        ),
+    )
+
+    private val roadmapItems = listOf(
+        RoadmapItem(
+            id = "roadmap-android-trip",
+            title = "Android 行程协作完善",
+            summary = "补齐成员、装备、食品、医药、安全预案与预算协作。",
+            details = "优先对齐小程序端的信息架构和状态反馈。",
+            category = "routes",
+            status = "building",
+            priority = 1,
+            voteCount = 36,
+            subscriptionCount = 12,
+            isVoted = true,
+            isSubscribed = false,
+            createdAt = "2026-05-01T00:00:00Z",
+            updatedAt = "2026-05-20T00:00:00Z",
+        ),
+        RoadmapItem(
+            id = "roadmap-offline",
+            title = "离线路线资料包",
+            summary = "把路线资料、绳结教程和装备清单缓存到本地。",
+            category = "offline",
+            status = "planned",
+            priority = 2,
+            voteCount = 24,
+            subscriptionCount = 8,
+            createdAt = "2026-05-01T00:00:00Z",
+            updatedAt = "2026-05-20T00:00:00Z",
+        ),
+    )
+
+    override suspend fun currentProfile(): ProfileUserResponse = ProfileUserResponse(
+        sessionStore.session.value?.user ?: LoginUser(id = "fixture-user", username = "trail_user", email = "trail@example.test", nickname = "星野徒步者"),
+    )
+
+    override suspend fun outdoorProfile(): OutdoorProfileResponse = OutdoorProfileResponse(
+        OutdoorProfile(
+            userId = "fixture-user",
+            outdoorId = "星星",
+            realName = "星野",
+            gender = "女",
+            birthDate = "1996-03-21",
+            heightCm = 168,
+            phone = "13800000000",
+            emergencyContact = "家属",
+            emergencyContactRelationship = "家人",
+            emergencyPhone = "13900000000",
+            bloodType = "O",
+            medicalHistory = "无",
+            allergyHistory = "无",
+            medicalResponseNote = "随身携带常用药。",
+            dietPreference = "不吃辛辣",
+            insurancePolicyNo = "TEST-OUTDOOR-001",
+            insuranceCompanyPhone = "4000000000",
+            createdAt = "2026-05-01T00:00:00Z",
+            updatedAt = "2026-05-20T00:00:00Z",
+        ),
+    )
+
+    override suspend fun updateOutdoorProfile(request: JsonObject): OutdoorProfileResponse = outdoorProfile()
+    override suspend fun listOutdoorExperiences(): ListOutdoorExperiencesResponse = ListOutdoorExperiencesResponse(experiences)
+    override suspend fun createOutdoorExperience(request: OutdoorExperienceRequest): OutdoorExperience =
+        experiences.first().copy(id = "experience-created", title = request.title)
+    override suspend fun updateOutdoorExperience(id: String, request: OutdoorExperienceRequest): OutdoorExperience =
+        experiences.first().copy(id = id, title = request.title)
+    override suspend fun deleteOutdoorExperience(id: String) = Unit
+    override suspend fun listRoadmap(isLoggedIn: Boolean, status: RoadmapStatusFilter): ListRoadmapResponse =
+        ListRoadmapResponse(
+            roadmapItems.filter { status.apiValue == null || it.status == status.apiValue },
+        )
+    override suspend fun voteRoadmapItem(id: String): RoadmapItem =
+        roadmapItems.first { it.id == id }.copy(isVoted = true, voteCount = itVoteCount(id) + 1)
+    override suspend fun unvoteRoadmapItem(id: String): RoadmapItem =
+        roadmapItems.first { it.id == id }.copy(isVoted = false, voteCount = itVoteCount(id).coerceAtLeast(1) - 1)
+    override suspend fun subscribeRoadmapItem(id: String): RoadmapItem =
+        roadmapItems.first { it.id == id }.copy(isSubscribed = true)
+    override suspend fun unsubscribeRoadmapItem(id: String): RoadmapItem =
+        roadmapItems.first { it.id == id }.copy(isSubscribed = false)
+
+    private fun itVoteCount(id: String): Int = roadmapItems.first { it.id == id }.voteCount
 }
 
 private class FixtureGearRepository : GearRepositoryContract {

@@ -40,6 +40,22 @@ data class PasswordResetRequest(
 )
 
 @Serializable
+data class BindEmailCodeRequest(
+    val email: String,
+)
+
+@Serializable
+data class BindEmailRequest(
+    val email: String,
+    @SerialName("email_verification_code") val emailVerificationCode: String,
+)
+
+@Serializable
+data class BindEmailResponse(
+    val user: LoginUser,
+)
+
+@Serializable
 data class RegisterRequest(
     val username: String,
     val email: String,

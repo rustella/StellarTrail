@@ -36,7 +36,11 @@ import com.rustella.stellartrail.feature.gear.form.GearFormViewModel
 import com.rustella.stellartrail.feature.gear.list.GearListViewModel
 import com.rustella.stellartrail.feature.home.HomeViewModel
 import com.rustella.stellartrail.feature.packing.PackingViewModel
+import com.rustella.stellartrail.feature.profile.OutdoorExperiencesViewModel
+import com.rustella.stellartrail.feature.profile.OutdoorProfileViewModel
+import com.rustella.stellartrail.feature.profile.ProfileSettingsViewModel
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
+import com.rustella.stellartrail.feature.profile.RoadmapViewModel
 import com.rustella.stellartrail.feature.skills.detail.SkillDetailViewModel
 import com.rustella.stellartrail.feature.skills.SkillsViewModel
 import com.rustella.stellartrail.feature.trips.TripDetailViewModel
@@ -56,8 +60,11 @@ import com.rustella.stellartrail.ui.screens.GearFormScreen
 import com.rustella.stellartrail.ui.screens.GearListScreen
 import com.rustella.stellartrail.ui.screens.HomeScreen
 import com.rustella.stellartrail.ui.screens.LoginRequiredScreen
+import com.rustella.stellartrail.ui.screens.OutdoorExperiencesScreen
+import com.rustella.stellartrail.ui.screens.OutdoorProfileScreen
 import com.rustella.stellartrail.ui.screens.PackingListsScreen
-import com.rustella.stellartrail.ui.screens.PlaceholderParityScreen
+import com.rustella.stellartrail.ui.screens.ProfileSettingsScreen
+import com.rustella.stellartrail.ui.screens.RoadmapScreen
 import com.rustella.stellartrail.ui.screens.TripDetailScreen
 import com.rustella.stellartrail.ui.screens.TripFormScreen
 import com.rustella.stellartrail.ui.screens.TripJoinScreen
@@ -471,16 +478,46 @@ private fun AuthenticatedApp(
                 )
             }
             composable(AppRoutes.PROFILE_ROADMAP) {
-                PlaceholderParityScreen("功能路线图", "对齐小程序端的路线图投票与订阅入口。", onBack = { navController.popBackStack() })
+                val viewModel: RoadmapViewModel = viewModel(factory = viewModelFactory {
+                    RoadmapViewModel(container.profileRepository, container.authRepository)
+                })
+                RoadmapScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
+                )
             }
             composable(AppRoutes.PROFILE_OUTDOOR) {
-                PlaceholderParityScreen("路线 / 户外资料", "维护户外 ID、紧急联系人、健康信息和经验备注。", onBack = { navController.popBackStack() })
+                val viewModel: OutdoorProfileViewModel = viewModel(factory = viewModelFactory {
+                    OutdoorProfileViewModel(container.profileRepository, container.authRepository)
+                })
+                OutdoorProfileScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
+                )
             }
             composable(AppRoutes.PROFILE_OUTDOOR_EXPERIENCES) {
-                PlaceholderParityScreen("户外经历", "展示从历史行程转换而来的个人户外经历。", onBack = { navController.popBackStack() })
+                val viewModel: OutdoorExperiencesViewModel = viewModel(factory = viewModelFactory {
+                    OutdoorExperiencesViewModel(container.profileRepository, container.authRepository)
+                })
+                OutdoorExperiencesScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
+                )
             }
             composable(AppRoutes.PROFILE_SETTINGS) {
-                PlaceholderParityScreen("设置", "管理主题、调试地址和账号状态。", onBack = { navController.popBackStack() })
+                val viewModel: ProfileSettingsViewModel = viewModel(factory = viewModelFactory {
+                    ProfileSettingsViewModel(container.authRepository, container.themeRepository, container.configStore)
+                })
+                ProfileSettingsScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    onOpenOutdoorProfile = { navController.navigate(AppRoutes.PROFILE_OUTDOOR) },
+                    onOpenOutdoorExperiences = { navController.navigate(AppRoutes.PROFILE_OUTDOOR_EXPERIENCES) },
+                )
             }
         }
     }

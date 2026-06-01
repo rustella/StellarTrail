@@ -101,7 +101,7 @@ fun ProfileScreen(
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             FeatureTile("历", "户外经历", "历史行程沉淀", onOpenOutdoorExperiences, Modifier.weight(1f), compact = true)
-            FeatureTile("设", "设置", "主题与调试地址", onOpenSettings, Modifier.weight(1f), compact = true)
+            FeatureTile("设", "设置", "账号与资料", onOpenSettings, Modifier.weight(1f), compact = true)
         }
         SurfaceCard {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

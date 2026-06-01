@@ -84,6 +84,14 @@ class ApiClient(
         setBody(request)
     }
 
+    suspend inline fun <reified Request : Any, reified Response> put(
+        path: String,
+        request: Request,
+    ): Response = send(HttpMethod.Put, path) {
+        contentType(ContentType.Application.Json)
+        setBody(request)
+    }
+
     suspend fun delete(path: String) {
         send<Unit>(HttpMethod.Delete, path)
     }
