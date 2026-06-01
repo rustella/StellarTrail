@@ -8,8 +8,8 @@ object AuthVisualContract {
     const val heroSubtitle = "装备准备、户外技能与路线知识，登录后同步保存你的出行进度。"
 
     const val loginSectionTitle = "选择登录方式"
-    const val passwordTab = "密码登录"
-    const val emailCodeTab = "验证码登录"
+    const val passwordTab = "账号登录"
+    const val emailCodeTab = "邮箱登录"
     const val passwordPrimaryAction = "登录"
     const val emailCodePrimaryAction = "验证码登录"
     const val registerLink = "注册账号"

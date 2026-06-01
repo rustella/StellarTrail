@@ -9,8 +9,8 @@ class AuthVisualContractTest {
     @Test
     fun loginTabsOnlyContainPrimaryLoginMethods() {
         assertEquals(listOf(AuthMode.LOGIN, AuthMode.EMAIL_CODE), AuthVisualContract.loginTabModes)
-        assertEquals("密码登录", AuthVisualContract.loginTabLabels.getValue(AuthMode.LOGIN))
-        assertEquals("验证码登录", AuthVisualContract.loginTabLabels.getValue(AuthMode.EMAIL_CODE))
+        assertEquals("账号登录", AuthVisualContract.loginTabLabels.getValue(AuthMode.LOGIN))
+        assertEquals("邮箱登录", AuthVisualContract.loginTabLabels.getValue(AuthMode.EMAIL_CODE))
         assertFalse(AuthVisualContract.loginTabLabels.containsKey(AuthMode.REGISTER))
         assertFalse(AuthVisualContract.loginTabLabels.containsKey(AuthMode.RESET_PASSWORD))
     }
