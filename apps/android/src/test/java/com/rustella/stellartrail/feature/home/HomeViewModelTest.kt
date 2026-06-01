@@ -15,6 +15,7 @@ import com.rustella.stellartrail.domain.gear.ListGearsResponse
 import com.rustella.stellartrail.domain.gear.UpdateGearRequest
 import com.rustella.stellartrail.domain.skills.KnotDetail
 import com.rustella.stellartrail.domain.skills.KnotListResponse
+import com.rustella.stellartrail.domain.skills.KnotSummary
 import com.rustella.stellartrail.domain.skills.ListKnotsRequest
 import com.rustella.stellartrail.domain.skills.PageInfo
 import com.rustella.stellartrail.domain.skills.SkillCategoriesResponse
@@ -49,29 +50,33 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun guestDashboardLoadsPublicTemplatesAndSkillsWithoutPrivateGearCalls() = runTest {
+    fun guestDashboardMatchesMiniProgramGuestHomeWithoutPrivateCalls() = runTest {
         val gearRepository = FakeGearRepository()
-        val viewModel = HomeViewModel(gearRepository, FakeSkillRepository())
+        val skillRepository = FakeSkillRepository()
+        val viewModel = HomeViewModel(gearRepository, skillRepository)
 
         viewModel.load(isLoggedIn = false)
         advanceUntilIdle()
 
         val state = viewModel.state.value
         assertFalse(state.isLoggedIn)
-        assertEquals(1, gearRepository.templateCalls)
+        assertEquals(0, gearRepository.templateCalls)
         assertEquals(0, gearRepository.privateGearCalls)
-        assertEquals("周末轻徒步清单", state.templates.single().title)
-        assertEquals("绳结", state.skills.single().title)
+        assertEquals(0, skillRepository.listSkillCalls)
+        assertEquals(0, skillRepository.listKnotCalls)
+        assertEquals(emptyList<GearTemplate>(), state.templates)
+        assertEquals(emptyList<SkillCategorySummary>(), state.skills)
+        assertEquals(emptyList<KnotSummary>(), state.featuredKnots)
     }
 
     @Test
-    fun guestDashboardNetworkFailureUpdatesErrorWithoutCrashing() = runTest {
+    fun loggedInDashboardNetworkFailureUpdatesErrorWithoutCrashing() = runTest {
         val viewModel = HomeViewModel(
             gearRepository = FakeGearRepository(),
-            skillRepository = FakeSkillRepository(failListSkills = true),
+            skillRepository = FakeSkillRepository(failListKnots = true),
         )
 
-        viewModel.load(isLoggedIn = false)
+        viewModel.load(isLoggedIn = true)
         advanceUntilIdle()
 
         val state = viewModel.state.value
@@ -123,16 +128,22 @@ class HomeViewModelTest {
     }
 
     private class FakeSkillRepository(
-        private val failListSkills: Boolean = false,
+        private val failListKnots: Boolean = false,
     ) : SkillRepositoryContract {
+        var listSkillCalls = 0
+        var listKnotCalls = 0
+
         override suspend fun listSkills(locale: SkillLocale): SkillCategoriesResponse = SkillCategoriesResponse(
             listOf(SkillCategorySummary("knots", "knots", "绳结", "常用户外绳结", 8, "/api/v1/skills/knots")),
         ).also {
-            if (failListSkills) throw UnknownHostException("api.stellartrail.example")
+            listSkillCalls += 1
         }
 
-        override suspend fun listKnots(locale: SkillLocale, request: ListKnotsRequest): KnotListResponse =
-            KnotListResponse(locale, emptyList(), PageInfo(limit = 20, offset = 0))
+        override suspend fun listKnots(locale: SkillLocale, request: ListKnotsRequest): KnotListResponse {
+            listKnotCalls += 1
+            if (failListKnots) throw UnknownHostException("api.stellartrail.example")
+            return KnotListResponse(locale, emptyList(), PageInfo(limit = 20, offset = 0))
+        }
 
         override suspend fun knotDetail(id: String, locale: SkillLocale): KnotDetail = error("unused")
         override fun resolveMediaUrl(pathOrUrl: String): String = pathOrUrl

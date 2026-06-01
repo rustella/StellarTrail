@@ -170,6 +170,7 @@ fun HeroCard(
     subtitle: String,
     modifier: Modifier = Modifier,
     chips: List<String> = emptyList(),
+    eyebrowPill: Boolean = false,
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val palette = currentTrailPalette()
@@ -193,8 +194,22 @@ fun HeroCard(
         Column(
             modifier = Modifier.fillMaxWidth().padding(end = if (lightHero) 28.dp else 0.dp),
         ) {
+            val eyebrowModifier = if (eyebrowPill) {
+                Modifier
+                    .clip(TrailPillShape)
+                    .background(if (lightHero) Color.White.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.14f))
+                    .border(
+                        1.dp,
+                        if (lightHero) palette.softBorder else Color.White.copy(alpha = 0.22f),
+                        TrailPillShape,
+                    )
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            } else {
+                Modifier
+            }
             Text(
                 eyebrow,
+                modifier = eyebrowModifier,
                 color = eyebrowColor,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,

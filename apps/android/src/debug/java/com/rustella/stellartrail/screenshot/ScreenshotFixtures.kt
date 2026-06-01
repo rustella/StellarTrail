@@ -316,10 +316,10 @@ private class FixtureGearRepository : GearRepositoryContract {
         ),
     )
     override suspend fun stats(tab: GearTab): GearStatsResponse = GearStatsResponse(
-        currentCount = 6,
+        currentCount = 35,
         archivedCount = 2,
-        totalValueCents = 429_700,
-        totalWeightG = 5_860,
+        totalValueCents = 3_106_442,
+        totalWeightG = 16_090,
     )
     override suspend fun list(request: ListGearsRequest): ListGearsResponse = ListGearsResponse(
         items = gears.map { item ->
@@ -790,22 +790,22 @@ private fun fixtureAtlas() = listOf(
 
 private fun fixtureKnots() = listOf(
     KnotSummary(
+        id = "taut-line",
+        slug = "taut-line",
+        title = "可调节绳结",
+        summary = "调节绳索上的张力。",
+        categories = listOf(KnotTaxonomyItem("camp", "camp", "露营")),
+        types = listOf(KnotTaxonomyItem("tension", "tension", "张力调节")),
+        media = listOf(KnotMediaAsset("thumbnail", "preview", "knots/taut-line.png", "image/png")),
+        href = "/api/v1/skills/knots/detail/taut-line",
+    ),
+    KnotSummary(
         id = "bowline",
         slug = "bowline",
         title = "单套结",
         summary = "快速打出固定绳圈，受力后仍较容易解开。",
         categories = listOf(KnotTaxonomyItem("basic", "basic", "基础")),
         types = listOf(KnotTaxonomyItem("loop", "loop", "固定绳圈")),
-        media = listOf(KnotMediaAsset("thumbnail", "preview", "knots/bowline.png", "image/png")),
         href = "/api/v1/skills/knots/detail/bowline",
-    ),
-    KnotSummary(
-        id = "taut-line",
-        slug = "taut-line",
-        title = "调节结",
-        summary = "适合帐篷风绳微调张力。",
-        categories = listOf(KnotTaxonomyItem("camp", "camp", "营地")),
-        types = listOf(KnotTaxonomyItem("tension", "tension", "张力调节")),
-        href = "/api/v1/skills/knots/detail/taut-line",
     ),
 )
