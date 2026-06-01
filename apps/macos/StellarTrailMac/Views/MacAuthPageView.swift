@@ -141,7 +141,7 @@ struct MacAuthPageView: View {
                     .font(.title2.weight(.heavy))
                     .foregroundStyle(!palette.isDark ? palette.textPrimary : .white)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(viewModel.mode == .login ? "登录后保存装备、统计和个人设置。" : "创建账号后可保存自己的出行准备。")
+                Text(viewModel.mode == .password ? "登录后保存装备、统计和个人设置。" : "创建账号后可保存自己的出行准备。")
                     .font(.subheadline)
                     .foregroundStyle(!palette.isDark ? palette.textMuted : .white.opacity(0.84))
                     .fixedSize(horizontal: false, vertical: true)
@@ -159,7 +159,7 @@ struct MacAuthPageView: View {
                 Text(viewModel.mode.title)
                     .font(.title.weight(.heavy))
                     .foregroundStyle(palette.textPrimary)
-                Text(viewModel.mode == .login ? "继续管理自己的装备准备。" : "创建账号后即可保存出行准备。")
+                Text(viewModel.mode == .password ? "继续管理自己的装备准备。" : "创建账号后即可保存出行准备。")
                     .font(.subheadline)
                     .foregroundStyle(palette.textMuted)
             }
@@ -206,7 +206,7 @@ struct MacAuthPageView: View {
         VStack(alignment: .leading, spacing: 14) {
             submitButton
             modeSwitchRow
-            if viewModel.mode == .login {
+            if viewModel.mode == .password {
                 wechatLoginSection
             }
         }
@@ -214,7 +214,7 @@ struct MacAuthPageView: View {
 
     private var modeSwitchRow: some View {
         HStack(spacing: 6) {
-            if viewModel.mode == .login {
+            if viewModel.mode == .password {
                 Text("还没有账号？")
                     .foregroundStyle(palette.textMuted)
                 authTextButton("注册账号") {
@@ -227,7 +227,7 @@ struct MacAuthPageView: View {
                     .foregroundStyle(palette.textMuted)
                 authTextButton("返回登录") {
                     withAnimation(.easeInOut(duration: 0.18)) {
-                        viewModel.switchMode(.login)
+                        viewModel.switchMode(.password)
                     }
                 }
             }
@@ -281,12 +281,12 @@ struct MacAuthPageView: View {
     }
 
     private var primaryButtonTitle: String {
-        viewModel.mode == .login ? "开始登录" : viewModel.mode.title
+        viewModel.mode == .password ? "开始登录" : viewModel.mode.title
     }
 
     @ViewBuilder
     private var authFields: some View {
-        if viewModel.mode == .login {
+        if viewModel.mode == .password {
             TextField("用户名或邮箱", text: $viewModel.account)
             SecureField("密码", text: $viewModel.password)
             if viewModel.captchaTicket != nil {

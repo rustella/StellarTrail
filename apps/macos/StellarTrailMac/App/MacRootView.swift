@@ -52,7 +52,7 @@ struct MacRootView: View {
     var body: some View {
         Group {
             if shouldShowAuthGate {
-                authView(mode: .login)
+                authView(mode: .password)
             } else if let authMode = selectedAuthMode {
                 authView(mode: authMode)
             } else {
@@ -108,7 +108,17 @@ struct MacRootView: View {
         case .home:
             MacHomeView(environment: environment)
         case .gear:
-            MacGearView(environment: environment)
+            MacGearView(
+                environment: environment,
+                onRequestLogin: {
+                    guestBrowsing = false
+                    selection = .authLogin
+                },
+                onRequestRegister: {
+                    guestBrowsing = false
+                    selection = .authRegister
+                }
+            )
         case .skills:
             MacSkillsView(environment: environment)
         case .skillKnots:
@@ -126,7 +136,7 @@ struct MacRootView: View {
                 }
             )
         case .authLogin:
-            MacAuthPageView(environment: environment, mode: .login) {
+            MacAuthPageView(environment: environment, mode: .password) {
                 guestBrowsing = true
                 selection = .home
             } onAuthenticated: {
@@ -166,7 +176,7 @@ struct MacRootView: View {
     private var selectedAuthMode: AuthMode? {
         switch selection {
         case .authLogin:
-            return .login
+            return .password
         case .authRegister:
             return .register
         default:

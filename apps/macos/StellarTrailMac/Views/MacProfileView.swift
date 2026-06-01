@@ -12,7 +12,11 @@ struct MacProfileView: View {
         onRequestRegister: @escaping () -> Void = {}
     ) {
         self.environment = environment
-        _viewModel = StateObject(wrappedValue: ProfileViewModel(settingsStore: environment.settingsStore, sessionStore: environment.sessionStore))
+        _viewModel = StateObject(wrappedValue: ProfileViewModel(
+            settingsStore: environment.settingsStore,
+            sessionStore: environment.sessionStore,
+            authRepository: environment.authRepository
+        ))
         self.onRequestLogin = onRequestLogin
         self.onRequestRegister = onRequestRegister
     }
@@ -23,8 +27,7 @@ struct MacProfileView: View {
                 TrailHeroCard(
                     eyebrow: "账号与设置",
                     title: "我的",
-                    subtitle: "管理登录状态、主题和本地连接地址。",
-                    chips: [viewModel.themeMode.label, viewModel.session == nil ? "待登录" : "已登录"]
+                    subtitle: "管理登录状态、主题偏好和本地调试地址。"
                 )
 
                 if let session = viewModel.session {
@@ -40,7 +43,7 @@ struct MacProfileView: View {
                     }
                 } else {
                     TrailSurfaceCard {
-                        TrailSectionTitle(title: "登录后保存自己的准备进度", subtitle: "当前仍可浏览首页、装备参考和技能内容。")
+                        TrailSectionTitle(title: "登录后保存自己的准备进度", subtitle: "当前仍可浏览首页、公开装备参考和绳结内容。")
                         HStack(spacing: 10) {
                             TrailPrimaryButton(title: "账号登录", action: onRequestLogin)
                             TrailSoftButton(title: "注册账号", action: onRequestRegister)

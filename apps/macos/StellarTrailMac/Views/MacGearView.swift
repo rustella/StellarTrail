@@ -5,14 +5,23 @@ struct MacGearView: View {
     @StateObject private var viewModel: GearListViewModel
     @State private var selectedGearID: String?
     @State private var showingCreate = false
+    private let onRequestLogin: () -> Void
+    private let onRequestRegister: () -> Void
 
-    init(environment: MacAppEnvironment) {
+    init(
+        environment: MacAppEnvironment,
+        onRequestLogin: @escaping () -> Void = {},
+        onRequestRegister: @escaping () -> Void = {}
+    ) {
         self.environment = environment
         _viewModel = StateObject(wrappedValue: GearListViewModel(
             sessionStore: environment.sessionStore,
             gearRepository: environment.gearRepository,
+            gearAtlasRepository: environment.gearAtlasRepository,
             contentRepository: environment.contentRepository
         ))
+        self.onRequestLogin = onRequestLogin
+        self.onRequestRegister = onRequestRegister
     }
 
     var body: some View {
@@ -25,12 +34,13 @@ struct MacGearView: View {
                 }
                 if viewModel.state.loading { TrailLoadingState() }
                 gearList
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .frame(minWidth: 420, idealWidth: 520)
+            .frame(minWidth: 420, idealWidth: 520, maxHeight: .infinity, alignment: .topLeading)
             .padding(24)
 
             detailPane
-                .frame(minWidth: 420)
+                .frame(minWidth: 420, maxHeight: .infinity, alignment: .topLeading)
                 .padding(24)
         }
         .navigationTitle("装备")
@@ -53,27 +63,61 @@ struct MacGearView: View {
         TrailHeroCard(
             eyebrow: "装备库",
             title: viewModel.state.isLoggedIn ? "桌面端装备管理" : "先看看常见装备参考",
-            subtitle: viewModel.state.isLoggedIn ? "左侧筛选列表，右侧查看详情，适合桌面快速整理。" : "登录后保存自己的装备和历史记录。",
-            chips: [viewModel.state.isLoggedIn ? "可用 \(viewModel.state.stats.currentCount)" : "可先浏览", "历史 \(viewModel.state.stats.archivedCount)"]
+            subtitle: viewModel.state.isLoggedIn ? "左侧筛选列表，右侧查看详情，适合桌面快速整理。" : "公开清单和装备图鉴可直接浏览，登录后再保存自己的装备库。"
         )
     }
 
     private var filters: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Picker("分组", selection: Binding(
-                get: { viewModel.state.tab },
-                set: { tab in Task { await viewModel.refreshWith(tab: tab) } }
-            )) {
-                ForEach(GearTab.allCases) { tab in Text(tab.label).tag(tab) }
+            if viewModel.state.isLoggedIn {
+                Picker("分组", selection: Binding(
+                    get: { viewModel.state.tab },
+                    set: { tab in Task { await viewModel.refreshWith(tab: tab) } }
+                )) {
+                    ForEach(GearTab.allCases) { tab in Text(tab.label).tag(tab) }
+                }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
 
             TextField("搜索装备", text: Binding(
                 get: { viewModel.state.query },
                 set: { query in Task { await viewModel.refreshWith(query: query) } }
             ))
             .textFieldStyle(.roundedBorder)
+
+            if viewModel.state.isLoggedIn && !viewModel.state.categories.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        filterChip(title: "全部", selected: viewModel.state.selectedCategory == nil) {
+                            Task { await viewModel.clearCategory() }
+                        }
+                        ForEach(viewModel.state.categories) { filter in
+                            if let category = filter.category {
+                                filterChip(
+                                    title: "\(filter.label) \(filter.count)",
+                                    selected: viewModel.state.selectedCategory == category
+                                ) {
+                                    Task { await viewModel.refreshWith(category: category) }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
         }
+    }
+
+    private func filterChip(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption.weight(.bold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(selected ? Color.white : Color.primary)
+        .background(selected ? Color.accentColor : Color(nsColor: .controlBackgroundColor), in: Capsule())
     }
 
     @ViewBuilder
@@ -90,6 +134,10 @@ struct MacGearView: View {
                     if viewModel.state.gears.isEmpty && !viewModel.state.loading {
                         TrailEmptyState(title: "暂无装备", subtitle: "添加第一件装备，开始整理出行清单。")
                     }
+                    if viewModel.state.nextCursor != nil {
+                        MacGearLoadMoreFooter(loading: viewModel.state.loadingMore)
+                            .task { await viewModel.loadMore() }
+                    }
                 }
             }
         } else {
@@ -104,6 +152,21 @@ struct MacGearView: View {
                             }
                         }
                     }
+                    ForEach(viewModel.state.atlasItems) { item in
+                        TrailSurfaceCard {
+                            HStack {
+                                TrailBadge(text: item.categoryLabel, tone: .info)
+                                Spacer()
+                                Text(item.formattedWeight)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(item.name).font(.headline.weight(.heavy))
+                            Text(item.brandModel.nilIfBlank ?? "未填写品牌型号")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
         }
@@ -115,9 +178,18 @@ struct MacGearView: View {
             MacGearDetailPane(environment: environment, id: selectedGearID)
         } else {
             TrailSurfaceCard {
-                TrailSectionTitle(title: "选择一件装备", subtitle: "在左侧列表中选择条目后，这里会显示详细信息和操作。")
-                Text("桌面端使用左右分栏，避免把手机页面直接放大。")
-                    .foregroundStyle(.secondary)
+                if viewModel.state.isLoggedIn {
+                    TrailSectionTitle(title: "选择一件装备", subtitle: "在左侧列表中选择条目后，这里会显示详细信息和操作。")
+                    Text("桌面端使用左右分栏，避免把手机页面直接放大。")
+                        .foregroundStyle(.secondary)
+                } else {
+                    TrailSectionTitle(title: "登录后整理自己的装备库", subtitle: "公开参考可以先看，自己的重量、价格、标签和存放位置需要登录后保存。")
+                    HStack(spacing: 10) {
+                        TrailPrimaryButton(title: "账号登录", action: onRequestLogin)
+                        TrailSoftButton(title: "注册账号", action: onRequestRegister)
+                    }
+                    .frame(maxWidth: 420)
+                }
             }
         }
     }
@@ -156,13 +228,40 @@ private struct MacGearRow: View {
     }
 }
 
+private struct MacGearLoadMoreFooter: View {
+    let loading: Bool
+
+    var body: some View {
+        HStack {
+            Spacer()
+            if loading {
+                ProgressView()
+                    .controlSize(.small)
+                Text("加载中")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+            } else {
+                Color.clear
+                    .frame(width: 1, height: 1)
+            }
+            Spacer()
+        }
+        .frame(minHeight: 28)
+        .padding(.vertical, 4)
+    }
+}
+
 private struct MacGearDetailPane: View {
     @ObservedObject var environment: MacAppEnvironment
     @StateObject private var viewModel: GearDetailViewModel
 
     init(environment: MacAppEnvironment, id: String) {
         self.environment = environment
-        _viewModel = StateObject(wrappedValue: GearDetailViewModel(id: id, repository: environment.gearRepository))
+        _viewModel = StateObject(wrappedValue: GearDetailViewModel(
+            id: id,
+            repository: environment.gearRepository,
+            atlasRepository: environment.gearAtlasRepository
+        ))
     }
 
     var body: some View {

@@ -7,8 +7,10 @@ final class MacAppEnvironment: ObservableObject {
     let sessionStore: SessionStore
     let authRepository: any AuthRepositorying
     let gearRepository: any GearRepositorying
+    let gearAtlasRepository: any GearAtlasRepositorying
     let skillRepository: any SkillRepositorying
     let contentRepository: any ContentRepositorying
+    let mediaCache: any MediaCacheManaging
     let screenshotMode: Bool
 
     init(
@@ -16,16 +18,20 @@ final class MacAppEnvironment: ObservableObject {
         sessionStore: SessionStore,
         authRepository: any AuthRepositorying,
         gearRepository: any GearRepositorying,
+        gearAtlasRepository: any GearAtlasRepositorying,
         skillRepository: any SkillRepositorying,
         contentRepository: any ContentRepositorying,
+        mediaCache: any MediaCacheManaging,
         screenshotMode: Bool = false
     ) {
         self.settingsStore = settingsStore
         self.sessionStore = sessionStore
         self.authRepository = authRepository
         self.gearRepository = gearRepository
+        self.gearAtlasRepository = gearAtlasRepository
         self.skillRepository = skillRepository
         self.contentRepository = contentRepository
+        self.mediaCache = mediaCache
         self.screenshotMode = screenshotMode
     }
 
@@ -43,8 +49,10 @@ final class MacAppEnvironment: ObservableObject {
                 sessionStore: sessionStore,
                 authRepository: fixture,
                 gearRepository: fixture,
+                gearAtlasRepository: fixture,
                 skillRepository: fixture,
                 contentRepository: fixture,
+                mediaCache: FixtureMediaCacheManager(),
                 screenshotMode: true
             )
         }
@@ -56,8 +64,10 @@ final class MacAppEnvironment: ObservableObject {
             sessionStore: sessionStore,
             authRepository: AuthRepository(client: client, sessionStore: sessionStore),
             gearRepository: GearRepository(client: client),
+            gearAtlasRepository: GearAtlasRepository(client: client),
             skillRepository: SkillRepository(client: client),
             contentRepository: ContentRepository(client: client),
+            mediaCache: MediaCacheManager(),
             screenshotMode: false
         )
     }

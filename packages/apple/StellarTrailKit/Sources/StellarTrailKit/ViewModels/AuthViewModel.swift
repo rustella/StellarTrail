@@ -155,4 +155,21 @@ final class AuthViewModel: ObservableObject {
             message = error.localizedDescription
         }
     }
+
+    func loginWithWechat() async {
+        guard !loading else { return }
+        loading = true
+        message = nil
+        defer { loading = false }
+        do {
+            let response = try await repository.wechatLogin(
+                code: "macos-local-user",
+                profile: WechatLoginProfile(nickname: "macOS 本地用户", avatarUrl: nil)
+            )
+            sessionStore.replace(with: response)
+            completed = true
+        } catch {
+            message = error.localizedDescription
+        }
+    }
 }

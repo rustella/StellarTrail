@@ -3,9 +3,17 @@ import SwiftUI
 
 struct MacSkillsView: View {
     @StateObject private var viewModel: SkillsViewModel
+    private let resolvedMediaURL: (KnotMediaAsset) -> URL?
 
     init(environment: MacAppEnvironment) {
-        _viewModel = StateObject(wrappedValue: SkillsViewModel(repository: environment.skillRepository))
+        _viewModel = StateObject(wrappedValue: SkillsViewModel(
+            repository: environment.skillRepository,
+            mediaCache: environment.mediaCache
+        ))
+        self.resolvedMediaURL = { asset in
+            guard let url = URL(string: asset.url) else { return nil }
+            return environment.mediaCache.resolvedURL(for: url)
+        }
     }
 
     var body: some View {
@@ -16,7 +24,8 @@ struct MacSkillsView: View {
             MacKnotDetailPane(
                 knot: viewModel.state.selectedKnot,
                 loading: viewModel.state.detailLoading,
-                error: viewModel.state.detailError
+                error: viewModel.state.detailError,
+                resolvedMediaURL: resolvedMediaURL
             )
             .frame(minWidth: 520)
             .padding(24)
@@ -53,7 +62,8 @@ struct MacSkillsView: View {
                         } label: {
                             MacKnotRow(
                                 knot: knot,
-                                selected: viewModel.state.selectedKnotID == knot.id
+                                selected: viewModel.state.selectedKnotID == knot.id,
+                                thumbnailURL: knot.media.thumbnailAsset.flatMap(resolvedMediaURL)
                             )
                         }
                         .buttonStyle(.plain)
@@ -172,10 +182,11 @@ private struct MacKnotAutoLoadFooter: View {
 private struct MacKnotRow: View {
     let knot: KnotSummary
     let selected: Bool
+    let thumbnailURL: URL?
 
     var body: some View {
         HStack(spacing: 14) {
-            MacKnotThumbnail(asset: knot.media.thumbnailAsset)
+            MacKnotThumbnail(url: thumbnailURL)
                 .frame(width: 92, height: 92)
 
             VStack(alignment: .leading, spacing: 8) {
@@ -205,13 +216,13 @@ private struct MacKnotRow: View {
 }
 
 private struct MacKnotThumbnail: View {
-    let asset: KnotMediaAsset?
+    let url: URL?
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color.black.opacity(0.86))
-            if let url = asset.flatMap({ URL(string: $0.url) }) {
+            if let url {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case let .success(image):
@@ -246,6 +257,7 @@ private struct MacKnotDetailPane: View {
     let knot: KnotDetail?
     let loading: Bool
     let error: String?
+    let resolvedMediaURL: (KnotMediaAsset) -> URL?
 
     var body: some View {
         ScrollView {
@@ -257,7 +269,7 @@ private struct MacKnotDetailPane: View {
                     TrailErrorState(message: error)
                 }
                 if let knot {
-                    MacKnotHeroViewer(knot: knot)
+                    MacKnotHeroViewer(knot: knot, resolvedMediaURL: resolvedMediaURL)
                         .id(knot.id)
 
                     TrailSurfaceCard {
@@ -302,6 +314,7 @@ private enum KnotViewerMode: String, CaseIterable, Identifiable {
 
 private struct MacKnotHeroViewer: View {
     let knot: KnotDetail
+    let resolvedMediaURL: (KnotMediaAsset) -> URL?
 
     @State private var mode: KnotViewerMode = .still
     @State private var mirrored = false
@@ -322,7 +335,7 @@ private struct MacKnotHeroViewer: View {
     }
 
     private var activeURL: URL? {
-        activeAsset.flatMap { URL(string: $0.url) }
+        activeAsset.flatMap(resolvedMediaURL)
     }
 
     private var isVideo: Bool {
