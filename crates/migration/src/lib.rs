@@ -1,8 +1,8 @@
 //! SeaORM migration registry for the StellarTrail schema.
 //!
 //! Migrations are registered in the order required to build a fresh schema.
-//! Schema-only patch migrations may be folded into their base tables when the
-//! project intentionally drops compatibility with already-applied histories.
+//! Schema-only changes must be folded into the corresponding initialization
+//! migrations; this crate intentionally avoids new standalone schema patches.
 
 use sea_orm_migration::prelude::*;
 
@@ -10,7 +10,6 @@ mod add_client_version_commit_hash;
 mod add_outdoor_profile_birth_date;
 mod add_outdoor_profile_trip_safety_fields;
 mod add_public_content_localizations;
-mod add_user_phone_auth;
 mod clear_knots3d_section_heading_steps;
 mod compat_folded_migrations;
 mod create_admin_roles;
@@ -90,7 +89,6 @@ impl MigratorTrait for Migrator {
             Box::new(add_outdoor_profile_trip_safety_fields::Migration),
             Box::new(update_shared_gear_demand_templates::Migration),
             Box::new(add_client_version_commit_hash::Migration),
-            Box::new(add_user_phone_auth::Migration),
         ]
     }
 }
@@ -145,7 +143,6 @@ mod tests {
             "add_outdoor_profile_trip_safety_fields",
             "update_shared_gear_demand_templates",
             "add_client_version_commit_hash",
-            "add_user_phone_auth",
         ]
         .into_iter()
         .map(str::to_owned)

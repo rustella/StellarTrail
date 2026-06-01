@@ -23,6 +23,8 @@ impl MigrationTrait for Migration {
                 wechat_openid TEXT UNIQUE NULL,
                 username TEXT NULL,
                 email TEXT NULL,
+                phone TEXT NULL,
+                phone_bound_at TEXT NULL,
                 password_hash TEXT NULL,
                 failed_login_attempts INTEGER NOT NULL DEFAULT 0,
                 last_failed_login_at TEXT NULL,
@@ -67,6 +69,10 @@ impl MigrationTrait for Migration {
         .await?;
         db.execute_unprepared(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone IS NOT NULL",
         )
         .await?;
         db.execute_unprepared(
