@@ -22,6 +22,12 @@ data class ProfileAboutItem(
     val action: ProfileAboutAction,
 )
 
+data class ProfileAboutIntroItem(
+    val icon: String,
+    val title: String,
+    val description: String,
+)
+
 enum class ProfileAboutAction {
     Roadmap,
     VersionInfo,
@@ -51,8 +57,27 @@ object ProfileVisualContract {
     )
 
     const val aboutTitle = "关于"
+    const val aboutBrandEyebrow = "寻径星野"
     const val aboutBrandTitle = "关于寻径星野"
-    const val aboutBrandDescription = "为户外爱好者准备的出行、装备与技能工具。"
+    const val aboutBrandDescription = "把每次出发前的准备，整理得更安心。"
+
+    val aboutIntroItems = listOf(
+        ProfileAboutIntroItem(
+            "🧭",
+            "出发准备",
+            "寻径星野是一个面向户外爱好者的个人工具，希望把出发前准备、装备管理、装备图鉴、户外技能复习和离线可用的知识内容慢慢整理到一起。",
+        ),
+        ProfileAboutIntroItem(
+            "🎒",
+            "山野陪伴",
+            "它不只服务某一次路线或某一类装备，而是想陪伴每一次走向山野之前的准备过程：少一点遗漏，多一点安心。",
+        ),
+        ProfileAboutIntroItem(
+            "✨",
+            "作者的话",
+            "这个项目由作者在业余时间出于爱好开发，也会按自己的使用感受持续打磨。寻径星野会永久免费，无广告，不做打扰用户的商业化设计。",
+        ),
+    )
 
     val aboutItems = listOf(
         ProfileAboutItem("图", "产品路线图", "查看功能计划，投票或订阅你关心的方向。", ProfileAboutAction.Roadmap),
@@ -88,12 +113,14 @@ object ProfileVisualContract {
             nightModeDescription(ThemeMode.DARK),
             nightModeDescription(ThemeMode.LIGHT),
             aboutTitle,
+            aboutBrandEyebrow,
             aboutBrandTitle,
             aboutBrandDescription,
             debugDefaultEndpointLabel,
             debugCustomEndpointLabel,
         ) +
             helpItems.flatMap { listOf(it.title, it.description) } +
+            aboutIntroItems.flatMap { listOf(it.icon, it.title, it.description) } +
             aboutItems.flatMap { listOf(it.title, it.description) } +
             ProfileHelpAction.entries.flatMap { action ->
                 val (title, body) = helpDialog(action)

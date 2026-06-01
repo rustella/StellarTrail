@@ -34,8 +34,17 @@ class ProfileVisualContractTest {
     @Test
     fun aboutPageCollectsRoadmapVersionAndBrandIntro() {
         assertEquals("关于", ProfileVisualContract.aboutTitle)
+        assertEquals("寻径星野", ProfileVisualContract.aboutBrandEyebrow)
         assertEquals("关于寻径星野", ProfileVisualContract.aboutBrandTitle)
-        assertEquals("为户外爱好者准备的出行、装备与技能工具。", ProfileVisualContract.aboutBrandDescription)
+        assertEquals("把每次出发前的准备，整理得更安心。", ProfileVisualContract.aboutBrandDescription)
+        assertEquals(
+            listOf("出发准备", "山野陪伴", "作者的话"),
+            ProfileVisualContract.aboutIntroItems.map { it.title },
+        )
+        assertEquals(
+            listOf("🧭", "🎒", "✨"),
+            ProfileVisualContract.aboutIntroItems.map { it.icon },
+        )
         assertEquals(
             listOf("产品路线图", "版本信息"),
             ProfileVisualContract.aboutItems.map { it.title },

@@ -120,7 +120,15 @@ fun ProfileAboutScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(ProfileVisualContract.aboutBrandTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                    Text(
+                        ProfileVisualContract.aboutBrandEyebrow,
+                        color = currentTrailPalette().brandSoftText,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    Text(ProfileVisualContract.aboutBrandTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                }
                 CompactPillAction("返回", onBack, filled = false)
             }
             Text(
@@ -128,6 +136,9 @@ fun ProfileAboutScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
+            ProfileVisualContract.aboutIntroItems.forEach { item ->
+                ProfileAboutIntroRow(item)
+            }
         }
         SurfaceCard {
             Text(ProfileVisualContract.aboutTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
@@ -305,6 +316,38 @@ private fun ProfileHelpRow(item: ProfileHelpItem, onClick: () -> Unit) {
             )
         }
         Text(">", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.ExtraBold)
+    }
+}
+
+@Composable
+private fun ProfileAboutIntroRow(item: ProfileAboutIntroItem) {
+    val palette = currentTrailPalette()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(TrailInnerCardShape)
+            .background(palette.controlBackground)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(TrailInnerCardShape)
+                .background(palette.brandSoft)
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(item.icon, color = palette.brandSoftText, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+            Text(
+                item.description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 
