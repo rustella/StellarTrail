@@ -47,6 +47,7 @@ async fn test_app(rate_limit: RateLimitConfig) -> TestApp {
         rate_limit,
         cors: CorsConfig::default(),
         mail: Default::default(),
+        sms: Default::default(),
     };
     TestApp {
         router: build_router(AppState::new(config, db)),

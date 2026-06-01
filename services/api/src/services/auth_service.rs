@@ -9,19 +9,26 @@
 use axum::http::HeaderMap;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rand::{Rng, RngCore};
+use serde_json::json;
 use stellartrail_db::repositories::{AuthRepository, UserRecord, hash_token};
 use stellartrail_domain::validation::FieldViolation;
 use time::{Duration, OffsetDateTime, format_description::well_known::Iso8601};
+use uuid::Uuid;
 
 use crate::{
     dto::auth::{
-        BindEmailRequest, BindEmailResponse, CaptchaChallengeResponse, EmailLoginRequest,
-        EmailVerificationCodeResponse, LoginProfileRequest, LoginResponse, LoginUserResponse,
-        PasswordLoginRequest, PasswordResetRequest, RegisterRequest,
+        BindEmailRequest, BindEmailResponse, BindPhoneRequest, BindPhoneResponse,
+        CaptchaChallengeResponse, EmailLoginRequest, EmailVerificationCodeResponse,
+        LoginProfileRequest, LoginResponse, LoginUserResponse, PasswordLoginRequest,
+        PasswordResetRequest, RegisterRequest, SmsCodeResponse, SmsLoginRequest,
+        SmsPasswordResetRequest, SmsRegisterRequest,
     },
     email::VerificationEmail,
     error::ApiError,
-    services::wechat::WechatCodeSessionError,
+    services::{
+        sms::{SmsCheckCodeRequest, SmsSendCodeRequest, SmsVerificationError},
+        wechat::WechatCodeSessionError,
+    },
     state::AppState,
 };
 
@@ -30,6 +37,11 @@ const EMAIL_CODE_PURPOSE_EMAIL_LOGIN: &str = "email_login";
 const EMAIL_CODE_PURPOSE_PASSWORD_RESET: &str = "password_reset";
 const EMAIL_CODE_PURPOSE_BIND_EMAIL: &str = "bind_email";
 const EMAIL_CODE_EXPIRES_MINUTES: i64 = 10;
+const SMS_CODE_PURPOSE_REGISTER: &str = "sms_register";
+const SMS_CODE_PURPOSE_LOGIN: &str = "sms_login";
+const SMS_CODE_PURPOSE_PASSWORD_RESET: &str = "sms_password_reset";
+const SMS_CODE_PURPOSE_BIND_PHONE_NEW: &str = "bind_phone_new";
+const SMS_CODE_PURPOSE_REBIND_PHONE_CURRENT: &str = "rebind_phone_current";
 const EMAIL_LOGIN_SUBJECT: &str = "寻径星野登录验证码";
 const PASSWORD_RESET_SUBJECT: &str = "寻径星野找回密码验证码";
 const BIND_EMAIL_SUBJECT: &str = "寻径星野绑定邮箱验证码";
@@ -154,6 +166,113 @@ pub async fn send_bind_email_code(
     .await
 }
 
+/// Generates an SMS code for phone/username/password registration.
+pub async fn send_sms_registration_code(
+    state: &AppState,
+    phone: String,
+) -> Result<SmsCodeResponse, ApiError> {
+    let phone = validate_phone(phone)?;
+    let repo = AuthRepository::new(state.db().clone());
+    if repo.find_user_by_phone(&phone).await?.is_some() {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "phone",
+            "has already been registered",
+        )]));
+    }
+    send_sms_code_for_purpose(
+        state,
+        &repo,
+        phone,
+        SMS_CODE_PURPOSE_REGISTER,
+        state.config().sms.login_register_template_code.clone(),
+    )
+    .await
+}
+
+/// Generates an SMS login code for an existing phone account without revealing missing accounts.
+pub async fn send_sms_login_code(
+    state: &AppState,
+    phone: String,
+) -> Result<SmsCodeResponse, ApiError> {
+    let phone = validate_phone(phone)?;
+    ensure_sms_delivery_available(state)?;
+    let repo = AuthRepository::new(state.db().clone());
+    if repo.find_user_by_phone(&phone).await?.is_none() {
+        return phantom_sms_code_response(state, phone);
+    }
+    send_sms_code_for_purpose(
+        state,
+        &repo,
+        phone,
+        SMS_CODE_PURPOSE_LOGIN,
+        state.config().sms.login_register_template_code.clone(),
+    )
+    .await
+}
+
+/// Generates an SMS password-reset code for an existing phone account without revealing missing accounts.
+pub async fn send_sms_password_reset_code(
+    state: &AppState,
+    phone: String,
+) -> Result<SmsCodeResponse, ApiError> {
+    let phone = validate_phone(phone)?;
+    ensure_sms_delivery_available(state)?;
+    let repo = AuthRepository::new(state.db().clone());
+    if repo.find_user_by_phone(&phone).await?.is_none() {
+        return phantom_sms_code_response(state, phone);
+    }
+    send_sms_code_for_purpose(
+        state,
+        &repo,
+        phone,
+        SMS_CODE_PURPOSE_PASSWORD_RESET,
+        state.config().sms.password_reset_template_code.clone(),
+    )
+    .await
+}
+
+/// Generates an SMS code for binding the requested new phone to the current account.
+pub async fn send_bind_phone_code(
+    state: &AppState,
+    user: &UserRecord,
+    phone: String,
+) -> Result<SmsCodeResponse, ApiError> {
+    let phone = validate_phone(phone)?;
+    ensure_user_can_bind_phone(user, &phone)?;
+    let repo = AuthRepository::new(state.db().clone());
+    ensure_phone_available_for_binding(&repo, user, &phone).await?;
+    send_sms_code_for_purpose(
+        state,
+        &repo,
+        phone,
+        SMS_CODE_PURPOSE_BIND_PHONE_NEW,
+        state.config().sms.bind_new_phone_template_code.clone(),
+    )
+    .await
+}
+
+/// Generates an SMS code to the current bound phone before replacing it.
+pub async fn send_rebind_current_phone_code(
+    state: &AppState,
+    user: &UserRecord,
+) -> Result<SmsCodeResponse, ApiError> {
+    let Some(phone) = user.phone.clone() else {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "phone",
+            "account does not have a bound phone",
+        )]));
+    };
+    let repo = AuthRepository::new(state.db().clone());
+    send_sms_code_for_purpose(
+        state,
+        &repo,
+        phone,
+        SMS_CODE_PURPOSE_REBIND_PHONE_CURRENT,
+        state.config().sms.change_bound_phone_template_code.clone(),
+    )
+    .await
+}
+
 async fn send_email_code_for_purpose(
     state: &AppState,
     email: String,
@@ -210,6 +329,66 @@ async fn send_email_code_for_purpose(
             .map_err(ApiError::internal)?,
         debug_code,
     })
+}
+
+async fn send_sms_code_for_purpose(
+    state: &AppState,
+    repo: &AuthRepository,
+    phone: String,
+    purpose: &'static str,
+    template_code: String,
+) -> Result<SmsCodeResponse, ApiError> {
+    ensure_sms_delivery_available(state)?;
+    let expires_at =
+        OffsetDateTime::now_utc() + Duration::seconds(state.config().sms.valid_time_seconds as i64);
+    let out_id = Uuid::new_v4().to_string();
+    repo.create_sms_verification_challenge(&phone, purpose, &out_id, expires_at)
+        .await?;
+
+    let request = SmsSendCodeRequest {
+        phone: phone.clone(),
+        out_id: out_id.clone(),
+        template_code,
+        template_param: sms_template_param(state.config().sms.valid_time_seconds),
+    };
+    let sms_client = state.sms_client();
+    let outcome = tokio::task::spawn_blocking(move || sms_client.send_verify_code(request))
+        .await
+        .map_err(ApiError::internal)?
+        .map_err(map_sms_provider_error)?;
+
+    Ok(SmsCodeResponse {
+        phone,
+        sms_ticket: out_id,
+        expires_at: expires_at
+            .format(&Iso8601::DEFAULT)
+            .map_err(ApiError::internal)?,
+        debug_code: (state.config().app_env == "local")
+            .then_some(outcome.debug_code)
+            .flatten(),
+    })
+}
+
+fn phantom_sms_code_response(state: &AppState, phone: String) -> Result<SmsCodeResponse, ApiError> {
+    let expires_at =
+        OffsetDateTime::now_utc() + Duration::seconds(state.config().sms.valid_time_seconds as i64);
+    Ok(SmsCodeResponse {
+        phone,
+        sms_ticket: Uuid::new_v4().to_string(),
+        expires_at: expires_at
+            .format(&Iso8601::DEFAULT)
+            .map_err(ApiError::internal)?,
+        debug_code: None,
+    })
+}
+
+fn sms_template_param(valid_time_seconds: u64) -> String {
+    let min = std::cmp::max(1, valid_time_seconds / 60);
+    json!({
+        "code": "##code##",
+        "min": min.to_string(),
+    })
+    .to_string()
 }
 
 /// Logs in an existing account by consuming a one-time email login code.
@@ -278,6 +457,68 @@ pub async fn password_reset(
     issue_login_for_user(&repo, user).await
 }
 
+/// Logs in an existing account by checking a one-time SMS code.
+pub async fn sms_login(
+    state: &AppState,
+    payload: SmsLoginRequest,
+) -> Result<LoginResponse, ApiError> {
+    let phone = validate_phone(payload.phone)?;
+    let repo = AuthRepository::new(state.db().clone());
+    let Some(user) = repo.find_user_by_phone(&phone).await? else {
+        return Err(ApiError::InvalidCredentials);
+    };
+    verify_sms_code(
+        state,
+        &repo,
+        &phone,
+        SMS_CODE_PURPOSE_LOGIN,
+        payload.sms_ticket,
+        payload.sms_verification_code,
+    )
+    .await?;
+    repo.reset_failed_password_login(&user.id).await?;
+    issue_login_for_user(&repo, user).await
+}
+
+/// Resets an existing account password after checking a one-time SMS code.
+pub async fn sms_password_reset(
+    state: &AppState,
+    payload: SmsPasswordResetRequest,
+) -> Result<LoginResponse, ApiError> {
+    let phone = validate_phone(payload.phone)?;
+    let password = validate_password(payload.password)?;
+    let confirm_password = payload.confirm_password;
+    if password != confirm_password {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "confirm_password",
+            "does not match password",
+        )]));
+    }
+
+    let repo = AuthRepository::new(state.db().clone());
+    let Some(user) = repo.find_user_by_phone(&phone).await? else {
+        return Err(ApiError::InvalidCredentials);
+    };
+    verify_sms_code(
+        state,
+        &repo,
+        &phone,
+        SMS_CODE_PURPOSE_PASSWORD_RESET,
+        payload.sms_ticket,
+        payload.sms_verification_code,
+    )
+    .await?;
+
+    let updated = repo
+        .update_user_password_hash(&user.id, &hash_token(&password))
+        .await?;
+    if !updated {
+        return Err(ApiError::Unauthorized);
+    }
+    repo.revoke_user_sessions(&user.id).await?;
+    issue_login_for_user(&repo, user).await
+}
+
 /// Binds a verified email address to the current account.
 ///
 /// This is primarily used by accounts created through WeChat one-tap login, whose
@@ -315,6 +556,62 @@ pub async fn bind_email(
         )]));
     };
     Ok(BindEmailResponse {
+        user: login_user_response(updated_user),
+    })
+}
+
+/// Binds or replaces the current account's phone number after SMS verification.
+pub async fn bind_phone(
+    state: &AppState,
+    user: UserRecord,
+    payload: BindPhoneRequest,
+) -> Result<BindPhoneResponse, ApiError> {
+    let phone = validate_phone(payload.phone)?;
+    ensure_user_can_bind_phone(&user, &phone)?;
+    let repo = AuthRepository::new(state.db().clone());
+    ensure_phone_available_for_binding(&repo, &user, &phone).await?;
+
+    if let Some(current_phone) = user.phone.as_deref() {
+        let current_ticket = payload.current_sms_ticket.ok_or_else(|| {
+            ApiError::Validation(vec![FieldViolation::new(
+                "current_sms_ticket",
+                "is required when replacing a bound phone",
+            )])
+        })?;
+        let current_code = payload.current_sms_verification_code.ok_or_else(|| {
+            ApiError::Validation(vec![FieldViolation::new(
+                "current_sms_verification_code",
+                "is required when replacing a bound phone",
+            )])
+        })?;
+        verify_sms_code(
+            state,
+            &repo,
+            current_phone,
+            SMS_CODE_PURPOSE_REBIND_PHONE_CURRENT,
+            current_ticket,
+            current_code,
+        )
+        .await?;
+    }
+
+    verify_sms_code(
+        state,
+        &repo,
+        &phone,
+        SMS_CODE_PURPOSE_BIND_PHONE_NEW,
+        payload.sms_ticket,
+        payload.sms_verification_code,
+    )
+    .await?;
+
+    let Some(updated_user) = repo.bind_user_phone(&user.id, &phone).await? else {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "phone",
+            "has already been registered",
+        )]));
+    };
+    Ok(BindPhoneResponse {
         user: login_user_response(updated_user),
     })
 }
@@ -371,7 +668,56 @@ pub async fn register_with_password(
     issue_login_for_user(&repo, user).await
 }
 
-/// Authenticates a username/email password login and issues a fresh token pair.
+/// Completes phone/username/password registration by validating the SMS code and password.
+pub async fn register_with_sms(
+    state: &AppState,
+    payload: SmsRegisterRequest,
+) -> Result<LoginResponse, ApiError> {
+    let username = validate_username(payload.username)?;
+    let nickname = validate_nickname(payload.nickname)?;
+    let phone = validate_phone(payload.phone)?;
+    let password = validate_password(payload.password)?;
+    let confirm_password = payload.confirm_password;
+
+    let mut errors = Vec::new();
+    if password != confirm_password {
+        errors.push(FieldViolation::new(
+            "confirm_password",
+            "does not match password",
+        ));
+    }
+
+    let repo = AuthRepository::new(state.db().clone());
+    if repo.find_user_by_username(&username).await?.is_some() {
+        errors.push(FieldViolation::new(
+            "username",
+            "has already been registered",
+        ));
+    }
+    if repo.find_user_by_phone(&phone).await?.is_some() {
+        errors.push(FieldViolation::new("phone", "has already been registered"));
+    }
+    if !errors.is_empty() {
+        return Err(ApiError::Validation(errors));
+    }
+
+    verify_sms_code(
+        state,
+        &repo,
+        &phone,
+        SMS_CODE_PURPOSE_REGISTER,
+        payload.sms_ticket,
+        payload.sms_verification_code,
+    )
+    .await?;
+
+    let user = repo
+        .create_phone_password_user(&username, &nickname, &phone, &hash_token(&password))
+        .await?;
+    issue_login_for_user(&repo, user).await
+}
+
+/// Authenticates a username, email, or phone password login and issues a fresh token pair.
 ///
 /// Accounts with repeated failures must solve the latest captcha challenge before
 /// password verification proceeds. Successful login resets the failure counter
@@ -607,6 +953,7 @@ pub(crate) fn login_user_response(user: UserRecord) -> LoginUserResponse {
         id: user.id,
         username: user.username,
         email: user.email,
+        phone: user.phone,
         nickname: user.nickname,
         avatar_url: user.avatar_url,
     }
@@ -644,6 +991,72 @@ async fn ensure_email_available_for_binding(
             "email",
             "has already been registered",
         )]));
+    }
+    Ok(())
+}
+
+fn ensure_user_can_bind_phone(user: &UserRecord, phone: &str) -> Result<(), ApiError> {
+    if let Some(existing_phone) = user.phone.as_deref()
+        && existing_phone == phone
+    {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "phone",
+            "is already bound to this account",
+        )]));
+    }
+    Ok(())
+}
+
+async fn ensure_phone_available_for_binding(
+    repo: &AuthRepository,
+    user: &UserRecord,
+    phone: &str,
+) -> Result<(), ApiError> {
+    if let Some(existing_user) = repo.find_user_by_phone(phone).await?
+        && existing_user.id != user.id
+    {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "phone",
+            "has already been registered",
+        )]));
+    }
+    Ok(())
+}
+
+async fn verify_sms_code(
+    state: &AppState,
+    repo: &AuthRepository,
+    phone: &str,
+    purpose: &'static str,
+    sms_ticket: String,
+    sms_verification_code: String,
+) -> Result<(), ApiError> {
+    let sms_ticket = validate_sms_ticket(sms_ticket)?;
+    let sms_verification_code = validate_sms_verification_code(sms_verification_code)?;
+    let Some(challenge) = repo
+        .find_active_sms_verification_challenge(phone, purpose, &sms_ticket)
+        .await?
+    else {
+        return Err(invalid_sms_code_error());
+    };
+    let request = SmsCheckCodeRequest {
+        phone: phone.to_owned(),
+        out_id: challenge.out_id.clone(),
+        verify_code: sms_verification_code,
+    };
+    let sms_client = state.sms_client();
+    let outcome = tokio::task::spawn_blocking(move || sms_client.check_verify_code(request))
+        .await
+        .map_err(ApiError::internal)?
+        .map_err(map_sms_provider_error)?;
+    if !outcome.passed {
+        return Err(invalid_sms_code_error());
+    }
+    if !repo
+        .consume_sms_verification_challenge(&challenge.id)
+        .await?
+    {
+        return Err(invalid_sms_code_error());
     }
     Ok(())
 }
@@ -720,6 +1133,41 @@ fn validate_email(email: String) -> Result<String, ApiError> {
     Ok(email)
 }
 
+/// Normalizes a Chinese mainland phone number into 11 digits.
+fn validate_phone(phone: String) -> Result<String, ApiError> {
+    let mut phone = phone
+        .trim()
+        .chars()
+        .filter(|ch| !ch.is_ascii_whitespace() && *ch != '-')
+        .collect::<String>();
+    if let Some(rest) = phone.strip_prefix("+86") {
+        phone = rest.to_owned();
+    } else if phone.len() == 13 && phone.starts_with("86") {
+        phone = phone[2..].to_owned();
+    }
+    let valid =
+        phone.len() == 11 && phone.starts_with('1') && phone.chars().all(|ch| ch.is_ascii_digit());
+    if !valid {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "phone",
+            "must be a valid Chinese mainland phone number",
+        )]));
+    }
+    Ok(phone)
+}
+
+fn validate_nickname(nickname: String) -> Result<String, ApiError> {
+    let nickname = nickname.trim();
+    let len = nickname.chars().count();
+    if !(1..=64).contains(&len) {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "nickname",
+            "must be between 1 and 64 characters",
+        )]));
+    }
+    Ok(nickname.to_owned())
+}
+
 /// Validates a registration password and confirms the repeated password matches.
 fn validate_password(password: String) -> Result<String, ApiError> {
     let len = password.chars().count();
@@ -743,7 +1191,7 @@ fn validate_login_password(password: String) -> Result<String, ApiError> {
     Ok(password)
 }
 
-/// Trims the username or email identifier used by password login.
+/// Trims the username, email, or phone identifier used by password login.
 fn validate_login_account(account: String) -> Result<String, ApiError> {
     let account = account.trim().to_ascii_lowercase();
     if account.is_empty() {
@@ -761,6 +1209,28 @@ fn validate_verification_code(code: String) -> Result<String, ApiError> {
     if code.is_empty() {
         return Err(ApiError::Validation(vec![FieldViolation::new(
             "email_verification_code",
+            "is required",
+        )]));
+    }
+    Ok(code.to_owned())
+}
+
+fn validate_sms_ticket(ticket: String) -> Result<String, ApiError> {
+    let ticket = ticket.trim();
+    if ticket.is_empty() {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "sms_ticket",
+            "is required",
+        )]));
+    }
+    Ok(ticket.to_owned())
+}
+
+fn validate_sms_verification_code(code: String) -> Result<String, ApiError> {
+    let code = code.trim();
+    if code.is_empty() {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "sms_verification_code",
             "is required",
         )]));
     }
@@ -843,6 +1313,21 @@ fn required_wechat_config<'a>(value: Option<&'a str>, name: &str) -> Result<&'a 
         .ok_or_else(|| ApiError::internal(anyhow::anyhow!("{name} is required for WeChat login")))
 }
 
+fn ensure_sms_delivery_available(state: &AppState) -> Result<(), ApiError> {
+    if state.config().sms.enabled || state.config().app_env == "local" {
+        Ok(())
+    } else {
+        Err(ApiError::SmsDeliveryFailed)
+    }
+}
+
+fn invalid_sms_code_error() -> ApiError {
+    ApiError::Validation(vec![FieldViolation::new(
+        "sms_verification_code",
+        "is invalid or expired",
+    )])
+}
+
 /// Converts code2session failures into API errors while preserving safe client messages.
 fn map_wechat_login_error(error: anyhow::Error) -> ApiError {
     match error.downcast::<WechatCodeSessionError>() {
@@ -851,6 +1336,18 @@ fn map_wechat_login_error(error: anyhow::Error) -> ApiError {
         }
         Ok(other) => ApiError::internal(other),
         Err(error) => ApiError::internal(error),
+    }
+}
+
+fn map_sms_provider_error(error: SmsVerificationError) -> ApiError {
+    match error {
+        SmsVerificationError::RateLimited { .. } => ApiError::RateLimited {
+            retry_after_seconds: 60,
+        },
+        SmsVerificationError::Rejected { .. } | SmsVerificationError::HttpStatus { .. } => {
+            ApiError::SmsDeliveryFailed
+        }
+        other => ApiError::internal(other),
     }
 }
 
@@ -875,4 +1372,27 @@ fn generate_token() -> String {
 /// Generates a six-digit registration email code for the user-facing verification step.
 fn generate_email_code() -> String {
     format!("{:06}", rand::thread_rng().gen_range(0..=999_999))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sms_template_param_uses_aliyun_generated_code_placeholder() {
+        let value: serde_json::Value = serde_json::from_str(&sms_template_param(300)).unwrap();
+
+        assert_eq!(value["code"], "##code##");
+        assert_eq!(value["min"], "5");
+    }
+
+    #[test]
+    fn sms_http_status_errors_are_delivery_failures() {
+        let error = map_sms_provider_error(SmsVerificationError::HttpStatus {
+            status: 403,
+            body: "forbidden".to_owned(),
+        });
+
+        assert!(matches!(error, ApiError::SmsDeliveryFailed));
+    }
 }

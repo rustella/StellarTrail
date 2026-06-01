@@ -34,6 +34,7 @@ pub enum ApiError {
         retry_after_seconds: u64,
     },
     EmailDeliveryFailed,
+    SmsDeliveryFailed,
     Internal(anyhow::Error),
 }
 
@@ -148,7 +149,7 @@ impl IntoResponse for ApiError {
             Self::InvalidCredentials => (
                 StatusCode::UNAUTHORIZED,
                 "invalid_credentials",
-                "用户名/邮箱或密码不正确".to_owned(),
+                "用户名/邮箱/手机号或密码不正确".to_owned(),
                 None,
                 None,
                 None,
@@ -234,6 +235,16 @@ impl IntoResponse for ApiError {
                 StatusCode::BAD_GATEWAY,
                 "email_delivery_failed",
                 "邮箱验证码发送失败，请稍后重试".to_owned(),
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
+            Self::SmsDeliveryFailed => (
+                StatusCode::BAD_GATEWAY,
+                "sms_delivery_failed",
+                "短信验证码发送失败，请稍后重试".to_owned(),
                 None,
                 None,
                 None,

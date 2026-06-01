@@ -1,8 +1,8 @@
 //! SeaORM migration registry for the StellarTrail schema.
 //!
 //! Migrations are registered in the order required to build a fresh schema.
-//! Schema-only patch migrations may be folded into their base tables when the
-//! project intentionally drops compatibility with already-applied histories.
+//! Schema-only changes must be folded into the corresponding initialization
+//! migrations; this crate intentionally avoids new standalone schema patches.
 
 use sea_orm_migration::prelude::*;
 
@@ -81,6 +81,7 @@ impl MigratorTrait for Migrator {
             Box::new(create_roadmap::Migration),
             Box::new(sanitize_knot_risk_copy::Migration),
             Box::new(compat_folded_migrations::add_knot_localization_aliases::Migration),
+            Box::new(compat_folded_migrations::create_team_trip_plans::Migration),
             Box::new(create_trips::Migration),
             Box::new(create_shared_gear_demand_templates::Migration),
             Box::new(create_user_outdoor_profiles::Migration),
@@ -134,6 +135,7 @@ mod tests {
             "m20260524_000005_create_roadmap",
             "m20260524_000006_sanitize_knot_risk_copy",
             "m20260525_000001_add_knot_localization_aliases",
+            "create_team_trip_plans",
             "create_trips",
             "create_shared_gear_demand_templates",
             "create_user_outdoor_profiles",

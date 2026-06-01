@@ -10,11 +10,13 @@ use axum::{Json, Router, routing::post};
 
 use crate::{
     dto::auth::{
-        BindEmailCodeRequest, BindEmailRequest, BindEmailResponse, CaptchaChallengeRequest,
-        CaptchaChallengeResponse, EmailLoginCodeRequest, EmailLoginRequest,
-        EmailVerificationCodeRequest, EmailVerificationCodeResponse, LoginResponse,
-        PasswordLoginRequest, PasswordResetCodeRequest, PasswordResetRequest, RefreshTokenRequest,
-        RegisterRequest, WechatLoginRequest,
+        BindEmailCodeRequest, BindEmailRequest, BindEmailResponse, BindPhoneRequest,
+        BindPhoneResponse, CaptchaChallengeRequest, CaptchaChallengeResponse,
+        EmailLoginCodeRequest, EmailLoginRequest, EmailVerificationCodeRequest,
+        EmailVerificationCodeResponse, LoginResponse, PasswordLoginRequest,
+        PasswordResetCodeRequest, PasswordResetRequest, RefreshTokenRequest, RegisterRequest,
+        SmsCodeRequest, SmsCodeResponse, SmsLoginRequest, SmsPasswordResetRequest,
+        SmsRegisterRequest, WechatLoginRequest,
     },
     error::ApiError,
     extractors::AuthenticatedUser,
@@ -38,8 +40,26 @@ pub fn routes() -> Router<AppState> {
         .route("/auth/email-login", post(email_login))
         .route("/auth/password-reset-code", post(send_password_reset_code))
         .route("/auth/password-reset", post(password_reset))
+        .route(
+            "/auth/sms-registration-code",
+            post(send_sms_registration_code),
+        )
+        .route("/auth/sms-login-code", post(send_sms_login_code))
+        .route(
+            "/auth/sms-password-reset-code",
+            post(send_sms_password_reset_code),
+        )
+        .route("/auth/sms-register", post(sms_register))
+        .route("/auth/sms-login", post(sms_login))
+        .route("/auth/sms-password-reset", post(sms_password_reset))
         .route("/me/email-binding-code", post(send_bind_email_code))
         .route("/me/email-binding", post(bind_email))
+        .route("/me/phone-binding-code", post(send_bind_phone_code))
+        .route(
+            "/me/phone-rebinding-current-code",
+            post(send_rebind_current_phone_code),
+        )
+        .route("/me/phone-binding", post(bind_phone))
         .route("/auth/register", post(register))
         .route("/auth/login", post(password_login))
         // Refresh is intentionally public: the refresh token itself is the credential.
@@ -101,6 +121,60 @@ async fn password_reset(
     Ok(Json(response))
 }
 
+/// Generates an SMS code for phone registration.
+async fn send_sms_registration_code(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<SmsCodeRequest>,
+) -> Result<Json<SmsCodeResponse>, ApiError> {
+    let response = auth_service::send_sms_registration_code(&state, payload.phone).await?;
+    Ok(Json(response))
+}
+
+/// Generates an SMS login code for an existing account without revealing missing accounts.
+async fn send_sms_login_code(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<SmsCodeRequest>,
+) -> Result<Json<SmsCodeResponse>, ApiError> {
+    let response = auth_service::send_sms_login_code(&state, payload.phone).await?;
+    Ok(Json(response))
+}
+
+/// Generates an SMS password-reset code for an existing account without revealing missing accounts.
+async fn send_sms_password_reset_code(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<SmsCodeRequest>,
+) -> Result<Json<SmsCodeResponse>, ApiError> {
+    let response = auth_service::send_sms_password_reset_code(&state, payload.phone).await?;
+    Ok(Json(response))
+}
+
+/// Registers a phone/password account by checking an SMS verification code.
+async fn sms_register(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<SmsRegisterRequest>,
+) -> Result<Json<LoginResponse>, ApiError> {
+    let response = auth_service::register_with_sms(&state, payload).await?;
+    Ok(Json(response))
+}
+
+/// Logs in an existing phone account by checking an SMS verification code.
+async fn sms_login(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<SmsLoginRequest>,
+) -> Result<Json<LoginResponse>, ApiError> {
+    let response = auth_service::sms_login(&state, payload).await?;
+    Ok(Json(response))
+}
+
+/// Resets an account password by checking an SMS verification code.
+async fn sms_password_reset(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<SmsPasswordResetRequest>,
+) -> Result<Json<LoginResponse>, ApiError> {
+    let response = auth_service::sms_password_reset(&state, payload).await?;
+    Ok(Json(response))
+}
+
 /// Generates an email verification code for binding an email to the current account.
 async fn send_bind_email_code(
     axum::extract::State(state): axum::extract::State<AppState>,
@@ -121,6 +195,35 @@ async fn bind_email(
     Ok(Json(response))
 }
 
+/// Generates an SMS code for binding or replacing a phone on the current account.
+async fn send_bind_phone_code(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Json(payload): Json<SmsCodeRequest>,
+) -> Result<Json<SmsCodeResponse>, ApiError> {
+    let response = auth_service::send_bind_phone_code(&state, &user, payload.phone).await?;
+    Ok(Json(response))
+}
+
+/// Generates an SMS code to the current bound phone before replacing it.
+async fn send_rebind_current_phone_code(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+) -> Result<Json<SmsCodeResponse>, ApiError> {
+    let response = auth_service::send_rebind_current_phone_code(&state, &user).await?;
+    Ok(Json(response))
+}
+
+/// Binds or replaces the current account's phone after required SMS verification.
+async fn bind_phone(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Json(payload): Json<BindPhoneRequest>,
+) -> Result<Json<BindPhoneResponse>, ApiError> {
+    let response = auth_service::bind_phone(&state, user, payload).await?;
+    Ok(Json(response))
+}
+
 /// Registers a password account and returns the first access/refresh token pair for the new user.
 async fn register(
     axum::extract::State(state): axum::extract::State<AppState>,
@@ -130,7 +233,7 @@ async fn register(
     Ok(Json(response))
 }
 
-/// Handles password login by username or email and verifies a one-time image captcha when required.
+/// Handles password login by username, email, or phone and verifies a one-time image captcha when required.
 async fn password_login(
     axum::extract::State(state): axum::extract::State<AppState>,
     Json(payload): Json<PasswordLoginRequest>,

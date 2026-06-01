@@ -16,6 +16,7 @@ use crate::{
     services::{
         public_response_cache::InMemoryPublicResponseCache,
         rate_limit_service::InMemoryRateLimiter,
+        sms::{InMemorySmsVerificationClient, SmsVerificationClient},
         wechat::{HttpWechatCodeSessionClient, WechatCodeSessionClient},
     },
 };
@@ -33,6 +34,7 @@ struct AppStateInner {
     cache: Cache,
     object_store: Arc<dyn ObjectStore>,
     email_sender: Arc<dyn EmailSender>,
+    sms_client: Arc<dyn SmsVerificationClient>,
     disclaimer_acceptance_repository: DisclaimerAcceptanceRepository,
     knot_repository: KnotRepository,
     skill_favorite_repository: SkillFavoriteRepository,
@@ -57,6 +59,7 @@ impl AppState {
             cache,
             Arc::new(InMemoryObjectStore::default()),
             Arc::new(NoopEmailSender),
+            Arc::new(InMemorySmsVerificationClient::default()),
         )
     }
 
@@ -74,6 +77,7 @@ impl AppState {
             cache,
             object_store,
             Arc::new(NoopEmailSender),
+            Arc::new(InMemorySmsVerificationClient::default()),
         )
     }
 
@@ -90,6 +94,7 @@ impl AppState {
             Cache::disabled(),
             Arc::new(InMemoryObjectStore::default()),
             Arc::new(NoopEmailSender),
+            Arc::new(InMemorySmsVerificationClient::default()),
         )
     }
 
@@ -106,6 +111,24 @@ impl AppState {
             Cache::disabled(),
             Arc::new(InMemoryObjectStore::default()),
             email_sender,
+            Arc::new(InMemorySmsVerificationClient::default()),
+        )
+    }
+
+    /// Creates app state with default dependencies and custom SMS verification client.
+    pub fn new_with_sms_client(
+        config: ApiConfig,
+        db: DatabaseConnection,
+        sms_client: Arc<dyn SmsVerificationClient>,
+    ) -> Self {
+        Self::new_with_wechat_client_cache_object_store_and_email_sender(
+            config,
+            db,
+            Arc::new(HttpWechatCodeSessionClient),
+            Cache::disabled(),
+            Arc::new(InMemoryObjectStore::default()),
+            Arc::new(NoopEmailSender),
+            sms_client,
         )
     }
 
@@ -124,6 +147,7 @@ impl AppState {
             cache,
             object_store,
             Arc::new(NoopEmailSender),
+            Arc::new(InMemorySmsVerificationClient::default()),
         )
     }
 
@@ -135,6 +159,7 @@ impl AppState {
         cache: Cache,
         object_store: Arc<dyn ObjectStore>,
         email_sender: Arc<dyn EmailSender>,
+        sms_client: Arc<dyn SmsVerificationClient>,
     ) -> Self {
         let disclaimer_acceptance_repository = DisclaimerAcceptanceRepository::new(db.clone());
         let knot_repository = KnotRepository::new(db.clone());
@@ -149,6 +174,7 @@ impl AppState {
                 cache,
                 object_store,
                 email_sender,
+                sms_client,
                 disclaimer_acceptance_repository,
                 knot_repository,
                 skill_favorite_repository,
@@ -188,6 +214,11 @@ impl AppState {
     /// Returns the transactional email sender.
     pub fn email_sender(&self) -> Arc<dyn EmailSender> {
         Arc::clone(&self.inner.email_sender)
+    }
+
+    /// Returns the SMS verification client.
+    pub fn sms_client(&self) -> Arc<dyn SmsVerificationClient> {
+        Arc::clone(&self.inner.sms_client)
     }
 
     /// Returns the DB-backed current-user disclaimer acceptance repository.

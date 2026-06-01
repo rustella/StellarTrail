@@ -14,9 +14,15 @@ async fn fresh_schema_contains_folded_migration_columns() {
                 "username",
                 "email",
                 "password_hash",
+                "phone",
+                "phone_bound_at",
                 "failed_login_attempts",
                 "last_failed_login_at",
             ][..],
+        ),
+        (
+            "sms_verification_challenges",
+            &["phone", "purpose", "out_id", "expires_at", "consumed_at"][..],
         ),
         (
             "sessions",
@@ -147,6 +153,7 @@ fn folded_schema_patch_migrations_keep_history_compatibility() {
         "m20260523_000004_add_soft_delete_flags",
         "m20260524_000004_add_gear_quantities",
         "m20260525_000001_add_knot_localization_aliases",
+        "create_team_trip_plans",
     ] {
         assert!(
             names.iter().any(|name| name == compatibility_name),

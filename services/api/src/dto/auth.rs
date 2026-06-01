@@ -75,6 +75,77 @@ pub struct BindEmailResponse {
     pub user: LoginUserResponse,
 }
 
+/// Request body for issuing a one-time SMS code to a phone number.
+#[derive(Debug, Deserialize)]
+pub struct SmsCodeRequest {
+    pub phone: String,
+}
+
+/// Empty request marker for issuing a code to the current bound phone.
+#[derive(Debug, Deserialize, Default)]
+pub struct CurrentPhoneSmsCodeRequest {}
+
+/// Response describing when the SMS verification code expires.
+///
+/// Local environments may include `debug_code` so integration tests can complete
+/// phone auth flows without a real SMS delivery provider.
+#[derive(Debug, Serialize)]
+pub struct SmsCodeResponse {
+    pub phone: String,
+    pub sms_ticket: String,
+    pub expires_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debug_code: Option<String>,
+}
+
+/// Request body for phone/password registration after SMS verification.
+#[derive(Debug, Deserialize)]
+pub struct SmsRegisterRequest {
+    pub username: String,
+    pub nickname: String,
+    pub phone: String,
+    pub password: String,
+    pub confirm_password: String,
+    pub sms_ticket: String,
+    pub sms_verification_code: String,
+}
+
+/// Request body for logging in with a one-time SMS code.
+#[derive(Debug, Deserialize)]
+pub struct SmsLoginRequest {
+    pub phone: String,
+    pub sms_ticket: String,
+    pub sms_verification_code: String,
+}
+
+/// Request body for replacing a password after phone ownership verification.
+#[derive(Debug, Deserialize)]
+pub struct SmsPasswordResetRequest {
+    pub phone: String,
+    pub sms_ticket: String,
+    pub sms_verification_code: String,
+    pub password: String,
+    pub confirm_password: String,
+}
+
+/// Request body for binding or replacing a phone number after SMS verification.
+#[derive(Debug, Deserialize)]
+pub struct BindPhoneRequest {
+    pub phone: String,
+    pub sms_ticket: String,
+    pub sms_verification_code: String,
+    #[serde(default)]
+    pub current_sms_ticket: Option<String>,
+    #[serde(default)]
+    pub current_sms_verification_code: Option<String>,
+}
+
+/// Response returned after the current account successfully binds a phone.
+#[derive(Debug, Serialize)]
+pub struct BindPhoneResponse {
+    pub user: LoginUserResponse,
+}
+
 /// Response describing when the email verification code expires.
 ///
 /// Local environments may include `debug_code` so integration tests can complete
@@ -114,7 +185,7 @@ pub struct CaptchaChallengeResponse {
     pub debug_answer: Option<String>,
 }
 
-/// Request body for password login using either a username or an email address.
+/// Request body for password login using a username, email address, or bound phone number.
 #[derive(Debug, Deserialize)]
 pub struct PasswordLoginRequest {
     pub account: String,
@@ -151,6 +222,7 @@ pub struct LoginUserResponse {
     pub id: String,
     pub username: Option<String>,
     pub email: Option<String>,
+    pub phone: Option<String>,
     pub nickname: Option<String>,
     pub avatar_url: Option<String>,
 }
