@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rustella.stellartrail.BuildConfig
 import com.rustella.stellartrail.core.theme.ThemeMode
 import com.rustella.stellartrail.domain.auth.LoginUser
 import com.rustella.stellartrail.domain.profile.RoadmapItem
@@ -418,6 +419,7 @@ fun ProfileSettingsScreen(
     var nicknameSheet by remember { mutableStateOf(false) }
     var emailSheet by remember { mutableStateOf(false) }
     var passwordSheet by remember { mutableStateOf(false) }
+    var debugExpanded by remember { mutableStateOf(false) }
     val user = session?.user
     LazyColumn(
         modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
@@ -468,17 +470,37 @@ fun ProfileSettingsScreen(
         if (viewModel.canEditBaseUrl) {
             item {
                 SurfaceCard {
-                    SectionTitle("本地调试地址")
-                    OutlinedTextField(
-                        value = baseUrl,
-                        onValueChange = { baseUrl = it },
-                        label = { Text("地址") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        PrimaryPillButton("保存", { viewModel.updateBaseUrl(baseUrl) }, Modifier.weight(1f))
-                        SoftPillButton("恢复默认", viewModel::resetBaseUrl, Modifier.weight(1f))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            SectionTitle("开发调试")
+                            Text(
+                                ProfileVisualContract.debugEndpointSummary(config.baseUrl, BuildConfig.DEFAULT_API_BASE_URL),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        CompactPillAction(
+                            text = if (debugExpanded) "收起" else "展开",
+                            onClick = { debugExpanded = !debugExpanded },
+                            filled = false,
+                        )
+                    }
+                    if (debugExpanded) {
+                        OutlinedTextField(
+                            value = baseUrl,
+                            onValueChange = { baseUrl = it },
+                            label = { Text("地址") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            PrimaryPillButton("保存", { viewModel.updateBaseUrl(baseUrl) }, Modifier.weight(1f))
+                            SoftPillButton("恢复默认", viewModel::resetBaseUrl, Modifier.weight(1f))
+                        }
                     }
                 }
             }
