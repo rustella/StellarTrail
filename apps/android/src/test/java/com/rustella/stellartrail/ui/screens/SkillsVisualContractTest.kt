@@ -22,5 +22,8 @@ class SkillsVisualContractTest {
         assertEquals("Knots", categories.single().subtitle)
         assertEquals("绳结", categories.single().title)
         assertEquals("查看绳结列表", categories.single().actionText)
+        assertEquals("knot", categories.single().icon)
+        assertEquals(44, SkillsVisualContract.categoryIconBoxDp)
+        assertEquals(30, SkillsVisualContract.knotIconGraphicDp)
     }
 }

@@ -16,11 +16,13 @@ object SkillsVisualContract {
     const val favoriteTitle = "收藏清单"
     const val favoriteDescription = "快速找到已经收藏的户外技能"
     const val favoriteAction = "查看 >"
+    const val categoryIconBoxDp = 44
+    const val knotIconGraphicDp = 30
 
     val catalogCategories = listOf(
         SkillCatalogCategory(
             id = "knots",
-            icon = "🪢",
+            icon = "knot",
             title = "绳结",
             subtitle = "Knots",
             summary = "常用露营、钓鱼、连接和固定绳结，按场景快速复习。",
