@@ -48,11 +48,13 @@ Web 可通过 `VITE_STELLARTRAIL_API_BASE_URL` 和 `VITE_STELLARTRAIL_ASSETS_BAS
 
 ## API 配置细节
 
-API 默认监听 `127.0.0.1:8080`。启动时会先加载 `.env`，再读取根目录 `config.yaml`（存在时）或 `CONFIG_PATH` 指定的 YAML 文件，最后由环境变量覆盖 YAML 配置。`config.example.yaml` 会提交到 Git，实际 `config.yaml` / `config.*.yaml` 会被忽略。
+API 默认监听 `127.0.0.1:8080`。启动时会先加载 `.env`，再读取根目录 `config.yaml`（存在时）或 `CONFIG_PATH` 指定的 YAML 文件，最后由环境变量覆盖大部分 YAML 配置。短信认证的 `sms:` 配置例外：阿里云 access key、签名名、可选方案名和模板号只从 YAML 读取，不通过 `SMS_*` 环境变量传输。`config.example.yaml` 会提交到 Git，实际 `config.yaml` / `config.*.yaml` 会被忽略。
 
 本地默认数据库地址为 `sqlite://stellartrail.db`；生产和集成测试推荐 PostgreSQL 16+。配置层会识别 `sqlite://`、`postgres://`、`postgresql://` 和 `mysql://` URL，其中 MySQL-compatible 数据库边界已保留，当前仓库默认运行路径仍以 SQLite / PostgreSQL 为主。
 
 本地可通过 `APP_ENV=local` + `WECHAT_MOCK_LOGIN=true` 启用 mock 登录；正式微信登录需设置 `WECHAT_MOCK_LOGIN=false`、`WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`。邮箱验证码生产投递通过 SMTP：设置 `MAIL_ENABLED=true`、`MAIL_SMTP_HOST=smtp.example.invalid`、`MAIL_SMTP_USERNAME=[REDACTED]`，并通过被忽略的 `config.yaml` 或 secret manager 注入 `MAIL_SMTP_PASSWORD` 和发件人地址。邮箱验证码用于注册、邮箱验证码登录和找回密码。
+
+短信验证码生产投递通过阿里云号码认证服务。启用时把 `sms.enabled`、`sms.access_key_id`、`sms.access_key_secret` 等写入被忽略的 `config.yaml`，如需指定方案再填写 `sms.scheme_name`；也可以由 secret manager 渲染为同等 YAML 文件后挂载到 `/app/config.yaml`。
 
 如需启用 Redis 缓存，设置 `REDIS_URL=redis://127.0.0.1:6379/0`；`REDIS_GEAR_CACHE_TTL_SECONDS` 控制装备读取缓存 TTL。绳结媒体通过 MinIO/S3-compatible 对象存储上传，公开读接口只返回数据库中的媒体 URL，不再从 `/assets/*` 拼接绳结媒体路径。服务端只维护一组 `minio` 连接配置，反馈图与绳结媒体分别通过 `object_storage.bucket` 和 `knots_media_storage.bucket` 配置业务 bucket。
 

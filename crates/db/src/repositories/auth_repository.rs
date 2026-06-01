@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Iso8601};
 use uuid::Uuid;
 
-const USER_SELECT: &str = "id, wechat_openid, username, email, password_hash, nickname, avatar_url, failed_login_attempts, created_at, updated_at";
+const USER_SELECT: &str = "id, wechat_openid, username, email, phone, phone_bound_at, password_hash, nickname, avatar_url, failed_login_attempts, created_at, updated_at";
 const EMAIL_CODE_MAX_FAILED_ATTEMPTS: i64 = 5;
 const UPLOADED_PROFILE_AVATAR_SQL_PATTERN: &str = "%/users/%/avatar/%";
 
@@ -25,12 +25,24 @@ pub struct UserRecord {
     pub wechat_openid: Option<String>,
     pub username: Option<String>,
     pub email: Option<String>,
+    pub phone: Option<String>,
+    pub phone_bound_at: Option<String>,
     pub password_hash: Option<String>,
     pub nickname: Option<String>,
     pub avatar_url: Option<String>,
     pub failed_login_attempts: i32,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// Stored SMS verification challenge used to prevent ticket replay.
+#[derive(Clone, Debug)]
+pub struct SmsVerificationChallengeRecord {
+    pub id: String,
+    pub phone: String,
+    pub purpose: String,
+    pub out_id: String,
+    pub expires_at: String,
 }
 
 /// Minimal session projection needed after a refresh-token lookup.
@@ -126,6 +138,8 @@ impl AuthRepository {
             wechat_openid: Some(wechat_openid.to_owned()),
             username: None,
             email: None,
+            phone: None,
+            phone_bound_at: None,
             password_hash: None,
             nickname,
             avatar_url,
@@ -213,6 +227,39 @@ impl AuthRepository {
             .ok_or_else(|| DbErr::Custom("created user not found".to_owned()))
     }
 
+    /// Inserts a password account that uses a verified phone number as its primary contact.
+    pub async fn create_phone_password_user(
+        &self,
+        username: &str,
+        nickname: &str,
+        phone: &str,
+        password_hash: &str,
+    ) -> Result<UserRecord, DbErr> {
+        let now = now_rfc3339();
+        let id = Uuid::new_v4().to_string();
+        self.db
+            .execute(statement(
+                self.db.get_database_backend(),
+                r#"INSERT INTO users (
+                    id, username, phone, phone_bound_at, password_hash, nickname, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"#,
+                vec![
+                    id.clone().into(),
+                    username.to_owned().into(),
+                    phone.to_owned().into(),
+                    now.clone().into(),
+                    password_hash.to_owned().into(),
+                    nickname.to_owned().into(),
+                    now.clone().into(),
+                    now.into(),
+                ],
+            ))
+            .await?;
+        self.find_user_by_id(&id)
+            .await?
+            .ok_or_else(|| DbErr::Custom("created phone user not found".to_owned()))
+    }
+
     /// Persists a new opaque access-token session with its paired refresh token hash.
     ///
     /// Both token arguments must already be SHA-256 digests of client-visible
@@ -295,6 +342,95 @@ impl AuthRepository {
             ))
             .await?;
         Ok(id)
+    }
+
+    /// Stores an SMS verification ticket without storing the plaintext code.
+    pub async fn create_sms_verification_challenge(
+        &self,
+        phone: &str,
+        purpose: &str,
+        out_id: &str,
+        expires_at: OffsetDateTime,
+    ) -> Result<String, DbErr> {
+        let id = Uuid::new_v4().to_string();
+        let now = now_rfc3339();
+        let expires_at = expires_at
+            .format(&Iso8601::DEFAULT)
+            .map_err(|err| DbErr::Custom(err.to_string()))?;
+        self.db
+            .execute(statement(
+                self.db.get_database_backend(),
+                r#"INSERT INTO sms_verification_challenges (
+                    id, phone, purpose, out_id, expires_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)"#,
+                vec![
+                    id.clone().into(),
+                    phone.to_owned().into(),
+                    purpose.to_owned().into(),
+                    out_id.to_owned().into(),
+                    expires_at.into(),
+                    now.into(),
+                ],
+            ))
+            .await?;
+        Ok(id)
+    }
+
+    /// Finds an active SMS challenge by phone, purpose, and provider out-id.
+    pub async fn find_active_sms_verification_challenge(
+        &self,
+        phone: &str,
+        purpose: &str,
+        out_id: &str,
+    ) -> Result<Option<SmsVerificationChallengeRecord>, DbErr> {
+        let now = now_rfc3339();
+        let row = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                r#"SELECT id, phone, purpose, out_id, expires_at
+                   FROM sms_verification_challenges
+                   WHERE phone = ?
+                     AND purpose = ?
+                     AND out_id = ?
+                     AND consumed_at IS NULL
+                     AND expires_at > ?
+                   LIMIT 1"#,
+                vec![
+                    phone.to_owned().into(),
+                    purpose.to_owned().into(),
+                    out_id.to_owned().into(),
+                    now.into(),
+                ],
+            ))
+            .await?;
+        row.map(|row| {
+            Ok(SmsVerificationChallengeRecord {
+                id: row.try_get("", "id")?,
+                phone: row.try_get("", "phone")?,
+                purpose: row.try_get("", "purpose")?,
+                out_id: row.try_get("", "out_id")?,
+                expires_at: row.try_get("", "expires_at")?,
+            })
+        })
+        .transpose()
+    }
+
+    /// Marks an active SMS verification challenge as consumed exactly once.
+    pub async fn consume_sms_verification_challenge(
+        &self,
+        challenge_id: &str,
+    ) -> Result<bool, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "UPDATE sms_verification_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL",
+                vec![now.into(), challenge_id.to_owned().into()],
+            ))
+            .await?;
+        Ok(result.rows_affected() > 0)
     }
 
     /// Finds an unexpired record by email, purpose, and code digest, then atomically marks it as consumed.
@@ -584,7 +720,7 @@ impl AuthRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    /// Finds a user by normalized account identifier, supporting username or email login.
+    /// Finds a user by normalized account identifier, supporting username, email, or phone login.
     pub async fn find_user_by_login_account(
         &self,
         account: &str,
@@ -594,9 +730,13 @@ impl AuthRepository {
             .query_one(statement(
                 self.db.get_database_backend(),
                 format!(
-                    "SELECT {USER_SELECT} FROM users WHERE (username = ? OR email = ?) AND deleted_at IS NULL LIMIT 1"
+                    "SELECT {USER_SELECT} FROM users WHERE (username = ? OR email = ? OR phone = ?) AND deleted_at IS NULL LIMIT 1"
                 ),
-                vec![account.to_owned().into(), account.to_owned().into()],
+                vec![
+                    account.to_owned().into(),
+                    account.to_owned().into(),
+                    account.to_owned().into(),
+                ],
             ))
             .await?;
         row.map(|row| map_user(&row)).transpose()
@@ -625,6 +765,21 @@ impl AuthRepository {
                     "SELECT {USER_SELECT} FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1"
                 ),
                 vec![email.to_owned().into()],
+            ))
+            .await?;
+        row.map(|row| map_user(&row)).transpose()
+    }
+
+    /// Finds a non-deleted user by normalized phone number for SMS auth and uniqueness checks.
+    pub async fn find_user_by_phone(&self, phone: &str) -> Result<Option<UserRecord>, DbErr> {
+        let row = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                format!(
+                    "SELECT {USER_SELECT} FROM users WHERE phone = ? AND deleted_at IS NULL LIMIT 1"
+                ),
+                vec![phone.to_owned().into()],
             ))
             .await?;
         row.map(|row| map_user(&row)).transpose()
@@ -690,6 +845,45 @@ impl AuthRepository {
                     now.into(),
                     user_id.to_owned().into(),
                     email.to_owned().into(),
+                    user_id.to_owned().into(),
+                ],
+            ))
+            .await?;
+        if result.rows_affected() == 0 {
+            return Ok(None);
+        }
+        self.find_user_by_id(user_id).await
+    }
+
+    /// Binds or replaces a user's phone number after SMS verification.
+    pub async fn bind_user_phone(
+        &self,
+        user_id: &str,
+        phone: &str,
+    ) -> Result<Option<UserRecord>, DbErr> {
+        let now = now_rfc3339();
+        let result = self
+            .db
+            .execute(statement(
+                self.db.get_database_backend(),
+                r#"UPDATE users
+                   SET phone = ?,
+                       phone_bound_at = ?,
+                       updated_at = ?
+                   WHERE id = ?
+                     AND deleted_at IS NULL
+                     AND NOT EXISTS (
+                       SELECT 1 FROM users AS existing
+                       WHERE existing.phone = ?
+                         AND existing.id <> ?
+                         AND existing.deleted_at IS NULL
+                     )"#,
+                vec![
+                    phone.to_owned().into(),
+                    now.clone().into(),
+                    now.into(),
+                    user_id.to_owned().into(),
+                    phone.to_owned().into(),
                     user_id.to_owned().into(),
                 ],
             ))
@@ -802,6 +996,8 @@ fn map_user(row: &sea_orm::QueryResult) -> Result<UserRecord, DbErr> {
         wechat_openid: row.try_get("", "wechat_openid")?,
         username: row.try_get("", "username")?,
         email: row.try_get("", "email")?,
+        phone: row.try_get("", "phone")?,
+        phone_bound_at: row.try_get("", "phone_bound_at")?,
         password_hash: row.try_get("", "password_hash")?,
         nickname: row.try_get("", "nickname")?,
         avatar_url: row.try_get("", "avatar_url")?,

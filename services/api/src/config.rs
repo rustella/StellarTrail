@@ -1,4 +1,8 @@
 //! API service configuration module that merges optional YAML files with environment variables for database, WeChat login, Redis cache, uploads, object storage, and other runtime settings.
+//!
+//! SMS verification credentials are intentionally loaded only from the optional
+//! YAML config file so deploys can mount one secret-bearing config document
+//! instead of passing SMS secrets through the process environment.
 
 use std::{
     env, fmt, fs,
@@ -29,6 +33,7 @@ struct FileConfig {
     public_api: FilePublicApiConfig,
     cors: FileCorsConfig,
     mail: FileMailConfig,
+    sms: FileSmsConfig,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -150,6 +155,24 @@ struct FileMailConfig {
     smtp_password: Option<String>,
     from: Option<String>,
     verification_subject: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct FileSmsConfig {
+    enabled: Option<bool>,
+    endpoint: Option<String>,
+    access_key_id: Option<String>,
+    access_key_secret: Option<String>,
+    sign_name: Option<String>,
+    scheme_name: Option<String>,
+    valid_time_seconds: Option<u64>,
+    interval_seconds: Option<u64>,
+    login_register_template_code: Option<String>,
+    change_bound_phone_template_code: Option<String>,
+    password_reset_template_code: Option<String>,
+    bind_new_phone_template_code: Option<String>,
+    verify_bound_phone_template_code: Option<String>,
 }
 
 impl FileConfig {
@@ -416,6 +439,80 @@ impl Default for MailConfig {
     }
 }
 
+/// Aliyun SMS verification configuration used for phone login, registration, password reset, and phone binding.
+#[derive(Clone, Eq, PartialEq)]
+pub struct SmsConfig {
+    pub enabled: bool,
+    pub endpoint: String,
+    pub access_key_id: String,
+    pub access_key_secret: String,
+    pub sign_name: String,
+    pub scheme_name: String,
+    pub valid_time_seconds: u64,
+    pub interval_seconds: u64,
+    pub login_register_template_code: String,
+    pub change_bound_phone_template_code: String,
+    pub password_reset_template_code: String,
+    pub bind_new_phone_template_code: String,
+    pub verify_bound_phone_template_code: String,
+}
+
+impl fmt::Debug for SmsConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SmsConfig")
+            .field("enabled", &self.enabled)
+            .field("endpoint", &self.endpoint)
+            .field("access_key_id", &redacted_presence(&self.access_key_id))
+            .field("access_key_secret", &"<redacted>")
+            .field("sign_name", &self.sign_name)
+            .field("scheme_name", &self.scheme_name)
+            .field("valid_time_seconds", &self.valid_time_seconds)
+            .field("interval_seconds", &self.interval_seconds)
+            .field(
+                "login_register_template_code",
+                &self.login_register_template_code,
+            )
+            .field(
+                "change_bound_phone_template_code",
+                &self.change_bound_phone_template_code,
+            )
+            .field(
+                "password_reset_template_code",
+                &self.password_reset_template_code,
+            )
+            .field(
+                "bind_new_phone_template_code",
+                &self.bind_new_phone_template_code,
+            )
+            .field(
+                "verify_bound_phone_template_code",
+                &self.verify_bound_phone_template_code,
+            )
+            .finish()
+    }
+}
+
+impl Default for SmsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            endpoint: "dypnsapi.aliyuncs.com".to_owned(),
+            access_key_id: String::new(),
+            access_key_secret: String::new(),
+            sign_name: String::new(),
+            scheme_name: String::new(),
+            valid_time_seconds: 300,
+            interval_seconds: 60,
+            login_register_template_code: "100001".to_owned(),
+            change_bound_phone_template_code: "100002".to_owned(),
+            password_reset_template_code: "100003".to_owned(),
+            bind_new_phone_template_code: "100004".to_owned(),
+            verify_bound_phone_template_code: "100005".to_owned(),
+        }
+    }
+}
+
 /// Runtime API configuration containing environment, bind address, database, auth providers, cache, upload, content directory, and email settings.
 #[derive(Clone, Debug)]
 pub struct ApiConfig {
@@ -437,10 +534,14 @@ pub struct ApiConfig {
     pub rate_limit: RateLimitConfig,
     pub cors: CorsConfig,
     pub mail: MailConfig,
+    pub sms: SmsConfig,
 }
 
 impl ApiConfig {
     /// Builds runtime configuration from `config.yaml` (or `CONFIG_PATH`) plus environment overrides.
+    ///
+    /// SMS verification config is file-only and is not overridden by `SMS_*`
+    /// environment variables.
     pub fn from_env() -> anyhow::Result<Self> {
         let FileConfig {
             app,
@@ -456,6 +557,7 @@ impl ApiConfig {
             public_api: file_public_api,
             cors: file_cors,
             mail: file_mail,
+            sms: file_sms,
         } = FileConfig::load_from_env()?;
 
         let app_env = config_string_env("APP_ENV", app.env, "local");
@@ -745,6 +847,49 @@ impl ApiConfig {
         };
         validate_mail_config(&mail)?;
 
+        let default_sms = SmsConfig::default();
+        let sms = SmsConfig {
+            enabled: file_sms.enabled.unwrap_or(default_sms.enabled),
+            endpoint: normalize_sms_endpoint(&config_file_string(
+                file_sms.endpoint,
+                &default_sms.endpoint,
+            )),
+            access_key_id: config_file_string(file_sms.access_key_id, &default_sms.access_key_id),
+            access_key_secret: config_file_string(
+                file_sms.access_key_secret,
+                &default_sms.access_key_secret,
+            ),
+            sign_name: config_file_string(file_sms.sign_name, &default_sms.sign_name),
+            scheme_name: config_file_string(file_sms.scheme_name, &default_sms.scheme_name),
+            valid_time_seconds: file_sms
+                .valid_time_seconds
+                .unwrap_or(default_sms.valid_time_seconds),
+            interval_seconds: file_sms
+                .interval_seconds
+                .unwrap_or(default_sms.interval_seconds),
+            login_register_template_code: config_file_string(
+                file_sms.login_register_template_code,
+                &default_sms.login_register_template_code,
+            ),
+            change_bound_phone_template_code: config_file_string(
+                file_sms.change_bound_phone_template_code,
+                &default_sms.change_bound_phone_template_code,
+            ),
+            password_reset_template_code: config_file_string(
+                file_sms.password_reset_template_code,
+                &default_sms.password_reset_template_code,
+            ),
+            bind_new_phone_template_code: config_file_string(
+                file_sms.bind_new_phone_template_code,
+                &default_sms.bind_new_phone_template_code,
+            ),
+            verify_bound_phone_template_code: config_file_string(
+                file_sms.verify_bound_phone_template_code,
+                &default_sms.verify_bound_phone_template_code,
+            ),
+        };
+        validate_sms_config(&sms)?;
+
         let cors = CorsConfig {
             allowed_origins: config_list_env("CORS_ALLOWED_ORIGINS", file_cors.allowed_origins),
             allow_credentials: config_bool_env(
@@ -774,6 +919,7 @@ impl ApiConfig {
             rate_limit,
             cors,
             mail,
+            sms,
         })
     }
 
@@ -801,6 +947,10 @@ fn normalize_file_string(value: Option<String>) -> Option<String> {
     value
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
+}
+
+fn config_file_string(file_value: Option<String>, default: &str) -> String {
+    normalize_file_string(file_value).unwrap_or_else(|| default.to_owned())
 }
 
 fn config_string_env(name: &str, file_value: Option<String>, default: &str) -> String {
@@ -1069,6 +1219,71 @@ fn validate_mail_config(config: &MailConfig) -> anyhow::Result<()> {
         anyhow::bail!("MAIL_VERIFICATION_SUBJECT must not be empty when MAIL_ENABLED=true");
     }
     Ok(())
+}
+
+fn validate_sms_config(config: &SmsConfig) -> anyhow::Result<()> {
+    if config.valid_time_seconds == 0 {
+        anyhow::bail!("sms.valid_time_seconds must be greater than 0");
+    }
+    if config.interval_seconds == 0 {
+        anyhow::bail!("sms.interval_seconds must be greater than 0");
+    }
+    for (name, value) in [
+        ("sms.endpoint", &config.endpoint),
+        (
+            "sms.login_register_template_code",
+            &config.login_register_template_code,
+        ),
+        (
+            "sms.change_bound_phone_template_code",
+            &config.change_bound_phone_template_code,
+        ),
+        (
+            "sms.password_reset_template_code",
+            &config.password_reset_template_code,
+        ),
+        (
+            "sms.bind_new_phone_template_code",
+            &config.bind_new_phone_template_code,
+        ),
+        (
+            "sms.verify_bound_phone_template_code",
+            &config.verify_bound_phone_template_code,
+        ),
+    ] {
+        if value.trim().is_empty() {
+            anyhow::bail!("{name} must not be empty");
+        }
+    }
+    if config.enabled {
+        if config.access_key_id.trim().is_empty() {
+            anyhow::bail!("sms.access_key_id must not be empty when sms.enabled=true");
+        }
+        if config.access_key_secret.trim().is_empty() {
+            anyhow::bail!("sms.access_key_secret must not be empty when sms.enabled=true");
+        }
+        if config.sign_name.trim().is_empty() {
+            anyhow::bail!("sms.sign_name must not be empty when sms.enabled=true");
+        }
+    }
+    Ok(())
+}
+
+fn normalize_sms_endpoint(endpoint: &str) -> String {
+    endpoint
+        .trim()
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .trim_matches('/')
+        .to_owned()
+}
+
+fn redacted_presence(value: &str) -> &'static str {
+    if value.trim().is_empty() {
+        "<empty>"
+    } else {
+        "<redacted>"
+    }
 }
 
 fn optional_bool_env(name: &str) -> anyhow::Result<Option<bool>> {
@@ -1635,6 +1850,108 @@ public_api:
         restore_env(saved);
     }
 
+    #[test]
+    fn from_env_reads_sms_config_from_yaml_file() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            config_file.path(),
+            r#"
+database:
+  url: sqlite://stellartrail.db
+sms:
+  enabled: true
+  endpoint: " https://dypnsapi.aliyuncs.com/ "
+  access_key_id: " sms-access-key-id "
+  access_key_secret: " sms-access-key-secret "
+  sign_name: " example-sms-sign-name "
+  scheme_name: " stellartrail "
+  valid_time_seconds: 600
+  interval_seconds: 90
+  login_register_template_code: "100001"
+  change_bound_phone_template_code: "100002"
+  password_reset_template_code: "100003"
+  bind_new_phone_template_code: "100004"
+  verify_bound_phone_template_code: "100005"
+"#,
+        )
+        .unwrap();
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("CONFIG_PATH", config_file.path());
+        }
+
+        let config = ApiConfig::from_env().unwrap();
+
+        assert!(config.sms.enabled);
+        assert_eq!(config.sms.endpoint, "dypnsapi.aliyuncs.com");
+        assert_eq!(config.sms.access_key_id, "sms-access-key-id");
+        assert_eq!(config.sms.access_key_secret, "sms-access-key-secret");
+        assert_eq!(config.sms.sign_name, "example-sms-sign-name");
+        assert_eq!(config.sms.scheme_name, "stellartrail");
+        assert_eq!(config.sms.valid_time_seconds, 600);
+        assert_eq!(config.sms.interval_seconds, 90);
+        assert_eq!(config.sms.login_register_template_code, "100001");
+        assert_eq!(config.sms.change_bound_phone_template_code, "100002");
+        assert_eq!(config.sms.password_reset_template_code, "100003");
+        assert_eq!(config.sms.bind_new_phone_template_code, "100004");
+        assert_eq!(config.sms.verify_bound_phone_template_code, "100005");
+
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_ignores_sms_environment_values() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("DATABASE_URL", "sqlite://stellartrail.db");
+            env::set_var("SMS_ENABLED", "true");
+            env::set_var("SMS_ACCESS_KEY_ID", "sms-access-key-id");
+            env::set_var("SMS_ACCESS_KEY_SECRET", "sms-access-key-secret");
+            env::set_var("SMS_SCHEME_NAME", "stellartrail");
+        }
+
+        let config = ApiConfig::from_env().unwrap();
+
+        assert!(!config.sms.enabled);
+        assert!(config.sms.access_key_id.is_empty());
+        assert!(config.sms.access_key_secret.is_empty());
+        assert!(config.sms.scheme_name.is_empty());
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_rejects_enabled_sms_without_secret_in_yaml_file() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            config_file.path(),
+            r#"
+database:
+  url: sqlite://stellartrail.db
+sms:
+  enabled: true
+  access_key_id: sms-access-key-id
+  access_key_secret: ""
+  scheme_name: stellartrail
+"#,
+        )
+        .unwrap();
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("CONFIG_PATH", config_file.path());
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(error.contains("sms.access_key_secret"), "{error}");
+        restore_env(saved);
+    }
+
     const CONFIG_KEYS: &[&str] = &[
         "CONFIG_PATH",
         "APP_ENV",
@@ -1699,6 +2016,21 @@ public_api:
         "MAIL_SMTP_PASSWORD",
         "MAIL_FROM",
         "MAIL_VERIFICATION_SUBJECT",
+        "SMS_ENABLED",
+        "SMS_ENDPOINT",
+        "SMS_ACCESS_KEY_ID",
+        "SMS_ACCESS_KEY_SECRET",
+        "ALIBABA_CLOUD_ACCESS_KEY_ID",
+        "ALIBABA_CLOUD_ACCESS_KEY_SECRET",
+        "SMS_SIGN_NAME",
+        "SMS_SCHEME_NAME",
+        "SMS_VALID_TIME_SECONDS",
+        "SMS_INTERVAL_SECONDS",
+        "SMS_TEMPLATE_LOGIN_REGISTER",
+        "SMS_TEMPLATE_CHANGE_BOUND_PHONE",
+        "SMS_TEMPLATE_PASSWORD_RESET",
+        "SMS_TEMPLATE_BIND_NEW_PHONE",
+        "SMS_TEMPLATE_VERIFY_BOUND_PHONE",
     ];
     fn snapshot_env(keys: &[&'static str]) -> Vec<(&'static str, Option<String>)> {
         keys.iter().map(|key| (*key, env::var(key).ok())).collect()

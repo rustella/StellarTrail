@@ -43,6 +43,7 @@ async fn test_app() -> TestApp {
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
+        sms: Default::default(),
     };
     let db = connect_database(&config.database).await.unwrap();
     migrate_database(&db).await.unwrap();

@@ -262,6 +262,7 @@ async fn seeded_app_with_uploaded_media_cache(cache: Cache) -> TestApp {
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
+        sms: Default::default(),
     };
     let repository = KnotRepository::new(db.clone());
     repository
@@ -344,6 +345,7 @@ async fn seeded_app() -> TestApp {
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
+        sms: Default::default(),
     };
     let repository = KnotRepository::new(db.clone());
     repository
@@ -393,6 +395,7 @@ async fn seeded_filter_app() -> TestApp {
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
+        sms: Default::default(),
     };
     let repository = KnotRepository::new(db.clone());
     repository

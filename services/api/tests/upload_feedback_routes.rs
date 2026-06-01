@@ -82,6 +82,7 @@ async fn test_app_with_upload_config(upload: UploadConfig) -> TestApp {
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
+        sms: Default::default(),
     };
     let state = AppState::new_with_cache_and_object_store(
         config,

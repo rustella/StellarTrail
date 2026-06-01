@@ -1,8 +1,10 @@
 # StellarTrail API configuration example.
 #
 # Copy this file to config.yaml for a local single-file setup, or set
-# CONFIG_PATH=/path/to/config.yaml. Environment variables still have priority
-# over values in this file so deployments can inject secrets safely.
+# CONFIG_PATH=/path/to/config.yaml. Most runtime values can still be
+# overridden by environment variables, but SMS credentials are intentionally
+# file-only and should live in an ignored config.yaml or a secret manager that
+# renders that file.
 
 app:
   env: local
@@ -78,6 +80,22 @@ mail:
   smtp_password: null
   from: "StellarTrail <[REDACTED]>"
   verification_subject: 寻径星野邮箱验证码
+
+sms:
+  enabled: false
+  endpoint: dypnsapi.aliyuncs.com
+  access_key_id: "[REDACTED]"
+  # Keep real SMS credentials in ignored config.yaml, not in environment variables.
+  access_key_secret: null
+  sign_name: example-sms-sign-name
+  scheme_name: null
+  valid_time_seconds: 300
+  interval_seconds: 60
+  login_register_template_code: "100001"
+  change_bound_phone_template_code: "100002"
+  password_reset_template_code: "100003"
+  bind_new_phone_template_code: "100004"
+  verify_bound_phone_template_code: "100005"
 
 public_api:
   rate_limit_enabled: true

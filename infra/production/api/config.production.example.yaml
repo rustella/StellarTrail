@@ -51,6 +51,22 @@ knots_media_storage:
   public_base_url: https://assets.example.invalid/stellartrail-knots-media
   max_image_bytes: 32000000
   max_video_bytes: 80000000
+
+sms:
+  enabled: false
+  endpoint: dypnsapi.aliyuncs.com
+  access_key_id: example-aliyun-access-key-id
+  access_key_secret: example-aliyun-access-key-secret
+  sign_name: example-sms-sign-name
+  scheme_name: null
+  valid_time_seconds: 300
+  interval_seconds: 60
+  login_register_template_code: "100001"
+  change_bound_phone_template_code: "100002"
+  password_reset_template_code: "100003"
+  bind_new_phone_template_code: "100004"
+  verify_bound_phone_template_code: "100005"
+
 rate_limit:
   enabled: true
   window_seconds: 60

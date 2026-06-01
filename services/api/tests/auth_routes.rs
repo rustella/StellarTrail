@@ -61,6 +61,7 @@ async fn test_app() -> TestApp {
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
+        sms: Default::default(),
     };
     TestApp {
         router: build_router(AppState::new(config, db.clone())),
@@ -174,6 +175,45 @@ async fn register_password_user(
             "password": password,
             "confirm_password": password,
             "email_verification_code": verification_code,
+        }),
+    )
+    .await;
+    assert_eq!(register_status, StatusCode::OK, "{register_value}");
+    register_value
+}
+
+async fn register_sms_user(
+    app: &Router,
+    username: &str,
+    nickname: &str,
+    phone: &str,
+    password: &str,
+) -> Value {
+    let (code_status, code_value) = send_json(
+        app,
+        "POST",
+        "/api/v1/auth/sms-registration-code",
+        None,
+        json!({"phone": phone}),
+    )
+    .await;
+    assert_eq!(code_status, StatusCode::OK, "{code_value}");
+    let verification_code = code_value["debug_code"].as_str().unwrap();
+    let sms_ticket = code_value["sms_ticket"].as_str().unwrap();
+
+    let (register_status, register_value) = send_json(
+        app,
+        "POST",
+        "/api/v1/auth/sms-register",
+        None,
+        json!({
+            "username": username,
+            "nickname": nickname,
+            "phone": phone,
+            "password": password,
+            "confirm_password": password,
+            "sms_ticket": sms_ticket,
+            "sms_verification_code": verification_code,
         }),
     )
     .await;
@@ -450,6 +490,7 @@ async fn production_email_verification_sends_mail_and_hides_debug_code() {
             from: "StellarTrail <sender@example.test>".to_owned(),
             verification_subject: "寻径星野邮箱验证码".to_owned(),
         },
+        sms: Default::default(),
     };
     let sender = RecordingEmailSender::default();
     let sent = Arc::clone(&sender.sent);
@@ -516,6 +557,7 @@ async fn production_email_verification_delivery_failure_returns_safe_error() {
             from: "StellarTrail <sender@example.test>".to_owned(),
             verification_subject: "寻径星野邮箱验证码".to_owned(),
         },
+        sms: Default::default(),
     };
     let router = build_router(AppState::new_with_email_sender(
         config,
@@ -566,6 +608,7 @@ async fn production_wechat_login_uses_code2session_client() {
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
+        sms: Default::default(),
     };
     let wechat_client = RecordingWechatCodeSessionClient::default();
     let calls = Arc::clone(&wechat_client.calls);
@@ -666,6 +709,319 @@ async fn email_registration_and_password_login_flow_uses_sha256_password_hash() 
         email_login_value["user"]["id"].as_str().unwrap(),
         registered_user_id,
     );
+}
+
+#[tokio::test]
+async fn sms_registration_sets_phone_and_password_login_accepts_phone() {
+    let app = test_app().await;
+
+    let (code_status, code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-registration-code",
+        None,
+        json!({"phone": "+86 138-0013-8000"}),
+    )
+    .await;
+    assert_eq!(code_status, StatusCode::OK, "{code_value}");
+    assert_eq!(code_value["phone"], "13800138000");
+    let debug_code = code_value["debug_code"].as_str().unwrap();
+
+    let (register_status, register_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-register",
+        None,
+        json!({
+            "username": "sms_alice",
+            "nickname": "短信 Alice",
+            "phone": "13800138000",
+            "password": "OutdoorPass123!",
+            "confirm_password": "OutdoorPass123!",
+            "sms_ticket": code_value["sms_ticket"].as_str().unwrap(),
+            "sms_verification_code": debug_code,
+        }),
+    )
+    .await;
+    assert_eq!(register_status, StatusCode::OK, "{register_value}");
+    assert_eq!(register_value["user"]["username"], "sms_alice");
+    assert_eq!(register_value["user"]["nickname"], "短信 Alice");
+    assert_eq!(register_value["user"]["phone"], "13800138000");
+    assert!(register_value["user"]["email"].is_null());
+
+    let row = app
+        .db
+        .query_one(Statement::from_sql_and_values(
+            app.db.get_database_backend(),
+            "SELECT phone, phone_bound_at FROM users WHERE username = ?",
+            vec!["sms_alice".into()],
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    let stored_phone: String = row.try_get("", "phone").unwrap();
+    let phone_bound_at: Option<String> = row.try_get("", "phone_bound_at").unwrap();
+    assert_eq!(stored_phone, "13800138000");
+    assert!(phone_bound_at.is_some());
+
+    let (phone_login_status, phone_login_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/login",
+        None,
+        json!({"account": "13800138000", "password": "OutdoorPass123!"}),
+    )
+    .await;
+    assert_eq!(phone_login_status, StatusCode::OK, "{phone_login_value}");
+    assert_eq!(
+        phone_login_value["user"]["id"].as_str().unwrap(),
+        register_value["user"]["id"].as_str().unwrap(),
+    );
+}
+
+#[tokio::test]
+async fn sms_login_uses_ticket_once_and_missing_phone_send_does_not_debug() {
+    let app = test_app().await;
+    register_sms_user(
+        &app.router,
+        "sms_login_alice",
+        "短信登录",
+        "13800138001",
+        "OutdoorPass123!",
+    )
+    .await;
+
+    let (missing_status, missing_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-login-code",
+        None,
+        json!({"phone": "13800138099"}),
+    )
+    .await;
+    assert_eq!(missing_status, StatusCode::OK, "{missing_value}");
+    assert!(missing_value.get("debug_code").is_none());
+
+    let (code_status, code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-login-code",
+        None,
+        json!({"phone": "13800138001"}),
+    )
+    .await;
+    assert_eq!(code_status, StatusCode::OK, "{code_value}");
+    let login_code = code_value["debug_code"].as_str().unwrap().to_owned();
+
+    let (login_status, login_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-login",
+        None,
+        json!({
+            "phone": "13800138001",
+            "sms_ticket": code_value["sms_ticket"].as_str().unwrap(),
+            "sms_verification_code": login_code,
+        }),
+    )
+    .await;
+    assert_eq!(login_status, StatusCode::OK, "{login_value}");
+    assert_eq!(login_value["user"]["phone"], "13800138001");
+
+    let (replay_status, replay_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-login",
+        None,
+        json!({
+            "phone": "13800138001",
+            "sms_ticket": code_value["sms_ticket"].as_str().unwrap(),
+            "sms_verification_code": code_value["debug_code"].as_str().unwrap(),
+        }),
+    )
+    .await;
+    assert_eq!(
+        replay_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{replay_value}",
+    );
+
+    let (wrong_purpose_status, wrong_purpose_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-login",
+        None,
+        json!({
+            "phone": "13800138099",
+            "sms_ticket": missing_value["sms_ticket"].as_str().unwrap(),
+            "sms_verification_code": "123456",
+        }),
+    )
+    .await;
+    assert_eq!(
+        wrong_purpose_status,
+        StatusCode::UNAUTHORIZED,
+        "{wrong_purpose_value}",
+    );
+}
+
+#[tokio::test]
+async fn sms_password_reset_revokes_old_sessions() {
+    let app = test_app().await;
+    let initial_login = register_sms_user(
+        &app.router,
+        "sms_reset_alice",
+        "短信重置",
+        "13800138002",
+        "OutdoorPass123!",
+    )
+    .await;
+    let old_access_token = initial_login["access_token"].as_str().unwrap().to_owned();
+
+    let (code_status, code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-password-reset-code",
+        None,
+        json!({"phone": "13800138002"}),
+    )
+    .await;
+    assert_eq!(code_status, StatusCode::OK, "{code_value}");
+
+    let (reset_status, reset_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-password-reset",
+        None,
+        json!({
+            "phone": "13800138002",
+            "sms_ticket": code_value["sms_ticket"].as_str().unwrap(),
+            "sms_verification_code": code_value["debug_code"].as_str().unwrap(),
+            "password": "NewOutdoorPass123!",
+            "confirm_password": "NewOutdoorPass123!"
+        }),
+    )
+    .await;
+    assert_eq!(reset_status, StatusCode::OK, "{reset_value}");
+
+    let (old_access_status, old_access_value) = send_empty(
+        &app.router,
+        "GET",
+        "/api/v1/me/gears/stats",
+        Some(&old_access_token),
+    )
+    .await;
+    assert_eq!(
+        old_access_status,
+        StatusCode::UNAUTHORIZED,
+        "{old_access_value}",
+    );
+
+    let (login_status, login_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/login",
+        None,
+        json!({"account": "13800138002", "password": "NewOutdoorPass123!"}),
+    )
+    .await;
+    assert_eq!(login_status, StatusCode::OK, "{login_value}");
+}
+
+#[tokio::test]
+async fn phone_binding_and_rebinding_requires_new_and_current_sms_codes() {
+    let app = test_app().await;
+
+    let wechat_login = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/wechat-login",
+        None,
+        json!({"code": "phone-binding-user", "profile": {"nickname": "微信用户"}}),
+    )
+    .await
+    .1;
+    let access_token = wechat_login["access_token"].as_str().unwrap();
+
+    let (bind_code_status, bind_code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/phone-binding-code",
+        Some(access_token),
+        json!({"phone": "13800138003"}),
+    )
+    .await;
+    assert_eq!(bind_code_status, StatusCode::OK, "{bind_code_value}");
+
+    let (bind_status, bind_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/phone-binding",
+        Some(access_token),
+        json!({
+            "phone": "13800138003",
+            "sms_ticket": bind_code_value["sms_ticket"].as_str().unwrap(),
+            "sms_verification_code": bind_code_value["debug_code"].as_str().unwrap(),
+        }),
+    )
+    .await;
+    assert_eq!(bind_status, StatusCode::OK, "{bind_value}");
+    assert_eq!(bind_value["user"]["phone"], "13800138003");
+
+    let (current_code_status, current_code_value) = send_empty(
+        &app.router,
+        "POST",
+        "/api/v1/me/phone-rebinding-current-code",
+        Some(access_token),
+    )
+    .await;
+    assert_eq!(current_code_status, StatusCode::OK, "{current_code_value}");
+    assert_eq!(current_code_value["phone"], "13800138003");
+
+    let (new_code_status, new_code_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/phone-binding-code",
+        Some(access_token),
+        json!({"phone": "13800138004"}),
+    )
+    .await;
+    assert_eq!(new_code_status, StatusCode::OK, "{new_code_value}");
+
+    let (rebind_missing_current_status, rebind_missing_current_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/phone-binding",
+        Some(access_token),
+        json!({
+            "phone": "13800138004",
+            "sms_ticket": new_code_value["sms_ticket"].as_str().unwrap(),
+            "sms_verification_code": new_code_value["debug_code"].as_str().unwrap(),
+        }),
+    )
+    .await;
+    assert_eq!(
+        rebind_missing_current_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{rebind_missing_current_value}",
+    );
+
+    let (rebind_status, rebind_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/phone-binding",
+        Some(access_token),
+        json!({
+            "phone": "13800138004",
+            "sms_ticket": new_code_value["sms_ticket"].as_str().unwrap(),
+            "sms_verification_code": new_code_value["debug_code"].as_str().unwrap(),
+            "current_sms_ticket": current_code_value["sms_ticket"].as_str().unwrap(),
+            "current_sms_verification_code": current_code_value["debug_code"].as_str().unwrap(),
+        }),
+    )
+    .await;
+    assert_eq!(rebind_status, StatusCode::OK, "{rebind_value}");
+    assert_eq!(rebind_value["user"]["phone"], "13800138004");
 }
 
 #[tokio::test]
@@ -1326,6 +1682,7 @@ async fn production_email_login_and_reset_codes_send_mail_and_hide_debug_code() 
             from: "StellarTrail <sender@example.test>".to_owned(),
             verification_subject: "寻径星野邮箱验证码".to_owned(),
         },
+        sms: Default::default(),
     };
     let sender = RecordingEmailSender::default();
     let sent = Arc::clone(&sender.sent);
@@ -1414,6 +1771,7 @@ async fn production_bind_email_code_sends_mail_and_hides_debug_code() {
             from: "StellarTrail <sender@example.test>".to_owned(),
             verification_subject: "寻径星野邮箱验证码".to_owned(),
         },
+        sms: Default::default(),
     };
     let sender = RecordingEmailSender::default();
     let sent = Arc::clone(&sender.sent);

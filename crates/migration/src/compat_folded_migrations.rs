@@ -72,3 +72,4 @@ folded_migration!(
     add_knot_localization_aliases,
     "m20260525_000001_add_knot_localization_aliases"
 );
+folded_migration!(create_team_trip_plans, "create_team_trip_plans");

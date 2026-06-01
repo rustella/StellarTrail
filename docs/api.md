@@ -55,8 +55,17 @@ POST /api/v1/auth/email-login-code
 POST /api/v1/auth/email-login
 POST /api/v1/auth/password-reset-code
 POST /api/v1/auth/password-reset
+POST /api/v1/auth/sms-registration-code
+POST /api/v1/auth/sms-login-code
+POST /api/v1/auth/sms-password-reset-code
+POST /api/v1/auth/sms-register
+POST /api/v1/auth/sms-login
+POST /api/v1/auth/sms-password-reset
 POST /api/v1/me/email-binding-code
 POST /api/v1/me/email-binding
+POST /api/v1/me/phone-binding-code
+POST /api/v1/me/phone-rebinding-current-code
+POST /api/v1/me/phone-binding
 POST /api/v1/auth/register
 POST /api/v1/auth/login
 POST /api/v1/auth/refresh
@@ -117,7 +126,7 @@ POST /api/v1/auth/register
 }
 ```
 
-登录接口的 `account` 可填写用户名或邮箱。首次和正常登录不需要验证码；同一账号连续多次输错密码后，接口返回 `captcha_required`，前端应先调用图片验证码接口获取 `captcha_ticket` 与 `image_svg`，用户填写图形内容后带回登录接口。
+登录接口的 `account` 可填写用户名、邮箱或已绑定手机号。首次和正常登录不需要验证码；同一账号连续多次输错密码后，接口返回 `captcha_required`，前端应先调用图片验证码接口获取 `captcha_ticket` 与 `image_svg`，用户填写图形内容后带回登录接口。
 
 ```json
 POST /api/v1/auth/captcha
@@ -218,6 +227,7 @@ Authorization: Bearer ***
     "id": "user-id",
     "username": null,
     "email": "alice@example.com",
+    "phone": null,
     "nickname": "微信用户",
     "avatar_url": null
   }
@@ -225,6 +235,112 @@ Authorization: Bearer ***
 ```
 
 若当前账号已经绑定邮箱，或目标邮箱已被其他账号使用，会返回 `validation_failed`。绑定成功后，可继续使用找回密码流程为该账号设置密码。
+
+### SMS registration, login, password reset, and phone binding
+
+短信认证仅支持中国大陆手机号，服务端会规范化为 11 位手机号。生产环境使用阿里云号码认证服务 `SendSmsVerifyCode` / `CheckSmsVerifyCode`，真实 `sms.access_key_id`、`sms.access_key_secret`、`sms.sign_name`、可选的 `sms.scheme_name` 等只放在被忽略的 `config.yaml`，或由 secret manager 渲染成同等 YAML 配置文件；短信配置不通过环境变量传输。本地环境会返回 `debug_code` 方便联调，生产环境不会返回明文验证码。
+
+发送短信验证码响应统一包含 `phone`、`sms_ticket`、`expires_at`。`sms_ticket` 和验证码必须一起提交，且只能消费一次：
+
+```json
+POST /api/v1/auth/sms-registration-code
+{
+  "phone": "13800138000"
+}
+```
+
+```json
+{
+  "phone": "13800138000",
+  "sms_ticket": "sms-ticket",
+  "expires_at": "2026-06-02T10:00:00Z",
+  "debug_code": "123456"
+}
+```
+
+短信注册需要手机号、用户名、昵称、密码和短信验证码：
+
+```json
+POST /api/v1/auth/sms-register
+{
+  "username": "trail_alice",
+  "nickname": "Alice",
+  "phone": "13800138000",
+  "password": "OutdoorPass123!",
+  "confirm_password": "OutdoorPass123!",
+  "sms_ticket": "sms-ticket",
+  "sms_verification_code": "123456"
+}
+```
+
+短信登录和短信重置密码只对已绑定手机号的账号生效。为避免账号枚举，不存在的手机号在发送验证码时也返回相同结构，但不会发送短信，也不会返回 `debug_code`：
+
+```json
+POST /api/v1/auth/sms-login-code
+{ "phone": "13800138000" }
+```
+
+```json
+POST /api/v1/auth/sms-login
+{
+  "phone": "13800138000",
+  "sms_ticket": "sms-ticket",
+  "sms_verification_code": "123456"
+}
+```
+
+```json
+POST /api/v1/auth/sms-password-reset-code
+{ "phone": "13800138000" }
+```
+
+```json
+POST /api/v1/auth/sms-password-reset
+{
+  "phone": "13800138000",
+  "sms_ticket": "sms-ticket",
+  "sms_verification_code": "123456",
+  "password": "NewOutdoorPass123!",
+  "confirm_password": "NewOutdoorPass123!"
+}
+```
+
+首次绑定手机号时，登录后发送并校验目标手机号验证码：
+
+```json
+POST /api/v1/me/phone-binding-code
+Authorization: Bearer ***
+{ "phone": "13800138000" }
+```
+
+```json
+POST /api/v1/me/phone-binding
+Authorization: Bearer ***
+{
+  "phone": "13800138000",
+  "sms_ticket": "new-phone-ticket",
+  "sms_verification_code": "123456"
+}
+```
+
+已绑定手机号的账号换绑时，需要先向当前旧手机号发送验证码，再向新手机号发送验证码，最终提交两组验证码：
+
+```json
+POST /api/v1/me/phone-rebinding-current-code
+Authorization: Bearer ***
+```
+
+```json
+POST /api/v1/me/phone-binding
+Authorization: Bearer ***
+{
+  "phone": "13900139000",
+  "sms_ticket": "new-phone-ticket",
+  "sms_verification_code": "654321",
+  "current_sms_ticket": "current-phone-ticket",
+  "current_sms_verification_code": "123456"
+}
+```
 
 ### Current profile
 
@@ -243,6 +359,7 @@ Authorization: Bearer ***
     "id": "user-id",
     "username": null,
     "email": null,
+    "phone": "13800138000",
     "nickname": "微信用户",
     "avatar_url": "https://assets.example.invalid/stellartrail-avatars/users/user-id/avatar/hash.png"
   }
@@ -311,6 +428,7 @@ Multipart 字段：
     "id": "user-id",
     "username": null,
     "email": null,
+    "phone": "13800138000",
     "nickname": "微信用户",
     "avatar_url": "https://assets.example.invalid/stellartrail-avatars/users/user-id/avatar/hash.png"
   }
@@ -344,6 +462,7 @@ POST /api/v1/auth/refresh
     "id": "user-id",
     "username": "trail_alice",
     "email": "alice@example.com",
+    "phone": "13800138000",
     "nickname": null,
     "avatar_url": null
   }

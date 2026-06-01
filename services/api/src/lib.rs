@@ -23,6 +23,9 @@ use stellartrail_migration::Migrator;
 use config::ApiConfig;
 use email::{EmailSender, NoopEmailSender, SmtpEmailSender};
 use object_store::MinioObjectStore;
+use services::sms::{
+    AliyunSmsVerificationClient, InMemorySmsVerificationClient, SmsVerificationClient,
+};
 use state::AppState;
 
 /// Creates the database connection, runs migrations, seeds DB-backed defaults, and builds AppState from configuration.
@@ -39,6 +42,11 @@ pub async fn build_state(config: ApiConfig) -> anyhow::Result<AppState> {
     } else {
         Arc::new(NoopEmailSender)
     };
+    let sms_client: Arc<dyn SmsVerificationClient> = if config.sms.enabled {
+        Arc::new(AliyunSmsVerificationClient::from_config(&config.sms)?)
+    } else {
+        Arc::new(InMemorySmsVerificationClient::default())
+    };
     Ok(
         AppState::new_with_wechat_client_cache_object_store_and_email_sender(
             config,
@@ -47,6 +55,7 @@ pub async fn build_state(config: ApiConfig) -> anyhow::Result<AppState> {
             cache,
             Arc::new(object_store),
             email_sender,
+            sms_client,
         ),
     )
 }

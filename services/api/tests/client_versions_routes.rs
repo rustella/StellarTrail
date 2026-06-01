@@ -53,6 +53,7 @@ async fn test_app_with_commit_hash(commit_hash: Option<&str>) -> TestApp {
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
+        sms: Default::default(),
     };
     TestApp {
         router: build_router(AppState::new(config, db.clone())),
