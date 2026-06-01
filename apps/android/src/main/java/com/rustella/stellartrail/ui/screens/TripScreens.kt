@@ -77,7 +77,6 @@ fun TripsScreen(
     onCreateTrip: (TripType) -> Unit,
     onJoinTrip: () -> Unit,
     onOpenTrip: (String) -> Unit,
-    onOpenGearAtlas: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -108,12 +107,6 @@ fun TripsScreen(
                     body = "行程计划和装备分工会保存到账号中。",
                     action = { CompactPillAction("登录", onLogin) },
                 )
-            }
-            item {
-                SurfaceCard(Modifier.fillMaxWidth().clickable(onClick = onOpenGearAtlas)) {
-                    Text("查看装备图鉴", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                    Text("未登录时可先浏览装备参考，制作行程前再登录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
             }
         } else {
             if (state.error != null) item { ErrorState(state.error!!, onRetry = { viewModel.refresh(true) }) }

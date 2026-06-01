@@ -360,7 +360,6 @@ private fun AuthenticatedApp(
                     onOpenTrip = { id ->
                         if (isLoggedIn) navController.navigate(AppRoutes.tripDetail(id)) else navController.navigate(AppRoutes.AUTH)
                     },
-                    onOpenGearAtlas = { navController.navigate(AppRoutes.GEAR_ATLAS) },
                 )
             }
             composable(
