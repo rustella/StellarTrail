@@ -36,6 +36,8 @@ class ProfileVisualContractTest {
     @Test
     fun nightModeHasExplicitUserFacingLabelAndStateCopy() {
         assertEquals("黑夜模式", ProfileVisualContract.nightModeTitle)
+        assertEquals("☀", ProfileVisualContract.themeLightIcon)
+        assertEquals("☾", ProfileVisualContract.themeDarkIcon)
         assertEquals("已开启深色界面。", ProfileVisualContract.nightModeDescription(ThemeMode.DARK))
         assertEquals("当前使用浅色界面。", ProfileVisualContract.nightModeDescription(ThemeMode.LIGHT))
         assertEquals("跟随系统外观。", ProfileVisualContract.nightModeDescription(ThemeMode.SYSTEM))

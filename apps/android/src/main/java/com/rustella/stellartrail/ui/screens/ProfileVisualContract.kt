@@ -21,6 +21,8 @@ object ProfileVisualContract {
     const val maxPrimaryCardCount = 2
     const val accountSettingsEntryLabel = "查看账号资料与户外资料"
     const val nightModeTitle = "黑夜模式"
+    const val themeLightIcon = "☀"
+    const val themeDarkIcon = "☾"
     const val debugDefaultEndpointLabel = "默认连接"
     const val debugCustomEndpointLabel = "自定义连接"
     val blockedUserFacingFragments = listOf(
@@ -61,6 +63,8 @@ object ProfileVisualContract {
         listOf(
             accountSettingsEntryLabel,
             nightModeTitle,
+            themeLightIcon,
+            themeDarkIcon,
             nightModeDescription(ThemeMode.DARK),
             nightModeDescription(ThemeMode.LIGHT),
             debugDefaultEndpointLabel,
