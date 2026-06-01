@@ -67,11 +67,14 @@ import com.rustella.stellartrail.domain.profile.OutdoorProfileResponse
 import com.rustella.stellartrail.domain.profile.ProfileUserResponse
 import com.rustella.stellartrail.domain.profile.RoadmapItem
 import com.rustella.stellartrail.domain.profile.RoadmapStatusFilter
+import com.rustella.stellartrail.domain.skills.FavoriteKnotItem
 import com.rustella.stellartrail.domain.skills.KnotDetail
 import com.rustella.stellartrail.domain.skills.KnotListResponse
 import com.rustella.stellartrail.domain.skills.KnotMediaAsset
 import com.rustella.stellartrail.domain.skills.KnotSummary
 import com.rustella.stellartrail.domain.skills.KnotTaxonomyItem
+import com.rustella.stellartrail.domain.skills.ListFavoriteSkillsRequest
+import com.rustella.stellartrail.domain.skills.ListFavoriteSkillsResponse
 import com.rustella.stellartrail.domain.skills.ListKnotsRequest
 import com.rustella.stellartrail.domain.skills.PageInfo
 import com.rustella.stellartrail.domain.skills.SkillCategoriesResponse
@@ -433,6 +436,12 @@ private class FixtureSkillRepository : SkillRepositoryContract {
     override suspend fun listSkills(locale: SkillLocale): SkillCategoriesResponse = SkillCategoriesResponse(categories)
     override suspend fun listKnots(locale: SkillLocale, request: ListKnotsRequest): KnotListResponse =
         KnotListResponse(locale, knots, PageInfo(limit = request.limit, offset = request.offset))
+    override suspend fun listFavoriteSkills(locale: SkillLocale, request: ListFavoriteSkillsRequest): ListFavoriteSkillsResponse =
+        ListFavoriteSkillsResponse(
+            locale = locale,
+            items = listOf(FavoriteKnotItem("knots", "2026-05-01T00:00:00Z", knots.first())),
+            page = PageInfo(limit = request.limit, offset = request.offset),
+        )
     override suspend fun knotDetail(id: String, locale: SkillLocale): KnotDetail = knots.firstOrNull { it.id == id }?.let {
         KnotDetail(
             id = it.id,

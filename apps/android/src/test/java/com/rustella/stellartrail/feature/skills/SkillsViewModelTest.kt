@@ -1,9 +1,12 @@
 package com.rustella.stellartrail.feature.skills
 
 import com.rustella.stellartrail.data.skills.SkillRepositoryContract
+import com.rustella.stellartrail.domain.skills.FavoriteKnotItem
 import com.rustella.stellartrail.domain.skills.KnotDetail
 import com.rustella.stellartrail.domain.skills.KnotListResponse
 import com.rustella.stellartrail.domain.skills.KnotSummary
+import com.rustella.stellartrail.domain.skills.ListFavoriteSkillsRequest
+import com.rustella.stellartrail.domain.skills.ListFavoriteSkillsResponse
 import com.rustella.stellartrail.domain.skills.ListKnotsRequest
 import com.rustella.stellartrail.domain.skills.PageInfo
 import com.rustella.stellartrail.domain.skills.SkillCategoriesResponse
@@ -41,12 +44,24 @@ class SkillsViewModelTest {
     fun loadNetworkFailureUpdatesErrorWithoutCrashing() = runTest {
         val viewModel = SkillsViewModel(FakeSkillRepository(failKnots = true))
 
-        viewModel.load()
+        viewModel.openKnots()
         advanceUntilIdle()
 
         val state = viewModel.state.value
         assertFalse(state.loading)
         assertEquals("无法连接到 API，请检查网络或 API Base URL。", state.error)
+    }
+
+    @Test
+    fun openingFavoritesLoadsFavoriteSkillList() = runTest {
+        val viewModel = SkillsViewModel(FakeSkillRepository())
+
+        viewModel.openFavorites()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(SkillsMode.Favorites, state.mode)
+        assertEquals(listOf("单套结"), state.favoriteKnots.map { it.knot.title })
     }
 
     private class FakeSkillRepository(
@@ -74,6 +89,24 @@ class SkillsViewModelTest {
         }
 
         override suspend fun knotDetail(id: String, locale: SkillLocale): KnotDetail = error("unused")
+        override suspend fun listFavoriteSkills(locale: SkillLocale, request: ListFavoriteSkillsRequest): ListFavoriteSkillsResponse =
+            ListFavoriteSkillsResponse(
+                locale = locale,
+                items = listOf(
+                    FavoriteKnotItem(
+                        skillCategory = "knots",
+                        favoritedAt = "2026-05-01T00:00:00Z",
+                        knot = KnotSummary(
+                            id = "bowline",
+                            slug = "bowline",
+                            title = "单套结",
+                            summary = "固定绳圈",
+                            href = "/api/v1/skills/knots/bowline",
+                        ),
+                    ),
+                ),
+                page = PageInfo(limit = request.limit, offset = request.offset),
+            )
         override fun resolveMediaUrl(pathOrUrl: String): String = pathOrUrl
     }
 }

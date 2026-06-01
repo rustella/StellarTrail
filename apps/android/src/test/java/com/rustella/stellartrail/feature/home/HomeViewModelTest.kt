@@ -16,6 +16,8 @@ import com.rustella.stellartrail.domain.gear.UpdateGearRequest
 import com.rustella.stellartrail.domain.skills.KnotDetail
 import com.rustella.stellartrail.domain.skills.KnotListResponse
 import com.rustella.stellartrail.domain.skills.KnotSummary
+import com.rustella.stellartrail.domain.skills.ListFavoriteSkillsRequest
+import com.rustella.stellartrail.domain.skills.ListFavoriteSkillsResponse
 import com.rustella.stellartrail.domain.skills.ListKnotsRequest
 import com.rustella.stellartrail.domain.skills.PageInfo
 import com.rustella.stellartrail.domain.skills.SkillCategoriesResponse
@@ -146,6 +148,7 @@ class HomeViewModelTest {
         }
 
         override suspend fun knotDetail(id: String, locale: SkillLocale): KnotDetail = error("unused")
+        override suspend fun listFavoriteSkills(locale: SkillLocale, request: ListFavoriteSkillsRequest): ListFavoriteSkillsResponse = error("unused")
         override fun resolveMediaUrl(pathOrUrl: String): String = pathOrUrl
     }
 }

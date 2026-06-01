@@ -71,6 +71,40 @@ data class KnotListResponse(
 )
 
 @Serializable
+enum class FavoriteSkillCategory(val queryValue: String) {
+    @SerialName("all") ALL("all"),
+    @SerialName("knots") KNOTS("knots"),
+}
+
+@Serializable
+data class FavoriteSkillFilterOption(
+    val id: FavoriteSkillCategory,
+    val title: String,
+    val count: Int,
+)
+
+@Serializable
+data class FavoriteKnotItem(
+    @SerialName("skill_category") val skillCategory: String,
+    @SerialName("favorited_at") val favoritedAt: String,
+    val knot: KnotSummary,
+)
+
+@Serializable
+data class ListFavoriteSkillsResponse(
+    val locale: SkillLocale,
+    val filters: List<FavoriteSkillFilterOption> = emptyList(),
+    val items: List<FavoriteKnotItem>,
+    val page: PageInfo,
+)
+
+data class ListFavoriteSkillsRequest(
+    val skillCategory: FavoriteSkillCategory = FavoriteSkillCategory.ALL,
+    val offset: Int = 0,
+    val limit: Int = 20,
+)
+
+@Serializable
 data class KnotDetail(
     val id: String,
     val slug: String,

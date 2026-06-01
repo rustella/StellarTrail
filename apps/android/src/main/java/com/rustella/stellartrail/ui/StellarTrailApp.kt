@@ -121,7 +121,7 @@ private fun AuthenticatedApp(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             if (currentRoute in topLevelDestinations.map { it.route }) {
-                MiniProgramTopBar()
+                MiniProgramTopBar(title = miniProgramTopBarTitle(currentRoute))
             }
         },
         bottomBar = {
@@ -534,8 +534,13 @@ private fun AuthenticatedApp(
     }
 }
 
+private fun miniProgramTopBarTitle(route: String?): String = when (route) {
+    AppRoutes.SKILLS -> "户外技能"
+    else -> "寻径星野"
+}
+
 @Composable
-private fun MiniProgramTopBar() {
+private fun MiniProgramTopBar(title: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -544,6 +549,6 @@ private fun MiniProgramTopBar() {
             .statusBarsPadding(),
         contentAlignment = Alignment.Center,
     ) {
-        Text("寻径星野", color = Color.White, fontWeight = FontWeight.ExtraBold)
+        Text(title, color = Color.White, fontWeight = FontWeight.ExtraBold)
     }
 }
