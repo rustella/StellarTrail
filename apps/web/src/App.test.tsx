@@ -100,6 +100,7 @@ function buildClientVersion(
         items: ["装备库上线", "绳结离线缓存"],
       },
     ],
+    commit_hash: "376fd6c1ef08636477d5257ab720bc783beeb358",
     status: "published",
     published_at: "2026-05-23T00:00:00Z",
     created_at: "2026-05-23T00:00:00Z",
@@ -1091,6 +1092,12 @@ describe("App", () => {
     fireEvent.change(screen.getByPlaceholderText("例如 0.1.0 初始版本"), {
       target: { value: "0.2.0 装备图鉴更新" },
     });
+    fireEvent.change(
+      screen.getByPlaceholderText("留空自动使用当前部署 commit"),
+      {
+        target: { value: "abcDEF1" },
+      },
+    );
     fireEvent.change(screen.getByPlaceholderText("每行一条新增功能"), {
       target: { value: "新增版本信息" },
     });
@@ -1118,8 +1125,10 @@ describe("App", () => {
           },
         ],
         status: "draft",
+        commit_hash: "abcDEF1",
       });
     });
+    expect(screen.getByText("Commit 376fd6c")).toBeInTheDocument();
   });
 
   it("opens the admin review queue directly from the /admin URL", async () => {

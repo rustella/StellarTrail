@@ -5,6 +5,7 @@ services:
       dockerfile: infra/production/api/Dockerfile
       args:
         STELLARTAIL_DEPLOY_TIMEZONE: ${STELLARTAIL_DEPLOY_TIMEZONE:-}
+        APP_COMMIT_HASH: ${APP_COMMIT_HASH:-}
     image: ${STELLARTAIL_API_IMAGE:-ghcr.io/rustella/stellartrail-api:latest}
     restart: unless-stopped
     depends_on:
@@ -18,6 +19,7 @@ services:
         condition: service_completed_successfully
     environment:
       RUST_LOG: ${RUST_LOG:-stellartrail_api=info,tower_http=info}
+      APP_COMMIT_HASH: ${APP_COMMIT_HASH:-}
       AVATAR_STORAGE_BUCKET: ${AVATAR_STORAGE_BUCKET:-stellartrail-avatars}
       AVATAR_STORAGE_PUBLIC_BASE_URL: ${AVATAR_STORAGE_PUBLIC_BASE_URL:-https://assets.example.invalid/stellartrail-avatars}
       AVATAR_STORAGE_MAX_IMAGE_BYTES: ${AVATAR_STORAGE_MAX_IMAGE_BYTES:-2000000}

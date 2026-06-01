@@ -103,6 +103,7 @@ interface ClientVersionFormState {
   clientKey: ClientKey;
   version: string;
   title: string;
+  commitHash: string;
   featureNotesText: string;
   bugFixNotesText: string;
   notesText: string;
@@ -228,6 +229,7 @@ const emptyClientVersionForm: ClientVersionFormState = {
   clientKey: "wechat_miniprogram",
   version: "",
   title: "",
+  commitHash: "",
   featureNotesText: "",
   bugFixNotesText: "",
   notesText: "",
@@ -901,6 +903,7 @@ export default function App({ client }: AppProps) {
       clientKey: item.client_key,
       version: item.version,
       title: item.title,
+      commitHash: item.commit_hash ?? "",
       featureNotesText: sectionItemsText(sections, "feature"),
       bugFixNotesText: sectionItemsText(sections, "bug_fix"),
       notesText: sectionItemsText(sections, "notes"),
@@ -3081,6 +3084,16 @@ function ClientVersionsAdminPage({
               />
             </label>
             <label>
+              Commit hash
+              <input
+                value={form.commitHash}
+                placeholder="留空自动使用当前部署 commit"
+                onChange={(event) =>
+                  onFormChange({ ...form, commitHash: event.target.value })
+                }
+              />
+            </label>
+            <label>
               状态
               <select
                 value={form.status}
@@ -3195,6 +3208,11 @@ function ClientVersionsAdminPage({
                       ? `发布于 ${formatDate(item.published_at)}`
                       : "未发布"}
                   </p>
+                  {item.commit_hash ? (
+                    <p className="muted">
+                      Commit {shortCommitHash(item.commit_hash)}
+                    </p>
+                  ) : null}
                 </div>
                 <span
                   className={`status-pill status-client-version-${item.status}`}
@@ -4208,6 +4226,7 @@ function clientVersionRequestFromForm(
     release_notes: [...featureItems, ...bugFixItems, ...notesItems],
     release_note_sections: releaseNoteSections,
     status: form.status,
+    commit_hash: form.commitHash.trim() || null,
   };
 }
 
@@ -4240,6 +4259,10 @@ function sectionItemsText(
   return (
     sections.find((section) => section.key === key)?.items.join("\n") ?? ""
   );
+}
+
+function shortCommitHash(commitHash: string): string {
+  return commitHash.trim().slice(0, 7);
 }
 
 function feedbackUserName(user: AdminFeedbackItem["user"]): string {

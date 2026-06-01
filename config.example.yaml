@@ -8,6 +8,8 @@ app:
   env: local
   host: 127.0.0.1
   port: 8080
+  # Optional Git commit hash for admin-created client version records.
+  commit_hash: null
 
 database:
   # Supported prefixes: sqlite://, postgres://, postgresql://.
