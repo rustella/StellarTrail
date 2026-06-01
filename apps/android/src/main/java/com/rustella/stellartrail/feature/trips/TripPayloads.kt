@@ -81,15 +81,15 @@ object TripPayloads {
             TripRecordKind.PersonalGear,
             TripRecordKind.SharedGear,
             TripRecordKind.MedicalItem -> put("packed_quantity", 1)
-            TripRecordKind.ItineraryDay -> put("notes", "Android 端已更新行程日信息")
-            TripRecordKind.RouteSegment -> put("notes", "Android 端已复核路线段")
-            TripRecordKind.SegmentAssignment -> put("notes", "Android 端已复核分工")
-            TripRecordKind.FoodMeal -> put("notes", "Android 端已复核餐次")
-            TripRecordKind.FoodSupply -> put("notes", "Android 端已复核公共食材")
-            TripRecordKind.SafetyRisk -> put("notes", "Android 端已复核风险预案")
-            TripRecordKind.RescueContact -> put("notes", "Android 端已复核救援信息")
-            TripRecordKind.BudgetItem -> put("notes", "Android 端已复核预算")
-            TripRecordKind.Goal -> put("notes", "Android 端已复核目标")
+            TripRecordKind.ItineraryDay -> put("notes", "已更新行程日信息")
+            TripRecordKind.RouteSegment -> put("notes", "已复核路线段")
+            TripRecordKind.SegmentAssignment -> put("notes", "已复核分工")
+            TripRecordKind.FoodMeal -> put("notes", "已复核餐次")
+            TripRecordKind.FoodSupply -> put("notes", "已复核公共食材")
+            TripRecordKind.SafetyRisk -> put("notes", "已复核风险预案")
+            TripRecordKind.RescueContact -> put("notes", "已复核救援信息")
+            TripRecordKind.BudgetItem -> put("notes", "已复核预算")
+            TripRecordKind.Goal -> put("notes", "已复核目标")
         }
         put("base_field_versions", versions)
     }

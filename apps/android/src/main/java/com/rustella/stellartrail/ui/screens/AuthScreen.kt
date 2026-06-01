@@ -145,9 +145,9 @@ private fun LoginForm(viewModel: AuthViewModel) {
             password = true,
         )
         if (state.captchaTicket.isNotBlank()) {
-            Text("验证码图片已返回。当前版本以调试文本方式展示，后续可接入 SVG 渲染。")
+            Text("请输入验证码后继续。")
             if (state.debugCaptchaAnswer != null) {
-                Text("调试验证码：${state.debugCaptchaAnswer}", color = MaterialTheme.colorScheme.tertiary)
+                Text("验证码提示：${state.debugCaptchaAnswer}", color = MaterialTheme.colorScheme.tertiary)
             }
             AuthTextField(
                 value = state.captchaAnswer,

@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -68,17 +69,11 @@ fun ProfileScreen(
             onLogout = viewModel::logout,
         )
         SurfaceCard {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("设置与帮助", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                Switch(
-                    checked = theme == ThemeMode.DARK,
-                    onCheckedChange = { checked -> viewModel.setTheme(if (checked) ThemeMode.DARK else ThemeMode.LIGHT) },
-                )
-            }
+            Text("设置与帮助", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+            ProfileThemeRow(
+                theme = theme,
+                onThemeChange = viewModel::setTheme,
+            )
             ProfileVisualContract.helpItems.forEach { item ->
                 ProfileHelpRow(
                     item = item,
@@ -94,6 +89,51 @@ fun ProfileScreen(
     }
     dialog?.let { action ->
         ProfileInfoDialog(action = action, onDismiss = { dialog = null })
+    }
+}
+
+@Composable
+private fun ProfileThemeRow(theme: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
+    val palette = currentTrailPalette()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(TrailInnerCardShape)
+            .background(palette.controlBackground)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(TrailInnerCardShape)
+                .background(palette.brandSoft)
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("夜", color = palette.brandSoftText, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(ProfileVisualContract.nightModeTitle, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+            Text(
+                ProfileVisualContract.nightModeDescription(theme),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Switch(
+            checked = theme == ThemeMode.DARK,
+            onCheckedChange = { checked -> onThemeChange(if (checked) ThemeMode.DARK else ThemeMode.LIGHT) },
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = palette.brandText,
+                checkedTrackColor = palette.brand,
+                uncheckedThumbColor = MaterialTheme.colorScheme.surface,
+                uncheckedTrackColor = palette.border,
+                uncheckedBorderColor = palette.border,
+            ),
+        )
     }
 }
 
@@ -200,13 +240,7 @@ private fun ProfileHelpRow(item: ProfileHelpItem, onClick: () -> Unit) {
 
 @Composable
 private fun ProfileInfoDialog(action: ProfileHelpAction, onDismiss: () -> Unit) {
-    val (title, body) = when (action) {
-        ProfileHelpAction.CachedKnots -> "绳结离线缓存" to "Android 端会沿用小程序的离线缓存入口；当前可先在技能页查看在线绳结内容。"
-        ProfileHelpAction.Feedback -> "意见反馈" to "反馈入口会继续对齐小程序样式；当前 Android 端先保留轻量提示，不在一级页放置复杂表单。"
-        ProfileHelpAction.VersionInfo -> "版本信息" to "当前版本信息会随 Android 包更新展示。后续版本记录将继续对齐小程序弹层。"
-        ProfileHelpAction.About -> "关于寻径星野" to "寻径星野为户外爱好者准备装备、行程与技能工具，帮助出发前更从容。"
-        ProfileHelpAction.Roadmap -> "产品路线图" to ""
-    }
+    val (title, body) = ProfileVisualContract.helpDialog(action)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, fontWeight = FontWeight.ExtraBold) },

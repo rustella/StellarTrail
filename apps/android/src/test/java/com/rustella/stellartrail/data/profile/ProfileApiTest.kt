@@ -182,7 +182,7 @@ private val roadmapItemJson = """
   "client_key": "android",
   "title": "Android 行程协作完善",
   "summary": "补齐协作功能。",
-  "details": "对齐小程序端。",
+  "details": "完善移动端体验。",
   "category": "routes",
   "status": "building",
   "priority": 1,

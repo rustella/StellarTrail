@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -100,7 +101,7 @@ fun RoadmapScreen(
             HeroCard(
                 eyebrow = "寻径星野",
                 title = "产品路线图",
-                subtitle = "这里记录后续计划。你可以给关心的功能投票，也可以先订阅站内进度。",
+                subtitle = "这里记录功能计划。你可以给关心的方向投票，也可以订阅站内进度。",
                 chips = listOf("投票", "订阅"),
                 actions = {
                     HeroSoftButton("返回", onBack, Modifier.weight(1f))
@@ -421,6 +422,7 @@ fun ProfileSettingsScreen(
     var passwordSheet by remember { mutableStateOf(false) }
     var debugExpanded by remember { mutableStateOf(false) }
     val user = session?.user
+    val palette = currentTrailPalette()
     LazyColumn(
         modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 28.dp),
@@ -459,10 +461,24 @@ fun ProfileSettingsScreen(
             SurfaceCard {
                 SectionTitle("黑夜模式")
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(theme.label(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(theme.label(), fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            ProfileVisualContract.nightModeDescription(theme),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     Switch(
                         checked = theme == ThemeMode.DARK,
                         onCheckedChange = { checked -> viewModel.setTheme(if (checked) ThemeMode.DARK else ThemeMode.LIGHT) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = palette.brandText,
+                            checkedTrackColor = palette.brand,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.surface,
+                            uncheckedTrackColor = palette.border,
+                            uncheckedBorderColor = palette.border,
+                        ),
                     )
                 }
             }
@@ -476,7 +492,7 @@ fun ProfileSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            SectionTitle("开发调试")
+                            SectionTitle("连接设置")
                             Text(
                                 ProfileVisualContract.debugEndpointSummary(config.baseUrl, BuildConfig.DEFAULT_API_BASE_URL),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -493,7 +509,7 @@ fun ProfileSettingsScreen(
                         OutlinedTextField(
                             value = baseUrl,
                             onValueChange = { baseUrl = it },
-                            label = { Text("地址") },
+                            label = { Text("连接地址") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -694,7 +710,7 @@ private fun NicknameSheet(user: LoginUser?, onDismiss: () -> Unit) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("修改名称", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
             MetadataRow("当前名称", user.displayName())
-            Text("Android 端展示账号当前名称；微信昵称同步请在小程序完成。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("修改后会同步到账号资料。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             PrimaryPillButton("知道了", onDismiss, Modifier.fillMaxWidth())
             Spacer(Modifier.height(8.dp))
         }

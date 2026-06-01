@@ -81,7 +81,7 @@ class RoadmapViewModel(
 
     fun toggleSubscription(item: RoadmapItem) = toggleRoadmapAction(
         item = item,
-        loginMessage = "登录后可以订阅功能进度，后续在站内查看更新。",
+        loginMessage = "登录后可以订阅功能进度，在站内查看更新。",
         action = {
             if (item.isSubscribed) {
                 profileRepository.unsubscribeRoadmapItem(item.id)
@@ -363,7 +363,7 @@ class ProfileSettingsViewModel(
         viewModelScope.launch {
             _actionState.update { it.copy(emailCodeLoading = true, accountError = null, emailNotice = null) }
             runCatching { authRepository.sendBindEmailCode(email) }.onSuccess { response ->
-                val debugSuffix = response.debugCode?.let { " 调试验证码：$it" }.orEmpty()
+                val debugSuffix = response.debugCode?.let { " 验证码提示：$it" }.orEmpty()
                 _actionState.update {
                     it.copy(emailCodeLoading = false, emailNotice = "验证码已发送到 ${response.email}。$debugSuffix")
                 }
@@ -390,7 +390,7 @@ class ProfileSettingsViewModel(
         viewModelScope.launch {
             _actionState.update { it.copy(passwordCodeLoading = true, accountError = null, passwordNotice = null) }
             runCatching { authRepository.sendPasswordResetCode(email) }.onSuccess { response ->
-                val debugSuffix = response.debugCode?.let { " 调试验证码：$it" }.orEmpty()
+                val debugSuffix = response.debugCode?.let { " 验证码提示：$it" }.orEmpty()
                 _actionState.update {
                     it.copy(passwordCodeLoading = false, passwordNotice = "验证码已发送到 ${response.email}。$debugSuffix")
                 }

@@ -89,7 +89,7 @@ enum class RoadmapStatusFilter(val apiValue: String?, val label: String) {
     All(null, "全部状态"),
     Planned("planned", "已规划"),
     Designing("designing", "设计中"),
-    Building("building", "开发中"),
+    Building("building", "推进中"),
     Preview("preview", "预览中"),
     Shipped("shipped", "已上线"),
 }
@@ -107,7 +107,7 @@ fun RoadmapItem.categoryLabel(): String = when (category) {
 fun RoadmapItem.statusLabel(): String = when (status) {
     "planned" -> "已规划"
     "designing" -> "设计中"
-    "building" -> "开发中"
+    "building" -> "推进中"
     "preview" -> "预览中"
     "shipped" -> "已上线"
     else -> "规划中"

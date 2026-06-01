@@ -1,18 +1,19 @@
 package com.rustella.stellartrail.ui.screens
 
+import com.rustella.stellartrail.core.theme.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class ProfileVisualContractTest {
     @Test
-    fun profileHomeUsesWechatCompactAccountAndSettingsCards() {
+    fun profileHomeKeepsCompactAccountAndSettingsCards() {
         assertEquals(2, ProfileVisualContract.maxPrimaryCardCount)
         assertEquals("查看账号资料与户外资料", ProfileVisualContract.accountSettingsEntryLabel)
     }
 
     @Test
-    fun profileHomeHelpRowsMatchMiniProgramSettingsList() {
+    fun profileHomeHelpRowsStayCompactAndUserFacing() {
         val items = ProfileVisualContract.helpItems
 
         assertEquals(
@@ -33,6 +34,14 @@ class ProfileVisualContractTest {
     }
 
     @Test
+    fun nightModeHasExplicitUserFacingLabelAndStateCopy() {
+        assertEquals("黑夜模式", ProfileVisualContract.nightModeTitle)
+        assertEquals("已开启深色界面。", ProfileVisualContract.nightModeDescription(ThemeMode.DARK))
+        assertEquals("当前使用浅色界面。", ProfileVisualContract.nightModeDescription(ThemeMode.LIGHT))
+        assertEquals("跟随系统外观。", ProfileVisualContract.nightModeDescription(ThemeMode.SYSTEM))
+    }
+
+    @Test
     fun debugEndpointSummaryDoesNotExposeUrlText() {
         val defaultSummary = ProfileVisualContract.debugEndpointSummary(
             currentBaseUrl = "https://api.example.invalid",
@@ -43,9 +52,18 @@ class ProfileVisualContractTest {
             defaultBaseUrl = "https://api.example.invalid",
         )
 
-        assertEquals("默认接口", defaultSummary)
-        assertEquals("自定义调试地址", customSummary)
+        assertEquals("默认连接", defaultSummary)
+        assertEquals("自定义连接", customSummary)
         assertFalse(defaultSummary.contains("http"))
         assertFalse(customSummary.contains("10.0.2.2"))
+    }
+
+    @Test
+    fun profileUserFacingCopyAvoidsImplementationLanguage() {
+        val copy = ProfileVisualContract.userFacingCopySamples().joinToString("\n")
+
+        ProfileVisualContract.blockedUserFacingFragments.forEach { fragment ->
+            assertFalse("Unexpected user-facing implementation copy: $fragment", copy.contains(fragment))
+        }
     }
 }
