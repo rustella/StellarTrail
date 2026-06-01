@@ -1,26 +1,32 @@
 package com.rustella.stellartrail.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -56,6 +62,7 @@ import com.rustella.stellartrail.feature.trips.TripListViewModel
 import com.rustella.stellartrail.ui.common.currentTrailPalette
 import com.rustella.stellartrail.ui.common.viewModelFactory
 import com.rustella.stellartrail.ui.navigation.AppRoutes
+import com.rustella.stellartrail.ui.navigation.TopLevelDestination
 import com.rustella.stellartrail.ui.navigation.topLevelDestinations
 import com.rustella.stellartrail.ui.screens.AuthScreen
 import com.rustella.stellartrail.ui.screens.GearAtlasDetailScreen
@@ -78,7 +85,6 @@ import com.rustella.stellartrail.ui.screens.TripsScreen
 import com.rustella.stellartrail.ui.screens.ProfileScreen
 import com.rustella.stellartrail.ui.screens.SkillDetailScreen
 import com.rustella.stellartrail.ui.screens.SkillsScreen
-import com.rustella.stellartrail.ui.theme.StellarTrailDesignColors
 import com.rustella.stellartrail.domain.trip.TripType
 
 @Composable
@@ -132,7 +138,8 @@ private fun AuthenticatedApp(
                     tonalElevation = 0.dp,
                 ) {
                     topLevelDestinations.forEach { destination ->
-                        NavigationBarItem(
+                        MiniProgramBottomNavItem(
+                            destination = destination,
                             selected = currentRoute == destination.route,
                             onClick = {
                                 navController.navigate(destination.route) {
@@ -141,15 +148,6 @@ private fun AuthenticatedApp(
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(destination.icon, contentDescription = null) },
-                            label = { Text(text = androidx.compose.ui.res.stringResource(destination.labelRes), fontWeight = FontWeight.Bold) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = if (palette == StellarTrailDesignColors.Light) Color.Transparent else palette.brandSoft,
-                                unselectedIconColor = palette.textMuted,
-                                unselectedTextColor = palette.textMuted,
-                            ),
                         )
                     }
                 }
@@ -531,6 +529,40 @@ private fun AuthenticatedApp(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun RowScope.MiniProgramBottomNavItem(
+    destination: TopLevelDestination,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val palette = currentTrailPalette()
+    val selectedColor = MaterialTheme.colorScheme.primary
+    val unselectedColor = palette.textMuted
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .padding(horizontal = 5.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (selected) palette.softControlBackground else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = destination.icon,
+            contentDescription = null,
+            modifier = Modifier.size(25.dp),
+            tint = if (selected) selectedColor else unselectedColor,
+        )
+        Text(
+            text = stringResource(destination.labelRes),
+            color = if (selected) selectedColor else unselectedColor,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
