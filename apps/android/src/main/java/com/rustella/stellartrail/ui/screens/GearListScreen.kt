@@ -85,7 +85,7 @@ fun GearListScreen(
                     subtitle = if (state.isLoggedIn) {
                         "记录自己的装备、重量、价格和历史状态。"
                     } else {
-                        "可以先浏览装备图鉴和户外技能；登录后记录自己的装备。"
+                        "可以先浏览装备图鉴；登录后记录自己的装备。"
                     },
                     actionText = "+ 添加",
                     onAction = if (state.isLoggedIn) onCreateGear else onLogin,
@@ -199,7 +199,7 @@ private fun GuestGearLoginCard(onLogin: () -> Unit) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("未登录也可先浏览", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
                 Text(
-                    "可以先看装备图鉴和绳结教学；要保存自己的装备时再登录。",
+                    "可以先看装备图鉴；要保存自己的装备时再登录。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
