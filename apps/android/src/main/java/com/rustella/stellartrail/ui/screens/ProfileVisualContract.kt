@@ -10,7 +10,7 @@ data class ProfileHelpItem(
 )
 
 enum class ProfileHelpAction {
-    CachedKnots,
+    Cache,
     Feedback,
     AboutHub,
 }
@@ -45,7 +45,7 @@ object ProfileVisualContract {
     )
 
     val helpItems = listOf(
-        ProfileHelpItem("绳", "绳结离线缓存", "缓存后离线也能查询绳结详情和动图。", ProfileHelpAction.CachedKnots),
+        ProfileHelpItem("存", "缓存", "管理可离线查看的内容。", ProfileHelpAction.Cache),
         ProfileHelpItem("馈", "意见反馈", "告诉我们遇到的问题或想要的功能。", ProfileHelpAction.Feedback),
         ProfileHelpItem("关", "关于", "版本、路线图与寻径星野介绍。", ProfileHelpAction.AboutHub),
     )
@@ -60,7 +60,7 @@ object ProfileVisualContract {
     )
 
     fun helpDialog(action: ProfileHelpAction): Pair<String, String> = when (action) {
-        ProfileHelpAction.CachedKnots -> "绳结离线缓存" to "离线缓存会保存常用绳结内容，方便在没有网络时继续查看。"
+        ProfileHelpAction.Cache -> "缓存" to "当前支持常用绳结内容，更多类型会统一在这里管理。"
         ProfileHelpAction.Feedback -> "意见反馈" to "可以告诉我们遇到的问题，或留下你希望改进的功能。"
         ProfileHelpAction.AboutHub -> aboutBrandTitle to aboutBrandDescription
     }

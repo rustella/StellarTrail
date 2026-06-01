@@ -17,18 +17,18 @@ class ProfileVisualContractTest {
         val items = ProfileVisualContract.helpItems
 
         assertEquals(
-            listOf("绳结离线缓存", "意见反馈", "关于"),
+            listOf("缓存", "意见反馈", "关于"),
             items.map { it.title },
         )
         assertEquals(
             listOf(
-                ProfileHelpAction.CachedKnots,
+                ProfileHelpAction.Cache,
                 ProfileHelpAction.Feedback,
                 ProfileHelpAction.AboutHub,
             ),
             items.map { it.action },
         )
-        assertFalse(items.any { it.title in listOf("我的工具", "本地调试地址", "产品路线图", "版本信息", "关于寻径星野") })
+        assertFalse(items.any { it.title in listOf("我的工具", "本地调试地址", "绳结离线缓存", "产品路线图", "版本信息", "关于寻径星野") })
     }
 
     @Test
