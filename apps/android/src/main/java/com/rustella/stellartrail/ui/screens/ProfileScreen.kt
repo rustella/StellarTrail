@@ -51,9 +51,7 @@ import com.rustella.stellartrail.ui.common.currentTrailPalette
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     onLogin: () -> Unit,
-    onOpenRoadmap: () -> Unit,
-    onOpenOutdoorProfile: () -> Unit,
-    onOpenOutdoorExperiences: () -> Unit,
+    onOpenAbout: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -88,7 +86,7 @@ fun ProfileScreen(
                     item = item,
                     onClick = {
                         when (item.action) {
-                            ProfileHelpAction.Roadmap -> onOpenRoadmap()
+                            ProfileHelpAction.AboutHub -> onOpenAbout()
                             else -> dialog = item.action
                         }
                     },
@@ -98,6 +96,56 @@ fun ProfileScreen(
     }
     dialog?.let { action ->
         ProfileInfoDialog(action = action, onDismiss = { dialog = null })
+    }
+}
+
+@Composable
+fun ProfileAboutScreen(
+    onBack: () -> Unit,
+    onOpenRoadmap: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var dialog by remember { mutableStateOf<ProfileAboutAction?>(null) }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        SurfaceCard {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(ProfileVisualContract.aboutBrandTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                CompactPillAction("返回", onBack, filled = false)
+            }
+            Text(
+                ProfileVisualContract.aboutBrandDescription,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        SurfaceCard {
+            Text(ProfileVisualContract.aboutTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+            ProfileVisualContract.aboutItems.forEach { item ->
+                ProfileAboutRow(
+                    item = item,
+                    onClick = {
+                        when (item.action) {
+                            ProfileAboutAction.Roadmap -> onOpenRoadmap()
+                            ProfileAboutAction.VersionInfo -> dialog = item.action
+                        }
+                    },
+                )
+            }
+        }
+    }
+    dialog?.let { action ->
+        ProfileAboutInfoDialog(action = action, onDismiss = { dialog = null })
     }
 }
 
@@ -261,8 +309,59 @@ private fun ProfileHelpRow(item: ProfileHelpItem, onClick: () -> Unit) {
 }
 
 @Composable
+private fun ProfileAboutRow(item: ProfileAboutItem, onClick: () -> Unit) {
+    val palette = currentTrailPalette()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(TrailInnerCardShape)
+            .background(palette.controlBackground)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(TrailInnerCardShape)
+                .background(palette.brandSoft)
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(item.icon, color = palette.brandSoftText, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+            Text(
+                item.description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(">", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.ExtraBold)
+    }
+}
+
+@Composable
 private fun ProfileInfoDialog(action: ProfileHelpAction, onDismiss: () -> Unit) {
     val (title, body) = ProfileVisualContract.helpDialog(action)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.ExtraBold) },
+        text = { Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("知道了")
+            }
+        },
+    )
+}
+
+@Composable
+private fun ProfileAboutInfoDialog(action: ProfileAboutAction, onDismiss: () -> Unit) {
+    val (title, body) = ProfileVisualContract.aboutDialog(action)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, fontWeight = FontWeight.ExtraBold) },

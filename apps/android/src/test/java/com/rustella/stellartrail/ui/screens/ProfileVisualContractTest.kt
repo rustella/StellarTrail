@@ -17,20 +17,33 @@ class ProfileVisualContractTest {
         val items = ProfileVisualContract.helpItems
 
         assertEquals(
-            listOf("绳结离线缓存", "意见反馈", "产品路线图", "版本信息", "关于寻径星野"),
+            listOf("绳结离线缓存", "意见反馈", "关于"),
             items.map { it.title },
         )
         assertEquals(
             listOf(
                 ProfileHelpAction.CachedKnots,
                 ProfileHelpAction.Feedback,
-                ProfileHelpAction.Roadmap,
-                ProfileHelpAction.VersionInfo,
-                ProfileHelpAction.About,
+                ProfileHelpAction.AboutHub,
             ),
             items.map { it.action },
         )
-        assertFalse(items.any { it.title == "我的工具" || it.title == "本地调试地址" })
+        assertFalse(items.any { it.title in listOf("我的工具", "本地调试地址", "产品路线图", "版本信息", "关于寻径星野") })
+    }
+
+    @Test
+    fun aboutPageCollectsRoadmapVersionAndBrandIntro() {
+        assertEquals("关于", ProfileVisualContract.aboutTitle)
+        assertEquals("关于寻径星野", ProfileVisualContract.aboutBrandTitle)
+        assertEquals("为户外爱好者准备的出行、装备与技能工具。", ProfileVisualContract.aboutBrandDescription)
+        assertEquals(
+            listOf("产品路线图", "版本信息"),
+            ProfileVisualContract.aboutItems.map { it.title },
+        )
+        assertEquals(
+            listOf(ProfileAboutAction.Roadmap, ProfileAboutAction.VersionInfo),
+            ProfileVisualContract.aboutItems.map { it.action },
+        )
     }
 
     @Test

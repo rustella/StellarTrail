@@ -76,6 +76,7 @@ import com.rustella.stellartrail.ui.screens.LoginRequiredScreen
 import com.rustella.stellartrail.ui.screens.OutdoorExperiencesScreen
 import com.rustella.stellartrail.ui.screens.OutdoorProfileScreen
 import com.rustella.stellartrail.ui.screens.PackingListsScreen
+import com.rustella.stellartrail.ui.screens.ProfileAboutScreen
 import com.rustella.stellartrail.ui.screens.ProfileSettingsScreen
 import com.rustella.stellartrail.ui.screens.RoadmapScreen
 import com.rustella.stellartrail.ui.screens.TripDetailScreen
@@ -479,10 +480,14 @@ private fun AuthenticatedApp(
                 ProfileScreen(
                     viewModel = viewModel,
                     onLogin = { navController.navigate(AppRoutes.AUTH) },
-                    onOpenRoadmap = { navController.navigate(AppRoutes.PROFILE_ROADMAP) },
-                    onOpenOutdoorProfile = { navController.navigate(AppRoutes.PROFILE_OUTDOOR) },
-                    onOpenOutdoorExperiences = { navController.navigate(AppRoutes.PROFILE_OUTDOOR_EXPERIENCES) },
+                    onOpenAbout = { navController.navigate(AppRoutes.PROFILE_ABOUT) },
                     onOpenSettings = { navController.navigate(AppRoutes.PROFILE_SETTINGS) },
+                )
+            }
+            composable(AppRoutes.PROFILE_ABOUT) {
+                ProfileAboutScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenRoadmap = { navController.navigate(AppRoutes.PROFILE_ROADMAP) },
                 )
             }
             composable(AppRoutes.PROFILE_ROADMAP) {

@@ -12,9 +12,19 @@ data class ProfileHelpItem(
 enum class ProfileHelpAction {
     CachedKnots,
     Feedback,
+    AboutHub,
+}
+
+data class ProfileAboutItem(
+    val icon: String,
+    val title: String,
+    val description: String,
+    val action: ProfileAboutAction,
+)
+
+enum class ProfileAboutAction {
     Roadmap,
     VersionInfo,
-    About,
 }
 
 object ProfileVisualContract {
@@ -37,17 +47,27 @@ object ProfileVisualContract {
     val helpItems = listOf(
         ProfileHelpItem("绳", "绳结离线缓存", "缓存后离线也能查询绳结详情和动图。", ProfileHelpAction.CachedKnots),
         ProfileHelpItem("馈", "意见反馈", "告诉我们遇到的问题或想要的功能。", ProfileHelpAction.Feedback),
-        ProfileHelpItem("图", "产品路线图", "查看功能计划，投票或订阅你关心的方向。", ProfileHelpAction.Roadmap),
-        ProfileHelpItem("版", "版本信息", "查看当前版本与更新说明。", ProfileHelpAction.VersionInfo),
-        ProfileHelpItem("星", "关于寻径星野", "为户外爱好者准备的出行、装备与技能工具。", ProfileHelpAction.About),
+        ProfileHelpItem("关", "关于", "版本、路线图与寻径星野介绍。", ProfileHelpAction.AboutHub),
+    )
+
+    const val aboutTitle = "关于"
+    const val aboutBrandTitle = "关于寻径星野"
+    const val aboutBrandDescription = "为户外爱好者准备的出行、装备与技能工具。"
+
+    val aboutItems = listOf(
+        ProfileAboutItem("图", "产品路线图", "查看功能计划，投票或订阅你关心的方向。", ProfileAboutAction.Roadmap),
+        ProfileAboutItem("版", "版本信息", "查看当前版本与更新说明。", ProfileAboutAction.VersionInfo),
     )
 
     fun helpDialog(action: ProfileHelpAction): Pair<String, String> = when (action) {
         ProfileHelpAction.CachedKnots -> "绳结离线缓存" to "离线缓存会保存常用绳结内容，方便在没有网络时继续查看。"
         ProfileHelpAction.Feedback -> "意见反馈" to "可以告诉我们遇到的问题，或留下你希望改进的功能。"
-        ProfileHelpAction.VersionInfo -> "版本信息" to "版本更新会在这里展示。"
-        ProfileHelpAction.About -> "关于寻径星野" to "寻径星野为户外爱好者准备装备、行程与技能工具，帮助出发前更从容。"
-        ProfileHelpAction.Roadmap -> "产品路线图" to ""
+        ProfileHelpAction.AboutHub -> aboutBrandTitle to aboutBrandDescription
+    }
+
+    fun aboutDialog(action: ProfileAboutAction): Pair<String, String> = when (action) {
+        ProfileAboutAction.VersionInfo -> "版本信息" to "版本更新会在这里展示。"
+        ProfileAboutAction.Roadmap -> "产品路线图" to ""
     }
 
     fun nightModeDescription(theme: ThemeMode): String = when (theme) {
@@ -67,12 +87,20 @@ object ProfileVisualContract {
             themeDarkIcon,
             nightModeDescription(ThemeMode.DARK),
             nightModeDescription(ThemeMode.LIGHT),
+            aboutTitle,
+            aboutBrandTitle,
+            aboutBrandDescription,
             debugDefaultEndpointLabel,
             debugCustomEndpointLabel,
         ) +
             helpItems.flatMap { listOf(it.title, it.description) } +
+            aboutItems.flatMap { listOf(it.title, it.description) } +
             ProfileHelpAction.entries.flatMap { action ->
                 val (title, body) = helpDialog(action)
+                listOf(title, body)
+            } +
+            ProfileAboutAction.entries.flatMap { action ->
+                val (title, body) = aboutDialog(action)
                 listOf(title, body)
             }
 
