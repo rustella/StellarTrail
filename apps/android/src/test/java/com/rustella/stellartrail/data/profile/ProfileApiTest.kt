@@ -1,6 +1,7 @@
 package com.rustella.stellartrail.data.profile
 
 import com.rustella.stellartrail.core.config.AppConfig
+import com.rustella.stellartrail.core.config.AppDomainCandidate
 import com.rustella.stellartrail.core.network.ApiClient
 import com.rustella.stellartrail.domain.profile.ListOutdoorExperiencesResponse
 import com.rustella.stellartrail.domain.profile.OutdoorExperienceRequest
@@ -27,6 +28,41 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ProfileApiTest {
+    @Test
+    fun currentProfileNormalizesKnownAvatarAssetUrl() = runTest {
+        val requests = mutableListOf<HttpRequestData>()
+        val api = ProfileApi(
+            testClient(
+                config = AppConfig(
+                    baseUrl = "https://api.example.invalid",
+                    assetsBaseUrl = "https://assets.example.invalid",
+                    domainCandidates = listOf(
+                        AppDomainCandidate("primary", "https://api.example.invalid", "https://assets.example.invalid"),
+                        AppDomainCandidate("backup", "https://api-alt.example.invalid", "https://assets-alt.example.invalid"),
+                    ),
+                ),
+            ) { request ->
+                requests += request
+                when (request.url.encodedPath) {
+                    "/healthz" -> respondJson("""{"status":"ok"}""")
+                    "/api/v1/me/profile" -> respondJson(profileUserJson)
+                    else -> error("unexpected request ${request.method.value} ${request.url}")
+                }
+            },
+        )
+
+        val response = api.currentProfile()
+
+        assertEquals(
+            listOf("/healthz", "/api/v1/me/profile"),
+            requests.map { it.url.encodedPath },
+        )
+        assertEquals(
+            "https://assets.example.invalid/users/user-1/avatar/custom.png",
+            response.user.avatarUrl,
+        )
+    }
+
     @Test
     fun profileOutdoorExperienceAndRoadmapPathsMatchBackend() = runTest {
         val requests = mutableListOf<HttpRequestData>()
@@ -112,11 +148,15 @@ class ProfileApiTest {
         assertEquals("轻量雨衣够用。", experiences.single().gearSummary)
     }
 
-    private fun testClient(handler: MockRequestHandleScope.(HttpRequestData) -> HttpResponseData): ApiClient {
+    private fun testClient(
+        config: AppConfig = AppConfig("https://api.example.test"),
+        handler: MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
+    ): ApiClient {
         val engine = MockEngine { request -> handler(request) }
         return ApiClient(
-            configProvider = { AppConfig("https://api.example.test") },
+            configProvider = { config },
             httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+            domainProbeTimeoutMillis = null,
         )
     }
 
@@ -126,6 +166,19 @@ class ProfileApiTest {
         headers = headersOf(HttpHeaders.ContentType, "application/json"),
     )
 }
+
+private val profileUserJson = """
+{
+  "user": {
+    "id": "user-1",
+    "username": "trail_user",
+    "email": "trail@example.test",
+    "phone": "13800000000",
+    "nickname": "星野徒步者",
+    "avatar_url": "https://assets-alt.example.invalid/users/user-1/avatar/custom.png"
+  }
+}
+""".trimIndent()
 
 private val outdoorProfileJson = """
 {

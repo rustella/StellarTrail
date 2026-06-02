@@ -43,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rustella.stellartrail.core.theme.ThemeMode
 import com.rustella.stellartrail.domain.auth.LoginUser
@@ -70,6 +72,9 @@ fun ProfileScreen(
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     var dialog by remember { mutableStateOf<ProfileHelpAction?>(null) }
     LaunchedEffect(session?.user?.id) {
+        viewModel.refreshCurrentProfile()
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshCurrentProfile()
     }
     Column(

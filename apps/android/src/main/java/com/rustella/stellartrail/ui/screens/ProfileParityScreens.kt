@@ -47,6 +47,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rustella.stellartrail.BuildConfig
 import com.rustella.stellartrail.core.theme.ThemeMode
@@ -431,6 +433,9 @@ fun ProfileSettingsScreen(
     val palette = currentTrailPalette()
     val context = LocalContext.current
     LaunchedEffect(user?.id) {
+        viewModel.refreshCurrentProfile()
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshCurrentProfile()
     }
     LaunchedEffect(actionState.phoneBindingCompleted, actionState.phoneNotice, phoneSheet) {

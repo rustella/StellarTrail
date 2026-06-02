@@ -13,7 +13,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 
 class ProfileApi(private val apiClient: ApiClient) {
-    suspend fun currentProfile(): ProfileUserResponse = apiClient.get("/me/profile")
+    suspend fun currentProfile(): ProfileUserResponse =
+        apiClient.get<ProfileUserResponse>("/me/profile").withResolvedAvatar()
 
     suspend fun outdoorProfile(): OutdoorProfileResponse = apiClient.get("/me/profile/outdoor")
 
@@ -58,6 +59,11 @@ class ProfileApi(private val apiClient: ApiClient) {
         apiClient.deleteReturning("/me/roadmap/$id/subscription")
 
     private fun emptyRequest(): JsonObject = buildJsonObject { }
+
+    private fun ProfileUserResponse.withResolvedAvatar(): ProfileUserResponse {
+        val avatarUrl = user.avatarUrl?.trim()?.takeIf { it.isNotEmpty() }
+        return copy(user = user.copy(avatarUrl = avatarUrl?.let(apiClient::resolveAssetUrl)))
+    }
 }
 
 interface ProfileRepositoryContract {
