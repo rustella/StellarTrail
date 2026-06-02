@@ -55,33 +55,37 @@ class AuthViewModelTest {
     }
 
     @Test
-    fun emailCodeLoginUsesExistingRepositoryFlow() = runTest {
+    fun verificationCodeLoginRoutesEmailToEmailRepositoryFlow() = runTest {
         val repository = FakeAuthRepository()
         val viewModel = AuthViewModel(repository)
 
-        viewModel.switchMode(AuthMode.EMAIL_CODE)
-        viewModel.updateEmail("trail@example.test")
-        viewModel.updateEmailCode("123456")
-        viewModel.loginWithEmailCode()
+        viewModel.switchMode(AuthMode.VERIFICATION_CODE)
+        viewModel.updateVerificationAccount("trail@example.test")
+        viewModel.sendVerificationLoginCode()
+        advanceUntilIdle()
+        viewModel.updateVerificationCode("123456")
+        viewModel.loginWithVerificationCode()
         advanceUntilIdle()
 
+        assertEquals(1, repository.emailLoginCodeCalls)
         assertEquals(1, repository.emailLoginCalls)
         assertEquals("trail@example.test", repository.lastEmailLoginEmail)
+        assertEquals(0, repository.smsLoginCalls)
         assertFalse(viewModel.state.value.loading)
         assertNull(viewModel.state.value.error)
     }
 
     @Test
-    fun phoneCodeLoginStoresTicketForLoginOnly() = runTest {
+    fun verificationCodeLoginStoresSmsTicketForPhoneOnly() = runTest {
         val repository = FakeAuthRepository()
         val viewModel = AuthViewModel(repository)
 
-        viewModel.switchMode(AuthMode.PHONE_CODE)
-        viewModel.updatePhone("13800000000")
-        viewModel.sendSmsLoginCode()
+        viewModel.switchMode(AuthMode.VERIFICATION_CODE)
+        viewModel.updateVerificationAccount("13800000000")
+        viewModel.sendVerificationLoginCode()
         advanceUntilIdle()
-        viewModel.updateSmsCode("123456")
-        viewModel.loginWithSmsCode()
+        viewModel.updateVerificationCode("123456")
+        viewModel.loginWithVerificationCode()
         advanceUntilIdle()
 
         assertEquals(1, repository.smsLoginCodeCalls)
@@ -89,6 +93,7 @@ class AuthViewModelTest {
         assertEquals("13800000000", repository.lastSmsLoginPhone)
         assertEquals("sms-login-ticket", repository.lastSmsLoginTicket)
         assertEquals("123456", repository.lastSmsLoginCode)
+        assertEquals(0, repository.emailLoginCalls)
         assertNull(viewModel.state.value.error)
     }
 
@@ -97,9 +102,10 @@ class AuthViewModelTest {
         val repository = FakeAuthRepository()
         val viewModel = AuthViewModel(repository, AuthMode.REGISTER)
 
-        viewModel.updatePhone("13800000000")
-        viewModel.sendSmsLoginCode()
+        viewModel.updateVerificationAccount("13800000000")
+        viewModel.sendVerificationLoginCode()
         advanceUntilIdle()
+        viewModel.updatePhone("13800000000")
         viewModel.updateUsername("trail_user")
         viewModel.updateNickname("星野徒步者")
         viewModel.updateSmsCode("123456")
@@ -181,6 +187,7 @@ class AuthViewModelTest {
         private val sessionState = MutableStateFlow<UserSession?>(null)
         override val session: StateFlow<UserSession?> = sessionState
         var emailLoginCalls = 0
+        var emailLoginCodeCalls = 0
         var registerCalls = 0
         var resetPasswordCalls = 0
         var smsLoginCodeCalls = 0
@@ -199,7 +206,10 @@ class AuthViewModelTest {
         var lastSmsResetCode: String? = null
 
         override suspend fun sendEmailCode(email: String): EmailVerificationCodeResponse = emailCodeResponse(email)
-        override suspend fun sendEmailLoginCode(email: String): EmailVerificationCodeResponse = emailCodeResponse(email)
+        override suspend fun sendEmailLoginCode(email: String): EmailVerificationCodeResponse {
+            emailLoginCodeCalls += 1
+            return emailCodeResponse(email)
+        }
 
         override suspend fun loginWithEmailCode(email: String, emailCode: String): LoginResponse {
             emailLoginCalls += 1

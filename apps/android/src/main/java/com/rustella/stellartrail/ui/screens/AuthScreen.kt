@@ -64,8 +64,7 @@ fun AuthScreen(viewModel: AuthViewModel, modifier: Modifier = Modifier) {
             if (state.notice != null) Text(state.notice!!, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             when (state.mode) {
                 AuthMode.LOGIN -> LoginForm(viewModel)
-                AuthMode.PHONE_CODE -> PhoneCodeLoginForm(viewModel)
-                AuthMode.EMAIL_CODE -> EmailCodeLoginForm(viewModel)
+                AuthMode.VERIFICATION_CODE -> VerificationCodeLoginForm(viewModel)
                 AuthMode.REGISTER -> RegisterForm(viewModel)
                 AuthMode.RESET_PASSWORD -> ResetPasswordForm(viewModel)
             }
@@ -174,52 +173,29 @@ private fun LoginForm(viewModel: AuthViewModel) {
 }
 
 @Composable
-private fun PhoneCodeLoginForm(viewModel: AuthViewModel) {
+private fun VerificationCodeLoginForm(viewModel: AuthViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-        Text("使用手机短信验证码登录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("输入手机号或邮箱，使用验证码登录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         AuthTextField(
-            value = state.phone,
-            onValueChange = viewModel::updatePhone,
-            label = "手机号",
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-        )
-        SmsCodeRow(
-            value = state.smsCode,
-            onValueChange = viewModel::updateSmsCode,
-            onSend = viewModel::sendSmsLoginCode,
-            enabled = !state.loading,
-        )
-        PrimaryPillButton(AuthVisualContract.phoneCodePrimaryAction, viewModel::loginWithSmsCode, Modifier.fillMaxWidth(), enabled = !state.loading)
-        AuthSecondaryActions(viewModel)
-    }
-}
-
-@Composable
-private fun EmailCodeLoginForm(viewModel: AuthViewModel) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-        Text("使用邮箱验证码登录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        AuthTextField(
-            value = state.email,
-            onValueChange = viewModel::updateEmail,
-            label = "邮箱",
+            value = state.verificationAccount,
+            onValueChange = viewModel::updateVerificationAccount,
+            label = "手机号 / 邮箱",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            AuthTextField(
-                value = state.emailCode,
-                onValueChange = viewModel::updateEmailCode,
-                label = "邮箱验证码",
-                modifier = Modifier.weight(1f),
-            )
-            OutlinedButton(
-                onClick = viewModel::sendEmailLoginCode,
-                enabled = !state.loading,
-                modifier = Modifier.height(56.dp).widthIn(min = 112.dp),
-            ) { Text(AuthVisualContract.sendCodeAction, fontWeight = FontWeight.Bold) }
-        }
-        PrimaryPillButton(AuthVisualContract.emailCodePrimaryAction, viewModel::loginWithEmailCode, Modifier.fillMaxWidth(), enabled = !state.loading)
+        SmsCodeRow(
+            value = state.verificationCode,
+            onValueChange = viewModel::updateVerificationCode,
+            onSend = viewModel::sendVerificationLoginCode,
+            enabled = !state.loading,
+            label = "验证码",
+        )
+        PrimaryPillButton(
+            AuthVisualContract.verificationCodePrimaryAction,
+            viewModel::loginWithVerificationCode,
+            Modifier.fillMaxWidth(),
+            enabled = !state.loading,
+        )
         AuthSecondaryActions(viewModel)
     }
 }
@@ -372,12 +348,13 @@ private fun SmsCodeRow(
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
     enabled: Boolean,
+    label: String = "短信验证码",
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         AuthTextField(
             value = value,
             onValueChange = onValueChange,
-            label = "短信验证码",
+            label = label,
             modifier = Modifier.weight(1f),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )

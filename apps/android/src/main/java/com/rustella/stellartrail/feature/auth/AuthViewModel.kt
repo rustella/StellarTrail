@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class AuthMode { LOGIN, PHONE_CODE, EMAIL_CODE, REGISTER, RESET_PASSWORD }
+enum class AuthMode { LOGIN, VERIFICATION_CODE, REGISTER, RESET_PASSWORD }
 
 enum class AuthRegisterMethod { PHONE, EMAIL }
 
@@ -31,6 +31,8 @@ data class AuthUiState(
     val nickname: String = "",
     val email: String = "",
     val phone: String = "",
+    val verificationAccount: String = "",
+    val verificationCode: String = "",
     val confirmPassword: String = "",
     val emailCode: String = "",
     val smsCode: String = "",
@@ -66,6 +68,7 @@ class AuthViewModel(
                 captchaAnswer = "",
                 emailCode = "",
                 smsCode = "",
+                verificationCode = "",
                 smsLoginTicket = "",
                 smsRegisterTicket = "",
                 smsResetTicket = "",
@@ -79,6 +82,8 @@ class AuthViewModel(
     fun updateNickname(value: String) = _state.update { it.copy(nickname = value) }
     fun updateEmail(value: String) = _state.update { it.copy(email = value) }
     fun updatePhone(value: String) = _state.update { it.copy(phone = value) }
+    fun updateVerificationAccount(value: String) = _state.update { it.copy(verificationAccount = value, smsLoginTicket = "") }
+    fun updateVerificationCode(value: String) = _state.update { it.copy(verificationCode = value) }
     fun updateConfirmPassword(value: String) = _state.update { it.copy(confirmPassword = value) }
     fun updateEmailCode(value: String) = _state.update { it.copy(emailCode = value) }
     fun updateSmsCode(value: String) = _state.update { it.copy(smsCode = value) }
@@ -201,6 +206,51 @@ class AuthViewModel(
             _state.update { it.copy(loading = true, error = null, notice = null) }
             try {
                 repository.smsLogin(current.phone, current.smsLoginTicket, current.smsCode)
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(error = throwable.userMessage()) }
+            } finally {
+                _state.update { it.copy(loading = false) }
+            }
+        }
+    }
+
+    fun sendVerificationLoginCode() {
+        val target = _state.value.verificationAccount.trim()
+        if (target.isBlank()) {
+            _state.update { it.copy(error = "请先填写手机号或邮箱") }
+            return
+        }
+        viewModelScope.launch {
+            if (target.isEmailLoginTarget()) {
+                _state.update { it.copy(smsLoginTicket = "") }
+                sendEmailCodeRequest { repository.sendEmailLoginCode(target).let { it.email to it.debugCode } }
+            } else {
+                sendSmsCodeRequest { repository.sendSmsLoginCode(target) }
+                    ?.let { response -> _state.update { it.copy(smsLoginTicket = response.smsTicket) } }
+            }
+        }
+    }
+
+    fun loginWithVerificationCode() {
+        val current = _state.value
+        val target = current.verificationAccount.trim()
+        val code = current.verificationCode.trim()
+        if (target.isBlank() || code.isBlank()) {
+            _state.update { it.copy(error = "请填写手机号或邮箱和验证码") }
+            return
+        }
+        if (!target.isEmailLoginTarget() && current.smsLoginTicket.isBlank()) {
+            _state.update { it.copy(error = "请先获取验证码") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null, notice = null) }
+            try {
+                if (target.isEmailLoginTarget()) {
+                    repository.loginWithEmailCode(target, code)
+                } else {
+                    repository.smsLogin(target, current.smsLoginTicket, code)
+                }
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }
             } finally {
@@ -437,4 +487,6 @@ class AuthViewModel(
         } else {
             "验证码已发送至 $target"
         }
+
+    private fun String.isEmailLoginTarget(): Boolean = contains("@")
 }
