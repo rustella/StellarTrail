@@ -100,7 +100,7 @@ fun HomeScreen(
 }
 
 private fun homeHeroStatusText(stats: com.rustella.stellartrail.domain.gear.GearStatsResponse, isLoggedIn: Boolean): String {
-    if (!isLoggedIn) return "未登录也可先浏览"
+    if (!isLoggedIn) return "登录后同步装备"
     return if (stats.currentCount > 0) "装备 ${stats.currentCount} 件" else "还没有装备记录"
 }
 

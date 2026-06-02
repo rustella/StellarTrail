@@ -57,8 +57,8 @@ data class HomeGearOverview(
         fun from(stats: GearStatsResponse, isLoggedIn: Boolean): HomeGearOverview = HomeGearOverview(
             eyebrow = "装备准备",
             title = "装备概览",
-            promptTitle = if (isLoggedIn) null else "可以先查看出行清单",
-            promptBody = if (isLoggedIn) null else "登录后再管理自己的装备、重量和估值。",
+            promptTitle = if (isLoggedIn) null else "登录后管理装备",
+            promptBody = if (isLoggedIn) null else "保存自己的装备、重量和估值，出发前整理清单更安心。",
             stats = listOf(
                 HomeOverviewStat("装备数量", stats.currentCount.toString(), "当前库存"),
                 HomeOverviewStat("总重量", formatHomeWeight(stats.totalWeightG), "已记录装备重量"),
