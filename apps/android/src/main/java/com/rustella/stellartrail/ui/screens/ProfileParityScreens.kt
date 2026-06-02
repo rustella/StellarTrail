@@ -735,6 +735,30 @@ private fun NicknameSheet(user: LoginUser?, onDismiss: () -> Unit) {
     }
 }
 
+@Composable
+private fun VerificationCodeInputRow(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSendCode: () -> Unit,
+    enabled: Boolean,
+    keyboardType: KeyboardType = KeyboardType.Number,
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FormTextField(label, value, onValueChange, "验证码", Modifier.weight(1f), keyboardType = keyboardType)
+        CompactPillAction(
+            "获取验证码",
+            onSendCode,
+            modifier = Modifier.heightIn(min = 44.dp),
+            enabled = enabled,
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EmailBindingSheet(
@@ -751,10 +775,13 @@ private fun EmailBindingSheet(
             Text(if (currentEmail.isNullOrBlank()) "绑定邮箱" else "修改邮箱", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
             Text(if (currentEmail.isNullOrBlank()) "绑定后可用邮箱登录，也可以找回密码。" else "输入新的邮箱地址，并用验证码确认。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             FormTextField("邮箱", email, { email = it }, "邮箱", keyboardType = KeyboardType.Email)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FormTextField("邮箱验证码", code, { code = it }, "验证码", Modifier.weight(1f))
-                CompactPillAction("获取验证码", { onSendCode(email) }, enabled = !actionState.emailCodeLoading)
-            }
+            VerificationCodeInputRow(
+                label = "邮箱验证码",
+                value = code,
+                onValueChange = { code = it },
+                onSendCode = { onSendCode(email) },
+                enabled = !actionState.emailCodeLoading,
+            )
             actionState.emailNotice?.let { Text(it, color = currentTrailPalette().successText) }
             actionState.accountError?.let { Text(it, color = currentTrailPalette().dangerText) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -786,16 +813,22 @@ private fun PhoneBindingSheet(
             Text(if (hasCurrentPhone) "先验证当前手机号，再确认新的手机号。" else "绑定后可用手机号登录，也可以找回密码。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (hasCurrentPhone) {
                 MetadataRow("当前手机号", currentPhone.orEmpty().maskedPhone())
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FormTextField("当前手机号验证码", currentCode, { currentCode = it }, "验证码", Modifier.weight(1f), keyboardType = KeyboardType.Number)
-                    CompactPillAction("获取验证码", onSendCurrentCode, enabled = !actionState.currentPhoneCodeLoading)
-                }
+                VerificationCodeInputRow(
+                    label = "当前手机号验证码",
+                    value = currentCode,
+                    onValueChange = { currentCode = it },
+                    onSendCode = onSendCurrentCode,
+                    enabled = !actionState.currentPhoneCodeLoading,
+                )
             }
             FormTextField("新手机号", phone, { phone = it }, "手机号", keyboardType = KeyboardType.Phone)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FormTextField("短信验证码", code, { code = it }, "验证码", Modifier.weight(1f), keyboardType = KeyboardType.Number)
-                CompactPillAction("获取验证码", { onSendNewCode(phone) }, enabled = !actionState.phoneCodeLoading)
-            }
+            VerificationCodeInputRow(
+                label = "短信验证码",
+                value = code,
+                onValueChange = { code = it },
+                onSendCode = { onSendNewCode(phone) },
+                enabled = !actionState.phoneCodeLoading,
+            )
             actionState.phoneNotice?.let { Text(it, color = currentTrailPalette().successText) }
             actionState.accountError?.let { Text(it, color = currentTrailPalette().dangerText) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -874,23 +907,15 @@ private fun PasswordSheet(
                     )
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FormTextField(
-                    if (method == PasswordVerificationMethod.EMAIL) "邮箱验证码" else "短信验证码",
-                    code,
-                    { code = it },
-                    "验证码",
-                    Modifier.weight(1f),
-                    keyboardType = KeyboardType.Number,
-                )
-                CompactPillAction(
-                    "获取验证码",
-                    {
-                        if (method == PasswordVerificationMethod.EMAIL) onSendEmailCode(email) else onSendSmsCode(phone)
-                    },
-                    enabled = canUseSelectedMethod && !actionState.passwordCodeLoading,
-                )
-            }
+            VerificationCodeInputRow(
+                label = if (method == PasswordVerificationMethod.EMAIL) "邮箱验证码" else "短信验证码",
+                value = code,
+                onValueChange = { code = it },
+                onSendCode = {
+                    if (method == PasswordVerificationMethod.EMAIL) onSendEmailCode(email) else onSendSmsCode(phone)
+                },
+                enabled = canUseSelectedMethod && !actionState.passwordCodeLoading,
+            )
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
