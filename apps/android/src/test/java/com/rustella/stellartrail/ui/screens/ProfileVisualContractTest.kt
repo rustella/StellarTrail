@@ -1,6 +1,7 @@
 package com.rustella.stellartrail.ui.screens
 
 import com.rustella.stellartrail.core.theme.ThemeMode
+import com.rustella.stellartrail.feature.profile.ProfileCacheKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -37,16 +38,27 @@ class ProfileVisualContractTest {
     fun cachePageHasDedicatedContentInsteadOfDialogCopy() {
         assertEquals("缓存", ProfileVisualContract.cacheTitle)
         assertEquals("管理可离线查看的内容。", ProfileVisualContract.cacheDescription)
-        assertEquals("全部缓存操作", ProfileVisualContract.cacheActionTitle)
-        assertEquals("缓存所有内容", ProfileVisualContract.cacheAllContentAction)
-        assertEquals("删除所有缓存", ProfileVisualContract.cacheDeleteAllAction)
         assertEquals("可离线内容", ProfileVisualContract.cacheSectionTitle)
+        assertEquals("选择缓存项", ProfileVisualContract.cacheSelectAction)
+        assertEquals("全选", ProfileVisualContract.cacheSelectAllAction)
+        assertEquals("反选", ProfileVisualContract.cacheInvertSelectionAction)
+        assertEquals("完成", ProfileVisualContract.cacheDoneAction)
+        assertEquals("缓存选中项", ProfileVisualContract.cacheSelectedAction)
+        assertEquals("删除选中缓存", ProfileVisualContract.deleteSelectedAction)
         assertEquals("缓存绳结", ProfileVisualContract.cacheKnotsAction)
         assertEquals("清空绳结", ProfileVisualContract.cacheClearKnotsAction)
         assertEquals(
             listOf("绳结缓存"),
             ProfileVisualContract.cacheItems.map { it.title },
         )
+        assertEquals(
+            listOf(ProfileCacheKind.Knots),
+            ProfileVisualContract.cacheItems.map { it.kind },
+        )
+        val copy = ProfileVisualContract.userFacingCopySamples()
+        assertFalse(copy.contains("全部缓存操作"))
+        assertFalse(copy.contains("缓存所有内容"))
+        assertFalse(copy.contains("删除所有缓存"))
         assertEquals("未缓存", ProfileVisualContract.knotCacheStatusLabel(0))
         assertEquals("已缓存 3 个", ProfileVisualContract.knotCacheStatusLabel(3))
     }

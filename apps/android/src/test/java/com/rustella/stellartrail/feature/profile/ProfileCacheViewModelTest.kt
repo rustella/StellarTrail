@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -39,33 +40,80 @@ class ProfileCacheViewModelTest {
     }
 
     @Test
-    fun cacheAllContentUpdatesStatusAndMessage() = runTest {
+    fun enterSelectionModeStartsWithEmptySelection() = runTest {
         val repository = FakeSkillRepository()
         val viewModel = ProfileCacheViewModel(repository)
 
-        viewModel.cacheAllContent()
+        viewModel.enterSelectionMode()
+
+        val state = viewModel.state.value
+        assertTrue(state.selectionMode)
+        assertEquals(emptySet<ProfileCacheKind>(), state.selectedCacheKinds)
+    }
+
+    @Test
+    fun selectAllAndInvertSelectionUpdateSelectedKinds() = runTest {
+        val repository = FakeSkillRepository()
+        val viewModel = ProfileCacheViewModel(repository)
+
+        viewModel.enterSelectionMode()
+        viewModel.selectAllCacheKinds()
+        assertEquals(setOf(ProfileCacheKind.Knots), viewModel.state.value.selectedCacheKinds)
+
+        viewModel.invertCacheSelection()
+        assertEquals(emptySet<ProfileCacheKind>(), viewModel.state.value.selectedCacheKinds)
+
+        viewModel.invertCacheSelection()
+        assertEquals(setOf(ProfileCacheKind.Knots), viewModel.state.value.selectedCacheKinds)
+    }
+
+    @Test
+    fun emptySelectionDoesNotCallRepository() = runTest {
+        val repository = FakeSkillRepository(KnotCacheStatus(cachedKnotCount = 2, lastUpdatedAtMillis = 1000L))
+        val viewModel = ProfileCacheViewModel(repository)
+
+        viewModel.enterSelectionMode()
+        viewModel.cacheSelectedCaches()
+        viewModel.deleteSelectedCaches()
+        advanceUntilIdle()
+
+        assertEquals(0, repository.cacheAllCalls)
+        assertEquals(0, repository.clearCalls)
+        assertEquals(null, viewModel.state.value.message)
+    }
+
+    @Test
+    fun cacheSelectedKnotsUpdatesStatusAndMessage() = runTest {
+        val repository = FakeSkillRepository()
+        val viewModel = ProfileCacheViewModel(repository)
+
+        viewModel.enterSelectionMode()
+        viewModel.toggleCacheKind(ProfileCacheKind.Knots)
+        viewModel.cacheSelectedCaches()
         advanceUntilIdle()
 
         val state = viewModel.state.value
         assertEquals(1, repository.cacheAllCalls)
         assertEquals(2, state.status.cachedKnotCount)
-        assertEquals("已缓存所有可缓存内容，包含 2 个绳结。", state.message)
-        assertFalse(state.cachingAll)
+        assertEquals("已缓存选中内容，包含 2 个绳结。", state.message)
+        assertFalse(state.cachingSelected)
     }
 
     @Test
-    fun deleteAllCachesUpdatesStatusAndMessage() = runTest {
+    fun deleteSelectedKnotsUpdatesStatusAndMessage() = runTest {
         val repository = FakeSkillRepository(KnotCacheStatus(cachedKnotCount = 2, lastUpdatedAtMillis = 1000L))
         val viewModel = ProfileCacheViewModel(repository)
 
-        viewModel.deleteAllCaches()
+        viewModel.enterSelectionMode()
+        viewModel.toggleCacheKind(ProfileCacheKind.Knots)
+        viewModel.deleteSelectedCaches()
         advanceUntilIdle()
 
         val state = viewModel.state.value
         assertEquals(1, repository.clearCalls)
         assertEquals(0, state.status.cachedKnotCount)
-        assertEquals("已删除所有缓存。", state.message)
-        assertFalse(state.deletingAll)
+        assertEquals("已删除选中缓存。", state.message)
+        assertFalse(state.deletingSelected)
     }
 
     @Test

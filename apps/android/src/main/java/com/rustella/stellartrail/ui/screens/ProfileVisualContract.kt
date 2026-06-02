@@ -1,6 +1,7 @@
 package com.rustella.stellartrail.ui.screens
 
 import com.rustella.stellartrail.core.theme.ThemeMode
+import com.rustella.stellartrail.feature.profile.ProfileCacheKind
 
 data class ProfileHelpItem(
     val icon: String,
@@ -29,6 +30,7 @@ data class ProfileAboutIntroItem(
 )
 
 data class ProfileCacheItem(
+    val kind: ProfileCacheKind,
     val icon: String,
     val title: String,
     val description: String,
@@ -66,14 +68,17 @@ object ProfileVisualContract {
 
     const val cacheTitle = "缓存"
     const val cacheDescription = "管理可离线查看的内容。"
-    const val cacheActionTitle = "全部缓存操作"
-    const val cacheAllContentAction = "缓存所有内容"
-    const val cacheDeleteAllAction = "删除所有缓存"
     const val cacheSectionTitle = "可离线内容"
+    const val cacheSelectAction = "选择缓存项"
+    const val cacheSelectAllAction = "全选"
+    const val cacheInvertSelectionAction = "反选"
+    const val cacheDoneAction = "完成"
+    const val cacheSelectedAction = "缓存选中项"
+    const val deleteSelectedAction = "删除选中缓存"
     const val cacheKnotsAction = "缓存绳结"
     const val cacheClearKnotsAction = "清空绳结"
     val cacheItems = listOf(
-        ProfileCacheItem("绳", "绳结缓存", "常用绳结列表和详情可离线查看。"),
+        ProfileCacheItem(ProfileCacheKind.Knots, "绳", "绳结缓存", "常用绳结列表和详情可离线查看。"),
     )
 
     fun knotCacheStatusLabel(count: Int): String = if (count > 0) "已缓存 $count 个" else "未缓存"
@@ -140,10 +145,13 @@ object ProfileVisualContract {
             aboutBrandDescription,
             cacheTitle,
             cacheDescription,
-            cacheActionTitle,
-            cacheAllContentAction,
-            cacheDeleteAllAction,
             cacheSectionTitle,
+            cacheSelectAction,
+            cacheSelectAllAction,
+            cacheInvertSelectionAction,
+            cacheDoneAction,
+            cacheSelectedAction,
+            deleteSelectedAction,
             cacheKnotsAction,
             cacheClearKnotsAction,
             debugDefaultEndpointLabel,

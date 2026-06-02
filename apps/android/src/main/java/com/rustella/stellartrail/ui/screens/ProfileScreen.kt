@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -112,7 +113,7 @@ fun ProfileCacheScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val busy = state.cachingAll || state.deletingAll || state.cachingKnots || state.clearingKnots
+    val busy = state.cachingSelected || state.deletingSelected || state.cachingKnots || state.clearingKnots
     val palette = currentTrailPalette()
     Column(
         modifier = modifier
@@ -144,38 +145,72 @@ fun ProfileCacheScreen(
             }
         }
         SurfaceCard {
-            Text(ProfileVisualContract.cacheActionTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                PrimaryPillButton(
-                    text = if (state.cachingAll) "缓存中..." else ProfileVisualContract.cacheAllContentAction,
-                    onClick = viewModel::cacheAllContent,
-                    modifier = Modifier.weight(1f),
-                    enabled = !busy,
-                )
-                SoftPillButton(
-                    text = if (state.deletingAll) "删除中..." else ProfileVisualContract.cacheDeleteAllAction,
-                    onClick = viewModel::deleteAllCaches,
-                    modifier = Modifier.weight(1f),
-                    enabled = !busy && state.status.cachedKnotCount > 0,
-                )
+                Text(ProfileVisualContract.cacheSectionTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                if (state.selectionMode) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CompactPillAction(
+                            text = ProfileVisualContract.cacheSelectAllAction,
+                            onClick = viewModel::selectAllCacheKinds,
+                            filled = false,
+                            enabled = !busy,
+                        )
+                        CompactPillAction(
+                            text = ProfileVisualContract.cacheInvertSelectionAction,
+                            onClick = viewModel::invertCacheSelection,
+                            filled = false,
+                            enabled = !busy,
+                        )
+                        CompactPillAction(
+                            text = ProfileVisualContract.cacheDoneAction,
+                            onClick = viewModel::exitSelectionMode,
+                            filled = true,
+                            enabled = !busy,
+                        )
+                    }
+                } else {
+                    CompactPillAction(
+                        text = "☑",
+                        onClick = viewModel::enterSelectionMode,
+                        modifier = Modifier.semantics {
+                            contentDescription = ProfileVisualContract.cacheSelectAction
+                        },
+                        filled = false,
+                        enabled = !busy,
+                    )
+                }
             }
-            state.message?.let { message ->
-                Text(message, color = palette.accent, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+            if (state.selectionMode) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PrimaryPillButton(
+                        text = if (state.cachingSelected) "缓存中..." else ProfileVisualContract.cacheSelectedAction,
+                        onClick = viewModel::cacheSelectedCaches,
+                        modifier = Modifier.weight(1f),
+                        enabled = !busy && state.selectedCacheKinds.isNotEmpty(),
+                    )
+                    SoftPillButton(
+                        text = if (state.deletingSelected) "删除中..." else ProfileVisualContract.deleteSelectedAction,
+                        onClick = viewModel::deleteSelectedCaches,
+                        modifier = Modifier.weight(1f),
+                        enabled = !busy && state.selectedCacheKinds.isNotEmpty(),
+                    )
+                }
             }
-            state.error?.let { error ->
-                Text(error, color = palette.dangerText, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-            }
-        }
-        SurfaceCard {
-            Text(ProfileVisualContract.cacheSectionTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
             ProfileVisualContract.cacheItems.forEach { item ->
                 ProfileCacheRow(
                     item = item,
                     status = ProfileVisualContract.knotCacheStatusLabel(state.status.cachedKnotCount),
+                    selectionMode = state.selectionMode,
+                    selected = item.kind in state.selectedCacheKinds,
+                    onToggleSelection = { viewModel.toggleCacheKind(item.kind) },
                     cacheActionText = if (state.cachingKnots) "缓存中..." else ProfileVisualContract.cacheKnotsAction,
                     clearActionText = if (state.clearingKnots) "清空中..." else ProfileVisualContract.cacheClearKnotsAction,
                     onCache = viewModel::cacheKnots,
@@ -183,6 +218,12 @@ fun ProfileCacheScreen(
                     cacheEnabled = !busy,
                     clearEnabled = !busy && state.status.cachedKnotCount > 0,
                 )
+            }
+            state.message?.let { message ->
+                Text(message, color = palette.accent, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+            }
+            state.error?.let { error ->
+                Text(error, color = palette.dangerText, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -430,6 +471,9 @@ private fun ProfileHelpRow(item: ProfileHelpItem, onClick: () -> Unit) {
 private fun ProfileCacheRow(
     item: ProfileCacheItem,
     status: String,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onToggleSelection: () -> Unit,
     cacheActionText: String,
     clearActionText: String,
     onCache: () -> Unit,
@@ -443,6 +487,13 @@ private fun ProfileCacheRow(
             .fillMaxWidth()
             .clip(TrailInnerCardShape)
             .background(palette.controlBackground)
+            .then(
+                if (selectionMode) {
+                    Modifier.clickable(onClick = onToggleSelection)
+                } else {
+                    Modifier
+                },
+            )
             .padding(horizontal = 10.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -470,33 +521,45 @@ private fun ProfileCacheRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
-                status,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(palette.brandSoft)
-                    .padding(horizontal = 9.dp, vertical = 5.dp),
-                color = palette.brandSoftText,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.ExtraBold,
-            )
+            if (selectionMode) {
+                Checkbox(
+                    checked = selected,
+                    onCheckedChange = { onToggleSelection() },
+                    modifier = Modifier.semantics {
+                        contentDescription = "${item.title}选择状态"
+                    },
+                )
+            } else {
+                Text(
+                    status,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(palette.brandSoft)
+                        .padding(horizontal = 9.dp, vertical = 5.dp),
+                    color = palette.brandSoftText,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+            }
         }
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            PrimaryPillButton(
-                text = cacheActionText,
-                onClick = onCache,
-                modifier = Modifier.weight(1f),
-                enabled = cacheEnabled,
-            )
-            SoftPillButton(
-                text = clearActionText,
-                onClick = onClear,
-                modifier = Modifier.weight(1f),
-                enabled = clearEnabled,
-            )
+        if (!selectionMode) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                PrimaryPillButton(
+                    text = cacheActionText,
+                    onClick = onCache,
+                    modifier = Modifier.weight(1f),
+                    enabled = cacheEnabled,
+                )
+                SoftPillButton(
+                    text = clearActionText,
+                    onClick = onClear,
+                    modifier = Modifier.weight(1f),
+                    enabled = clearEnabled,
+                )
+            }
         }
     }
 }
