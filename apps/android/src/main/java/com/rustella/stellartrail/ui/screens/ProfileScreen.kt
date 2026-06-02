@@ -42,8 +42,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rustella.stellartrail.core.theme.ThemeMode
 import com.rustella.stellartrail.domain.auth.LoginUser
 import com.rustella.stellartrail.domain.auth.UserSession
+import com.rustella.stellartrail.feature.profile.ProfileCacheViewModel
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
 import com.rustella.stellartrail.ui.common.CompactPillAction
+import com.rustella.stellartrail.ui.common.PrimaryPillButton
+import com.rustella.stellartrail.ui.common.SoftPillButton
 import com.rustella.stellartrail.ui.common.SurfaceCard
 import com.rustella.stellartrail.ui.common.TrailInnerCardShape
 import com.rustella.stellartrail.ui.common.currentTrailPalette
@@ -104,9 +107,13 @@ fun ProfileScreen(
 
 @Composable
 fun ProfileCacheScreen(
+    viewModel: ProfileCacheViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val busy = state.caching || state.clearing
+    val palette = currentTrailPalette()
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -137,9 +144,39 @@ fun ProfileCacheScreen(
             }
         }
         SurfaceCard {
+            Text(ProfileVisualContract.cacheActionTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PrimaryPillButton(
+                    text = if (state.caching) "缓存中..." else ProfileVisualContract.cacheAllKnotsAction,
+                    onClick = viewModel::cacheAllKnots,
+                    modifier = Modifier.weight(1f),
+                    enabled = !busy,
+                )
+                SoftPillButton(
+                    text = if (state.clearing) "清空中..." else ProfileVisualContract.cacheClearAction,
+                    onClick = viewModel::clearCache,
+                    modifier = Modifier.weight(1f),
+                    enabled = !busy && state.status.cachedKnotCount > 0,
+                )
+            }
+            state.message?.let { message ->
+                Text(message, color = palette.accent, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+            }
+            state.error?.let { error ->
+                Text(error, color = palette.dangerText, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        SurfaceCard {
             Text(ProfileVisualContract.cacheSectionTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
             ProfileVisualContract.cacheItems.forEach { item ->
-                ProfileCacheRow(item)
+                ProfileCacheRow(
+                    item = item,
+                    status = ProfileVisualContract.knotCacheStatusLabel(state.status.cachedKnotCount),
+                )
             }
         }
     }
@@ -384,7 +421,7 @@ private fun ProfileHelpRow(item: ProfileHelpItem, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ProfileCacheRow(item: ProfileCacheItem) {
+private fun ProfileCacheRow(item: ProfileCacheItem, status: String) {
     val palette = currentTrailPalette()
     Row(
         modifier = Modifier
@@ -415,7 +452,7 @@ private fun ProfileCacheRow(item: ProfileCacheItem) {
             )
         }
         Text(
-            item.status,
+            status,
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
                 .background(palette.brandSoft)

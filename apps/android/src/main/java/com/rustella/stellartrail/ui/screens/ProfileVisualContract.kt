@@ -32,7 +32,6 @@ data class ProfileCacheItem(
     val icon: String,
     val title: String,
     val description: String,
-    val status: String,
 )
 
 enum class ProfileAboutAction {
@@ -67,10 +66,15 @@ object ProfileVisualContract {
 
     const val cacheTitle = "缓存"
     const val cacheDescription = "管理可离线查看的内容。"
+    const val cacheActionTitle = "缓存操作"
+    const val cacheAllKnotsAction = "缓存所有绳结"
+    const val cacheClearAction = "清空缓存"
     const val cacheSectionTitle = "可离线内容"
     val cacheItems = listOf(
-        ProfileCacheItem("绳", "绳结缓存", "常用绳结详情和动图可离线查看。", "已支持"),
+        ProfileCacheItem("绳", "绳结缓存", "常用绳结列表和详情可离线查看。"),
     )
+
+    fun knotCacheStatusLabel(count: Int): String = if (count > 0) "已缓存 $count 个" else "未缓存"
 
     const val aboutTitle = "更多信息"
     const val aboutBrandEyebrow = "寻径星野"
@@ -134,12 +138,16 @@ object ProfileVisualContract {
             aboutBrandDescription,
             cacheTitle,
             cacheDescription,
+            cacheActionTitle,
+            cacheAllKnotsAction,
+            cacheClearAction,
             cacheSectionTitle,
             debugDefaultEndpointLabel,
             debugCustomEndpointLabel,
         ) +
             helpItems.flatMap { listOf(it.title, it.description) } +
-            cacheItems.flatMap { listOf(it.icon, it.title, it.description, it.status) } +
+            listOf(knotCacheStatusLabel(0), knotCacheStatusLabel(3)) +
+            cacheItems.flatMap { listOf(it.icon, it.title, it.description) } +
             aboutIntroItems.flatMap { listOf(it.icon, it.title, it.description) } +
             aboutItems.flatMap { listOf(it.title, it.description) } +
             dialogHelpActions.flatMap { action ->

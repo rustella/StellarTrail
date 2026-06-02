@@ -23,6 +23,7 @@ import com.rustella.stellartrail.data.packing.PackingRepositoryContract
 import com.rustella.stellartrail.data.profile.ProfileApi
 import com.rustella.stellartrail.data.profile.ProfileRepository
 import com.rustella.stellartrail.data.profile.ProfileRepositoryContract
+import com.rustella.stellartrail.data.skills.AndroidKnotCacheStore
 import com.rustella.stellartrail.data.skills.SkillApi
 import com.rustella.stellartrail.data.skills.SkillRepository
 import com.rustella.stellartrail.data.skills.SkillRepositoryContract
@@ -59,7 +60,10 @@ class DefaultAppContainer(context: Context) : AppContainer {
     override val gearRepository: GearRepositoryContract = GearRepository(GearApi(apiClient))
     override val gearAtlasRepository: GearAtlasRepositoryContract = GearAtlasRepository(GearAtlasApi(apiClient))
     override val packingRepository: PackingRepositoryContract = PackingRepository(PackingApi(apiClient))
-    override val skillRepository: SkillRepositoryContract = SkillRepository(SkillApi(apiClient))
+    override val skillRepository: SkillRepositoryContract = SkillRepository(
+        api = SkillApi(apiClient),
+        cacheStore = AndroidKnotCacheStore(context.applicationContext),
+    )
     override val tripRepository: TripRepositoryContract = TripRepository(TripApi(apiClient))
     override val profileRepository: ProfileRepositoryContract = ProfileRepository(ProfileApi(apiClient))
 }

@@ -50,6 +50,7 @@ import com.rustella.stellartrail.feature.home.HomeViewModel
 import com.rustella.stellartrail.feature.packing.PackingViewModel
 import com.rustella.stellartrail.feature.profile.OutdoorExperiencesViewModel
 import com.rustella.stellartrail.feature.profile.OutdoorProfileViewModel
+import com.rustella.stellartrail.feature.profile.ProfileCacheViewModel
 import com.rustella.stellartrail.feature.profile.ProfileSettingsViewModel
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
 import com.rustella.stellartrail.feature.profile.RoadmapViewModel
@@ -487,7 +488,13 @@ private fun AuthenticatedApp(
                 )
             }
             composable(AppRoutes.PROFILE_CACHE) {
-                ProfileCacheScreen(onBack = { navController.popBackStack() })
+                val viewModel: ProfileCacheViewModel = viewModel(factory = viewModelFactory {
+                    ProfileCacheViewModel(container.skillRepository)
+                })
+                ProfileCacheScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(AppRoutes.PROFILE_ABOUT) {
                 ProfileAboutScreen(

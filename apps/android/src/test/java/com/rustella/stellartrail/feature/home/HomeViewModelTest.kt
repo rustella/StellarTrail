@@ -1,6 +1,7 @@
 package com.rustella.stellartrail.feature.home
 
 import com.rustella.stellartrail.data.gear.GearRepositoryContract
+import com.rustella.stellartrail.data.skills.KnotCacheStatus
 import com.rustella.stellartrail.data.skills.SkillRepositoryContract
 import com.rustella.stellartrail.domain.gear.CreateGearRequest
 import com.rustella.stellartrail.domain.gear.GearCategoriesResponse
@@ -25,6 +26,8 @@ import com.rustella.stellartrail.domain.skills.SkillCategorySummary
 import com.rustella.stellartrail.domain.skills.SkillLocale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -132,6 +135,7 @@ class HomeViewModelTest {
     private class FakeSkillRepository(
         private val failListKnots: Boolean = false,
     ) : SkillRepositoryContract {
+        override val knotCacheStatus: StateFlow<KnotCacheStatus> = MutableStateFlow(KnotCacheStatus())
         var listSkillCalls = 0
         var listKnotCalls = 0
 
@@ -149,6 +153,8 @@ class HomeViewModelTest {
 
         override suspend fun knotDetail(id: String, locale: SkillLocale): KnotDetail = error("unused")
         override suspend fun listFavoriteSkills(locale: SkillLocale, request: ListFavoriteSkillsRequest): ListFavoriteSkillsResponse = error("unused")
+        override suspend fun cacheAllKnots(locale: SkillLocale): KnotCacheStatus = error("unused")
+        override suspend fun clearKnotCache(): KnotCacheStatus = error("unused")
         override fun resolveMediaUrl(pathOrUrl: String): String = pathOrUrl
     }
 }

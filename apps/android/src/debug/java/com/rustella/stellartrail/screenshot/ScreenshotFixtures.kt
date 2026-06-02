@@ -16,6 +16,7 @@ import com.rustella.stellartrail.data.auth.AuthRepositoryContract
 import com.rustella.stellartrail.data.gear.GearRepositoryContract
 import com.rustella.stellartrail.data.packing.PackingRepositoryContract
 import com.rustella.stellartrail.data.profile.ProfileRepositoryContract
+import com.rustella.stellartrail.data.skills.KnotCacheStatus
 import com.rustella.stellartrail.data.skills.SkillRepositoryContract
 import com.rustella.stellartrail.data.trip.TripRepositoryContract
 import com.rustella.stellartrail.di.AppContainer
@@ -113,6 +114,7 @@ import com.rustella.stellartrail.domain.trip.TripType
 import com.rustella.stellartrail.domain.trip.UpdateTripRequest
 import com.rustella.stellartrail.domain.trip.UpdateTripSectionsRequest
 import com.rustella.stellartrail.domain.trip.emptyFieldVersions
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.JsonObject
 
@@ -428,6 +430,7 @@ private class FixturePackingRepository : PackingRepositoryContract {
 }
 
 private class FixtureSkillRepository : SkillRepositoryContract {
+    override val knotCacheStatus: StateFlow<KnotCacheStatus> = MutableStateFlow(KnotCacheStatus(cachedKnotCount = 1, lastUpdatedAtMillis = 1000L))
     private val categories = listOf(
         SkillCategorySummary("knots", "knots", "绳结", "常用露营、钓鱼、连接和固定绳结，按场景快速复习。", 3, "/api/v1/skills/knots"),
     )
@@ -457,6 +460,8 @@ private class FixtureSkillRepository : SkillRepositoryContract {
             locale = locale,
         )
     } ?: knotDetail("bowline", locale)
+    override suspend fun cacheAllKnots(locale: SkillLocale): KnotCacheStatus = KnotCacheStatus(knots.size, 1000L)
+    override suspend fun clearKnotCache(): KnotCacheStatus = KnotCacheStatus()
     override fun resolveMediaUrl(pathOrUrl: String): String = pathOrUrl
 }
 

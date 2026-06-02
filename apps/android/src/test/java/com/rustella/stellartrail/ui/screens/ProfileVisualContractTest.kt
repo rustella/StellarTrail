@@ -37,15 +37,16 @@ class ProfileVisualContractTest {
     fun cachePageHasDedicatedContentInsteadOfDialogCopy() {
         assertEquals("缓存", ProfileVisualContract.cacheTitle)
         assertEquals("管理可离线查看的内容。", ProfileVisualContract.cacheDescription)
+        assertEquals("缓存操作", ProfileVisualContract.cacheActionTitle)
+        assertEquals("缓存所有绳结", ProfileVisualContract.cacheAllKnotsAction)
+        assertEquals("清空缓存", ProfileVisualContract.cacheClearAction)
         assertEquals("可离线内容", ProfileVisualContract.cacheSectionTitle)
         assertEquals(
             listOf("绳结缓存"),
             ProfileVisualContract.cacheItems.map { it.title },
         )
-        assertEquals(
-            listOf("已支持"),
-            ProfileVisualContract.cacheItems.map { it.status },
-        )
+        assertEquals("未缓存", ProfileVisualContract.knotCacheStatusLabel(0))
+        assertEquals("已缓存 3 个", ProfileVisualContract.knotCacheStatusLabel(3))
     }
 
     @Test
