@@ -329,6 +329,7 @@ data class ProfileSettingsActionState(
     val phoneCodeLoading: Boolean = false,
     val currentPhoneCodeLoading: Boolean = false,
     val phoneBindingLoading: Boolean = false,
+    val phoneBindingCompleted: Boolean = false,
     val bindPhoneSmsTicket: String = "",
     val currentPhoneSmsTicket: String = "",
     val passwordSmsTicket: String = "",
@@ -368,6 +369,7 @@ class ProfileSettingsViewModel(
                 emailNotice = null,
                 phoneNotice = null,
                 passwordNotice = null,
+                phoneBindingCompleted = false,
                 bindPhoneSmsTicket = "",
                 currentPhoneSmsTicket = "",
                 passwordSmsTicket = "",
@@ -401,10 +403,27 @@ class ProfileSettingsViewModel(
         }
     }
 
+    fun consumePhoneBindingCompletion() {
+        _actionState.update {
+            it.copy(
+                phoneBindingCompleted = false,
+                phoneNotice = null,
+            )
+        }
+    }
+
     fun sendBindPhoneCode(phone: String) {
         if (_actionState.value.phoneCodeLoading) return
         viewModelScope.launch {
-            _actionState.update { it.copy(phoneCodeLoading = true, accountError = null, phoneNotice = null, bindPhoneSmsTicket = "") }
+            _actionState.update {
+                it.copy(
+                    phoneCodeLoading = true,
+                    accountError = null,
+                    phoneNotice = null,
+                    phoneBindingCompleted = false,
+                    bindPhoneSmsTicket = "",
+                )
+            }
             runCatching { authRepository.sendBindPhoneCode(phone) }.onSuccess { response ->
                 _actionState.update {
                     it.copy(
@@ -422,7 +441,15 @@ class ProfileSettingsViewModel(
     fun sendRebindCurrentPhoneCode() {
         if (_actionState.value.currentPhoneCodeLoading) return
         viewModelScope.launch {
-            _actionState.update { it.copy(currentPhoneCodeLoading = true, accountError = null, phoneNotice = null, currentPhoneSmsTicket = "") }
+            _actionState.update {
+                it.copy(
+                    currentPhoneCodeLoading = true,
+                    accountError = null,
+                    phoneNotice = null,
+                    phoneBindingCompleted = false,
+                    currentPhoneSmsTicket = "",
+                )
+            }
             runCatching { authRepository.sendRebindCurrentPhoneCode() }.onSuccess { response ->
                 _actionState.update {
                     it.copy(
@@ -458,7 +485,7 @@ class ProfileSettingsViewModel(
         }
         if (_actionState.value.phoneBindingLoading) return
         viewModelScope.launch {
-            _actionState.update { it.copy(phoneBindingLoading = true, accountError = null, phoneNotice = null) }
+            _actionState.update { it.copy(phoneBindingLoading = true, accountError = null, phoneNotice = null, phoneBindingCompleted = false) }
             runCatching {
                 authRepository.bindPhone(
                     phone = phone,
@@ -471,7 +498,8 @@ class ProfileSettingsViewModel(
                 _actionState.update {
                     it.copy(
                         phoneBindingLoading = false,
-                        phoneNotice = "手机号已更新",
+                        phoneNotice = if (normalizedCurrentCode == null) "绑定完成" else "修改完成",
+                        phoneBindingCompleted = true,
                         bindPhoneSmsTicket = "",
                         currentPhoneSmsTicket = "",
                     )

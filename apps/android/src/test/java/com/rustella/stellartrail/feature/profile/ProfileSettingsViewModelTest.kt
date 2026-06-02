@@ -22,6 +22,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -53,7 +55,13 @@ class ProfileSettingsViewModelTest {
         assertEquals("new-phone-ticket", repository.lastBindSmsTicket)
         assertEquals("123456", repository.lastBindSmsCode)
         assertEquals(null, repository.lastCurrentSmsTicket)
-        assertEquals("手机号已更新", viewModel.actionState.value.phoneNotice)
+        assertEquals("绑定完成", viewModel.actionState.value.phoneNotice)
+        assertTrue(viewModel.actionState.value.phoneBindingCompleted)
+
+        viewModel.consumePhoneBindingCompletion()
+
+        assertFalse(viewModel.actionState.value.phoneBindingCompleted)
+        assertEquals(null, viewModel.actionState.value.phoneNotice)
     }
 
     @Test
@@ -70,6 +78,8 @@ class ProfileSettingsViewModelTest {
         assertEquals("current-phone-ticket", repository.lastCurrentSmsTicket)
         assertEquals("654321", repository.lastCurrentSmsCode)
         assertEquals("new-phone-ticket", repository.lastBindSmsTicket)
+        assertEquals("修改完成", viewModel.actionState.value.phoneNotice)
+        assertTrue(viewModel.actionState.value.phoneBindingCompleted)
     }
 
     @Test
