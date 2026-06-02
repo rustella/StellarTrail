@@ -230,4 +230,148 @@ if [[ $# -eq 0 ]]; then
   set -- up -d
 fi
 
-exec docker compose -f "$SCRIPT_DIR/docker-compose.yml" "$@"
+command_requires_volume_pins() {
+  local command=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --ansi|--compatibility|--env-file|--file|-f|--parallel|--profile|--progress|--project-directory|--project-name|-p)
+        if [[ $# -gt 1 ]]; then
+          shift 2
+        else
+          shift
+        fi
+        ;;
+      --dry-run|--verbose)
+        shift
+        ;;
+      -*)
+        shift
+        ;;
+      *)
+        command="$1"
+        break
+        ;;
+    esac
+  done
+
+  case "$command" in
+    up|create|start|run)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+validate_stateful_volume_pins() {
+  local override_file="$1"
+  if [[ "${STELLARTAIL_ALLOW_UNPINNED_PRODUCTION_VOLUMES:-}" == "1" ]]; then
+    echo "warning: skipping production external volume pin validation" >&2
+    return
+  fi
+  if [[ ! -f "$override_file" ]]; then
+    cat >&2 <<EOF
+Production stateful volume pins are required before running this compose command.
+Create $override_file with external volume names for postgres-data, redis-data, and minio-data.
+For a brand-new production bootstrap only, set STELLARTAIL_ALLOW_UNPINNED_PRODUCTION_VOLUMES=1.
+EOF
+    exit 1
+  fi
+
+  "$PYTHON_BIN" - "$override_file" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+
+try:
+    import yaml  # type: ignore
+except ImportError:
+    yaml = None
+
+
+def parse_bool(value: str) -> bool:
+    return value.strip().lower() in {"true", "yes", "on", "1"}
+
+
+def parse_scalar(value: str) -> str:
+    value = value.split("#", 1)[0].strip()
+    if (value.startswith('"') and value.endswith('"')) or (
+        value.startswith("'") and value.endswith("'")
+    ):
+        return value[1:-1]
+    return value
+
+
+def fallback_parse_volumes(source: str):
+    volumes = {}
+    in_volumes = False
+    current = None
+    for raw in source.splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        line = raw.strip()
+        if indent == 0:
+            in_volumes = line == "volumes:"
+            current = None
+            continue
+        if not in_volumes:
+            continue
+        if indent == 2 and line.endswith(":"):
+            current = line[:-1].strip()
+            volumes[current] = {}
+            continue
+        if indent == 4 and current and ":" in line:
+            key, value = line.split(":", 1)
+            key = key.strip()
+            value = parse_scalar(value)
+            volumes[current][key] = parse_bool(value) if key == "external" else value
+    return volumes
+
+
+if yaml is None:
+    volumes = fallback_parse_volumes(text)
+else:
+    loaded = yaml.safe_load(text) or {}
+    volumes = loaded.get("volumes") or {}
+
+required = ("postgres-data", "redis-data", "minio-data")
+missing = []
+for volume in required:
+    config = volumes.get(volume)
+    if not isinstance(config, dict):
+        missing.append(f"{volume}: missing")
+        continue
+    if config.get("external") is not True:
+        missing.append(f"{volume}: external must be true")
+    name = str(config.get("name") or "").strip()
+    if not name:
+        missing.append(f"{volume}: name is required")
+
+if missing:
+    details = "\n".join(f"- {item}" for item in missing)
+    raise SystemExit(
+        "Production stateful volume pins are incomplete:\n"
+        f"{details}\n"
+        "Pin postgres-data, redis-data, and minio-data in the server-local "
+        "docker-compose.production-local.override.yml before deploying."
+    )
+PY
+}
+
+compose_files=(-f "$SCRIPT_DIR/docker-compose.yml")
+production_local_override="$SCRIPT_DIR/docker-compose.production-local.override.yml"
+if [[ -f "$SCRIPT_DIR/docker-compose.production-local.override.yml" ]]; then
+  compose_files+=( -f "$production_local_override" )
+elif [[ -f "$SCRIPT_DIR/docker-compose.backend-external.override.yml" ]]; then
+  compose_files+=( -f "$SCRIPT_DIR/docker-compose.backend-external.override.yml" )
+fi
+
+if command_requires_volume_pins "$@"; then
+  validate_stateful_volume_pins "$production_local_override"
+fi
+
+exec docker compose "${compose_files[@]}" "$@"

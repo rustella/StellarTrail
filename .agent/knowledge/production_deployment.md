@@ -20,6 +20,9 @@ Use this note when deploying or debugging the production API, object storage, ed
 - Before replacing production compose files, inspect the currently mounted data volumes for the database, cache, and object store.
 - When production already has data, use an override that maps compose volumes to the existing external volume names. Do not let compose silently create fresh empty volumes.
 - Verify volume mounts on the live containers after deployment. Object storage can look healthy while serving a fresh empty data volume if the wrong volume is attached.
+- Deploy the production API stack through `infra/production/api/compose-from-config.sh`, not a raw `docker compose -f docker-compose.yml up` command.
+- Keep `docker-compose.production-local.override.yml` server-local and require it to pin `postgres-data`, `redis-data`, and `minio-data` as external named volumes before any production `up`, `create`, `start`, or `run`.
+- Use the unpinned-volume bypass only for a user-confirmed first production bootstrap; never use it for routine image rollouts or service recreates.
 
 ## Edge Router Labels
 
