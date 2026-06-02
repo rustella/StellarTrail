@@ -16,6 +16,19 @@ data class EmailVerificationCodeResponse(
 )
 
 @Serializable
+data class SmsCodeRequest(
+    val phone: String,
+)
+
+@Serializable
+data class SmsCodeResponse(
+    val phone: String,
+    @SerialName("sms_ticket") val smsTicket: String,
+    @SerialName("expires_at") val expiresAt: String,
+    @SerialName("debug_code") val debugCode: String? = null,
+)
+
+@Serializable
 data class EmailLoginCodeRequest(
     val email: String,
 )
@@ -65,6 +78,47 @@ data class RegisterRequest(
 )
 
 @Serializable
+data class SmsRegisterRequest(
+    val username: String,
+    val nickname: String,
+    val phone: String,
+    val password: String,
+    @SerialName("confirm_password") val confirmPassword: String,
+    @SerialName("sms_ticket") val smsTicket: String,
+    @SerialName("sms_verification_code") val smsVerificationCode: String,
+)
+
+@Serializable
+data class SmsLoginRequest(
+    val phone: String,
+    @SerialName("sms_ticket") val smsTicket: String,
+    @SerialName("sms_verification_code") val smsVerificationCode: String,
+)
+
+@Serializable
+data class SmsPasswordResetRequest(
+    val phone: String,
+    @SerialName("sms_ticket") val smsTicket: String,
+    @SerialName("sms_verification_code") val smsVerificationCode: String,
+    val password: String,
+    @SerialName("confirm_password") val confirmPassword: String,
+)
+
+@Serializable
+data class BindPhoneRequest(
+    val phone: String,
+    @SerialName("sms_ticket") val smsTicket: String,
+    @SerialName("sms_verification_code") val smsVerificationCode: String,
+    @SerialName("current_sms_ticket") val currentSmsTicket: String? = null,
+    @SerialName("current_sms_verification_code") val currentSmsVerificationCode: String? = null,
+)
+
+@Serializable
+data class BindPhoneResponse(
+    val user: LoginUser,
+)
+
+@Serializable
 data class CaptchaChallengeRequest(
     val account: String,
 )
@@ -103,6 +157,7 @@ data class LoginUser(
     val id: String,
     val username: String? = null,
     val email: String? = null,
+    val phone: String? = null,
     val nickname: String? = null,
     @SerialName("avatar_url") val avatarUrl: String? = null,
 )

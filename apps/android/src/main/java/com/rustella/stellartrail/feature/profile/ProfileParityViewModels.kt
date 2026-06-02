@@ -322,9 +322,16 @@ class OutdoorExperiencesViewModel(
 data class ProfileSettingsActionState(
     val accountError: String? = null,
     val emailNotice: String? = null,
+    val phoneNotice: String? = null,
     val passwordNotice: String? = null,
     val emailCodeLoading: Boolean = false,
     val emailBindingLoading: Boolean = false,
+    val phoneCodeLoading: Boolean = false,
+    val currentPhoneCodeLoading: Boolean = false,
+    val phoneBindingLoading: Boolean = false,
+    val bindPhoneSmsTicket: String = "",
+    val currentPhoneSmsTicket: String = "",
+    val passwordSmsTicket: String = "",
     val passwordCodeLoading: Boolean = false,
     val passwordLoading: Boolean = false,
 )
@@ -355,7 +362,17 @@ class ProfileSettingsViewModel(
     fun logout() = authRepository.logout()
 
     fun clearMessages() {
-        _actionState.update { it.copy(accountError = null, emailNotice = null, passwordNotice = null) }
+        _actionState.update {
+            it.copy(
+                accountError = null,
+                emailNotice = null,
+                phoneNotice = null,
+                passwordNotice = null,
+                bindPhoneSmsTicket = "",
+                currentPhoneSmsTicket = "",
+                passwordSmsTicket = "",
+            )
+        }
     }
 
     fun sendBindEmailCode(email: String) {
@@ -363,9 +380,8 @@ class ProfileSettingsViewModel(
         viewModelScope.launch {
             _actionState.update { it.copy(emailCodeLoading = true, accountError = null, emailNotice = null) }
             runCatching { authRepository.sendBindEmailCode(email) }.onSuccess { response ->
-                val debugSuffix = response.debugCode?.let { " 验证码提示：$it" }.orEmpty()
                 _actionState.update {
-                    it.copy(emailCodeLoading = false, emailNotice = "验证码已发送到 ${response.email}。$debugSuffix")
+                    it.copy(emailCodeLoading = false, emailNotice = "验证码已发送到 ${response.email}。${debugSuffix(response.debugCode)}")
                 }
             }.onFailure { error ->
                 _actionState.update { it.copy(emailCodeLoading = false, accountError = error.userMessage()) }
@@ -385,14 +401,112 @@ class ProfileSettingsViewModel(
         }
     }
 
+    fun sendBindPhoneCode(phone: String) {
+        if (_actionState.value.phoneCodeLoading) return
+        viewModelScope.launch {
+            _actionState.update { it.copy(phoneCodeLoading = true, accountError = null, phoneNotice = null, bindPhoneSmsTicket = "") }
+            runCatching { authRepository.sendBindPhoneCode(phone) }.onSuccess { response ->
+                _actionState.update {
+                    it.copy(
+                        phoneCodeLoading = false,
+                        phoneNotice = "验证码已发送到 ${response.phone}。${debugSuffix(response.debugCode)}",
+                        bindPhoneSmsTicket = response.smsTicket,
+                    )
+                }
+            }.onFailure { error ->
+                _actionState.update { it.copy(phoneCodeLoading = false, accountError = error.userMessage()) }
+            }
+        }
+    }
+
+    fun sendRebindCurrentPhoneCode() {
+        if (_actionState.value.currentPhoneCodeLoading) return
+        viewModelScope.launch {
+            _actionState.update { it.copy(currentPhoneCodeLoading = true, accountError = null, phoneNotice = null, currentPhoneSmsTicket = "") }
+            runCatching { authRepository.sendRebindCurrentPhoneCode() }.onSuccess { response ->
+                _actionState.update {
+                    it.copy(
+                        currentPhoneCodeLoading = false,
+                        phoneNotice = "验证码已发送到 ${response.phone}。${debugSuffix(response.debugCode)}",
+                        currentPhoneSmsTicket = response.smsTicket,
+                    )
+                }
+            }.onFailure { error ->
+                _actionState.update { it.copy(currentPhoneCodeLoading = false, accountError = error.userMessage()) }
+            }
+        }
+    }
+
+    fun bindPhone(phone: String, code: String, currentCode: String?) {
+        val snapshot = _actionState.value
+        if (phone.isBlank() || code.isBlank()) {
+            _actionState.update { it.copy(accountError = "请填写手机号和验证码") }
+            return
+        }
+        if (snapshot.bindPhoneSmsTicket.isBlank()) {
+            _actionState.update { it.copy(accountError = "请先获取新手机号验证码") }
+            return
+        }
+        val normalizedCurrentCode = currentCode?.trim()?.takeIf { it.isNotEmpty() }
+        if (currentCode != null && normalizedCurrentCode == null) {
+            _actionState.update { it.copy(accountError = "请填写当前手机号验证码") }
+            return
+        }
+        if (normalizedCurrentCode != null && snapshot.currentPhoneSmsTicket.isBlank()) {
+            _actionState.update { it.copy(accountError = "请先获取当前手机号验证码") }
+            return
+        }
+        if (_actionState.value.phoneBindingLoading) return
+        viewModelScope.launch {
+            _actionState.update { it.copy(phoneBindingLoading = true, accountError = null, phoneNotice = null) }
+            runCatching {
+                authRepository.bindPhone(
+                    phone = phone,
+                    smsTicket = snapshot.bindPhoneSmsTicket,
+                    smsCode = code,
+                    currentSmsTicket = snapshot.currentPhoneSmsTicket.takeIf { normalizedCurrentCode != null },
+                    currentSmsCode = normalizedCurrentCode,
+                )
+            }.onSuccess {
+                _actionState.update {
+                    it.copy(
+                        phoneBindingLoading = false,
+                        phoneNotice = "手机号已更新",
+                        bindPhoneSmsTicket = "",
+                        currentPhoneSmsTicket = "",
+                    )
+                }
+            }.onFailure { error ->
+                _actionState.update { it.copy(phoneBindingLoading = false, accountError = error.userMessage()) }
+            }
+        }
+    }
+
     fun sendPasswordResetCode(email: String) {
         if (_actionState.value.passwordCodeLoading) return
         viewModelScope.launch {
             _actionState.update { it.copy(passwordCodeLoading = true, accountError = null, passwordNotice = null) }
             runCatching { authRepository.sendPasswordResetCode(email) }.onSuccess { response ->
-                val debugSuffix = response.debugCode?.let { " 验证码提示：$it" }.orEmpty()
                 _actionState.update {
-                    it.copy(passwordCodeLoading = false, passwordNotice = "验证码已发送到 ${response.email}。$debugSuffix")
+                    it.copy(passwordCodeLoading = false, passwordNotice = "验证码已发送到 ${response.email}。${debugSuffix(response.debugCode)}")
+                }
+            }.onFailure { error ->
+                _actionState.update { it.copy(passwordCodeLoading = false, accountError = error.userMessage()) }
+            }
+        }
+    }
+
+    fun sendSmsPasswordResetCode(phone: String) {
+        if (_actionState.value.passwordCodeLoading) return
+        viewModelScope.launch {
+            _actionState.update { it.copy(passwordCodeLoading = true, accountError = null, passwordNotice = null, passwordSmsTicket = "") }
+            runCatching { authRepository.sendSmsPasswordResetCode(phone) }.onSuccess { response ->
+                _actionState.update {
+                    it.copy(
+                        passwordCodeLoading = false,
+                        passwordNotice = "验证码已发送到 ${response.phone}。${debugSuffix(response.debugCode)}",
+                        passwordSmsTicket = response.smsTicket,
+                    )
                 }
             }.onFailure { error ->
                 _actionState.update { it.copy(passwordCodeLoading = false, accountError = error.userMessage()) }
@@ -401,6 +515,10 @@ class ProfileSettingsViewModel(
     }
 
     fun resetPassword(email: String, code: String, password: String, confirmPassword: String) {
+        if (password != confirmPassword) {
+            _actionState.update { it.copy(accountError = "两次输入的密码不一致") }
+            return
+        }
         if (_actionState.value.passwordLoading) return
         viewModelScope.launch {
             _actionState.update { it.copy(passwordLoading = true, accountError = null, passwordNotice = null) }
@@ -411,6 +529,42 @@ class ProfileSettingsViewModel(
             }
         }
     }
+
+    fun resetPasswordByPhone(phone: String, code: String, password: String, confirmPassword: String) {
+        if (password != confirmPassword) {
+            _actionState.update { it.copy(accountError = "两次输入的密码不一致") }
+            return
+        }
+        val snapshot = _actionState.value
+        if (phone.isBlank() || code.isBlank()) {
+            _actionState.update { it.copy(accountError = "请填写手机号和验证码") }
+            return
+        }
+        if (snapshot.passwordSmsTicket.isBlank()) {
+            _actionState.update { it.copy(accountError = "请先获取短信验证码") }
+            return
+        }
+        if (_actionState.value.passwordLoading) return
+        viewModelScope.launch {
+            _actionState.update { it.copy(passwordLoading = true, accountError = null, passwordNotice = null) }
+            runCatching {
+                authRepository.smsResetPassword(
+                    phone = phone,
+                    smsTicket = snapshot.passwordSmsTicket,
+                    smsCode = code,
+                    password = password,
+                    confirmPassword = confirmPassword,
+                )
+            }.onSuccess {
+                _actionState.update { it.copy(passwordLoading = false, passwordNotice = "密码已更新", passwordSmsTicket = "") }
+            }.onFailure { error ->
+                _actionState.update { it.copy(passwordLoading = false, accountError = error.userMessage()) }
+            }
+        }
+    }
+
+    private fun debugSuffix(debugCode: String?): String =
+        if (BuildConfig.DEBUG && debugCode != null) " 验证码提示：$debugCode" else ""
 }
 
 fun OutdoorExperience.toForm(): OutdoorExperienceForm = OutdoorExperienceForm(

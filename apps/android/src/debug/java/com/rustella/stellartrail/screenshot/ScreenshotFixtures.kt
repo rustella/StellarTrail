@@ -34,6 +34,8 @@ import com.rustella.stellartrail.domain.auth.EmailVerificationCodeResponse
 import com.rustella.stellartrail.domain.auth.LoginResponse
 import com.rustella.stellartrail.domain.auth.LoginUser
 import com.rustella.stellartrail.domain.auth.RegisterRequest
+import com.rustella.stellartrail.domain.auth.SmsCodeResponse
+import com.rustella.stellartrail.domain.auth.SmsRegisterRequest
 import com.rustella.stellartrail.domain.auth.UserSession
 import com.rustella.stellartrail.domain.gear.CreateGearRequest
 import com.rustella.stellartrail.domain.gear.GearCategoriesResponse
@@ -168,6 +170,7 @@ private fun fixtureSession(): UserSession = UserSession(
         id = "fixture-user",
         username = "trail_user",
         email = "trail@example.test",
+        phone = "13800000000",
         nickname = "星野徒步者",
     ),
 )
@@ -185,6 +188,38 @@ private class FixtureAuthRepository(private val sessionStore: SessionStore) : Au
             id = "fixture-user",
             username = "trail_user",
             email = email,
+            phone = "13800000000",
+            nickname = "星野徒步者",
+        )
+        sessionStore.session.value?.copy(user = user)?.let(sessionStore::save)
+        return user
+    }
+    override suspend fun sendSmsRegistrationCode(phone: String): SmsCodeResponse = smsCodeResponse(phone, "sms-register-ticket")
+    override suspend fun smsRegister(request: SmsRegisterRequest): LoginResponse = login(request.phone)
+    override suspend fun sendSmsLoginCode(phone: String): SmsCodeResponse = smsCodeResponse(phone, "sms-login-ticket")
+    override suspend fun smsLogin(phone: String, smsTicket: String, smsCode: String): LoginResponse = login(phone)
+    override suspend fun sendSmsPasswordResetCode(phone: String): SmsCodeResponse = smsCodeResponse(phone, "sms-reset-ticket")
+    override suspend fun smsResetPassword(
+        phone: String,
+        smsTicket: String,
+        smsCode: String,
+        password: String,
+        confirmPassword: String,
+    ): LoginResponse = login(phone)
+    override suspend fun sendBindPhoneCode(phone: String): SmsCodeResponse = smsCodeResponse(phone, "sms-bind-ticket")
+    override suspend fun sendRebindCurrentPhoneCode(): SmsCodeResponse = smsCodeResponse("13800000000", "sms-current-ticket")
+    override suspend fun bindPhone(
+        phone: String,
+        smsTicket: String,
+        smsCode: String,
+        currentSmsTicket: String?,
+        currentSmsCode: String?,
+    ): LoginUser {
+        val user = sessionStore.session.value?.user?.copy(phone = phone) ?: LoginUser(
+            id = "fixture-user",
+            username = "trail_user",
+            email = "trail@example.test",
+            phone = phone,
             nickname = "星野徒步者",
         )
         sessionStore.session.value?.copy(user = user)?.let(sessionStore::save)
@@ -197,12 +232,13 @@ private class FixtureAuthRepository(private val sessionStore: SessionStore) : Au
     override fun logout() = sessionStore.clear()
 
     private fun codeResponse(email: String) = EmailVerificationCodeResponse(email, "2099-01-01T00:10:00Z", "246810")
+    private fun smsCodeResponse(phone: String, ticket: String) = SmsCodeResponse(phone, ticket, "2099-01-01T00:10:00Z", "246810")
     private fun login(account: String): LoginResponse = LoginResponse(
         accessToken = "fixture-access-token",
         expiresAt = "2099-01-01T00:00:00Z",
         refreshToken = "fixture-refresh-token",
         refreshExpiresAt = "2099-01-02T00:00:00Z",
-        user = LoginUser(id = "fixture-user", username = account, email = "trail@example.test", nickname = "星野徒步者"),
+        user = LoginUser(id = "fixture-user", username = account, email = "trail@example.test", phone = "13800000000", nickname = "星野徒步者"),
     ).also(sessionStore::save)
 }
 

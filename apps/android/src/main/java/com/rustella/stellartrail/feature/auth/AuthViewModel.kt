@@ -7,22 +7,36 @@ import com.rustella.stellartrail.core.network.ApiException
 import com.rustella.stellartrail.core.network.userMessage
 import com.rustella.stellartrail.data.auth.AuthRepositoryContract
 import com.rustella.stellartrail.domain.auth.RegisterRequest
+import com.rustella.stellartrail.domain.auth.SmsCodeResponse
+import com.rustella.stellartrail.domain.auth.SmsRegisterRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class AuthMode { LOGIN, EMAIL_CODE, REGISTER, RESET_PASSWORD }
+enum class AuthMode { LOGIN, PHONE_CODE, EMAIL_CODE, REGISTER, RESET_PASSWORD }
+
+enum class AuthRegisterMethod { PHONE, EMAIL }
+
+enum class AuthResetMethod { PHONE, EMAIL }
 
 data class AuthUiState(
     val mode: AuthMode = AuthMode.LOGIN,
+    val registerMethod: AuthRegisterMethod = AuthRegisterMethod.PHONE,
+    val resetMethod: AuthResetMethod = AuthResetMethod.PHONE,
     val account: String = "",
     val password: String = "",
     val username: String = "",
+    val nickname: String = "",
     val email: String = "",
+    val phone: String = "",
     val confirmPassword: String = "",
     val emailCode: String = "",
+    val smsCode: String = "",
+    val smsLoginTicket: String = "",
+    val smsRegisterTicket: String = "",
+    val smsResetTicket: String = "",
     val resetPassword: String = "",
     val resetConfirmPassword: String = "",
     val captchaTicket: String = "",
@@ -50,6 +64,11 @@ class AuthViewModel(
                 captchaSvg = null,
                 captchaTicket = "",
                 captchaAnswer = "",
+                emailCode = "",
+                smsCode = "",
+                smsLoginTicket = "",
+                smsRegisterTicket = "",
+                smsResetTicket = "",
             )
         }
     }
@@ -57,17 +76,46 @@ class AuthViewModel(
     fun updateAccount(value: String) = _state.update { it.copy(account = value) }
     fun updatePassword(value: String) = _state.update { it.copy(password = value) }
     fun updateUsername(value: String) = _state.update { it.copy(username = value) }
+    fun updateNickname(value: String) = _state.update { it.copy(nickname = value) }
     fun updateEmail(value: String) = _state.update { it.copy(email = value) }
+    fun updatePhone(value: String) = _state.update { it.copy(phone = value) }
     fun updateConfirmPassword(value: String) = _state.update { it.copy(confirmPassword = value) }
     fun updateEmailCode(value: String) = _state.update { it.copy(emailCode = value) }
+    fun updateSmsCode(value: String) = _state.update { it.copy(smsCode = value) }
     fun updateResetPassword(value: String) = _state.update { it.copy(resetPassword = value) }
     fun updateResetConfirmPassword(value: String) = _state.update { it.copy(resetConfirmPassword = value) }
     fun updateCaptchaAnswer(value: String) = _state.update { it.copy(captchaAnswer = value) }
 
+    fun setRegisterMethod(method: AuthRegisterMethod) {
+        _state.update {
+            it.copy(
+                registerMethod = method,
+                error = null,
+                notice = null,
+                emailCode = "",
+                smsCode = "",
+                smsRegisterTicket = "",
+            )
+        }
+    }
+
+    fun setResetMethod(method: AuthResetMethod) {
+        _state.update {
+            it.copy(
+                resetMethod = method,
+                error = null,
+                notice = null,
+                emailCode = "",
+                smsCode = "",
+                smsResetTicket = "",
+            )
+        }
+    }
+
     fun login() {
         val current = _state.value
         if (current.account.isBlank() || current.password.isBlank()) {
-            _state.update { it.copy(error = "请填写用户名或邮箱和密码") }
+            _state.update { it.copy(error = "请填写用户名、邮箱或手机号和密码") }
             return
         }
         viewModelScope.launch {
@@ -97,17 +145,7 @@ class AuthViewModel(
             _state.update { it.copy(error = "请先填写邮箱") }
             return
         }
-        viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, notice = null) }
-            try {
-                val response = repository.sendEmailCode(email)
-                _state.update { it.copy(notice = codeNotice(response.email, response.debugCode)) }
-            } catch (throwable: Throwable) {
-                _state.update { it.copy(error = throwable.userMessage()) }
-            } finally {
-                _state.update { it.copy(loading = false) }
-            }
-        }
+        viewModelScope.launch { sendEmailCodeRequest { repository.sendEmailCode(email).let { it.email to it.debugCode } } }
     }
 
     fun sendEmailLoginCode() {
@@ -116,17 +154,7 @@ class AuthViewModel(
             _state.update { it.copy(error = "请先填写邮箱") }
             return
         }
-        viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, notice = null) }
-            try {
-                val response = repository.sendEmailLoginCode(email)
-                _state.update { it.copy(notice = codeNotice(response.email, response.debugCode)) }
-            } catch (throwable: Throwable) {
-                _state.update { it.copy(error = throwable.userMessage()) }
-            } finally {
-                _state.update { it.copy(loading = false) }
-            }
-        }
+        viewModelScope.launch { sendEmailCodeRequest { repository.sendEmailLoginCode(email).let { it.email to it.debugCode } } }
     }
 
     fun loginWithEmailCode() {
@@ -147,17 +175,32 @@ class AuthViewModel(
         }
     }
 
-    fun sendPasswordResetCode() {
-        val email = _state.value.email.trim()
-        if (email.isBlank()) {
-            _state.update { it.copy(error = "请先填写邮箱") }
+    fun sendSmsLoginCode() {
+        val phone = _state.value.phone.trim()
+        if (phone.isBlank()) {
+            _state.update { it.copy(error = "请先填写手机号") }
+            return
+        }
+        viewModelScope.launch {
+            sendSmsCodeRequest { repository.sendSmsLoginCode(phone) }
+                ?.let { response -> _state.update { it.copy(smsLoginTicket = response.smsTicket) } }
+        }
+    }
+
+    fun loginWithSmsCode() {
+        val current = _state.value
+        if (current.phone.isBlank() || current.smsCode.isBlank()) {
+            _state.update { it.copy(error = "请填写手机号和短信验证码") }
+            return
+        }
+        if (current.smsLoginTicket.isBlank()) {
+            _state.update { it.copy(error = "请先获取短信验证码") }
             return
         }
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, notice = null) }
             try {
-                val response = repository.sendPasswordResetCode(email)
-                _state.update { it.copy(notice = codeNotice(response.email, response.debugCode)) }
+                repository.smsLogin(current.phone, current.smsLoginTicket, current.smsCode)
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }
             } finally {
@@ -166,24 +209,101 @@ class AuthViewModel(
         }
     }
 
-    fun resetPassword() {
-        val current = _state.value
-        if (current.email.isBlank() || current.emailCode.isBlank()) {
-            _state.update { it.copy(error = "请填写邮箱和验证码") }
+    fun sendPasswordResetCode() {
+        val email = _state.value.email.trim()
+        if (email.isBlank()) {
+            _state.update { it.copy(error = "请先填写邮箱") }
             return
         }
+        viewModelScope.launch { sendEmailCodeRequest { repository.sendPasswordResetCode(email).let { it.email to it.debugCode } } }
+    }
+
+    fun sendSmsRegistrationCode() {
+        val phone = _state.value.phone.trim()
+        if (phone.isBlank()) {
+            _state.update { it.copy(error = "请先填写手机号") }
+            return
+        }
+        viewModelScope.launch {
+            sendSmsCodeRequest { repository.sendSmsRegistrationCode(phone) }
+                ?.let { response -> _state.update { it.copy(smsRegisterTicket = response.smsTicket) } }
+        }
+    }
+
+    fun sendSmsPasswordResetCode() {
+        val phone = _state.value.phone.trim()
+        if (phone.isBlank()) {
+            _state.update { it.copy(error = "请先填写手机号") }
+            return
+        }
+        viewModelScope.launch {
+            sendSmsCodeRequest { repository.sendSmsPasswordResetCode(phone) }
+                ?.let { response -> _state.update { it.copy(smsResetTicket = response.smsTicket) } }
+        }
+    }
+
+    fun resetPassword() {
+        val current = _state.value
         if (current.resetPassword != current.resetConfirmPassword) {
             _state.update { it.copy(error = "两次输入的密码不一致") }
+            return
+        }
+        when (current.resetMethod) {
+            AuthResetMethod.PHONE -> resetPasswordByPhone(current)
+            AuthResetMethod.EMAIL -> resetPasswordByEmail(current)
+        }
+    }
+
+    fun register() {
+        val current = _state.value
+        if (current.password != current.confirmPassword) {
+            _state.update { it.copy(error = "两次输入的密码不一致") }
+            return
+        }
+        when (current.registerMethod) {
+            AuthRegisterMethod.PHONE -> registerByPhone(current)
+            AuthRegisterMethod.EMAIL -> registerByEmail(current)
+        }
+    }
+
+    fun refreshCaptcha() {
+        val account = _state.value.account.trim()
+        if (account.isBlank()) {
+            _state.update { it.copy(error = "请先填写用户名、邮箱或手机号") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null) }
+            try {
+                loadCaptcha(account, "验证码已刷新")
+            } finally {
+                _state.update { it.copy(loading = false) }
+            }
+        }
+    }
+
+    private fun registerByPhone(current: AuthUiState) {
+        if (listOf(current.username, current.nickname, current.phone, current.smsCode, current.password).any { it.isBlank() }) {
+            _state.update { it.copy(error = "请填写用户名、昵称、手机号、验证码和密码") }
+            return
+        }
+        if (current.smsRegisterTicket.isBlank()) {
+            _state.update { it.copy(error = "请先获取短信验证码") }
             return
         }
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, notice = null) }
             try {
-                repository.resetPassword(
-                    email = current.email,
-                    emailCode = current.emailCode,
-                    password = current.resetPassword,
-                    confirmPassword = current.resetConfirmPassword,
+                repository.smsRegister(
+                    SmsRegisterRequest(
+                        username = current.username,
+                        nickname = current.nickname,
+                        phone = current.phone,
+                        password = current.password,
+                        confirmPassword = current.confirmPassword,
+                        smsTicket = current.smsRegisterTicket,
+                        smsVerificationCode = current.smsCode,
+                    ),
                 )
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }
@@ -193,10 +313,9 @@ class AuthViewModel(
         }
     }
 
-    fun register() {
-        val current = _state.value
-        if (current.password != current.confirmPassword) {
-            _state.update { it.copy(error = "两次输入的密码不一致") }
+    private fun registerByEmail(current: AuthUiState) {
+        if (listOf(current.username, current.email, current.emailCode, current.password).any { it.isBlank() }) {
+            _state.update { it.copy(error = "请填写用户名、邮箱、验证码和密码") }
             return
         }
         viewModelScope.launch {
@@ -219,16 +338,49 @@ class AuthViewModel(
         }
     }
 
-    fun refreshCaptcha() {
-        val account = _state.value.account.trim()
-        if (account.isBlank()) {
-            _state.update { it.copy(error = "请先填写用户名或邮箱") }
+    private fun resetPasswordByPhone(current: AuthUiState) {
+        if (current.phone.isBlank() || current.smsCode.isBlank() || current.resetPassword.isBlank()) {
+            _state.update { it.copy(error = "请填写手机号、短信验证码和新密码") }
+            return
+        }
+        if (current.smsResetTicket.isBlank()) {
+            _state.update { it.copy(error = "请先获取短信验证码") }
             return
         }
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            _state.update { it.copy(loading = true, error = null, notice = null) }
             try {
-                loadCaptcha(account, "验证码已刷新")
+                repository.smsResetPassword(
+                    phone = current.phone,
+                    smsTicket = current.smsResetTicket,
+                    smsCode = current.smsCode,
+                    password = current.resetPassword,
+                    confirmPassword = current.resetConfirmPassword,
+                )
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(error = throwable.userMessage()) }
+            } finally {
+                _state.update { it.copy(loading = false) }
+            }
+        }
+    }
+
+    private fun resetPasswordByEmail(current: AuthUiState) {
+        if (current.email.isBlank() || current.emailCode.isBlank() || current.resetPassword.isBlank()) {
+            _state.update { it.copy(error = "请填写邮箱、验证码和新密码") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null, notice = null) }
+            try {
+                repository.resetPassword(
+                    email = current.email,
+                    emailCode = current.emailCode,
+                    password = current.resetPassword,
+                    confirmPassword = current.resetConfirmPassword,
+                )
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(error = throwable.userMessage()) }
             } finally {
                 _state.update { it.copy(loading = false) }
             }
@@ -253,10 +405,36 @@ class AuthViewModel(
         }
     }
 
-    private fun codeNotice(email: String, debugCode: String?): String =
+    private suspend fun sendEmailCodeRequest(request: suspend () -> Pair<String, String?>) {
+        _state.update { it.copy(loading = true, error = null, notice = null) }
+        try {
+            val (target, debugCode) = request()
+            _state.update { it.copy(notice = codeNotice(target, debugCode)) }
+        } catch (throwable: Throwable) {
+            _state.update { it.copy(error = throwable.userMessage()) }
+        } finally {
+            _state.update { it.copy(loading = false) }
+        }
+    }
+
+    private suspend fun sendSmsCodeRequest(request: suspend () -> SmsCodeResponse): SmsCodeResponse? {
+        _state.update { it.copy(loading = true, error = null, notice = null) }
+        return try {
+            val response = request()
+            _state.update { it.copy(notice = codeNotice(response.phone, response.debugCode)) }
+            response
+        } catch (throwable: Throwable) {
+            _state.update { it.copy(error = throwable.userMessage()) }
+            null
+        } finally {
+            _state.update { it.copy(loading = false) }
+        }
+    }
+
+    private fun codeNotice(target: String, debugCode: String?): String =
         if (BuildConfig.DEBUG && debugCode != null) {
             "本地验证码：$debugCode"
         } else {
-            "验证码已发送至 $email"
+            "验证码已发送至 $target"
         }
 }

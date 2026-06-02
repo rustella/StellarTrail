@@ -9,17 +9,24 @@ object AuthVisualContract {
 
     const val loginSectionTitle = "选择登录方式"
     const val passwordTab = "账号登录"
+    const val phoneCodeTab = "手机登录"
     const val emailCodeTab = "邮箱登录"
     const val passwordPrimaryAction = "登录"
-    const val emailCodePrimaryAction = "验证码登录"
+    const val phoneCodePrimaryAction = "手机登录"
+    const val emailCodePrimaryAction = "邮箱登录"
+    const val phoneRegisterMethod = "手机号注册"
+    const val emailRegisterMethod = "邮箱注册"
+    const val phoneResetMethod = "手机号找回"
+    const val emailResetMethod = "邮箱找回"
     const val registerLink = "注册账号"
     const val forgotPasswordLink = "忘记密码？"
     const val backToLogin = "返回登录"
     const val sendCodeAction = "获取验证码"
 
-    val loginTabModes = listOf(AuthMode.LOGIN, AuthMode.EMAIL_CODE)
+    val loginTabModes = listOf(AuthMode.LOGIN, AuthMode.PHONE_CODE, AuthMode.EMAIL_CODE)
     val loginTabLabels = mapOf(
         AuthMode.LOGIN to passwordTab,
+        AuthMode.PHONE_CODE to phoneCodeTab,
         AuthMode.EMAIL_CODE to emailCodeTab,
     )
 }

@@ -419,6 +419,7 @@ fun ProfileSettingsScreen(
     var baseUrl by remember(config.baseUrl) { mutableStateOf(config.baseUrl) }
     var nicknameSheet by remember { mutableStateOf(false) }
     var emailSheet by remember { mutableStateOf(false) }
+    var phoneSheet by remember { mutableStateOf(false) }
     var passwordSheet by remember { mutableStateOf(false) }
     var debugExpanded by remember { mutableStateOf(false) }
     val user = session?.user
@@ -446,10 +447,11 @@ fun ProfileSettingsScreen(
                 SectionTitle("账号资料")
                 SettingsRow("名", "修改名称", user.displayName(), { nicknameSheet = true })
                 SettingsRow("邮", if (user?.email.isNullOrBlank()) "绑定邮箱" else "修改邮箱", user?.email ?: "未绑定", { emailSheet = true })
+                SettingsRow("手", if (user?.phone.isNullOrBlank()) "绑定手机号" else "修改手机号", user?.phone?.maskedPhone() ?: "未绑定", { phoneSheet = true })
                 SettingsRow(
                     "密",
                     "修改密码",
-                    if (user?.email.isNullOrBlank()) "需要先绑定邮箱" else "通过邮箱验证码更新密码",
+                    user.passwordResetDescription(),
                     { passwordSheet = true },
                 )
                 SettingsRow("户", "户外资料", "维护身高、血型、紧急联系人和饮食习惯。", onOpenOutdoorProfile)
@@ -543,16 +545,32 @@ fun ProfileSettingsScreen(
             onSubmit = viewModel::bindEmail,
         )
     }
+    if (phoneSheet) {
+        PhoneBindingSheet(
+            currentPhone = user?.phone,
+            actionState = actionState,
+            onDismiss = {
+                viewModel.clearMessages()
+                phoneSheet = false
+            },
+            onSendNewCode = viewModel::sendBindPhoneCode,
+            onSendCurrentCode = viewModel::sendRebindCurrentPhoneCode,
+            onSubmit = viewModel::bindPhone,
+        )
+    }
     if (passwordSheet) {
         PasswordSheet(
             email = user?.email.orEmpty(),
+            phone = user?.phone.orEmpty(),
             actionState = actionState,
             onDismiss = {
                 viewModel.clearMessages()
                 passwordSheet = false
             },
-            onSendCode = viewModel::sendPasswordResetCode,
-            onSubmit = viewModel::resetPassword,
+            onSendEmailCode = viewModel::sendPasswordResetCode,
+            onSendSmsCode = viewModel::sendSmsPasswordResetCode,
+            onSubmitEmail = viewModel::resetPassword,
+            onSubmitPhone = viewModel::resetPasswordByPhone,
         )
     }
 }
@@ -572,7 +590,7 @@ private fun SettingsHero(user: LoginUser?) {
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(user.displayName(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-                Text(user?.email ?: "未绑定邮箱", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(user.contactSummary(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -750,23 +768,128 @@ private fun EmailBindingSheet(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PasswordSheet(
-    email: String,
+private fun PhoneBindingSheet(
+    currentPhone: String?,
     actionState: com.rustella.stellartrail.feature.profile.ProfileSettingsActionState,
     onDismiss: () -> Unit,
-    onSendCode: (String) -> Unit,
-    onSubmit: (String, String, String, String) -> Unit,
+    onSendNewCode: (String) -> Unit,
+    onSendCurrentCode: () -> Unit,
+    onSubmit: (String, String, String?) -> Unit,
 ) {
+    val hasCurrentPhone = !currentPhone.isNullOrBlank()
+    var phone by remember(currentPhone) { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
+    var currentCode by remember { mutableStateOf("") }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = currentTrailPalette().surface) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(if (hasCurrentPhone) "修改手机号" else "绑定手机号", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            Text(if (hasCurrentPhone) "先验证当前手机号，再确认新的手机号。" else "绑定后可用手机号登录，也可以找回密码。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (hasCurrentPhone) {
+                MetadataRow("当前手机号", currentPhone.orEmpty().maskedPhone())
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FormTextField("当前手机号验证码", currentCode, { currentCode = it }, "验证码", Modifier.weight(1f), keyboardType = KeyboardType.Number)
+                    CompactPillAction("获取验证码", onSendCurrentCode, enabled = !actionState.currentPhoneCodeLoading)
+                }
+            }
+            FormTextField("新手机号", phone, { phone = it }, "手机号", keyboardType = KeyboardType.Phone)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FormTextField("短信验证码", code, { code = it }, "验证码", Modifier.weight(1f), keyboardType = KeyboardType.Number)
+                CompactPillAction("获取验证码", { onSendNewCode(phone) }, enabled = !actionState.phoneCodeLoading)
+            }
+            actionState.phoneNotice?.let { Text(it, color = currentTrailPalette().successText) }
+            actionState.accountError?.let { Text(it, color = currentTrailPalette().dangerText) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PrimaryPillButton(
+                    "确定",
+                    { onSubmit(phone, code, if (hasCurrentPhone) currentCode else null) },
+                    Modifier.weight(1f),
+                    enabled = !actionState.phoneBindingLoading,
+                )
+                SoftPillButton("取消", onDismiss, Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+private enum class PasswordVerificationMethod { EMAIL, PHONE }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PasswordSheet(
+    email: String,
+    phone: String,
+    actionState: com.rustella.stellartrail.feature.profile.ProfileSettingsActionState,
+    onDismiss: () -> Unit,
+    onSendEmailCode: (String) -> Unit,
+    onSendSmsCode: (String) -> Unit,
+    onSubmitEmail: (String, String, String, String) -> Unit,
+    onSubmitPhone: (String, String, String, String) -> Unit,
+) {
+    val hasEmail = email.isNotBlank()
+    val hasPhone = phone.isNotBlank()
+    var method by remember(email, phone) {
+        mutableStateOf(
+            when {
+                hasEmail -> PasswordVerificationMethod.EMAIL
+                hasPhone -> PasswordVerificationMethod.PHONE
+                else -> PasswordVerificationMethod.EMAIL
+            },
+        )
+    }
+    var code by remember(method) { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+    val canUseSelectedMethod = when (method) {
+        PasswordVerificationMethod.EMAIL -> hasEmail
+        PasswordVerificationMethod.PHONE -> hasPhone
+    }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = currentTrailPalette().surface) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("修改密码", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-            Text(if (email.isBlank()) "需要先绑定邮箱。" else "验证码会发送到 $email。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!hasEmail && !hasPhone) {
+                Text("需要先绑定邮箱或手机号。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text(
+                    when (method) {
+                        PasswordVerificationMethod.EMAIL -> "验证码会发送到 $email。"
+                        PasswordVerificationMethod.PHONE -> "验证码会发送到 ${phone.maskedPhone()}。"
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (hasEmail && hasPhone) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = method == PasswordVerificationMethod.EMAIL,
+                        onClick = { method = PasswordVerificationMethod.EMAIL },
+                        label = { Text("邮箱验证", fontWeight = FontWeight.Bold) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    FilterChip(
+                        selected = method == PasswordVerificationMethod.PHONE,
+                        onClick = { method = PasswordVerificationMethod.PHONE },
+                        label = { Text("手机验证", fontWeight = FontWeight.Bold) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FormTextField("邮箱验证码", code, { code = it }, "验证码", Modifier.weight(1f))
-                CompactPillAction("获取验证码", { onSendCode(email) }, enabled = email.isNotBlank() && !actionState.passwordCodeLoading)
+                FormTextField(
+                    if (method == PasswordVerificationMethod.EMAIL) "邮箱验证码" else "短信验证码",
+                    code,
+                    { code = it },
+                    "验证码",
+                    Modifier.weight(1f),
+                    keyboardType = KeyboardType.Number,
+                )
+                CompactPillAction(
+                    "获取验证码",
+                    {
+                        if (method == PasswordVerificationMethod.EMAIL) onSendEmailCode(email) else onSendSmsCode(phone)
+                    },
+                    enabled = canUseSelectedMethod && !actionState.passwordCodeLoading,
+                )
             }
             OutlinedTextField(
                 value = password,
@@ -790,9 +913,15 @@ private fun PasswordSheet(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PrimaryPillButton(
                     "保存",
-                    { onSubmit(email, code, password, confirmPassword) },
+                    {
+                        if (method == PasswordVerificationMethod.EMAIL) {
+                            onSubmitEmail(email, code, password, confirmPassword)
+                        } else {
+                            onSubmitPhone(phone, code, password, confirmPassword)
+                        }
+                    },
                     Modifier.weight(1f),
-                    enabled = email.isNotBlank() && !actionState.passwordLoading,
+                    enabled = canUseSelectedMethod && !actionState.passwordLoading,
                 )
                 SoftPillButton("取消", onDismiss, Modifier.weight(1f))
             }
@@ -803,6 +932,25 @@ private fun PasswordSheet(
 
 private fun LoginUser?.displayName(): String =
     this?.nickname?.takeIf { it.isNotBlank() } ?: this?.username?.takeIf { it.isNotBlank() } ?: "未登录"
+
+private fun LoginUser?.contactSummary(): String =
+    this?.email?.takeIf { it.isNotBlank() }
+        ?: this?.phone?.takeIf { it.isNotBlank() }?.maskedPhone()
+        ?: "未绑定联系方式"
+
+private fun LoginUser?.passwordResetDescription(): String {
+    val email = this?.email
+    val phone = this?.phone
+    return when {
+        email.isNullOrBlank() && phone.isNullOrBlank() -> "需要先绑定邮箱或手机号"
+        email.isNullOrBlank() -> "通过手机验证码更新密码"
+        phone.isNullOrBlank() -> "通过邮箱验证码更新密码"
+        else -> "通过邮箱或手机验证码更新密码"
+    }
+}
+
+private fun String.maskedPhone(): String =
+    if (length >= 7) "${take(3)}****${takeLast(4)}" else this
 
 private fun LoginUser?.avatarInitial(): String = displayName().firstOrNull()?.toString() ?: "我"
 

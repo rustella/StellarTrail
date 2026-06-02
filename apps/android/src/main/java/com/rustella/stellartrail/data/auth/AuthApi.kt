@@ -4,6 +4,8 @@ import com.rustella.stellartrail.core.network.ApiClient
 import com.rustella.stellartrail.domain.auth.BindEmailCodeRequest
 import com.rustella.stellartrail.domain.auth.BindEmailRequest
 import com.rustella.stellartrail.domain.auth.BindEmailResponse
+import com.rustella.stellartrail.domain.auth.BindPhoneRequest
+import com.rustella.stellartrail.domain.auth.BindPhoneResponse
 import com.rustella.stellartrail.domain.auth.CaptchaChallengeRequest
 import com.rustella.stellartrail.domain.auth.CaptchaChallengeResponse
 import com.rustella.stellartrail.domain.auth.EmailVerificationCodeRequest
@@ -16,7 +18,13 @@ import com.rustella.stellartrail.domain.auth.LoginResponse
 import com.rustella.stellartrail.domain.auth.PasswordLoginRequest
 import com.rustella.stellartrail.domain.auth.RefreshTokenRequest
 import com.rustella.stellartrail.domain.auth.RegisterRequest
+import com.rustella.stellartrail.domain.auth.SmsCodeRequest
+import com.rustella.stellartrail.domain.auth.SmsCodeResponse
+import com.rustella.stellartrail.domain.auth.SmsLoginRequest
+import com.rustella.stellartrail.domain.auth.SmsPasswordResetRequest
+import com.rustella.stellartrail.domain.auth.SmsRegisterRequest
 import com.rustella.stellartrail.domain.auth.WechatLoginRequest
+import kotlinx.serialization.json.buildJsonObject
 
 class AuthApi(private val apiClient: ApiClient) {
     suspend fun sendEmailVerificationCode(request: EmailVerificationCodeRequest): EmailVerificationCodeResponse =
@@ -39,6 +47,33 @@ class AuthApi(private val apiClient: ApiClient) {
 
     suspend fun bindEmail(request: BindEmailRequest): BindEmailResponse =
         apiClient.post("/me/email-binding", request)
+
+    suspend fun sendSmsRegistrationCode(request: SmsCodeRequest): SmsCodeResponse =
+        apiClient.post("/auth/sms-registration-code", request)
+
+    suspend fun smsRegister(request: SmsRegisterRequest): LoginResponse =
+        apiClient.post("/auth/sms-register", request)
+
+    suspend fun sendSmsLoginCode(request: SmsCodeRequest): SmsCodeResponse =
+        apiClient.post("/auth/sms-login-code", request)
+
+    suspend fun smsLogin(request: SmsLoginRequest): LoginResponse =
+        apiClient.post("/auth/sms-login", request)
+
+    suspend fun sendSmsPasswordResetCode(request: SmsCodeRequest): SmsCodeResponse =
+        apiClient.post("/auth/sms-password-reset-code", request)
+
+    suspend fun smsPasswordReset(request: SmsPasswordResetRequest): LoginResponse =
+        apiClient.post("/auth/sms-password-reset", request)
+
+    suspend fun sendBindPhoneCode(request: SmsCodeRequest): SmsCodeResponse =
+        apiClient.post("/me/phone-binding-code", request)
+
+    suspend fun sendCurrentPhoneRebindingCode(): SmsCodeResponse =
+        apiClient.post("/me/phone-rebinding-current-code", buildJsonObject { })
+
+    suspend fun bindPhone(request: BindPhoneRequest): BindPhoneResponse =
+        apiClient.post("/me/phone-binding", request)
 
     suspend fun createCaptcha(request: CaptchaChallengeRequest): CaptchaChallengeResponse =
         apiClient.post("/auth/captcha", request)

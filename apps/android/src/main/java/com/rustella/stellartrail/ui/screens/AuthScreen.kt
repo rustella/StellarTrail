@@ -1,8 +1,8 @@
 package com.rustella.stellartrail.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,14 +23,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rustella.stellartrail.feature.auth.AuthMode
+import com.rustella.stellartrail.feature.auth.AuthRegisterMethod
+import com.rustella.stellartrail.feature.auth.AuthResetMethod
 import com.rustella.stellartrail.feature.auth.AuthViewModel
 import com.rustella.stellartrail.ui.common.ErrorState
 import com.rustella.stellartrail.ui.common.HeroCard
@@ -62,6 +64,7 @@ fun AuthScreen(viewModel: AuthViewModel, modifier: Modifier = Modifier) {
             if (state.notice != null) Text(state.notice!!, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             when (state.mode) {
                 AuthMode.LOGIN -> LoginForm(viewModel)
+                AuthMode.PHONE_CODE -> PhoneCodeLoginForm(viewModel)
                 AuthMode.EMAIL_CODE -> EmailCodeLoginForm(viewModel)
                 AuthMode.REGISTER -> RegisterForm(viewModel)
                 AuthMode.RESET_PASSWORD -> ResetPasswordForm(viewModel)
@@ -102,7 +105,7 @@ private fun AuthHeader(mode: AuthMode, viewModel: AuthViewModel) {
 
 @Composable
 private fun AuthModePicker(mode: AuthMode, viewModel: AuthViewModel) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         AuthVisualContract.loginTabModes.forEach { tabMode ->
             AuthModeChip(
                 label = AuthVisualContract.loginTabLabels.getValue(tabMode),
@@ -130,13 +133,22 @@ private fun AuthModeChip(label: String, selected: Boolean, modifier: Modifier, o
 }
 
 @Composable
+private fun AuthChoiceRow(labels: List<Pair<String, Boolean>>, onSelect: (String) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        labels.forEach { (label, selected) ->
+            AuthModeChip(label = label, selected = selected, modifier = Modifier.weight(1f)) { onSelect(label) }
+        }
+    }
+}
+
+@Composable
 private fun LoginForm(viewModel: AuthViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
         AuthTextField(
             value = state.account,
             onValueChange = viewModel::updateAccount,
-            label = "用户名或邮箱",
+            label = "用户名 / 邮箱 / 手机号",
         )
         AuthTextField(
             value = state.password,
@@ -162,10 +174,32 @@ private fun LoginForm(viewModel: AuthViewModel) {
 }
 
 @Composable
+private fun PhoneCodeLoginForm(viewModel: AuthViewModel) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Text("使用手机短信验证码登录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        AuthTextField(
+            value = state.phone,
+            onValueChange = viewModel::updatePhone,
+            label = "手机号",
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+        )
+        SmsCodeRow(
+            value = state.smsCode,
+            onValueChange = viewModel::updateSmsCode,
+            onSend = viewModel::sendSmsLoginCode,
+            enabled = !state.loading,
+        )
+        PrimaryPillButton(AuthVisualContract.phoneCodePrimaryAction, viewModel::loginWithSmsCode, Modifier.fillMaxWidth(), enabled = !state.loading)
+        AuthSecondaryActions(viewModel)
+    }
+}
+
+@Composable
 private fun EmailCodeLoginForm(viewModel: AuthViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-        Text("收取邮箱验证码，不输入密码也能进入。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("使用邮箱验证码登录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         AuthTextField(
             value = state.email,
             onValueChange = viewModel::updateEmail,
@@ -186,7 +220,7 @@ private fun EmailCodeLoginForm(viewModel: AuthViewModel) {
             ) { Text(AuthVisualContract.sendCodeAction, fontWeight = FontWeight.Bold) }
         }
         PrimaryPillButton(AuthVisualContract.emailCodePrimaryAction, viewModel::loginWithEmailCode, Modifier.fillMaxWidth(), enabled = !state.loading)
-        AuthSecondaryActions(viewModel, showForgotPassword = false)
+        AuthSecondaryActions(viewModel)
     }
 }
 
@@ -194,30 +228,61 @@ private fun EmailCodeLoginForm(viewModel: AuthViewModel) {
 private fun RegisterForm(viewModel: AuthViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-        Text("注册后可以保存装备清单，在不同入口继续管理。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("创建账号后可以保存装备、行程和个人资料。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        AuthChoiceRow(
+            labels = listOf(
+                AuthVisualContract.phoneRegisterMethod to (state.registerMethod == AuthRegisterMethod.PHONE),
+                AuthVisualContract.emailRegisterMethod to (state.registerMethod == AuthRegisterMethod.EMAIL),
+            ),
+            onSelect = { label ->
+                viewModel.setRegisterMethod(
+                    if (label == AuthVisualContract.phoneRegisterMethod) AuthRegisterMethod.PHONE else AuthRegisterMethod.EMAIL,
+                )
+            },
+        )
         AuthTextField(
             value = state.username,
             onValueChange = viewModel::updateUsername,
             label = "用户名",
         )
-        AuthTextField(
-            value = state.email,
-            onValueChange = viewModel::updateEmail,
-            label = "邮箱",
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        if (state.registerMethod == AuthRegisterMethod.PHONE) {
             AuthTextField(
-                value = state.emailCode,
-                onValueChange = viewModel::updateEmailCode,
-                label = "邮箱验证码",
-                modifier = Modifier.weight(1f),
+                value = state.nickname,
+                onValueChange = viewModel::updateNickname,
+                label = "昵称",
             )
-            OutlinedButton(
-                onClick = viewModel::sendEmailCode,
+            AuthTextField(
+                value = state.phone,
+                onValueChange = viewModel::updatePhone,
+                label = "手机号",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            )
+            SmsCodeRow(
+                value = state.smsCode,
+                onValueChange = viewModel::updateSmsCode,
+                onSend = viewModel::sendSmsRegistrationCode,
                 enabled = !state.loading,
-                modifier = Modifier.height(56.dp).widthIn(min = 112.dp),
-            ) { Text(AuthVisualContract.sendCodeAction, fontWeight = FontWeight.Bold) }
+            )
+        } else {
+            AuthTextField(
+                value = state.email,
+                onValueChange = viewModel::updateEmail,
+                label = "邮箱",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                AuthTextField(
+                    value = state.emailCode,
+                    onValueChange = viewModel::updateEmailCode,
+                    label = "邮箱验证码",
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedButton(
+                    onClick = viewModel::sendEmailCode,
+                    enabled = !state.loading,
+                    modifier = Modifier.height(56.dp).widthIn(min = 112.dp),
+                ) { Text(AuthVisualContract.sendCodeAction, fontWeight = FontWeight.Bold) }
+            }
         }
         AuthTextField(
             value = state.password,
@@ -239,25 +304,51 @@ private fun RegisterForm(viewModel: AuthViewModel) {
 private fun ResetPasswordForm(viewModel: AuthViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-        Text("收取邮箱验证码，确认后设置新密码。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        AuthTextField(
-            value = state.email,
-            onValueChange = viewModel::updateEmail,
-            label = "邮箱",
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+        Text("通过验证码确认身份后设置新密码。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        AuthChoiceRow(
+            labels = listOf(
+                AuthVisualContract.phoneResetMethod to (state.resetMethod == AuthResetMethod.PHONE),
+                AuthVisualContract.emailResetMethod to (state.resetMethod == AuthResetMethod.EMAIL),
+            ),
+            onSelect = { label ->
+                viewModel.setResetMethod(
+                    if (label == AuthVisualContract.phoneResetMethod) AuthResetMethod.PHONE else AuthResetMethod.EMAIL,
+                )
+            },
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        if (state.resetMethod == AuthResetMethod.PHONE) {
             AuthTextField(
-                value = state.emailCode,
-                onValueChange = viewModel::updateEmailCode,
-                label = "邮箱验证码",
-                modifier = Modifier.weight(1f),
+                value = state.phone,
+                onValueChange = viewModel::updatePhone,
+                label = "手机号",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             )
-            OutlinedButton(
-                onClick = viewModel::sendPasswordResetCode,
+            SmsCodeRow(
+                value = state.smsCode,
+                onValueChange = viewModel::updateSmsCode,
+                onSend = viewModel::sendSmsPasswordResetCode,
                 enabled = !state.loading,
-                modifier = Modifier.height(56.dp).widthIn(min = 112.dp),
-            ) { Text(AuthVisualContract.sendCodeAction, fontWeight = FontWeight.Bold) }
+            )
+        } else {
+            AuthTextField(
+                value = state.email,
+                onValueChange = viewModel::updateEmail,
+                label = "邮箱",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                AuthTextField(
+                    value = state.emailCode,
+                    onValueChange = viewModel::updateEmailCode,
+                    label = "邮箱验证码",
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedButton(
+                    onClick = viewModel::sendPasswordResetCode,
+                    enabled = !state.loading,
+                    modifier = Modifier.height(56.dp).widthIn(min = 112.dp),
+                ) { Text(AuthVisualContract.sendCodeAction, fontWeight = FontWeight.Bold) }
+            }
         }
         AuthTextField(
             value = state.resetPassword,
@@ -272,6 +363,29 @@ private fun ResetPasswordForm(viewModel: AuthViewModel) {
             password = true,
         )
         PrimaryPillButton("重设密码并登录", viewModel::resetPassword, Modifier.fillMaxWidth(), enabled = !state.loading)
+    }
+}
+
+@Composable
+private fun SmsCodeRow(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSend: () -> Unit,
+    enabled: Boolean,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        AuthTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = "短信验证码",
+            modifier = Modifier.weight(1f),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        )
+        OutlinedButton(
+            onClick = onSend,
+            enabled = enabled,
+            modifier = Modifier.height(56.dp).widthIn(min = 112.dp),
+        ) { Text(AuthVisualContract.sendCodeAction, fontWeight = FontWeight.Bold) }
     }
 }
 
