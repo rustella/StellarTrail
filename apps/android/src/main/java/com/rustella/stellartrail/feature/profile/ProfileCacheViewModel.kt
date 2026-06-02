@@ -14,8 +14,10 @@ import kotlinx.coroutines.launch
 
 data class ProfileCacheUiState(
     val status: KnotCacheStatus = KnotCacheStatus(),
-    val caching: Boolean = false,
-    val clearing: Boolean = false,
+    val cachingAll: Boolean = false,
+    val deletingAll: Boolean = false,
+    val cachingKnots: Boolean = false,
+    val clearingKnots: Boolean = false,
     val message: String? = null,
     val error: String? = null,
 )
@@ -34,10 +36,50 @@ class ProfileCacheViewModel(
         }
     }
 
-    fun cacheAllKnots() {
-        if (_state.value.caching || _state.value.clearing) return
+    fun cacheAllContent() {
+        if (_state.value.isBusy()) return
         viewModelScope.launch {
-            _state.update { it.copy(caching = true, message = null, error = null) }
+            _state.update { it.copy(cachingAll = true, message = null, error = null) }
+            runCatching { skillRepository.cacheAllKnots(SkillLocale.ZH_CN) }
+                .onSuccess { status ->
+                    _state.update {
+                        it.copy(
+                            status = status,
+                            message = "已缓存所有可缓存内容，包含 ${status.cachedKnotCount} 个绳结。",
+                        )
+                    }
+                }
+                .onFailure { throwable ->
+                    _state.update { it.copy(error = throwable.userMessage()) }
+                }
+            _state.update { it.copy(cachingAll = false) }
+        }
+    }
+
+    fun deleteAllCaches() {
+        if (_state.value.isBusy()) return
+        viewModelScope.launch {
+            _state.update { it.copy(deletingAll = true, message = null, error = null) }
+            runCatching { skillRepository.clearKnotCache() }
+                .onSuccess { status ->
+                    _state.update {
+                        it.copy(
+                            status = status,
+                            message = "已删除所有缓存。",
+                        )
+                    }
+                }
+                .onFailure { throwable ->
+                    _state.update { it.copy(error = throwable.userMessage()) }
+                }
+            _state.update { it.copy(deletingAll = false) }
+        }
+    }
+
+    fun cacheKnots() {
+        if (_state.value.isBusy()) return
+        viewModelScope.launch {
+            _state.update { it.copy(cachingKnots = true, message = null, error = null) }
             runCatching { skillRepository.cacheAllKnots(SkillLocale.ZH_CN) }
                 .onSuccess { status ->
                     _state.update {
@@ -50,27 +92,29 @@ class ProfileCacheViewModel(
                 .onFailure { throwable ->
                     _state.update { it.copy(error = throwable.userMessage()) }
                 }
-            _state.update { it.copy(caching = false) }
+            _state.update { it.copy(cachingKnots = false) }
         }
     }
 
-    fun clearCache() {
-        if (_state.value.caching || _state.value.clearing) return
+    fun clearKnotCache() {
+        if (_state.value.isBusy()) return
         viewModelScope.launch {
-            _state.update { it.copy(clearing = true, message = null, error = null) }
+            _state.update { it.copy(clearingKnots = true, message = null, error = null) }
             runCatching { skillRepository.clearKnotCache() }
                 .onSuccess { status ->
                     _state.update {
                         it.copy(
                             status = status,
-                            message = "缓存已清空。",
+                            message = "绳结缓存已清空。",
                         )
                     }
                 }
                 .onFailure { throwable ->
                     _state.update { it.copy(error = throwable.userMessage()) }
                 }
-            _state.update { it.copy(clearing = false) }
+            _state.update { it.copy(clearingKnots = false) }
         }
     }
+
+    private fun ProfileCacheUiState.isBusy(): Boolean = cachingAll || deletingAll || cachingKnots || clearingKnots
 }

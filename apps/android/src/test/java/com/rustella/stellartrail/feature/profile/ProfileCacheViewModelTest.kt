@@ -39,33 +39,63 @@ class ProfileCacheViewModelTest {
     }
 
     @Test
-    fun cacheAllKnotsUpdatesStatusAndMessage() = runTest {
+    fun cacheAllContentUpdatesStatusAndMessage() = runTest {
         val repository = FakeSkillRepository()
         val viewModel = ProfileCacheViewModel(repository)
 
-        viewModel.cacheAllKnots()
+        viewModel.cacheAllContent()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(1, repository.cacheAllCalls)
+        assertEquals(2, state.status.cachedKnotCount)
+        assertEquals("已缓存所有可缓存内容，包含 2 个绳结。", state.message)
+        assertFalse(state.cachingAll)
+    }
+
+    @Test
+    fun deleteAllCachesUpdatesStatusAndMessage() = runTest {
+        val repository = FakeSkillRepository(KnotCacheStatus(cachedKnotCount = 2, lastUpdatedAtMillis = 1000L))
+        val viewModel = ProfileCacheViewModel(repository)
+
+        viewModel.deleteAllCaches()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(1, repository.clearCalls)
+        assertEquals(0, state.status.cachedKnotCount)
+        assertEquals("已删除所有缓存。", state.message)
+        assertFalse(state.deletingAll)
+    }
+
+    @Test
+    fun cacheKnotsUpdatesItemStatusAndMessage() = runTest {
+        val repository = FakeSkillRepository()
+        val viewModel = ProfileCacheViewModel(repository)
+
+        viewModel.cacheKnots()
         advanceUntilIdle()
 
         val state = viewModel.state.value
         assertEquals(1, repository.cacheAllCalls)
         assertEquals(2, state.status.cachedKnotCount)
         assertEquals("已缓存 2 个绳结。", state.message)
-        assertFalse(state.caching)
+        assertFalse(state.cachingKnots)
     }
 
     @Test
-    fun clearCacheUpdatesStatusAndMessage() = runTest {
+    fun clearKnotCacheUpdatesItemStatusAndMessage() = runTest {
         val repository = FakeSkillRepository(KnotCacheStatus(cachedKnotCount = 2, lastUpdatedAtMillis = 1000L))
         val viewModel = ProfileCacheViewModel(repository)
 
-        viewModel.clearCache()
+        viewModel.clearKnotCache()
         advanceUntilIdle()
 
         val state = viewModel.state.value
         assertEquals(1, repository.clearCalls)
         assertEquals(0, state.status.cachedKnotCount)
-        assertEquals("缓存已清空。", state.message)
-        assertFalse(state.clearing)
+        assertEquals("绳结缓存已清空。", state.message)
+        assertFalse(state.clearingKnots)
     }
 
     private class FakeSkillRepository(

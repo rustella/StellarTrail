@@ -112,7 +112,7 @@ fun ProfileCacheScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val busy = state.caching || state.clearing
+    val busy = state.cachingAll || state.deletingAll || state.cachingKnots || state.clearingKnots
     val palette = currentTrailPalette()
     Column(
         modifier = modifier
@@ -151,14 +151,14 @@ fun ProfileCacheScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 PrimaryPillButton(
-                    text = if (state.caching) "缓存中..." else ProfileVisualContract.cacheAllKnotsAction,
-                    onClick = viewModel::cacheAllKnots,
+                    text = if (state.cachingAll) "缓存中..." else ProfileVisualContract.cacheAllContentAction,
+                    onClick = viewModel::cacheAllContent,
                     modifier = Modifier.weight(1f),
                     enabled = !busy,
                 )
                 SoftPillButton(
-                    text = if (state.clearing) "清空中..." else ProfileVisualContract.cacheClearAction,
-                    onClick = viewModel::clearCache,
+                    text = if (state.deletingAll) "删除中..." else ProfileVisualContract.cacheDeleteAllAction,
+                    onClick = viewModel::deleteAllCaches,
                     modifier = Modifier.weight(1f),
                     enabled = !busy && state.status.cachedKnotCount > 0,
                 )
@@ -176,6 +176,12 @@ fun ProfileCacheScreen(
                 ProfileCacheRow(
                     item = item,
                     status = ProfileVisualContract.knotCacheStatusLabel(state.status.cachedKnotCount),
+                    cacheActionText = if (state.cachingKnots) "缓存中..." else ProfileVisualContract.cacheKnotsAction,
+                    clearActionText = if (state.clearingKnots) "清空中..." else ProfileVisualContract.cacheClearKnotsAction,
+                    onCache = viewModel::cacheKnots,
+                    onClear = viewModel::clearKnotCache,
+                    cacheEnabled = !busy,
+                    clearEnabled = !busy && state.status.cachedKnotCount > 0,
                 )
             }
         }
@@ -421,46 +427,77 @@ private fun ProfileHelpRow(item: ProfileHelpItem, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ProfileCacheRow(item: ProfileCacheItem, status: String) {
+private fun ProfileCacheRow(
+    item: ProfileCacheItem,
+    status: String,
+    cacheActionText: String,
+    clearActionText: String,
+    onCache: () -> Unit,
+    onClear: () -> Unit,
+    cacheEnabled: Boolean,
+    clearEnabled: Boolean,
+) {
     val palette = currentTrailPalette()
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(TrailInnerCardShape)
             .background(palette.controlBackground)
             .padding(horizontal = 10.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .clip(TrailInnerCardShape)
-                .background(palette.brandSoft)
-                .padding(horizontal = 8.dp, vertical = 5.dp),
-            contentAlignment = Alignment.Center,
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(item.icon, color = palette.brandSoftText, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold)
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+            Box(
+                modifier = Modifier
+                    .clip(TrailInnerCardShape)
+                    .background(palette.brandSoft)
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(item.icon, color = palette.brandSoftText, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    item.description,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
-                item.description,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                status,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(palette.brandSoft)
+                    .padding(horizontal = 9.dp, vertical = 5.dp),
+                color = palette.brandSoftText,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
             )
         }
-        Text(
-            status,
-            modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(palette.brandSoft)
-                .padding(horizontal = 9.dp, vertical = 5.dp),
-            color = palette.brandSoftText,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.ExtraBold,
-        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            PrimaryPillButton(
+                text = cacheActionText,
+                onClick = onCache,
+                modifier = Modifier.weight(1f),
+                enabled = cacheEnabled,
+            )
+            SoftPillButton(
+                text = clearActionText,
+                onClick = onClear,
+                modifier = Modifier.weight(1f),
+                enabled = clearEnabled,
+            )
+        }
     }
 }
 

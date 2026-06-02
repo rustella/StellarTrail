@@ -66,10 +66,12 @@ object ProfileVisualContract {
 
     const val cacheTitle = "缓存"
     const val cacheDescription = "管理可离线查看的内容。"
-    const val cacheActionTitle = "缓存操作"
-    const val cacheAllKnotsAction = "缓存所有绳结"
-    const val cacheClearAction = "清空缓存"
+    const val cacheActionTitle = "全部缓存操作"
+    const val cacheAllContentAction = "缓存所有内容"
+    const val cacheDeleteAllAction = "删除所有缓存"
     const val cacheSectionTitle = "可离线内容"
+    const val cacheKnotsAction = "缓存绳结"
+    const val cacheClearKnotsAction = "清空绳结"
     val cacheItems = listOf(
         ProfileCacheItem("绳", "绳结缓存", "常用绳结列表和详情可离线查看。"),
     )
@@ -139,9 +141,11 @@ object ProfileVisualContract {
             cacheTitle,
             cacheDescription,
             cacheActionTitle,
-            cacheAllKnotsAction,
-            cacheClearAction,
+            cacheAllContentAction,
+            cacheDeleteAllAction,
             cacheSectionTitle,
+            cacheKnotsAction,
+            cacheClearKnotsAction,
             debugDefaultEndpointLabel,
             debugCustomEndpointLabel,
         ) +
