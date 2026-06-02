@@ -55,6 +55,7 @@ import com.rustella.stellartrail.feature.trips.visibleSections
 import com.rustella.stellartrail.ui.common.Badge
 import com.rustella.stellartrail.ui.common.BadgeTone
 import com.rustella.stellartrail.ui.common.CompactPillAction
+import com.rustella.stellartrail.ui.common.DatePickerField
 import com.rustella.stellartrail.ui.common.EmptyState
 import com.rustella.stellartrail.ui.common.ErrorState
 import com.rustella.stellartrail.ui.common.HeroButton
@@ -255,22 +256,8 @@ fun TripFormScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
-                    value = state.startDate,
-                    onValueChange = viewModel::updateStartDate,
-                    label = { Text("开始日期") },
-                    placeholder = { Text("YYYY-MM-DD") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = state.endDate,
-                    onValueChange = viewModel::updateEndDate,
-                    label = { Text("结束日期") },
-                    placeholder = { Text("YYYY-MM-DD") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                DatePickerField("开始日期", state.startDate, viewModel::updateStartDate, Modifier.fillMaxWidth())
+                DatePickerField("结束日期", state.endDate, viewModel::updateEndDate, Modifier.fillMaxWidth())
                 OutlinedTextField(
                     value = state.description,
                     onValueChange = viewModel::updateDescription,

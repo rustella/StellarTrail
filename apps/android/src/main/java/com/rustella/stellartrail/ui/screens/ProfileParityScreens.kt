@@ -68,6 +68,7 @@ import com.rustella.stellartrail.ui.common.AvatarImage
 import com.rustella.stellartrail.ui.common.Badge
 import com.rustella.stellartrail.ui.common.BadgeTone
 import com.rustella.stellartrail.ui.common.CompactPillAction
+import com.rustella.stellartrail.ui.common.DatePickerField
 import com.rustella.stellartrail.ui.common.EmptyState
 import com.rustella.stellartrail.ui.common.ErrorState
 import com.rustella.stellartrail.ui.common.HeroButton
@@ -245,7 +246,7 @@ private fun OutdoorProfileFormCard(
             onSelect = { onChange(form.copy(gender = it)) },
             emptyLabel = "未填写",
         )
-        FormTextField("出生日期", form.birthDate, { onChange(form.copy(birthDate = it)) }, "YYYY-MM-DD")
+        DatePickerField("出生日期", form.birthDate, { onChange(form.copy(birthDate = it)) })
         FormTextField(
             "身高 cm",
             form.heightCm,
@@ -703,8 +704,8 @@ private fun OutdoorExperienceEditorSheet(
             Text("经历会展示在账号资料中，可从历史行程转入。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             SectionTitle("基础信息")
             FormTextField("标题", form.title, { onFormChange(form.copy(title = it)) }, "经历标题，例如：三天两夜罗浮山重装")
-            FormTextField("开始日期", form.startDate, { onFormChange(form.copy(startDate = it)) }, "YYYY-MM-DD")
-            FormTextField("结束日期", form.endDate, { onFormChange(form.copy(endDate = it)) }, "YYYY-MM-DD")
+            DatePickerField("开始日期", form.startDate, { onFormChange(form.copy(startDate = it)) })
+            DatePickerField("结束日期", form.endDate, { onFormChange(form.copy(endDate = it)) })
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 FormTextField(
                     "天数",
