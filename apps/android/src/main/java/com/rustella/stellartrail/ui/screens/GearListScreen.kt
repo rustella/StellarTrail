@@ -161,7 +161,7 @@ private fun GearEntryCard(title: String, body: String, icon: String, onClick: ()
         modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
         contentPadding = PaddingValues(horizontal = 13.dp, vertical = 11.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
             Box(
                 Modifier
                     .size(32.dp)
@@ -171,7 +171,7 @@ private fun GearEntryCard(title: String, body: String, icon: String, onClick: ()
             ) {
                 Text(icon, color = palette.brandSoftText, fontWeight = FontWeight.ExtraBold)
             }
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
                 Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
