@@ -47,12 +47,14 @@ class ProfileVisualContractTest {
         assertEquals("删除选中缓存", ProfileVisualContract.deleteSelectedAction)
         assertEquals("缓存绳结", ProfileVisualContract.cacheKnotsAction)
         assertEquals("清空绳结", ProfileVisualContract.cacheClearKnotsAction)
+        assertEquals("自动缓存", ProfileVisualContract.autoCacheAction)
+        assertEquals("清空数据", ProfileVisualContract.cacheClearVisitedDataAction)
         assertEquals(
-            listOf("绳结缓存"),
+            listOf("绳结缓存", "已访问数据"),
             ProfileVisualContract.cacheItems.map { it.title },
         )
         assertEquals(
-            listOf(ProfileCacheKind.Knots),
+            listOf(ProfileCacheKind.Knots, ProfileCacheKind.VisitedData),
             ProfileVisualContract.cacheItems.map { it.kind },
         )
         val copy = ProfileVisualContract.userFacingCopySamples()
@@ -61,6 +63,8 @@ class ProfileVisualContractTest {
         assertFalse(copy.contains("删除所有缓存"))
         assertEquals("未缓存", ProfileVisualContract.knotCacheStatusLabel(0))
         assertEquals("已缓存 3 个", ProfileVisualContract.knotCacheStatusLabel(3))
+        assertEquals("未缓存", ProfileVisualContract.visitedDataCacheStatusLabel(0))
+        assertEquals("已缓存 3 条", ProfileVisualContract.visitedDataCacheStatusLabel(3))
     }
 
     @Test

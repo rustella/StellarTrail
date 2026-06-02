@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rustella.stellartrail.core.theme.ThemeMode
 import com.rustella.stellartrail.domain.auth.LoginUser
 import com.rustella.stellartrail.domain.auth.UserSession
+import com.rustella.stellartrail.feature.profile.ProfileCacheKind
 import com.rustella.stellartrail.feature.profile.ProfileCacheViewModel
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
 import com.rustella.stellartrail.ui.common.AvatarImage
@@ -126,7 +127,7 @@ fun ProfileCacheScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val busy = state.cachingSelected || state.deletingSelected || state.cachingKnots || state.clearingKnots
+    val busy = state.cachingSelected || state.deletingSelected || state.cachingKnots || state.clearingKnots || state.clearingVisitedData
     val palette = currentTrailPalette()
     Column(
         modifier = modifier
@@ -226,18 +227,32 @@ fun ProfileCacheScreen(
                 }
             }
             ProfileVisualContract.cacheItems.forEach { item ->
+                val isKnotCache = item.kind == ProfileCacheKind.Knots
                 ProfileCacheRow(
                     item = item,
-                    status = ProfileVisualContract.knotCacheStatusLabel(state.status.cachedKnotCount),
+                    status = if (isKnotCache) {
+                        ProfileVisualContract.knotCacheStatusLabel(state.status.cachedKnotCount)
+                    } else {
+                        ProfileVisualContract.visitedDataCacheStatusLabel(state.offlineStatus.cachedResponseCount)
+                    },
                     selectionMode = state.selectionMode,
                     selected = item.kind in state.selectedCacheKinds,
                     onToggleSelection = { viewModel.toggleCacheKind(item.kind) },
-                    cacheActionText = if (state.cachingKnots) "缓存中..." else ProfileVisualContract.cacheKnotsAction,
-                    clearActionText = if (state.clearingKnots) "清空中..." else ProfileVisualContract.cacheClearKnotsAction,
-                    onCache = viewModel::cacheKnots,
-                    onClear = viewModel::clearKnotCache,
-                    cacheEnabled = !busy,
-                    clearEnabled = !busy && state.status.cachedKnotCount > 0,
+                    cacheActionText = when {
+                        isKnotCache && state.cachingKnots -> "缓存中..."
+                        isKnotCache -> ProfileVisualContract.cacheKnotsAction
+                        else -> ProfileVisualContract.autoCacheAction
+                    },
+                    clearActionText = when {
+                        isKnotCache && state.clearingKnots -> "清空中..."
+                        !isKnotCache && state.clearingVisitedData -> "清空中..."
+                        isKnotCache -> ProfileVisualContract.cacheClearKnotsAction
+                        else -> ProfileVisualContract.cacheClearVisitedDataAction
+                    },
+                    onCache = if (isKnotCache) viewModel::cacheKnots else ({ }),
+                    onClear = if (isKnotCache) viewModel::clearKnotCache else viewModel::clearVisitedDataCache,
+                    cacheEnabled = !busy && isKnotCache,
+                    clearEnabled = !busy && if (isKnotCache) state.status.cachedKnotCount > 0 else state.offlineStatus.cachedResponseCount > 0,
                 )
             }
             state.message?.let { message ->

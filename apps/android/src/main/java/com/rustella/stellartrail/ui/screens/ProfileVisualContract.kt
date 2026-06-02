@@ -77,11 +77,15 @@ object ProfileVisualContract {
     const val deleteSelectedAction = "删除选中缓存"
     const val cacheKnotsAction = "缓存绳结"
     const val cacheClearKnotsAction = "清空绳结"
+    const val autoCacheAction = "自动缓存"
+    const val cacheClearVisitedDataAction = "清空数据"
     val cacheItems = listOf(
         ProfileCacheItem(ProfileCacheKind.Knots, "绳", "绳结缓存", "常用绳结列表和详情可离线查看。"),
+        ProfileCacheItem(ProfileCacheKind.VisitedData, "数", "已访问数据", "在线浏览过的页面数据可离线查看。"),
     )
 
     fun knotCacheStatusLabel(count: Int): String = if (count > 0) "已缓存 $count 个" else "未缓存"
+    fun visitedDataCacheStatusLabel(count: Int): String = if (count > 0) "已缓存 $count 条" else "未缓存"
 
     const val aboutTitle = "更多信息"
     const val aboutBrandEyebrow = "寻径星野"
@@ -154,11 +158,13 @@ object ProfileVisualContract {
             deleteSelectedAction,
             cacheKnotsAction,
             cacheClearKnotsAction,
+            autoCacheAction,
+            cacheClearVisitedDataAction,
             debugDefaultEndpointLabel,
             debugCustomEndpointLabel,
         ) +
             helpItems.flatMap { listOf(it.title, it.description) } +
-            listOf(knotCacheStatusLabel(0), knotCacheStatusLabel(3)) +
+            listOf(knotCacheStatusLabel(0), knotCacheStatusLabel(3), visitedDataCacheStatusLabel(0), visitedDataCacheStatusLabel(3)) +
             cacheItems.flatMap { listOf(it.icon, it.title, it.description) } +
             aboutIntroItems.flatMap { listOf(it.icon, it.title, it.description) } +
             aboutItems.flatMap { listOf(it.title, it.description) } +

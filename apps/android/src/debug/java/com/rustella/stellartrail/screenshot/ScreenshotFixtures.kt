@@ -6,6 +6,8 @@ import com.rustella.stellartrail.core.config.AppConfig
 import com.rustella.stellartrail.core.config.AppConfigStore
 import com.rustella.stellartrail.core.config.InMemoryAppConfigStore
 import com.rustella.stellartrail.core.network.ApiClient
+import com.rustella.stellartrail.core.network.InMemoryOfflineHttpCacheStore
+import com.rustella.stellartrail.core.network.OfflineHttpCacheStore
 import com.rustella.stellartrail.core.session.InMemorySessionStore
 import com.rustella.stellartrail.core.session.SessionStore
 import com.rustella.stellartrail.core.theme.InMemoryThemeRepository
@@ -151,6 +153,7 @@ private class FixtureAppContainer(
         AppConfig(baseUrl = "https://fixture.stellartrail.local", assetsBaseUrl = "https://assets.stellartrail.local"),
     )
     override val themeRepository: ThemeRepository = InMemoryThemeRepository(ThemeMode.LIGHT)
+    override val offlineHttpCacheStore: OfflineHttpCacheStore = InMemoryOfflineHttpCacheStore()
     override val apiClient: ApiClient = ApiClient(configProvider = { configStore.config.value })
     override val authRepository: AuthRepositoryContract = FixtureAuthRepository(sessionStore)
     override val gearRepository: GearRepositoryContract = FixtureGearRepository()

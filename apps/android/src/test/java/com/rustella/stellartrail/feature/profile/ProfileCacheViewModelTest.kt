@@ -1,5 +1,6 @@
 package com.rustella.stellartrail.feature.profile
 
+import com.rustella.stellartrail.core.network.InMemoryOfflineHttpCacheStore
 import com.rustella.stellartrail.data.skills.KnotCacheStatus
 import com.rustella.stellartrail.data.skills.SkillRepositoryContract
 import com.rustella.stellartrail.domain.skills.KnotDetail
@@ -42,7 +43,7 @@ class ProfileCacheViewModelTest {
     @Test
     fun enterSelectionModeStartsWithEmptySelection() = runTest {
         val repository = FakeSkillRepository()
-        val viewModel = ProfileCacheViewModel(repository)
+        val viewModel = createViewModel(repository)
 
         viewModel.enterSelectionMode()
 
@@ -54,23 +55,23 @@ class ProfileCacheViewModelTest {
     @Test
     fun selectAllAndInvertSelectionUpdateSelectedKinds() = runTest {
         val repository = FakeSkillRepository()
-        val viewModel = ProfileCacheViewModel(repository)
+        val viewModel = createViewModel(repository)
 
         viewModel.enterSelectionMode()
         viewModel.selectAllCacheKinds()
-        assertEquals(setOf(ProfileCacheKind.Knots), viewModel.state.value.selectedCacheKinds)
+        assertEquals(setOf(ProfileCacheKind.Knots, ProfileCacheKind.VisitedData), viewModel.state.value.selectedCacheKinds)
 
         viewModel.invertCacheSelection()
         assertEquals(emptySet<ProfileCacheKind>(), viewModel.state.value.selectedCacheKinds)
 
         viewModel.invertCacheSelection()
-        assertEquals(setOf(ProfileCacheKind.Knots), viewModel.state.value.selectedCacheKinds)
+        assertEquals(setOf(ProfileCacheKind.Knots, ProfileCacheKind.VisitedData), viewModel.state.value.selectedCacheKinds)
     }
 
     @Test
     fun emptySelectionDoesNotCallRepository() = runTest {
         val repository = FakeSkillRepository(KnotCacheStatus(cachedKnotCount = 2, lastUpdatedAtMillis = 1000L))
-        val viewModel = ProfileCacheViewModel(repository)
+        val viewModel = createViewModel(repository)
 
         viewModel.enterSelectionMode()
         viewModel.cacheSelectedCaches()
@@ -85,7 +86,7 @@ class ProfileCacheViewModelTest {
     @Test
     fun cacheSelectedKnotsUpdatesStatusAndMessage() = runTest {
         val repository = FakeSkillRepository()
-        val viewModel = ProfileCacheViewModel(repository)
+        val viewModel = createViewModel(repository)
 
         viewModel.enterSelectionMode()
         viewModel.toggleCacheKind(ProfileCacheKind.Knots)
@@ -102,7 +103,7 @@ class ProfileCacheViewModelTest {
     @Test
     fun deleteSelectedKnotsUpdatesStatusAndMessage() = runTest {
         val repository = FakeSkillRepository(KnotCacheStatus(cachedKnotCount = 2, lastUpdatedAtMillis = 1000L))
-        val viewModel = ProfileCacheViewModel(repository)
+        val viewModel = createViewModel(repository)
 
         viewModel.enterSelectionMode()
         viewModel.toggleCacheKind(ProfileCacheKind.Knots)
@@ -119,7 +120,7 @@ class ProfileCacheViewModelTest {
     @Test
     fun cacheKnotsUpdatesItemStatusAndMessage() = runTest {
         val repository = FakeSkillRepository()
-        val viewModel = ProfileCacheViewModel(repository)
+        val viewModel = createViewModel(repository)
 
         viewModel.cacheKnots()
         advanceUntilIdle()
@@ -134,7 +135,7 @@ class ProfileCacheViewModelTest {
     @Test
     fun clearKnotCacheUpdatesItemStatusAndMessage() = runTest {
         val repository = FakeSkillRepository(KnotCacheStatus(cachedKnotCount = 2, lastUpdatedAtMillis = 1000L))
-        val viewModel = ProfileCacheViewModel(repository)
+        val viewModel = createViewModel(repository)
 
         viewModel.clearKnotCache()
         advanceUntilIdle()
@@ -145,6 +146,45 @@ class ProfileCacheViewModelTest {
         assertEquals("绳结缓存已清空。", state.message)
         assertFalse(state.clearingKnots)
     }
+
+    @Test
+    fun clearVisitedDataCacheUpdatesStatusAndMessage() = runTest {
+        val repository = FakeSkillRepository()
+        val offlineCacheStore = InMemoryOfflineHttpCacheStore()
+        offlineCacheStore.write("key", """{"status":"ok"}""")
+        val viewModel = createViewModel(repository, offlineCacheStore)
+
+        viewModel.clearVisitedDataCache()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(0, state.offlineStatus.cachedResponseCount)
+        assertEquals("已访问数据缓存已清空。", state.message)
+        assertFalse(state.clearingVisitedData)
+    }
+
+    @Test
+    fun deleteSelectedVisitedDataClearsOfflineCache() = runTest {
+        val repository = FakeSkillRepository()
+        val offlineCacheStore = InMemoryOfflineHttpCacheStore()
+        offlineCacheStore.write("key", """{"status":"ok"}""")
+        val viewModel = createViewModel(repository, offlineCacheStore)
+
+        viewModel.enterSelectionMode()
+        viewModel.toggleCacheKind(ProfileCacheKind.VisitedData)
+        viewModel.deleteSelectedCaches()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(0, repository.clearCalls)
+        assertEquals(0, state.offlineStatus.cachedResponseCount)
+        assertEquals("已删除选中缓存。", state.message)
+    }
+
+    private fun createViewModel(
+        repository: FakeSkillRepository,
+        offlineCacheStore: InMemoryOfflineHttpCacheStore = InMemoryOfflineHttpCacheStore(),
+    ): ProfileCacheViewModel = ProfileCacheViewModel(repository, offlineCacheStore)
 
     private class FakeSkillRepository(
         initialStatus: KnotCacheStatus = KnotCacheStatus(),

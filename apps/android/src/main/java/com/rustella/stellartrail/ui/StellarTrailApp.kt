@@ -489,7 +489,7 @@ private fun AuthenticatedApp(
             }
             composable(AppRoutes.PROFILE_CACHE) {
                 val viewModel: ProfileCacheViewModel = viewModel(factory = viewModelFactory {
-                    ProfileCacheViewModel(container.skillRepository)
+                    ProfileCacheViewModel(container.skillRepository, container.offlineHttpCacheStore)
                 })
                 ProfileCacheScreen(
                     viewModel = viewModel,

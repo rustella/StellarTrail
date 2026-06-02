@@ -4,6 +4,8 @@ import android.content.Context
 import com.rustella.stellartrail.core.config.AndroidAppConfigStore
 import com.rustella.stellartrail.core.config.AppConfigStore
 import com.rustella.stellartrail.core.network.ApiClient
+import com.rustella.stellartrail.core.network.AndroidOfflineHttpCacheStore
+import com.rustella.stellartrail.core.network.OfflineHttpCacheStore
 import com.rustella.stellartrail.core.session.AndroidSessionStore
 import com.rustella.stellartrail.core.session.SessionStore
 import com.rustella.stellartrail.core.theme.AndroidThemeRepository
@@ -35,6 +37,7 @@ interface AppContainer {
     val configStore: AppConfigStore
     val sessionStore: SessionStore
     val themeRepository: ThemeRepository
+    val offlineHttpCacheStore: OfflineHttpCacheStore
     val apiClient: ApiClient
     val authRepository: AuthRepositoryContract
     val gearRepository: GearRepositoryContract
@@ -49,12 +52,15 @@ class DefaultAppContainer(context: Context) : AppContainer {
     override val configStore: AppConfigStore = AndroidAppConfigStore(context.applicationContext)
     override val sessionStore: SessionStore = AndroidSessionStore(context.applicationContext)
     override val themeRepository: ThemeRepository = AndroidThemeRepository(context.applicationContext)
+    override val offlineHttpCacheStore: OfflineHttpCacheStore = AndroidOfflineHttpCacheStore(context.applicationContext)
     override val apiClient: ApiClient = ApiClient(
         configProvider = { configStore.config.value },
         tokenProvider = { sessionStore.currentToken() },
         refreshTokenProvider = { sessionStore.currentRefreshToken() },
         sessionRefreshHandler = { sessionStore.save(it) },
         sessionExpiredHandler = { sessionStore.clear() },
+        offlineCacheStore = offlineHttpCacheStore,
+        cacheScopeProvider = { sessionStore.session.value?.user?.id ?: "guest" },
     )
     override val authRepository: AuthRepositoryContract = AuthRepository(AuthApi(apiClient), sessionStore)
     override val gearRepository: GearRepositoryContract = GearRepository(GearApi(apiClient))
