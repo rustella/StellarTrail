@@ -56,7 +56,7 @@ object ProfileVisualContract {
         ProfileHelpItem("关", "关于", "版本、路线图与寻径星野介绍。", ProfileHelpAction.AboutHub),
     )
 
-    const val aboutTitle = "关于"
+    const val aboutTitle = "更多信息"
     const val aboutBrandEyebrow = "寻径星野"
     const val aboutBrandTitle = "关于寻径星野"
     const val aboutBrandDescription = "把每次出发前的准备，整理得更安心。"

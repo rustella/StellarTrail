@@ -33,7 +33,7 @@ class ProfileVisualContractTest {
 
     @Test
     fun aboutPageCollectsRoadmapVersionAndBrandIntro() {
-        assertEquals("关于", ProfileVisualContract.aboutTitle)
+        assertEquals("更多信息", ProfileVisualContract.aboutTitle)
         assertEquals("寻径星野", ProfileVisualContract.aboutBrandEyebrow)
         assertEquals("关于寻径星野", ProfileVisualContract.aboutBrandTitle)
         assertEquals("把每次出发前的准备，整理得更安心。", ProfileVisualContract.aboutBrandDescription)

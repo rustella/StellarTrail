@@ -37,6 +37,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rustella.stellartrail.core.theme.ThemeMode
 import com.rustella.stellartrail.domain.auth.LoginUser
@@ -118,9 +119,9 @@ fun ProfileAboutScreen(
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
                     Text(
                         ProfileVisualContract.aboutBrandEyebrow,
                         color = currentTrailPalette().brandSoftText,
@@ -129,15 +130,17 @@ fun ProfileAboutScreen(
                     )
                     Text(ProfileVisualContract.aboutBrandTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
                 }
-                CompactPillAction("返回", onBack, filled = false)
+                ProfileAboutBackAction(onBack)
             }
             Text(
                 ProfileVisualContract.aboutBrandDescription,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
-            ProfileVisualContract.aboutIntroItems.forEach { item ->
-                ProfileAboutIntroRow(item)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProfileVisualContract.aboutIntroItems.forEach { item ->
+                    ProfileAboutIntroRow(item)
+                }
             }
         }
         SurfaceCard {
@@ -157,6 +160,22 @@ fun ProfileAboutScreen(
     }
     dialog?.let { action ->
         ProfileAboutInfoDialog(action = action, onDismiss = { dialog = null })
+    }
+}
+
+@Composable
+private fun ProfileAboutBackAction(onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .clickable(onClick = onBack)
+            .semantics { contentDescription = "返回" }
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("‹", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+        Text("返回", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -327,25 +346,25 @@ private fun ProfileAboutIntroRow(item: ProfileAboutIntroItem) {
             .fillMaxWidth()
             .clip(TrailInnerCardShape)
             .background(palette.controlBackground)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 9.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Box(
             modifier = Modifier
+                .size(32.dp)
                 .clip(TrailInnerCardShape)
-                .background(palette.brandSoft)
-                .padding(horizontal = 8.dp, vertical = 5.dp),
+                .background(palette.brandSoft),
             contentAlignment = Alignment.Center,
         ) {
-            Text(item.icon, color = palette.brandSoftText, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold)
+            Text(item.icon, color = palette.brandSoftText, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.ExtraBold)
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
             Text(
                 item.description,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
             )
         }
     }
