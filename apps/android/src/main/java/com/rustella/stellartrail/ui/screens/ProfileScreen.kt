@@ -19,8 +19,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -173,15 +176,23 @@ fun ProfileCacheScreen(
                         )
                     }
                 } else {
-                    CompactPillAction(
-                        text = "☑",
-                        onClick = viewModel::enterSelectionMode,
+                    Box(
                         modifier = Modifier.semantics {
                             contentDescription = ProfileVisualContract.cacheSelectAction
-                        },
-                        filled = false,
-                        enabled = !busy,
-                    )
+                        }
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(palette.softControlBackground)
+                            .clickable(enabled = !busy, onClick = viewModel::enterSelectionMode),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Filled.Menu,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             if (state.selectionMode) {
