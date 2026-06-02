@@ -56,6 +56,7 @@ interface AuthRepositoryContract {
     suspend fun createCaptcha(account: String): CaptchaChallengeResponse
     suspend fun login(account: String, password: String, captchaTicket: String? = null, captchaAnswer: String? = null): LoginResponse
     suspend fun register(request: RegisterRequest): LoginResponse
+    fun updateSessionUser(user: LoginUser) {}
     fun logout()
 }
 
@@ -186,6 +187,10 @@ class AuthRepository(
         )
         sessionStore.session.value?.copy(user = response.user)?.let(sessionStore::save)
         return response.user
+    }
+
+    override fun updateSessionUser(user: LoginUser) {
+        sessionStore.session.value?.copy(user = user)?.let(sessionStore::save)
     }
 
     override suspend fun createCaptcha(account: String): CaptchaChallengeResponse =

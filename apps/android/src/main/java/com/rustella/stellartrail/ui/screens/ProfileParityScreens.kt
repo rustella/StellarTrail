@@ -64,6 +64,7 @@ import com.rustella.stellartrail.feature.profile.OutdoorProfileViewModel
 import com.rustella.stellartrail.feature.profile.ProfileSettingsViewModel
 import com.rustella.stellartrail.feature.profile.RoadmapViewModel
 import com.rustella.stellartrail.feature.profile.toForm
+import com.rustella.stellartrail.ui.common.AvatarImage
 import com.rustella.stellartrail.ui.common.Badge
 import com.rustella.stellartrail.ui.common.BadgeTone
 import com.rustella.stellartrail.ui.common.CompactPillAction
@@ -428,6 +429,9 @@ fun ProfileSettingsScreen(
     val user = session?.user
     val palette = currentTrailPalette()
     val context = LocalContext.current
+    LaunchedEffect(user?.id) {
+        viewModel.refreshCurrentProfile()
+    }
     LaunchedEffect(actionState.phoneBindingCompleted, actionState.phoneNotice, phoneSheet) {
         if (phoneSheet && actionState.phoneBindingCompleted) {
             Toast.makeText(context, actionState.phoneNotice ?: "绑定完成", Toast.LENGTH_SHORT).show()
@@ -590,15 +594,14 @@ fun ProfileSettingsScreen(
 private fun SettingsHero(user: LoginUser?) {
     SurfaceCard {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(58.dp)
-                    .clip(CircleShape)
-                    .background(currentTrailPalette().brandSoft),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(user.avatarInitial(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-            }
+            AvatarImage(
+                avatarUrl = user?.avatarUrl,
+                fallbackText = user.avatarInitial(),
+                modifier = Modifier.size(58.dp),
+                backgroundColor = currentTrailPalette().brandSoft,
+                contentColor = currentTrailPalette().brand,
+                textStyle = MaterialTheme.typography.titleLarge,
+            )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(user.displayName(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
                 Text(user.contactSummary(), color = MaterialTheme.colorScheme.onSurfaceVariant)

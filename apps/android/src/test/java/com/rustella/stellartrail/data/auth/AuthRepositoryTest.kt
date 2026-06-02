@@ -4,6 +4,7 @@ import com.rustella.stellartrail.core.config.AppConfig
 import com.rustella.stellartrail.core.network.ApiClient
 import com.rustella.stellartrail.core.session.InMemorySessionStore
 import com.rustella.stellartrail.domain.auth.LoginResponse
+import com.rustella.stellartrail.domain.auth.LoginUser
 import com.rustella.stellartrail.domain.auth.SmsRegisterRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -95,6 +96,26 @@ class AuthRepositoryTest {
 
         assertEquals("13900000000", user.phone)
         assertEquals("13900000000", repository.session.value?.user?.phone)
+    }
+
+    @Test
+    fun updateSessionUserStoresLatestAvatarUrl() {
+        val sessionStore = InMemorySessionStore()
+        sessionStore.save(ApiClient.defaultJson.decodeFromString<LoginResponse>(loginJson))
+        val repository = repository(sessionStore) { respondJson(loginJson) }
+
+        repository.updateSessionUser(
+            LoginUser(
+                id = "user-1",
+                username = "trail_user",
+                email = "trail@example.test",
+                phone = "13800000000",
+                nickname = "星野徒步者",
+                avatarUrl = "https://assets.example.test/users/user-1/avatar.png",
+            ),
+        )
+
+        assertEquals("https://assets.example.test/users/user-1/avatar.png", repository.session.value?.user?.avatarUrl)
     }
 
     private fun repository(

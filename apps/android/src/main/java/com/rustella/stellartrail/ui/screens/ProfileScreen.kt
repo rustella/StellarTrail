@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,7 @@ import com.rustella.stellartrail.domain.auth.LoginUser
 import com.rustella.stellartrail.domain.auth.UserSession
 import com.rustella.stellartrail.feature.profile.ProfileCacheViewModel
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
+import com.rustella.stellartrail.ui.common.AvatarImage
 import com.rustella.stellartrail.ui.common.CompactPillAction
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SoftPillButton
@@ -67,6 +69,9 @@ fun ProfileScreen(
     val session by viewModel.session.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     var dialog by remember { mutableStateOf<ProfileHelpAction?>(null) }
+    LaunchedEffect(session?.user?.id) {
+        viewModel.refreshCurrentProfile()
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -391,20 +396,14 @@ private fun ProfileAccountCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(currentTrailPalette().brand),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = user.avatarInitial(),
-                    color = currentTrailPalette().brandText,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-            }
+            AvatarImage(
+                avatarUrl = user?.avatarUrl,
+                fallbackText = user.avatarInitial(),
+                modifier = Modifier.size(48.dp),
+                backgroundColor = currentTrailPalette().brand,
+                contentColor = currentTrailPalette().brandText,
+                textStyle = MaterialTheme.typography.titleMedium,
+            )
             Column(
                 modifier = Modifier
                     .weight(1f)

@@ -477,7 +477,7 @@ private fun AuthenticatedApp(
             }
             composable(AppRoutes.PROFILE) {
                 val viewModel: ProfileViewModel = viewModel(factory = viewModelFactory {
-                    ProfileViewModel(container.authRepository, container.themeRepository, container.configStore)
+                    ProfileViewModel(container.authRepository, container.themeRepository, container.configStore, container.profileRepository)
                 })
                 ProfileScreen(
                     viewModel = viewModel,
@@ -534,7 +534,7 @@ private fun AuthenticatedApp(
             }
             composable(AppRoutes.PROFILE_SETTINGS) {
                 val viewModel: ProfileSettingsViewModel = viewModel(factory = viewModelFactory {
-                    ProfileSettingsViewModel(container.authRepository, container.themeRepository, container.configStore)
+                    ProfileSettingsViewModel(container.authRepository, container.themeRepository, container.configStore, container.profileRepository)
                 })
                 ProfileSettingsScreen(
                     viewModel = viewModel,

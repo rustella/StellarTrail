@@ -341,6 +341,7 @@ class ProfileSettingsViewModel(
     private val authRepository: AuthRepositoryContract,
     private val themeRepository: ThemeRepository,
     private val appConfigStore: AppConfigStore,
+    private val profileRepository: ProfileRepositoryContract? = null,
 ) : ViewModel() {
     val session = authRepository.session
     val theme: StateFlow<ThemeMode> = themeRepository.theme
@@ -361,6 +362,16 @@ class ProfileSettingsViewModel(
     }
 
     fun logout() = authRepository.logout()
+
+    fun refreshCurrentProfile() {
+        if (session.value == null) return
+        val repository = profileRepository ?: return
+        viewModelScope.launch {
+            runCatching { repository.currentProfile() }.onSuccess { response ->
+                authRepository.updateSessionUser(response.user)
+            }
+        }
+    }
 
     fun clearMessages() {
         _actionState.update {
