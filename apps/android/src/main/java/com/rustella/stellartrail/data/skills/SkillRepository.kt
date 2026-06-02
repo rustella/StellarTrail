@@ -96,7 +96,7 @@ class SkillRepository(
             categories = categories,
             types = types,
             media = media,
-            href = href,
+            href = href ?: "$KNOT_DETAIL_PATH_PREFIX$id",
             aliases = aliases,
         )
 
@@ -116,5 +116,6 @@ class SkillRepository(
 
     private companion object {
         const val KNOT_CACHE_PAGE_LIMIT = 100
+        const val KNOT_DETAIL_PATH_PREFIX = "/api/v1/skills/knots/detail/"
     }
 }

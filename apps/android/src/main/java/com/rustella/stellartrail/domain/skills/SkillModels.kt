@@ -113,7 +113,7 @@ data class KnotDetail(
     val categories: List<KnotTaxonomyItem> = emptyList(),
     val types: List<KnotTaxonomyItem> = emptyList(),
     val media: List<KnotMediaAsset> = emptyList(),
-    val href: String,
+    val href: String? = null,
     val description: String? = null,
     val steps: List<String> = emptyList(),
     val locale: SkillLocale,
