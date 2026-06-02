@@ -20,6 +20,8 @@ class ProfileVisualContractTest {
             listOf("缓存", "意见反馈", "关于"),
             items.map { it.title },
         )
+        assertEquals(setOf(ProfileHelpAction.Feedback), ProfileVisualContract.dialogHelpActions)
+        assertFalse(ProfileVisualContract.dialogHelpActions.contains(ProfileHelpAction.Cache))
         assertEquals(
             listOf(
                 ProfileHelpAction.Cache,
@@ -29,6 +31,21 @@ class ProfileVisualContractTest {
             items.map { it.action },
         )
         assertFalse(items.any { it.title in listOf("我的工具", "本地调试地址", "绳结离线缓存", "产品路线图", "版本信息", "关于寻径星野") })
+    }
+
+    @Test
+    fun cachePageHasDedicatedContentInsteadOfDialogCopy() {
+        assertEquals("缓存", ProfileVisualContract.cacheTitle)
+        assertEquals("管理可离线查看的内容。", ProfileVisualContract.cacheDescription)
+        assertEquals("可离线内容", ProfileVisualContract.cacheSectionTitle)
+        assertEquals(
+            listOf("绳结缓存"),
+            ProfileVisualContract.cacheItems.map { it.title },
+        )
+        assertEquals(
+            listOf("已支持"),
+            ProfileVisualContract.cacheItems.map { it.status },
+        )
     }
 
     @Test

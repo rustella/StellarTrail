@@ -30,6 +30,7 @@ object AppRoutes {
     const val SKILLS = "skills"
     const val SKILL_DETAIL = "skills/{id}"
     const val PROFILE = "profile"
+    const val PROFILE_CACHE = "profile/cache"
     const val PROFILE_ABOUT = "profile/about"
     const val PROFILE_ROADMAP = "profile/roadmap"
     const val PROFILE_OUTDOOR = "profile/outdoor"

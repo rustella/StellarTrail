@@ -28,6 +28,13 @@ data class ProfileAboutIntroItem(
     val description: String,
 )
 
+data class ProfileCacheItem(
+    val icon: String,
+    val title: String,
+    val description: String,
+    val status: String,
+)
+
 enum class ProfileAboutAction {
     Roadmap,
     VersionInfo,
@@ -54,6 +61,15 @@ object ProfileVisualContract {
         ProfileHelpItem("存", "缓存", "管理可离线查看的内容。", ProfileHelpAction.Cache),
         ProfileHelpItem("馈", "意见反馈", "告诉我们遇到的问题或想要的功能。", ProfileHelpAction.Feedback),
         ProfileHelpItem("关", "关于", "版本、路线图与寻径星野介绍。", ProfileHelpAction.AboutHub),
+    )
+
+    val dialogHelpActions = setOf(ProfileHelpAction.Feedback)
+
+    const val cacheTitle = "缓存"
+    const val cacheDescription = "管理可离线查看的内容。"
+    const val cacheSectionTitle = "可离线内容"
+    val cacheItems = listOf(
+        ProfileCacheItem("绳", "绳结缓存", "常用绳结详情和动图可离线查看。", "已支持"),
     )
 
     const val aboutTitle = "更多信息"
@@ -85,9 +101,9 @@ object ProfileVisualContract {
     )
 
     fun helpDialog(action: ProfileHelpAction): Pair<String, String> = when (action) {
-        ProfileHelpAction.Cache -> "缓存" to "当前支持常用绳结内容，更多类型会统一在这里管理。"
         ProfileHelpAction.Feedback -> "意见反馈" to "可以告诉我们遇到的问题，或留下你希望改进的功能。"
-        ProfileHelpAction.AboutHub -> aboutBrandTitle to aboutBrandDescription
+        ProfileHelpAction.Cache,
+        ProfileHelpAction.AboutHub -> error("No dialog copy is defined for $action")
     }
 
     fun aboutDialog(action: ProfileAboutAction): Pair<String, String> = when (action) {
@@ -116,13 +132,17 @@ object ProfileVisualContract {
             aboutBrandEyebrow,
             aboutBrandTitle,
             aboutBrandDescription,
+            cacheTitle,
+            cacheDescription,
+            cacheSectionTitle,
             debugDefaultEndpointLabel,
             debugCustomEndpointLabel,
         ) +
             helpItems.flatMap { listOf(it.title, it.description) } +
+            cacheItems.flatMap { listOf(it.icon, it.title, it.description, it.status) } +
             aboutIntroItems.flatMap { listOf(it.icon, it.title, it.description) } +
             aboutItems.flatMap { listOf(it.title, it.description) } +
-            ProfileHelpAction.entries.flatMap { action ->
+            dialogHelpActions.flatMap { action ->
                 val (title, body) = helpDialog(action)
                 listOf(title, body)
             } +

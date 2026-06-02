@@ -52,6 +52,7 @@ import com.rustella.stellartrail.ui.common.currentTrailPalette
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     onLogin: () -> Unit,
+    onOpenCache: () -> Unit,
     onOpenAbout: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -87,8 +88,9 @@ fun ProfileScreen(
                     item = item,
                     onClick = {
                         when (item.action) {
+                            ProfileHelpAction.Cache -> onOpenCache()
                             ProfileHelpAction.AboutHub -> onOpenAbout()
-                            else -> dialog = item.action
+                            ProfileHelpAction.Feedback -> dialog = item.action
                         }
                     },
                 )
@@ -97,6 +99,49 @@ fun ProfileScreen(
     }
     dialog?.let { action ->
         ProfileInfoDialog(action = action, onDismiss = { dialog = null })
+    }
+}
+
+@Composable
+fun ProfileCacheScreen(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        SurfaceCard {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                    Text(
+                        ProfileVisualContract.cacheTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    Text(
+                        ProfileVisualContract.cacheDescription,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                ProfileBackAction(onBack)
+            }
+        }
+        SurfaceCard {
+            Text(ProfileVisualContract.cacheSectionTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+            ProfileVisualContract.cacheItems.forEach { item ->
+                ProfileCacheRow(item)
+            }
+        }
     }
 }
 
@@ -130,7 +175,7 @@ fun ProfileAboutScreen(
                     )
                     Text(ProfileVisualContract.aboutBrandTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
                 }
-                ProfileAboutBackAction(onBack)
+                ProfileBackAction(onBack)
             }
             Text(
                 ProfileVisualContract.aboutBrandDescription,
@@ -164,7 +209,7 @@ fun ProfileAboutScreen(
 }
 
 @Composable
-private fun ProfileAboutBackAction(onBack: () -> Unit) {
+private fun ProfileBackAction(onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
@@ -335,6 +380,50 @@ private fun ProfileHelpRow(item: ProfileHelpItem, onClick: () -> Unit) {
             )
         }
         Text(">", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.ExtraBold)
+    }
+}
+
+@Composable
+private fun ProfileCacheRow(item: ProfileCacheItem) {
+    val palette = currentTrailPalette()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(TrailInnerCardShape)
+            .background(palette.controlBackground)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(TrailInnerCardShape)
+                .background(palette.brandSoft)
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(item.icon, color = palette.brandSoftText, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+            Text(
+                item.description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            item.status,
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(palette.brandSoft)
+                .padding(horizontal = 9.dp, vertical = 5.dp),
+            color = palette.brandSoftText,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.ExtraBold,
+        )
     }
 }
 
