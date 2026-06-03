@@ -69,7 +69,9 @@ async fn get_json_with_headers(
     path: &str,
     headers: &[(&str, &str)],
 ) -> (StatusCode, HeaderMap, Value) {
-    let mut builder = Request::builder().uri(path);
+    let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
+        .uri(path);
     for (name, value) in headers {
         builder = builder.header(*name, *value);
     }

@@ -55,6 +55,7 @@ class ApiClientTest {
         assertEquals("/base/healthz", request.url.encodedPath)
         assertEquals("q=trail", request.url.encodedQuery)
         assertEquals("Bearer access-token", request.headers[HttpHeaders.Authorization])
+        assertEquals("android/0.1.0", request.headers["X-StellarTrail-Client"])
     }
 
     @Test

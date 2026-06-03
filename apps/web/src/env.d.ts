@@ -1,0 +1,1 @@
+declare const __STELLARTRAIL_WEB_CLIENT_VERSION__: string;

@@ -32,7 +32,7 @@ final class MacAppEnvironment: ObservableObject {
     static func makeDefault() -> MacAppEnvironment {
         let arguments = ProcessInfo.processInfo.arguments
         let screenshotMode = arguments.contains("--stellartrail-screenshot-fixtures")
-        let settingsStore = AppSettingsStore()
+        let settingsStore = AppSettingsStore(clientConfig: ClientConfig.load(client: "mac", version: "0.1.0"))
 
         if screenshotMode {
             let fixture = FixtureRepository()

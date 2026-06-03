@@ -98,6 +98,7 @@ import type {
 
 export interface ApiClientOptions {
   baseUrl: string;
+  clientIdentity: string;
   assetsBaseUrl?: string;
   fetcher?: typeof fetch;
   accessToken?: string;
@@ -137,6 +138,7 @@ export interface AdminKnotMediaUploadInput {
 export class StellarTrailApiClient {
   private readonly baseUrl: string;
   private readonly assetsBaseUrl: string;
+  private readonly clientIdentity: string;
   private readonly fetcher: typeof fetch;
   private accessToken?: string;
   private refreshToken?: string;
@@ -149,6 +151,7 @@ export class StellarTrailApiClient {
       /\/$/,
       "",
     );
+    this.clientIdentity = options.clientIdentity.trim();
     this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
     this.accessToken = options.accessToken;
     this.refreshToken = options.refreshToken;
@@ -1474,6 +1477,7 @@ export class StellarTrailApiClient {
     locale?: AppLocale,
   ): Promise<Response> {
     const headers = new Headers(init.headers);
+    headers.set("X-StellarTrail-Client", this.clientIdentity);
     if (locale) {
       headers.set("X-StellarTrail-Locale", locale);
     }

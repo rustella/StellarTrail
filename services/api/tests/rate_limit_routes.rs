@@ -75,7 +75,10 @@ async fn send_empty(
     ip: [u8; 4],
 ) -> (StatusCode, Value, axum::http::HeaderMap) {
     let addr = SocketAddr::from((ip, 12345));
-    let mut builder = Request::builder().method(method).uri(path);
+    let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
+        .method(method)
+        .uri(path);
     if let Some(token) = token {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
     }
@@ -93,6 +96,7 @@ async fn send_empty_with_xff(
 ) -> (StatusCode, Value, axum::http::HeaderMap) {
     let addr = SocketAddr::from((direct_ip, 12345));
     let mut request = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
         .uri(path)
         .header("x-forwarded-for", x_forwarded_for)
         .body(Body::empty())
@@ -112,6 +116,7 @@ async fn send_json(
 ) -> (StatusCode, Value, axum::http::HeaderMap) {
     let addr = SocketAddr::from((ip, 12345));
     let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
         .method(method)
         .uri(path)
         .header(header::CONTENT_TYPE, "application/json");

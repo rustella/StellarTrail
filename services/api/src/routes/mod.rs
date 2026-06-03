@@ -35,7 +35,7 @@ use crate::{
     api_usage,
     config::CorsConfig,
     error::ApiError,
-    services::{rate_limit_service, request_signature_service},
+    services::{client_identity_service, rate_limit_service, request_signature_service},
     state::AppState,
 };
 
@@ -77,6 +77,8 @@ pub fn build_router(state: AppState) -> Router {
         state.clone(),
         request_signature_service::enforce_request_signature,
     );
+    let client_identity_layer =
+        axum::middleware::from_fn(client_identity_service::enforce_client_identity);
     let api_router = Router::new()
         .route("/meta", get(meta::meta))
         .merge(auth::routes())
@@ -105,6 +107,7 @@ pub fn build_router(state: AppState) -> Router {
             usage_state,
             api_usage::track_api_usage,
         ))
+        .layer(client_identity_layer)
         .layer(cors_layer)
         .with_state(state)
 }
@@ -127,6 +130,7 @@ fn build_cors_layer(config: &CorsConfig) -> CorsLayer {
         .allow_headers([
             AUTHORIZATION,
             CONTENT_TYPE,
+            HeaderName::from_static("x-stellartrail-client"),
             HeaderName::from_static("x-stellartrail-locale"),
         ]);
     if !allowed_origins.is_empty() {

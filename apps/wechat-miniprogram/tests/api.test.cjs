@@ -2470,6 +2470,7 @@ test("getKnotFilters calls the public knot filters endpoint with locale", async 
     calls.push({
       url: options.url,
       locale: options.header && options.header["X-StellarTrail-Locale"],
+      clientIdentity: options.header && options.header["X-StellarTrail-Client"],
     });
     options.success({
       statusCode: 200,
@@ -2492,6 +2493,7 @@ test("getKnotFilters calls the public knot filters endpoint with locale", async 
     {
       url: "https://api.example.test/api/v1/skills/knots/filters",
       locale: "zh-CN",
+      clientIdentity: "wechat/0.2.2",
     },
   ]);
 });

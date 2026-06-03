@@ -78,6 +78,7 @@ async fn send_json(
     body: Value,
 ) -> (StatusCode, Value) {
     let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
         .method(method)
         .uri(path)
         .header(header::CONTENT_TYPE, "application/json");
@@ -116,7 +117,10 @@ async fn send_empty_with_headers(
     token: Option<&str>,
     headers: &[(&str, &str)],
 ) -> (StatusCode, HeaderMap, Value) {
-    let mut builder = Request::builder().method(method).uri(path);
+    let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
+        .method(method)
+        .uri(path);
     if let Some(token) = token {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
     }
@@ -2026,6 +2030,7 @@ async fn gear_import_dry_run_and_export_csv_are_supported() {
         .clone()
         .oneshot(
             Request::builder()
+                .header("X-StellarTrail-Client", "web/test")
                 .method("GET")
                 .uri("/api/v1/me/gears/export?format=csv")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))

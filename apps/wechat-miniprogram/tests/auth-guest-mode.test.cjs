@@ -93,6 +93,7 @@ test("public knot list and detail requests stay unauthenticated for guest users"
   for (const request of requests) {
     assert.equal(request.header.authorization, undefined);
     assert.equal(request.header["X-StellarTrail-Locale"], "zh-CN");
+    assert.equal(request.header["X-StellarTrail-Client"], "wechat/0.2.2");
   }
 });
 

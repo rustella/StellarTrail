@@ -41,6 +41,7 @@ final class AppSettingsStore: ObservableObject {
     var preferredColorScheme: ColorScheme? { themeMode.preferredColorScheme }
     var baseURL: URL { URL(string: baseURLString) ?? URL(string: defaultClientConfig.apiBaseURLString)! }
     var assetsBaseURL: URL { URL(string: assetsBaseURLString) ?? URL(string: defaultClientConfig.assetsBaseURLString)! }
+    var clientIdentity: String { defaultClientConfig.clientIdentity }
     var domainCandidates: [ClientDomainCandidate] { defaultClientConfig.domainCandidates }
 
     private let defaults: UserDefaults

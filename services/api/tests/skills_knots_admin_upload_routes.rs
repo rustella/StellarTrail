@@ -135,6 +135,7 @@ async fn send_json(
     body: Value,
 ) -> (StatusCode, Value) {
     let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
         .method(method)
         .uri(path)
         .header(header::CONTENT_TYPE, "application/json");
@@ -159,7 +160,13 @@ async fn send_json(
 async fn json_get(app: &Router, path: &str) -> (StatusCode, Value) {
     let response = app
         .clone()
-        .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .header("X-StellarTrail-Client", "web/test")
+                .uri(path)
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let status = response.status();
@@ -247,6 +254,7 @@ async fn upload_knot_media(
     body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
 
     let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
         .method("PUT")
         .uri(format!(
             "/api/v1/admin/skills/knots/adjustable-grip-hitch-knot/media/{asset_id}"

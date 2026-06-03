@@ -151,6 +151,7 @@ async fn send_json(
     body: Value,
 ) -> (StatusCode, Value) {
     let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
         .method(method)
         .uri(path)
         .header(header::CONTENT_TYPE, "application/json");
@@ -180,6 +181,7 @@ async fn send_json_with_headers(
     body: Value,
 ) -> (StatusCode, Value, HeaderMap) {
     let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
         .method(method)
         .uri(path)
         .header(header::CONTENT_TYPE, "application/json");
@@ -300,7 +302,10 @@ async fn send_empty(
     path: &str,
     token: Option<&str>,
 ) -> (StatusCode, Value) {
-    let mut builder = Request::builder().method(method).uri(path);
+    let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
+        .method(method)
+        .uri(path);
     if let Some(token) = token {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
     }

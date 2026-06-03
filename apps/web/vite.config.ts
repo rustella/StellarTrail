@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 
 import react from "@vitejs/plugin-react";
@@ -6,6 +7,9 @@ import { defineConfig } from "vitest/config";
 
 const DEFAULT_API_PROXY_TARGET = "https://api.example.invalid";
 const envDir = fileURLToPath(new URL(".", import.meta.url));
+const packageJson = JSON.parse(
+  readFileSync(new URL("package.json", import.meta.url), "utf8"),
+) as { version?: string };
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, envDir, "");
@@ -16,6 +20,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    define: {
+      __STELLARTRAIL_WEB_CLIENT_VERSION__: JSON.stringify(
+        packageJson.version ?? "0.1.0",
+      ),
+    },
     resolve: {
       alias: {
         "@stellartrail/api-client": fileURLToPath(

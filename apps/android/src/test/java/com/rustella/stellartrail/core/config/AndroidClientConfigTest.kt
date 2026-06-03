@@ -14,6 +14,13 @@ class AndroidClientConfigTest {
     }
 
     @Test
+    fun clientIdentityIsBuiltFromConfiguredClientAndVersion() {
+        assertEquals("android/0.1.0", AppConfig().clientIdentity)
+        assertEquals("android/0.1.0", buildClientIdentity(" ", " "))
+        assertEquals("android/2.0.0", buildClientIdentity(" android ", " 2.0.0 "))
+    }
+
+    @Test
     fun requestSignatureConfigUsesAndroidClientFieldNamesAndIgnoresPlaceholders() {
         assertTrue(BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_ID.isNotBlank())
         assertTrue(BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_SECRET.isNotBlank())

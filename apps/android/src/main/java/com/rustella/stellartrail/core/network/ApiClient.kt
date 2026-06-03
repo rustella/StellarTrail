@@ -375,6 +375,7 @@ class ApiClient(
                         baseUrl = candidate.apiBaseUrl,
                         assetsBaseUrl = candidate.assetsBaseUrl,
                         domainCandidates = latest.domainCandidates,
+                        clientIdentity = latest.clientIdentity,
                         requestSignature = latest.requestSignature,
                     )
                     domainProbeCompletedForBaseUrl = latest.baseUrl
@@ -386,6 +387,7 @@ class ApiClient(
                 baseUrl = fallback.apiBaseUrl,
                 assetsBaseUrl = fallback.assetsBaseUrl,
                 domainCandidates = latest.domainCandidates,
+                clientIdentity = latest.clientIdentity,
                 requestSignature = latest.requestSignature,
             )
             domainProbeCompletedForBaseUrl = latest.baseUrl
@@ -405,6 +407,7 @@ class ApiClient(
         httpClient.prepareRequest(apiBaseUrl.trimEnd('/') + HEALTH_PATH) {
             method = HttpMethod.Get
             accept(ContentType.Application.Json)
+            header("X-StellarTrail-Client", configProvider().clientIdentity)
         }.execute()
     }.getOrNull()
 
@@ -425,6 +428,7 @@ class ApiClient(
     @PublishedApi
     internal fun HttpRequestBuilder.attachAuthAndDefaults(locale: SkillLocale?) {
         accept(ContentType.Application.Json)
+        header("X-StellarTrail-Client", activeConfig().clientIdentity)
         tokenProvider()?.takeIf { it.isNotBlank() }?.let { bearerAuth(it) }
         locale?.let { header("X-StellarTrail-Locale", it.headerValue) }
     }

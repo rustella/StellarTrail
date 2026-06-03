@@ -1,11 +1,13 @@
 export interface WebClientConfig {
   apiBaseUrl: string;
   assetsBaseUrl: string;
+  clientIdentity: string;
 }
 
 const DEFAULT_API_BASE_URL = "";
 const DEFAULT_ASSETS_BASE_URL = "https://assets.example.invalid";
 const LOCAL_DEV_API_BASE_URL = "";
+const WEB_CLIENT = "web";
 
 export function normalizeBaseUrl(
   value: string | undefined,
@@ -16,6 +18,13 @@ export function normalizeBaseUrl(
     /\/$/,
     "",
   );
+}
+
+export function buildClientIdentity(client: string, version: string): string {
+  const normalizedClient = client.trim() || WEB_CLIENT;
+  const normalizedVersion =
+    version.trim() || __STELLARTRAIL_WEB_CLIENT_VERSION__;
+  return `${normalizedClient}/${normalizedVersion}`;
 }
 
 export function getWebClientConfig(): WebClientConfig {
@@ -30,6 +39,11 @@ export function getWebClientConfig(): WebClientConfig {
     assetsBaseUrl: normalizeBaseUrl(
       import.meta.env.VITE_STELLARTRAIL_ASSETS_BASE_URL,
       DEFAULT_ASSETS_BASE_URL,
+    ),
+    clientIdentity: buildClientIdentity(
+      WEB_CLIENT,
+      import.meta.env.VITE_STELLARTRAIL_CLIENT_VERSION ??
+        __STELLARTRAIL_WEB_CLIENT_VERSION__,
     ),
   };
 }

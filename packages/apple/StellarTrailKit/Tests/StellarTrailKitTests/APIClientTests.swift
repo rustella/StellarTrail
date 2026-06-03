@@ -19,11 +19,33 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(settings.assetsBaseURLString, "https://assets.example.invalid")
         XCTAssertEqual(urlHost(settings.baseURL), "api.example.invalid")
         XCTAssertEqual(urlHost(settings.assetsBaseURL), "assets.example.invalid")
+        XCTAssertEqual(settings.clientIdentity, "ios/0.1.0")
         XCTAssertTrue(settings.domainCandidates.isEmpty)
         XCTAssertEqual(client.resolveAssetURL("knots/bowline.png")?.absoluteString, "https://assets.example.invalid/knots/bowline.png")
         XCTAssertEqual(client.resolveAssetURL("/knots/bowline.png")?.absoluteString, "https://assets.example.invalid/knots/bowline.png")
         XCTAssertEqual(client.resolveAssetURL("https://cdn.example.invalid/knots/bowline.png")?.absoluteString, "https://cdn.example.invalid/knots/bowline.png")
         XCTAssertEqual(client.resolveAssetURL("https://assets-alt2.example.invalid/knots/bowline.png")?.absoluteString, "https://assets-alt2.example.invalid/knots/bowline.png")
+    }
+
+    func testClientConfigBuildsClientIdentityWithFallbacks() {
+        XCTAssertEqual(
+            ClientConfig.buildClientIdentity(
+                client: " mac ",
+                version: " 0.2.0 ",
+                fallbackClient: "ios",
+                fallbackVersion: "0.1.0"
+            ),
+            "mac/0.2.0"
+        )
+        XCTAssertEqual(
+            ClientConfig.buildClientIdentity(
+                client: " ",
+                version: "\n",
+                fallbackClient: "ios",
+                fallbackVersion: "0.1.0"
+            ),
+            "ios/0.1.0"
+        )
     }
 
     func testProductionDomainProbeKeepsFirstHealthyDomainFamily() async throws {
@@ -36,6 +58,9 @@ final class APIClientTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             let url = try XCTUnwrap(request.url)
             seenRequests.append("\(urlHost(url) ?? "")\(url.path)")
+            if url.path == "/healthz" {
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-StellarTrail-Client"), "ios/0.1.0")
+            }
             switch (urlHost(url), url.path) {
             case ("api.example.invalid", "/healthz"):
                 return jsonResponse(url: url, #"{"status":"ok"}"#)
@@ -69,6 +94,9 @@ final class APIClientTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             let url = try XCTUnwrap(request.url)
             seenRequests.append("\(urlHost(url) ?? "")\(url.path)")
+            if url.path == "/healthz" {
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-StellarTrail-Client"), "ios/0.1.0")
+            }
             switch (urlHost(url), url.path) {
             case ("api.example.invalid", "/healthz"):
                 return jsonResponse(url: url, #"{"status":"down"}"#, statusCode: 503)
@@ -126,6 +154,7 @@ final class APIClientTests: XCTestCase {
             XCTAssertEqual(urlHost(request.url), "api.example.invalid")
             XCTAssertEqual(request.url?.path, "/api/v1/gear-templates")
             XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-StellarTrail-Client"), "ios/0.1.0")
             XCTAssertEqual(request.value(forHTTPHeaderField: "X-StellarTrail-Locale"), "zh-CN")
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, #"{"items":[]}"#.data(using: .utf8)!)
         }
@@ -140,6 +169,7 @@ final class APIClientTests: XCTestCase {
         let client = APIClient(settingsStore: settings, sessionStore: sessionStore, session: .mocked)
 
         MockURLProtocol.requestHandler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-StellarTrail-Client"), "ios/0.1.0")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer x")
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, #"{"current_count":0,"archived_count":0,"total_value_cents":0,"total_weight_g":0,"by_category":[],"by_status":[]}"#.data(using: .utf8)!)
         }
@@ -155,6 +185,7 @@ final class APIClientTests: XCTestCase {
         var statsAttempts = 0
 
         MockURLProtocol.requestHandler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-StellarTrail-Client"), "ios/0.1.0")
             if request.url?.path == "/api/v1/auth/refresh" {
                 XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
                 let body = requestBodyString(from: request)
@@ -279,6 +310,7 @@ final class APIClientTests: XCTestCase {
 
             XCTAssertEqual(url.scheme, "https")
             XCTAssertEqual(urlHost(url), "api.example.invalid")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-StellarTrail-Client"), "ios/0.1.0")
             XCTAssertEqual(request.value(forHTTPHeaderField: "X-StellarTrail-Locale"), "zh-CN")
             if url.path.hasPrefix("/api/v1/me/") {
                 XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer x")

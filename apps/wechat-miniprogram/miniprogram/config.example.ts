@@ -4,6 +4,10 @@ import type { ClientConfig } from "./utils/client-config";
 const config: ClientConfig = {
   apiBaseUrl: "https://api.example.invalid",
   assetsBaseUrl: "https://assets.example.invalid",
+  clientIdentity: {
+    client: "wechat",
+    version: "0.2.2",
+  },
   requestSignature: {
     app_id: "example-client-id",
     app_secret: "example-client-secret",

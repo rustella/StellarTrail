@@ -26,6 +26,9 @@ describe("createWebGearApi", () => {
       }
       expect(input).toBe("/api/v1/meta");
       expect(init).toBeDefined();
+      expect(new Headers(init?.headers).get("X-StellarTrail-Client")).toBe(
+        "web/0.1.0",
+      );
       return Promise.resolve(
         new Response(
           JSON.stringify({
@@ -52,6 +55,7 @@ describe("createWebGearApi", () => {
     const requests: Array<{
       url: string;
       authorization: string | null;
+      clientIdentity: string | null;
       body?: string;
     }> = [];
     const fetcher = vi.fn(
@@ -61,6 +65,7 @@ describe("createWebGearApi", () => {
         requests.push({
           url,
           authorization: headers.get("authorization"),
+          clientIdentity: headers.get("X-StellarTrail-Client"),
           body: typeof init?.body === "string" ? init.body : undefined,
         });
         if (
@@ -103,6 +108,7 @@ describe("createWebGearApi", () => {
 
     const client = new StellarTrailApiClient({
       baseUrl: "",
+      clientIdentity: "web/0.1.0",
       fetcher: fetcher as typeof fetch,
       accessToken: "access-old",
       refreshToken: "refresh-old",
@@ -118,10 +124,12 @@ describe("createWebGearApi", () => {
       "/api/v1/me/gears/stats?tab=available",
     ]);
     expect(requests[0].authorization).toBe("Bearer access-old");
+    expect(requests[0].clientIdentity).toBe("web/0.1.0");
     expect(requests[1].body).toBe(
       JSON.stringify({ refresh_token: "refresh-old" }),
     );
     expect(requests[2].authorization).toBe("Bearer access-new");
+    expect(requests[2].clientIdentity).toBe("web/0.1.0");
     expect(onSessionRefresh).toHaveBeenCalledWith(
       expect.objectContaining({
         access_token: "access-new",
@@ -133,6 +141,7 @@ describe("createWebGearApi", () => {
   it("surfaces the API error envelope message", async () => {
     const client = new StellarTrailApiClient({
       baseUrl: "",
+      clientIdentity: "web/0.1.0",
       fetcher: vi.fn(
         async () =>
           new Response(
@@ -183,6 +192,7 @@ describe("StellarTrailApiClient public knot requests", () => {
     );
     const client = new StellarTrailApiClient({
       baseUrl: "",
+      clientIdentity: "web/0.1.0",
       fetcher: fetcher as typeof fetch,
       accessToken: "[REDACTED]",
     });
@@ -227,6 +237,7 @@ describe("StellarTrailApiClient public knot requests", () => {
     );
     const client = new StellarTrailApiClient({
       baseUrl: "",
+      clientIdentity: "web/0.1.0",
       fetcher: fetcher as typeof fetch,
       accessToken: "[REDACTED]",
     });
@@ -268,6 +279,7 @@ describe("StellarTrailApiClient public knot requests", () => {
     );
     const client = new StellarTrailApiClient({
       baseUrl: "",
+      clientIdentity: "web/0.1.0",
       fetcher: fetcher as typeof fetch,
     });
 

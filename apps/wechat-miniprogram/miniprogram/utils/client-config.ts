@@ -3,11 +3,16 @@ export interface ClientConfig {
   assetsBaseUrl: string;
   domainCandidates?: ClientDomainCandidate[];
   requestSignature?: ClientRequestSignatureConfig;
+  clientIdentity?: ClientIdentityConfig;
 }
 
-export interface ResolvedClientConfig extends ClientConfig {
+export interface ResolvedClientConfig extends Omit<
+  ClientConfig,
+  "clientIdentity"
+> {
   domainCandidates: ClientDomainCandidate[];
   requestSignature?: ClientRequestSignatureConfig;
+  clientIdentity: string;
 }
 
 export interface ClientDomainCandidate {
@@ -21,10 +26,16 @@ export interface ClientRequestSignatureConfig {
   app_secret: string;
 }
 
+export interface ClientIdentityConfig {
+  client?: string;
+  version?: string;
+}
+
 const DEFAULT_CONFIG: ResolvedClientConfig = {
   apiBaseUrl: "https://api.example.invalid",
   assetsBaseUrl: "https://assets.example.invalid",
   domainCandidates: [],
+  clientIdentity: "wechat/0.2.2",
 };
 
 declare const require:
@@ -66,9 +77,16 @@ export function loadClientConfig(): ResolvedClientConfig {
   return {
     apiBaseUrl,
     assetsBaseUrl,
+    clientIdentity: normalizeClientIdentity(local.clientIdentity),
     requestSignature: normalizeRequestSignature(local.requestSignature),
     domainCandidates: resolveDomainCandidates(local, apiBaseUrl, assetsBaseUrl),
   };
+}
+
+function normalizeClientIdentity(config?: ClientIdentityConfig): string {
+  const client = config?.client?.trim() || "wechat";
+  const version = config?.version?.trim() || "0.2.2";
+  return `${client}/${version}`;
 }
 
 function resolveDomainCandidates(

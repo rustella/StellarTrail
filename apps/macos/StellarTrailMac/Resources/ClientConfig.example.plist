@@ -6,6 +6,10 @@
     <string>https://api.example.invalid</string>
     <key>ASSETS_BASE_URL</key>
     <string>https://assets.example.invalid</string>
+    <key>CLIENT</key>
+    <string>mac</string>
+    <key>CLIENT_VERSION</key>
+    <string>0.1.0</string>
     <key>DOMAIN_CANDIDATES</key>
     <array/>
 </dict>
