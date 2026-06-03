@@ -24,9 +24,11 @@ stellartrail.apiBaseUrl=https://api.example.invalid
 stellartrail.assetsBaseUrl=https://assets.example.invalid
 stellartrail.domainCandidates=
 stellartrail.smsCodeCooldownSeconds=60
+app_id=example-android-client-id
+app_secret=example-android-client-secret
 ```
 
-`stellartrail.domainCandidates` 格式为 `id|apiBaseUrl|assetsBaseUrl;id|apiBaseUrl|assetsBaseUrl`。生产构建通过 GitHub Actions Secrets 写入真实配置；仓库只保留示例占位值。
+`stellartrail.domainCandidates` 格式为 `id|apiBaseUrl|assetsBaseUrl;id|apiBaseUrl|assetsBaseUrl`。`app_id` 与 `app_secret` 用于 `/api/v1/*` 请求签名；真实值只能写入 Git 忽略的 `apps/android/config.properties` 或 CI Secrets，仓库只保留示例占位值。
 
 常用 Debug 验证：
 
@@ -108,6 +110,8 @@ keytool -genkeypair \
 printf '%s' '<REAL_API_BASE_URL>' | gh secret set STELLARTRAIL_API_BASE_URL --repo rustella/StellarTrail
 printf '%s' '<REAL_ASSETS_BASE_URL>' | gh secret set STELLARTRAIL_ASSETS_BASE_URL --repo rustella/StellarTrail
 printf '%s' '<id|api|assets;id2|api2|assets2 or empty>' | gh secret set STELLARTRAIL_DOMAIN_CANDIDATES --repo rustella/StellarTrail
+printf '%s' '<ANDROID_REQUEST_SIGNATURE_APP_ID>' | gh secret set STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID --repo rustella/StellarTrail
+printf '%s' '<ANDROID_REQUEST_SIGNATURE_APP_SECRET>' | gh secret set STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET --repo rustella/StellarTrail
 ```
 
 ### 3. 设置签名 Secrets
@@ -132,6 +136,8 @@ gh secret list --repo rustella/StellarTrail
 - `STELLARTRAIL_API_BASE_URL`
 - `STELLARTRAIL_ASSETS_BASE_URL`
 - `STELLARTRAIL_DOMAIN_CANDIDATES`
+- `STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID`
+- `STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET`
 - `STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64`
 - `STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD`
 - `STELLARTRAIL_ANDROID_KEY_ALIAS`

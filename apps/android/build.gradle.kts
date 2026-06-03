@@ -80,6 +80,16 @@ android {
             quotedBuildConfigString(clientConfigValue("stellartrail.domainCandidates", "")),
         )
         buildConfigField(
+            "String",
+            "DEFAULT_REQUEST_SIGNATURE_APP_ID",
+            quotedBuildConfigString(clientConfigValue("app_id", "example-android-client-id")),
+        )
+        buildConfigField(
+            "String",
+            "DEFAULT_REQUEST_SIGNATURE_APP_SECRET",
+            quotedBuildConfigString(clientConfigValue("app_secret", "example-android-client-secret")),
+        )
+        buildConfigField(
             "int",
             "SMS_CODE_COOLDOWN_SECONDS",
             clientConfigIntValue("stellartrail.smsCodeCooldownSeconds", 60).toString(),

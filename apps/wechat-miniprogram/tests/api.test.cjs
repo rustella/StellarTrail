@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 
 function installWxMock(handler, uploadHandler, extraHandlers = {}) {
   clearCompiledUtilityModules();
@@ -25,6 +26,15 @@ function installWxMock(handler, uploadHandler, extraHandlers = {}) {
     login(options) {
       options.success({ code: "wx-login-code" });
     },
+    getRandomValues(array) {
+      if (extraHandlers.getRandomValues) {
+        return extraHandlers.getRandomValues(array);
+      }
+      for (let index = 0; index < array.length; index += 1) {
+        array[index] = index + 1;
+      }
+      return array;
+    },
     request(options) {
       handler(options, storage);
     },
@@ -32,6 +42,16 @@ function installWxMock(handler, uploadHandler, extraHandlers = {}) {
       options.success({ networkType: "wifi" });
     },
     onNetworkStatusChange() {},
+    getFileSystemManager() {
+      return {
+        readFile(options) {
+          if (!extraHandlers.readFile) {
+            throw new Error("unexpected file read");
+          }
+          extraHandlers.readFile(options, storage);
+        },
+      };
+    },
     uploadFile(options) {
       if (!uploadHandler) {
         throw new Error("unexpected wx.uploadFile call");
@@ -107,6 +127,88 @@ function productionDomainCandidates() {
   ];
 }
 
+function parseRequestUrl(url) {
+  const pathWithQuery = url.replace("https://api.example.test", "");
+  const [path, query = ""] = pathWithQuery.split("?", 2);
+  return { path, query };
+}
+
+function verifyRequestSignature({
+  url,
+  method,
+  bodyHash,
+  appId,
+  appSecret,
+  nonce,
+  signature,
+}) {
+  const { path, query } = parseRequestUrl(url);
+  const canonical = [
+    "STELLARTRAIL-HMAC-SHA256",
+    method,
+    path,
+    canonicalQueryWithoutSignature(query),
+    bodyHash,
+    appId,
+    nonce,
+  ].join("\n");
+  assert.equal(
+    signature,
+    crypto.createHmac("sha256", appSecret).update(canonical).digest("hex"),
+  );
+}
+
+function canonicalQueryWithoutSignature(query) {
+  return query
+    .split("&")
+    .filter(Boolean)
+    .map((pair) => {
+      const [key, value = ""] = pair.split("=", 2);
+      return [key, value];
+    })
+    .filter(([key]) => key !== "signature")
+    .sort(
+      ([leftKey, leftValue], [rightKey, rightValue]) =>
+        compareCanonicalText(leftKey, rightKey) ||
+        compareCanonicalText(leftValue, rightValue),
+    )
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+}
+
+function compareCanonicalText(left, right) {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
+function stableJson(value) {
+  if (value === null || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    return JSON.stringify(Number.isFinite(value) ? value : null);
+  }
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableJson(item)).join(",")}]`;
+  }
+  const entries = Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`);
+  return `{${entries.join(",")}}`;
+}
+
+function sha256Hex(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
 test("loginWithWechat persists access and refresh tokens", async () => {
   const calls = [];
   const storage = installWxMock((options) => {
@@ -156,6 +258,105 @@ test("loginWithWechat sends provided profile without default nickname", async ()
     code: "wx-login-code",
     profile: { nickname: "微信昵称" },
   });
+});
+
+test("request signature is injected into JSON requests without mutating business fields", async () => {
+  const calls = [];
+  installWxMock(
+    (options) => {
+      calls.push({
+        url: options.url,
+        method: options.method,
+        data: options.data,
+      });
+      const { path, query } = parseRequestUrl(options.url);
+      assert.equal(path, "/api/v1/auth/wechat-login");
+      assert.equal(query, "");
+      assert.equal(options.data.code, "wx-login-code");
+      assert.equal(options.data.app_id, "wechat-client");
+      assert.match(options.data.nonce, /^[a-z0-9]+-[0-9a-f]{32}$/);
+      assert.match(options.data.signature, /^[0-9a-f]{64}$/);
+      verifyRequestSignature({
+        url: options.url,
+        method: "POST",
+        bodyHash: sha256Hex(stableJson({ code: "wx-login-code" })),
+        appId: options.data.app_id,
+        appSecret: "wechat-secret",
+        nonce: options.data.nonce,
+        signature: options.data.signature,
+      });
+      options.success({
+        statusCode: 200,
+        data: loginResponse("access-signed", "refresh-signed"),
+      });
+    },
+    null,
+    {
+      globalData: {
+        requestSignature: {
+          app_id: "wechat-client",
+          app_secret: "wechat-secret",
+        },
+      },
+    },
+  );
+  const { loginWithWechat } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(loginWithWechat());
+
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(calls[0].data).filter(
+        ([key]) => !["app_id", "nonce", "signature"].includes(key),
+      ),
+    ),
+    { code: "wx-login-code" },
+  );
+});
+
+test("request signature is injected into GET query parameters", async () => {
+  installWxMock(
+    (options) => {
+      const { path, query } = parseRequestUrl(options.url);
+      const params = new URLSearchParams(query);
+      assert.equal(path, "/api/v1/client-versions");
+      assert.equal(params.get("client_key"), "wechat_miniprogram");
+      assert.equal(params.get("limit"), "20");
+      assert.equal(params.get("app_id"), "wechat-client");
+      assert.match(params.get("nonce"), /^[a-z0-9]+-[0-9a-f]{32}$/);
+      assert.match(params.get("signature"), /^[0-9a-f]{64}$/);
+      assert.equal(options.data, undefined);
+      verifyRequestSignature({
+        url: options.url,
+        method: "GET",
+        bodyHash: sha256Hex(Buffer.alloc(0)),
+        appId: params.get("app_id"),
+        appSecret: "wechat-secret",
+        nonce: params.get("nonce"),
+        signature: params.get("signature"),
+      });
+      options.success({
+        statusCode: 200,
+        data: { next_cursor: null, items: [] },
+      });
+    },
+    null,
+    {
+      globalData: {
+        requestSignature: {
+          app_id: "wechat-client",
+          app_secret: "wechat-secret",
+        },
+      },
+    },
+  );
+  const { listClientVersions } = require("../.tmp-test/utils/api.js");
+
+  const response = await listClientVersions("wechat_miniprogram", {
+    limit: 20,
+  });
+
+  assert.deepEqual(response.items, []);
 });
 
 test("updateWechatNickname keeps the stored avatar in the profile payload", async () => {
@@ -632,6 +833,74 @@ test("uploadFeedbackImage uploads an authenticated feedback attachment", async (
   assert.equal(upload.id, "upload-1");
   assert.equal(upload.purpose, "feedback");
   assert.equal(upload.download_url, "/api/v1/me/uploads/upload-1");
+});
+
+test("uploadFeedbackImage signs the raw multipart body when request signing is configured", async () => {
+  const fileBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+  const storage = installWxMock(
+    (options) => {
+      const { path, query } = parseRequestUrl(options.url);
+      const params = new URLSearchParams(query);
+      const body = Buffer.from(new Uint8Array(options.data));
+      assert.equal(path, "/api/v1/me/uploads");
+      assert.equal(options.method, "POST");
+      assert.equal(options.header.authorization, "Bearer access-old");
+      assert.match(
+        options.header["content-type"],
+        /^multipart\/form-data; boundary=StellarTrailBoundary/,
+      );
+      assert.match(body.toString("binary"), /name="purpose"\r\n\r\nfeedback/);
+      assert.match(
+        body.toString("binary"),
+        /name="file"; filename="feedback.png"/,
+      );
+      assert.equal(params.get("app_id"), "wechat-client");
+      assert.match(params.get("nonce"), /^[a-z0-9]+-[0-9a-f]{32}$/);
+      assert.match(params.get("signature"), /^[0-9a-f]{64}$/);
+      verifyRequestSignature({
+        url: options.url,
+        method: "POST",
+        bodyHash: sha256Hex(body),
+        appId: params.get("app_id"),
+        appSecret: "wechat-secret",
+        nonce: params.get("nonce"),
+        signature: params.get("signature"),
+      });
+      options.success({
+        statusCode: 201,
+        data: {
+          id: "upload-signed",
+          purpose: "feedback",
+          original_filename: "feedback.png",
+          image_type: "png",
+          content_type: "image/png",
+          size_bytes: 4,
+          sha256: "abc123",
+          download_url: "/api/v1/me/uploads/upload-signed",
+          created_at: "2026-05-20T00:00:00Z",
+        },
+      });
+    },
+    null,
+    {
+      globalData: {
+        requestSignature: {
+          app_id: "wechat-client",
+          app_secret: "wechat-secret",
+        },
+      },
+      readFile(options) {
+        assert.equal(options.filePath, "/tmp/feedback.png");
+        options.success({ data: fileBytes.buffer.slice(0) });
+      },
+    },
+  );
+  storage.set("stellartrail_access_token", "access-old");
+  const { uploadFeedbackImage } = require("../.tmp-test/utils/api.js");
+
+  const upload = await uploadFeedbackImage("/tmp/feedback.png");
+
+  assert.equal(upload.id, "upload-signed");
 });
 
 test("uploadFeedbackImage exposes readable quota validation errors", async () => {
@@ -1125,7 +1394,10 @@ test("authenticated requests refresh once on 401 and retry with the new access t
       assert.deepEqual(options.data, { refresh_token: "refresh-old" });
       options.success({
         statusCode: 200,
-        data: loginResponse("access-new", "refresh-new"),
+        data: {
+          ...loginResponse("access-new", "refresh-new"),
+          expires_at: "2026-07-01T00:00:00Z",
+        },
       });
       return;
     }
@@ -1145,6 +1417,7 @@ test("authenticated requests refresh once on 401 and retry with the new access t
     options.success({ statusCode: 404, data: { message: "not found" } });
   });
   storage.set("stellartrail_access_token", "access-old");
+  storage.set("stellartrail_access_token_expires_at", "2026-07-01T00:00:00Z");
   storage.set("stellartrail_refresh_token", "refresh-old");
   const { getGearStats } = require("../.tmp-test/utils/api.js");
 

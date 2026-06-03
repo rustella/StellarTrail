@@ -2,16 +2,23 @@ export interface ClientConfig {
   apiBaseUrl: string;
   assetsBaseUrl: string;
   domainCandidates?: ClientDomainCandidate[];
+  requestSignature?: ClientRequestSignatureConfig;
 }
 
 export interface ResolvedClientConfig extends ClientConfig {
   domainCandidates: ClientDomainCandidate[];
+  requestSignature?: ClientRequestSignatureConfig;
 }
 
 export interface ClientDomainCandidate {
   id: string;
   apiBaseUrl: string;
   assetsBaseUrl: string;
+}
+
+export interface ClientRequestSignatureConfig {
+  app_id: string;
+  app_secret: string;
 }
 
 const DEFAULT_CONFIG: ResolvedClientConfig = {
@@ -59,6 +66,7 @@ export function loadClientConfig(): ResolvedClientConfig {
   return {
     apiBaseUrl,
     assetsBaseUrl,
+    requestSignature: normalizeRequestSignature(local.requestSignature),
     domainCandidates: resolveDomainCandidates(local, apiBaseUrl, assetsBaseUrl),
   };
 }
@@ -87,4 +95,15 @@ function normalizeDomainCandidates(
       (candidate) =>
         candidate.id && candidate.apiBaseUrl && candidate.assetsBaseUrl,
     );
+}
+
+function normalizeRequestSignature(
+  config: ClientRequestSignatureConfig | undefined,
+): ClientRequestSignatureConfig | undefined {
+  const app_id = config?.app_id?.trim();
+  const app_secret = config?.app_secret?.trim();
+  if (!app_id || !app_secret) {
+    return undefined;
+  }
+  return { app_id, app_secret };
 }

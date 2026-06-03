@@ -50,16 +50,22 @@ jobs:
           STELLARTRAIL_API_BASE_URL: ${{ secrets.STELLARTRAIL_API_BASE_URL }}
           STELLARTRAIL_ASSETS_BASE_URL: ${{ secrets.STELLARTRAIL_ASSETS_BASE_URL }}
           STELLARTRAIL_DOMAIN_CANDIDATES: ${{ secrets.STELLARTRAIL_DOMAIN_CANDIDATES }}
+          STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID: ${{ secrets.STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID }}
+          STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET: ${{ secrets.STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET }}
         run: |
           set -euo pipefail
 
           : "${STELLARTRAIL_API_BASE_URL:?Missing STELLARTRAIL_API_BASE_URL secret}"
           : "${STELLARTRAIL_ASSETS_BASE_URL:?Missing STELLARTRAIL_ASSETS_BASE_URL secret}"
+          : "${STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID:?Missing STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID secret}"
+          : "${STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET:?Missing STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET secret}"
 
           {
             printf 'stellartrail.apiBaseUrl=%s\n' "${STELLARTRAIL_API_BASE_URL}"
             printf 'stellartrail.assetsBaseUrl=%s\n' "${STELLARTRAIL_ASSETS_BASE_URL}"
             printf 'stellartrail.domainCandidates=%s\n' "${STELLARTRAIL_DOMAIN_CANDIDATES:-}"
+            printf 'app_id=%s\n' "${STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID}"
+            printf 'app_secret=%s\n' "${STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET}"
           } > apps/android/config.properties
       - name: Prepare Android release signing
         env:
@@ -182,16 +188,22 @@ jobs:
           STELLARTRAIL_API_BASE_URL: ${{ secrets.STELLARTRAIL_API_BASE_URL }}
           STELLARTRAIL_ASSETS_BASE_URL: ${{ secrets.STELLARTRAIL_ASSETS_BASE_URL }}
           STELLARTRAIL_DOMAIN_CANDIDATES: ${{ secrets.STELLARTRAIL_DOMAIN_CANDIDATES }}
+          STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID: ${{ secrets.STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID }}
+          STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET: ${{ secrets.STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET }}
         run: |
           set -euo pipefail
 
           : "${STELLARTRAIL_API_BASE_URL:?Missing STELLARTRAIL_API_BASE_URL secret}"
           : "${STELLARTRAIL_ASSETS_BASE_URL:?Missing STELLARTRAIL_ASSETS_BASE_URL secret}"
+          : "${STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID:?Missing STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID secret}"
+          : "${STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET:?Missing STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET secret}"
 
           {
             printf 'stellartrail.apiBaseUrl=%s\n' "${STELLARTRAIL_API_BASE_URL}"
             printf 'stellartrail.assetsBaseUrl=%s\n' "${STELLARTRAIL_ASSETS_BASE_URL}"
             printf 'stellartrail.domainCandidates=%s\n' "${STELLARTRAIL_DOMAIN_CANDIDATES:-}"
+            printf 'app_id=%s\n' "${STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_ID}"
+            printf 'app_secret=%s\n' "${STELLARTRAIL_ANDROID_REQUEST_SIGNATURE_APP_SECRET}"
           } > apps/android/config.properties
       - name: Prepare Android release signing
         env:

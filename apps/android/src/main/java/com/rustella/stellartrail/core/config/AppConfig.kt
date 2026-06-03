@@ -11,12 +11,21 @@ data class AppConfig(
     val baseUrl: String = sanitizeBaseUrl(BuildConfig.DEFAULT_API_BASE_URL),
     val assetsBaseUrl: String = sanitizeBaseUrl(BuildConfig.DEFAULT_ASSETS_BASE_URL),
     val domainCandidates: List<AppDomainCandidate> = parseDomainCandidates(BuildConfig.DEFAULT_DOMAIN_CANDIDATES),
+    val requestSignature: RequestSignatureCredentials? = requestSignatureCredentials(
+        appId = BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_ID,
+        appSecret = BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_SECRET,
+    ),
 )
 
 data class AppDomainCandidate(
     val id: String,
     val apiBaseUrl: String,
     val assetsBaseUrl: String,
+)
+
+data class RequestSignatureCredentials(
+    val appId: String,
+    val appSecret: String,
 )
 
 interface AppConfigStore {
@@ -79,3 +88,11 @@ fun parseDomainCandidates(value: String): List<AppDomainCandidate> =
             if (id.isEmpty() || apiBaseUrl.isEmpty() || assetsBaseUrl.isEmpty()) return@mapNotNull null
             AppDomainCandidate(id = id, apiBaseUrl = apiBaseUrl, assetsBaseUrl = assetsBaseUrl)
         }
+
+fun requestSignatureCredentials(appId: String, appSecret: String): RequestSignatureCredentials? {
+    val sanitizedAppId = appId.trim()
+    val sanitizedAppSecret = appSecret.trim()
+    if (sanitizedAppId.isEmpty() || sanitizedAppSecret.isEmpty()) return null
+    if (sanitizedAppId.startsWith("example-") || sanitizedAppSecret.startsWith("example-")) return null
+    return RequestSignatureCredentials(appId = sanitizedAppId, appSecret = sanitizedAppSecret)
+}

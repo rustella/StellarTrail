@@ -15,12 +15,14 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.header
 import io.ktor.client.request.prepareRequest
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpStatement
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.URLBuilder
 import io.ktor.http.appendPathSegments
+import io.ktor.http.content.TextContent
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.http.takeFrom
@@ -31,6 +33,12 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.encodeToJsonElement
 import okhttp3.Call
 import okhttp3.EventListener
 import okhttp3.Handshake
@@ -40,6 +48,10 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.URI
+import java.security.MessageDigest
+import java.util.UUID
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 /** Thin HTTP boundary around the existing StellarTrail Rust JSON API. */
 class ApiClient(
@@ -53,6 +65,7 @@ class ApiClient(
     @PublishedApi internal val httpClient: HttpClient = defaultHttpClient(),
     @PublishedApi internal val json: Json = defaultJson,
     private val domainProbeTimeoutMillis: Long? = API_DOMAIN_HEALTH_TIMEOUT_MS,
+    @PublishedApi internal val nonceProvider: () -> String = { UUID.randomUUID().toString() },
 ) {
     private val domainProbeMutex = Mutex()
     @Volatile
@@ -73,26 +86,17 @@ class ApiClient(
     suspend inline fun <reified Request : Any, reified Response> post(
         path: String,
         request: Request,
-    ): Response = send(HttpMethod.Post, path) {
-        contentType(ContentType.Application.Json)
-        setBody(request)
-    }
+    ): Response = sendJson(HttpMethod.Post, path, request)
 
     suspend inline fun <reified Request : Any, reified Response> patch(
         path: String,
         request: Request,
-    ): Response = send(HttpMethod.Patch, path) {
-        contentType(ContentType.Application.Json)
-        setBody(request)
-    }
+    ): Response = sendJson(HttpMethod.Patch, path, request)
 
     suspend inline fun <reified Request : Any, reified Response> put(
         path: String,
         request: Request,
-    ): Response = send(HttpMethod.Put, path) {
-        contentType(ContentType.Application.Json)
-        setBody(request)
-    }
+    ): Response = sendJson(HttpMethod.Put, path, request)
 
     suspend fun delete(path: String) {
         send<Unit>(HttpMethod.Delete, path)
@@ -108,23 +112,18 @@ class ApiClient(
         locale: SkillLocale? = null,
         crossinline configure: HttpRequestBuilder.() -> Unit = {},
     ): Response {
-        val requestConfig = configForRequest(path)
-        val requestUrl = buildUrl(requestConfig, path, query)
         val cacheKey = cacheKeyForRequest(method, configProvider(), path, query, locale)
+        var requestUrl = buildUrl(path, query)
         try {
-            var response = httpClient.prepareRequest(requestUrl) {
-                this.method = method
-                attachAuthAndDefaults(locale)
-                configure()
-            }.execute()
+            var response = prepareQueryRequest(method, path, query, locale, configure).also {
+                requestUrl = it.url
+            }.request.execute()
             if (response.status == HttpStatusCode.Unauthorized && canRefreshAfterUnauthorized(path)) {
                 val refreshed = refreshWithStoredToken()
                 if (refreshed) {
-                    response = httpClient.prepareRequest(requestUrl) {
-                        this.method = method
-                        attachAuthAndDefaults(locale)
-                        configure()
-                    }.execute()
+                    response = prepareQueryRequest(method, path, query, locale, configure).also {
+                        requestUrl = it.url
+                    }.request.execute()
                 }
             }
             val text = response.bodyAsText()
@@ -146,7 +145,7 @@ class ApiClient(
             }
             if (cachedBody != null) {
                 logNetworkWarning(
-                    "${method.value} ${requestUrl.substringBefore('?')} failed offline; using cached response.",
+                    "${method.value} ${buildUrl(path, query).substringBefore('?')} failed offline; using cached response.",
                 )
                 if (Response::class == Unit::class) {
                     @Suppress("UNCHECKED_CAST")
@@ -159,6 +158,146 @@ class ApiClient(
             )
             throw error
         }
+    }
+
+    @PublishedApi
+    internal suspend inline fun <reified Request : Any, reified Response> sendJson(
+        method: HttpMethod,
+        path: String,
+        request: Request,
+    ): Response {
+        val unsignedBody = json.encodeToJsonElement(request)
+        var requestUrl = buildUrl(path)
+        try {
+            var response = prepareJsonRequest(method, path, unsignedBody).also {
+                requestUrl = it.url
+            }.request.execute()
+            if (response.status == HttpStatusCode.Unauthorized && canRefreshAfterUnauthorized(path)) {
+                val refreshed = refreshWithStoredToken()
+                if (refreshed) {
+                    response = prepareJsonRequest(method, path, unsignedBody).also {
+                        requestUrl = it.url
+                    }.request.execute()
+                }
+            }
+            val text = response.bodyAsText()
+            if (!response.status.isSuccess()) {
+                throw ApiException.from(response.status, text, json, response.headers["Retry-After"])
+            }
+            if (Response::class == Unit::class) {
+                @Suppress("UNCHECKED_CAST")
+                return Unit as Response
+            }
+            return json.decodeFromString(text)
+        } catch (error: ApiException) {
+            throw error
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            logNetworkWarning(
+                "${method.value} ${requestUrl.substringBefore('?')} failed: ${error::class.java.name}: ${error.message}",
+            )
+            throw error
+        }
+    }
+
+    @PublishedApi
+    internal suspend inline fun prepareQueryRequest(
+        method: HttpMethod,
+        path: String,
+        query: Map<String, String?>,
+        locale: SkillLocale?,
+        crossinline configure: HttpRequestBuilder.() -> Unit,
+    ): PreparedApiRequest {
+        val requestConfig = configForRequest(path)
+        val requestUrl = buildSignedUrl(requestConfig, method, path, query, EMPTY_BODY_SHA256_HEX)
+        val request = httpClient.prepareRequest(requestUrl) {
+            this.method = method
+            attachAuthAndDefaults(locale)
+            configure()
+        }
+        return PreparedApiRequest(requestUrl, request)
+    }
+
+    @PublishedApi
+    internal suspend fun prepareJsonRequest(
+        method: HttpMethod,
+        path: String,
+        unsignedBody: JsonElement,
+    ): PreparedApiRequest {
+        val requestConfig = configForRequest(path)
+        val requestUrl = buildUrl(requestConfig, path)
+        val signedBody = signedJsonBody(requestConfig, method, path, requestUrl, unsignedBody)
+        val bodyText = json.encodeToString(JsonElement.serializer(), signedBody)
+        val request = httpClient.prepareRequest(requestUrl) {
+            this.method = method
+            attachAuthAndDefaults(locale = null)
+            contentType(ContentType.Application.Json)
+            setBody(TextContent(bodyText, ContentType.Application.Json))
+        }
+        return PreparedApiRequest(requestUrl, request)
+    }
+
+    @PublishedApi
+    internal fun buildSignedUrl(
+        config: AppConfig,
+        method: HttpMethod,
+        path: String,
+        query: Map<String, String?> = emptyMap(),
+        bodyHashHex: String = EMPTY_BODY_SHA256_HEX,
+    ): String {
+        val credentials = config.requestSignature
+        if (credentials == null || !shouldSignRequest(method, path)) {
+            return buildUrl(config, path, query)
+        }
+        val nonce = nonceProvider().trim()
+        val signingQuery = query.withoutSigningFields() + mapOf(
+            SIGNING_FIELD_APP_ID to credentials.appId,
+            SIGNING_FIELD_NONCE to nonce,
+        )
+        val unsignedUrl = buildUrl(config, path, signingQuery)
+        val canonical = canonicalRequest(
+            method = method.value,
+            path = URI(unsignedUrl).rawPath,
+            canonicalQuery = canonicalQuery(URI(unsignedUrl).rawQuery.orEmpty()),
+            bodyHashHex = bodyHashHex,
+            appId = credentials.appId,
+            nonce = nonce,
+        )
+        val signature = hmacSha256Hex(credentials.appSecret, canonical)
+        return buildUrl(config, path, signingQuery + mapOf(SIGNING_FIELD_SIGNATURE to signature))
+    }
+
+    @PublishedApi
+    internal fun signedJsonBody(
+        config: AppConfig,
+        method: HttpMethod,
+        path: String,
+        requestUrl: String,
+        unsignedBody: JsonElement,
+    ): JsonElement {
+        val credentials = config.requestSignature
+        if (credentials == null || !shouldSignRequest(method, path)) return unsignedBody
+        val bodyObject = unsignedBody as? JsonObject
+            ?: error("Signed JSON requests must encode to a top-level JSON object.")
+        val nonce = nonceProvider().trim()
+        val bodyHash = sha256Hex(canonicalJsonBodyForSigning(bodyObject).encodeToByteArray())
+        val requestUri = URI(requestUrl)
+        val canonical = canonicalRequest(
+            method = method.value,
+            path = requestUri.rawPath,
+            canonicalQuery = canonicalQuery(requestUri.rawQuery.orEmpty()),
+            bodyHashHex = bodyHash,
+            appId = credentials.appId,
+            nonce = nonce,
+        )
+        val signature = hmacSha256Hex(credentials.appSecret, canonical)
+        return JsonObject(
+            bodyObject + mapOf(
+                SIGNING_FIELD_APP_ID to JsonPrimitive(credentials.appId),
+                SIGNING_FIELD_NONCE to JsonPrimitive(nonce),
+                SIGNING_FIELD_SIGNATURE to JsonPrimitive(signature),
+            ),
+        )
     }
 
     fun resolveAssetUrl(pathOrUrl: String): String {
@@ -236,6 +375,7 @@ class ApiClient(
                         baseUrl = candidate.apiBaseUrl,
                         assetsBaseUrl = candidate.assetsBaseUrl,
                         domainCandidates = latest.domainCandidates,
+                        requestSignature = latest.requestSignature,
                     )
                     domainProbeCompletedForBaseUrl = latest.baseUrl
                     return
@@ -246,6 +386,7 @@ class ApiClient(
                 baseUrl = fallback.apiBaseUrl,
                 assetsBaseUrl = fallback.assetsBaseUrl,
                 domainCandidates = latest.domainCandidates,
+                requestSignature = latest.requestSignature,
             )
             domainProbeCompletedForBaseUrl = latest.baseUrl
         }
@@ -371,6 +512,20 @@ internal const val HEALTH_PATH = "/healthz"
 private const val API_DOMAIN_HEALTH_TIMEOUT_MS = 3_000L
 private const val CACHE_KEY_VERSION = "v1"
 private const val CACHE_SCOPE_GUEST = "guest"
+private const val SIGNATURE_ALGORITHM = "STELLARTRAIL-HMAC-SHA256"
+private const val SIGNING_FIELD_APP_ID = "app_id"
+private const val SIGNING_FIELD_NONCE = "nonce"
+private const val SIGNING_FIELD_SIGNATURE = "signature"
+private val SIGNING_FIELD_NAMES = setOf(SIGNING_FIELD_APP_ID, SIGNING_FIELD_NONCE, SIGNING_FIELD_SIGNATURE)
+
+@PublishedApi
+internal val EMPTY_BODY_SHA256_HEX: String = sha256Hex(ByteArray(0))
+
+@PublishedApi
+internal data class PreparedApiRequest(
+    val url: String,
+    val request: HttpStatement,
+)
 
 @PublishedApi
 internal fun logNetworkWarning(message: String) {
@@ -402,6 +557,87 @@ internal fun versionedApiPath(path: String): String {
     if (path == HEALTH_PATH || path.startsWith("$API_PREFIX/")) return path
     val normalized = if (path.startsWith('/')) path else "/$path"
     return API_PREFIX + normalized
+}
+
+private fun shouldSignRequest(method: HttpMethod, path: String): Boolean {
+    if (method == HttpMethod.Options) return false
+    val normalizedPath = versionedApiPath(path)
+    return normalizedPath.startsWith("$API_PREFIX/") && !isSignatureExemptPath(normalizedPath)
+}
+
+private fun isSignatureExemptPath(path: String): Boolean =
+    path == "/healthz" ||
+        path == "/ping" ||
+        path == "/echo" ||
+        path == "/api/v1/ping" ||
+        path == "/api/v1/echo"
+
+private fun Map<String, String?>.withoutSigningFields(): Map<String, String?> =
+    filterKeys { it !in SIGNING_FIELD_NAMES }
+
+private fun canonicalRequest(
+    method: String,
+    path: String,
+    canonicalQuery: String,
+    bodyHashHex: String,
+    appId: String,
+    nonce: String,
+): String = listOf(
+    SIGNATURE_ALGORITHM,
+    method,
+    path,
+    canonicalQuery,
+    bodyHashHex,
+    appId,
+    nonce,
+).joinToString("\n")
+
+private fun canonicalQuery(query: String): String =
+    query
+        .split('&')
+        .asSequence()
+        .filter { it.isNotEmpty() }
+        .map { pair ->
+            val separatorIndex = pair.indexOf('=')
+            if (separatorIndex == -1) {
+                pair to ""
+            } else {
+                pair.substring(0, separatorIndex) to pair.substring(separatorIndex + 1)
+            }
+        }
+        .filter { (key, _) -> key != SIGNING_FIELD_SIGNATURE }
+        .sortedWith(compareBy({ it.first }, { it.second }))
+        .joinToString("&") { (key, value) -> "$key=$value" }
+
+@PublishedApi
+internal fun canonicalJsonBodyForSigning(body: JsonObject): String =
+    canonicalJson(
+        JsonObject(body.filterKeys { it !in SIGNING_FIELD_NAMES }),
+    )
+
+private fun canonicalJson(value: JsonElement): String = when (value) {
+    JsonNull -> "null"
+    is JsonPrimitive -> value.toString()
+    is JsonArray -> value.joinToString(separator = ",", prefix = "[", postfix = "]") { canonicalJson(it) }
+    is JsonObject -> value.entries
+        .sortedBy { it.key }
+        .joinToString(separator = ",", prefix = "{", postfix = "}") { (key, item) ->
+            JsonPrimitive(key).toString() + ":" + canonicalJson(item)
+        }
+}
+
+@PublishedApi
+internal fun sha256Hex(bytes: ByteArray): String =
+    MessageDigest.getInstance("SHA-256").digest(bytes).toHexString()
+
+private fun hmacSha256Hex(secret: String, message: String): String {
+    val mac = Mac.getInstance("HmacSHA256")
+    mac.init(SecretKeySpec(secret.encodeToByteArray(), "HmacSHA256"))
+    return mac.doFinal(message.encodeToByteArray()).toHexString()
+}
+
+private fun ByteArray.toHexString(): String = joinToString(separator = "") { byte ->
+    "%02x".format(byte.toInt() and 0xff)
 }
 
 private class NetworkDiagnosticsEventListener : EventListener() {
