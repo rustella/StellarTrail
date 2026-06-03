@@ -105,9 +105,9 @@ keytool -genkeypair \
 优先从 stdin 或临时文件读取真实值，避免把真实值写入 shell history：
 
 ```bash
-printf '%s' '<REAL_API_BASE_URL>' | gh secret set STELLARTRAIL_ANDROID_API_BASE_URL --repo rustella/StellarTrail
-printf '%s' '<REAL_ASSETS_BASE_URL>' | gh secret set STELLARTRAIL_ANDROID_ASSETS_BASE_URL --repo rustella/StellarTrail
-printf '%s' '<id|api|assets;id2|api2|assets2 or empty>' | gh secret set STELLARTRAIL_ANDROID_DOMAIN_CANDIDATES --repo rustella/StellarTrail
+printf '%s' '<REAL_API_BASE_URL>' | gh secret set STELLARTRAIL_API_BASE_URL --repo rustella/StellarTrail
+printf '%s' '<REAL_ASSETS_BASE_URL>' | gh secret set STELLARTRAIL_ASSETS_BASE_URL --repo rustella/StellarTrail
+printf '%s' '<id|api|assets;id2|api2|assets2 or empty>' | gh secret set STELLARTRAIL_DOMAIN_CANDIDATES --repo rustella/StellarTrail
 ```
 
 ### 3. 设置签名 Secrets
@@ -129,9 +129,9 @@ gh secret list --repo rustella/StellarTrail
 
 期望看到：
 
-- `STELLARTRAIL_ANDROID_API_BASE_URL`
-- `STELLARTRAIL_ANDROID_ASSETS_BASE_URL`
-- `STELLARTRAIL_ANDROID_DOMAIN_CANDIDATES`
+- `STELLARTRAIL_API_BASE_URL`
+- `STELLARTRAIL_ASSETS_BASE_URL`
+- `STELLARTRAIL_DOMAIN_CANDIDATES`
 - `STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64`
 - `STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD`
 - `STELLARTRAIL_ANDROID_KEY_ALIAS`

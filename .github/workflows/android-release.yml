@@ -47,19 +47,19 @@ jobs:
       - run: chmod +x ./gradlew
       - name: Prepare Android release configuration
         env:
-          STELLARTRAIL_ANDROID_API_BASE_URL: ${{ secrets.STELLARTRAIL_ANDROID_API_BASE_URL }}
-          STELLARTRAIL_ANDROID_ASSETS_BASE_URL: ${{ secrets.STELLARTRAIL_ANDROID_ASSETS_BASE_URL }}
-          STELLARTRAIL_ANDROID_DOMAIN_CANDIDATES: ${{ secrets.STELLARTRAIL_ANDROID_DOMAIN_CANDIDATES }}
+          STELLARTRAIL_API_BASE_URL: ${{ secrets.STELLARTRAIL_API_BASE_URL }}
+          STELLARTRAIL_ASSETS_BASE_URL: ${{ secrets.STELLARTRAIL_ASSETS_BASE_URL }}
+          STELLARTRAIL_DOMAIN_CANDIDATES: ${{ secrets.STELLARTRAIL_DOMAIN_CANDIDATES }}
         run: |
           set -euo pipefail
 
-          : "${STELLARTRAIL_ANDROID_API_BASE_URL:?Missing STELLARTRAIL_ANDROID_API_BASE_URL secret}"
-          : "${STELLARTRAIL_ANDROID_ASSETS_BASE_URL:?Missing STELLARTRAIL_ANDROID_ASSETS_BASE_URL secret}"
+          : "${STELLARTRAIL_API_BASE_URL:?Missing STELLARTRAIL_API_BASE_URL secret}"
+          : "${STELLARTRAIL_ASSETS_BASE_URL:?Missing STELLARTRAIL_ASSETS_BASE_URL secret}"
 
           {
-            printf 'stellartrail.apiBaseUrl=%s\n' "${STELLARTRAIL_ANDROID_API_BASE_URL}"
-            printf 'stellartrail.assetsBaseUrl=%s\n' "${STELLARTRAIL_ANDROID_ASSETS_BASE_URL}"
-            printf 'stellartrail.domainCandidates=%s\n' "${STELLARTRAIL_ANDROID_DOMAIN_CANDIDATES:-}"
+            printf 'stellartrail.apiBaseUrl=%s\n' "${STELLARTRAIL_API_BASE_URL}"
+            printf 'stellartrail.assetsBaseUrl=%s\n' "${STELLARTRAIL_ASSETS_BASE_URL}"
+            printf 'stellartrail.domainCandidates=%s\n' "${STELLARTRAIL_DOMAIN_CANDIDATES:-}"
           } > apps/android/config.properties
       - name: Prepare Android release signing
         env:
@@ -179,19 +179,19 @@ jobs:
       - run: chmod +x ./gradlew scripts/ci/*.sh
       - name: Prepare Android release configuration
         env:
-          STELLARTRAIL_ANDROID_API_BASE_URL: ${{ secrets.STELLARTRAIL_ANDROID_API_BASE_URL }}
-          STELLARTRAIL_ANDROID_ASSETS_BASE_URL: ${{ secrets.STELLARTRAIL_ANDROID_ASSETS_BASE_URL }}
-          STELLARTRAIL_ANDROID_DOMAIN_CANDIDATES: ${{ secrets.STELLARTRAIL_ANDROID_DOMAIN_CANDIDATES }}
+          STELLARTRAIL_API_BASE_URL: ${{ secrets.STELLARTRAIL_API_BASE_URL }}
+          STELLARTRAIL_ASSETS_BASE_URL: ${{ secrets.STELLARTRAIL_ASSETS_BASE_URL }}
+          STELLARTRAIL_DOMAIN_CANDIDATES: ${{ secrets.STELLARTRAIL_DOMAIN_CANDIDATES }}
         run: |
           set -euo pipefail
 
-          : "${STELLARTRAIL_ANDROID_API_BASE_URL:?Missing STELLARTRAIL_ANDROID_API_BASE_URL secret}"
-          : "${STELLARTRAIL_ANDROID_ASSETS_BASE_URL:?Missing STELLARTRAIL_ANDROID_ASSETS_BASE_URL secret}"
+          : "${STELLARTRAIL_API_BASE_URL:?Missing STELLARTRAIL_API_BASE_URL secret}"
+          : "${STELLARTRAIL_ASSETS_BASE_URL:?Missing STELLARTRAIL_ASSETS_BASE_URL secret}"
 
           {
-            printf 'stellartrail.apiBaseUrl=%s\n' "${STELLARTRAIL_ANDROID_API_BASE_URL}"
-            printf 'stellartrail.assetsBaseUrl=%s\n' "${STELLARTRAIL_ANDROID_ASSETS_BASE_URL}"
-            printf 'stellartrail.domainCandidates=%s\n' "${STELLARTRAIL_ANDROID_DOMAIN_CANDIDATES:-}"
+            printf 'stellartrail.apiBaseUrl=%s\n' "${STELLARTRAIL_API_BASE_URL}"
+            printf 'stellartrail.assetsBaseUrl=%s\n' "${STELLARTRAIL_ASSETS_BASE_URL}"
+            printf 'stellartrail.domainCandidates=%s\n' "${STELLARTRAIL_DOMAIN_CANDIDATES:-}"
           } > apps/android/config.properties
       - name: Prepare Android release signing
         env:
