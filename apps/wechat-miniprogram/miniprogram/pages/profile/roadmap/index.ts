@@ -3,6 +3,8 @@ import {
   getErrorMessage,
   hasAccessToken,
   isLoginRequiredError,
+  type ListRoadmapRequest,
+  type ListRoadmapResponse,
   listMyRoadmap,
   listRoadmap,
   subscribeRoadmapItem,
@@ -85,24 +87,13 @@ Page({
     const request = roadmapRequest(this.data.selectedStatus);
     this.setData({ loading: true, error: "", offlineNotice: "" });
     try {
-      const response = hasAccessToken()
-        ? await listMyRoadmap(request)
-        : await listRoadmap(request);
+      const response = await loadRoadmapWithPublicFallback(request);
       this.setData({
         items: response.items.map(mapRoadmapItem),
         loading: false,
         offlineNotice: consumeOfflineCacheNotice(),
       });
     } catch (error) {
-      if (isLoginRequiredError(error)) {
-        const response = await listRoadmap(request);
-        this.setData({
-          items: response.items.map(mapRoadmapItem),
-          loading: false,
-          offlineNotice: consumeOfflineCacheNotice(),
-        });
-        return;
-      }
       this.setData({
         error: getErrorMessage(error),
         loading: false,
@@ -223,6 +214,26 @@ function roadmapRequest(selectedStatus: RoadmapStatusFilter) {
     status: selectedStatus === "all" ? undefined : selectedStatus,
     limit: 50,
   };
+}
+
+async function loadRoadmapWithPublicFallback(
+  request: ListRoadmapRequest,
+): Promise<ListRoadmapResponse> {
+  if (!hasAccessToken()) {
+    return listRoadmap(request);
+  }
+  try {
+    return await listMyRoadmap(request);
+  } catch (error) {
+    if (isLoginRequiredError(error)) {
+      return listRoadmap(request);
+    }
+    try {
+      return await listRoadmap(request);
+    } catch {
+      throw error;
+    }
+  }
 }
 
 function mapRoadmapItem(item: RoadmapItem): RoadmapViewItem {
