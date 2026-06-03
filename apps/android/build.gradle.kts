@@ -81,6 +81,16 @@ android {
         )
         buildConfigField(
             "String",
+            "DEFAULT_CLIENT",
+            quotedBuildConfigString(clientConfigValue("stellartrail.client", "android")),
+        )
+        buildConfigField(
+            "String",
+            "DEFAULT_CLIENT_VERSION",
+            quotedBuildConfigString(clientConfigValue("stellartrail.clientVersion", "0.1.0")),
+        )
+        buildConfigField(
+            "String",
             "DEFAULT_REQUEST_SIGNATURE_APP_ID",
             quotedBuildConfigString(clientConfigValue("app_id", "example-android-client-id")),
         )

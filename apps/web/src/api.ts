@@ -158,5 +158,6 @@ export function createWebGearApi(): WebGearApi {
   return new StellarTrailApiClient({
     baseUrl: config.apiBaseUrl,
     assetsBaseUrl: config.assetsBaseUrl,
+    clientIdentity: config.clientIdentity,
   });
 }

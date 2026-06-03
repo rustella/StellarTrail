@@ -3,6 +3,7 @@ import Foundation
 private let apiPrefix = "/api/v1"
 private let healthPath = "/healthz"
 private let domainHealthTimeout: TimeInterval = 3
+private let clientIdentityHeader = "X-StellarTrail-Client"
 
 enum HTTPMethod: String {
     case get = "GET"
@@ -91,6 +92,7 @@ final class APIClient {
         request.httpMethod = HTTPMethod.put.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("zh-CN", forHTTPHeaderField: "X-StellarTrail-Locale")
+        request.setValue(settingsStore.clientIdentity, forHTTPHeaderField: clientIdentityHeader)
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         guard let token = sessionStore.currentSession?.accessToken else { throw AppError.missingSession }
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -133,6 +135,7 @@ final class APIClient {
         urlRequest.httpMethod = request.method.rawValue
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
         urlRequest.setValue("zh-CN", forHTTPHeaderField: "X-StellarTrail-Locale")
+        urlRequest.setValue(settingsStore.clientIdentity, forHTTPHeaderField: clientIdentityHeader)
         if let body = request.body {
             urlRequest.httpBody = body
             urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -214,8 +217,13 @@ final class APIClient {
             task = existingTask
         } else {
             let session = session
+            let clientIdentity = settingsStore.clientIdentity
             task = Task {
-                await Self.probeProductionDomains(candidates: candidates, session: session)
+                await Self.probeProductionDomains(
+                    candidates: candidates,
+                    session: session,
+                    clientIdentity: clientIdentity
+                )
             }
             domainProbeTask = task
         }
@@ -234,22 +242,32 @@ final class APIClient {
 
     nonisolated private static func probeProductionDomains(
         candidates: [ClientDomainCandidate],
-        session: URLSession
+        session: URLSession,
+        clientIdentity: String
     ) async -> ClientDomainCandidate? {
         for candidate in candidates {
-            if await probeHealthz(apiBaseURLString: candidate.apiBaseURLString, session: session) {
+            if await probeHealthz(
+                apiBaseURLString: candidate.apiBaseURLString,
+                session: session,
+                clientIdentity: clientIdentity
+            ) {
                 return candidate
             }
         }
         return candidates.first
     }
 
-    nonisolated private static func probeHealthz(apiBaseURLString: String, session: URLSession) async -> Bool {
+    nonisolated private static func probeHealthz(
+        apiBaseURLString: String,
+        session: URLSession,
+        clientIdentity: String
+    ) async -> Bool {
         guard let url = URL(string: apiBaseURLString + healthPath) else { return false }
         var request = URLRequest(url: url)
         request.httpMethod = HTTPMethod.get.rawValue
         request.timeoutInterval = domainHealthTimeout
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(clientIdentity, forHTTPHeaderField: clientIdentityHeader)
         do {
             let (_, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { return false }

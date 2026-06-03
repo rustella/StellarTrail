@@ -19,6 +19,9 @@ use stellartrail_db::{DatabaseConfig, connect_database};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
+const CLIENT_IDENTITY_HEADER: &str = "X-StellarTrail-Client";
+const TEST_CLIENT_IDENTITY: &str = "web/test";
+
 struct TestApp {
     router: Router,
     _temp_dir: TempDir,
@@ -69,6 +72,7 @@ async fn send_json(app: &Router, path: &str, body: Value) -> (StatusCode, Value)
             Request::builder()
                 .method("POST")
                 .uri(path)
+                .header(CLIENT_IDENTITY_HEADER, TEST_CLIENT_IDENTITY)
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(body.to_string()))
                 .unwrap(),
@@ -91,7 +95,20 @@ async fn send_empty(
     path: &str,
     token: Option<&str>,
 ) -> (StatusCode, Value) {
+    send_empty_with_client(app, method, path, token, Some(TEST_CLIENT_IDENTITY)).await
+}
+
+async fn send_empty_with_client(
+    app: &Router,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+    client_identity: Option<&str>,
+) -> (StatusCode, Value) {
     let mut builder = Request::builder().method(method).uri(path);
+    if let Some(client_identity) = client_identity {
+        builder = builder.header(CLIENT_IDENTITY_HEADER, client_identity);
+    }
     if let Some(token) = token {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
     }
@@ -122,6 +139,51 @@ async fn system_routes_return_health_and_meta() {
     assert_eq!(meta_status, StatusCode::OK);
     assert_eq!(meta["name"], "StellarTrail");
     assert_eq!(meta["database_kind"], "sqlite");
+}
+
+#[tokio::test]
+async fn client_identity_rejects_missing_or_invalid_business_api_header() {
+    let app = test_app().await;
+
+    let (missing_status, missing_body) =
+        send_empty_with_client(&app.router, "GET", "/api/v1/meta", None, None).await;
+    assert_eq!(missing_status, StatusCode::BAD_REQUEST);
+    assert_eq!(missing_body["code"], "invalid_header");
+    assert_eq!(missing_body["parameter"], CLIENT_IDENTITY_HEADER);
+
+    for raw in ["desktop/0.1.0", "web", "web/", "/0.1.0"] {
+        let (status, body) =
+            send_empty_with_client(&app.router, "GET", "/api/v1/meta", None, Some(raw)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{raw}");
+        assert_eq!(body["code"], "invalid_header");
+        assert_eq!(body["parameter"], CLIENT_IDENTITY_HEADER);
+    }
+}
+
+#[tokio::test]
+async fn client_identity_exempts_healthz_and_options() {
+    let app = test_app().await;
+
+    let (health_status, health) =
+        send_empty_with_client(&app.router, "GET", "/healthz", None, None).await;
+    assert_eq!(health_status, StatusCode::OK);
+    assert_eq!(health["status"], "ok");
+
+    let response = app
+        .router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/api/v1/meta")
+                .header(header::ORIGIN, "https://app.example.invalid")
+                .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_ne!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
@@ -166,6 +228,18 @@ async fn request_signature_rejects_unsigned_api_request() {
 
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert_eq!(body["code"], "invalid_request_signature");
+}
+
+#[tokio::test]
+async fn client_identity_runs_before_request_signature() {
+    let app = test_app_with_request_signature(signature_config()).await;
+
+    let (status, body) =
+        send_empty_with_client(&app.router, "GET", "/api/v1/meta", None, None).await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["code"], "invalid_header");
+    assert_eq!(body["parameter"], CLIENT_IDENTITY_HEADER);
 }
 
 #[tokio::test]

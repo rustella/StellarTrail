@@ -38,12 +38,13 @@ final class AppEnvironment: ObservableObject {
     static func makeDefault() -> AppEnvironment {
         let arguments = ProcessInfo.processInfo.arguments
         let screenshotMode = arguments.contains("--stellartrail-screenshot-fixtures")
+        let clientConfig = ClientConfig.load(client: "ios", version: "0.1.0")
 
         if screenshotMode {
             let defaultsSuiteName = "com.rustella.stellartrail.screenshots"
             let defaults = UserDefaults(suiteName: defaultsSuiteName) ?? .standard
             defaults.removePersistentDomain(forName: defaultsSuiteName)
-            let settingsStore = AppSettingsStore(defaults: defaults)
+            let settingsStore = AppSettingsStore(defaults: defaults, clientConfig: clientConfig)
             let sessionStore = SessionStore(keychainStore: InMemoryKeychainStore())
             let fixture = FixtureRepository()
             return AppEnvironment(
@@ -59,7 +60,7 @@ final class AppEnvironment: ObservableObject {
             )
         }
 
-        let settingsStore = AppSettingsStore()
+        let settingsStore = AppSettingsStore(clientConfig: clientConfig)
         let keychainStore = KeychainStore(service: "com.rustella.stellartrail.session")
         let sessionStore = SessionStore(keychainStore: keychainStore)
         let client = APIClient(settingsStore: settingsStore, sessionStore: sessionStore)

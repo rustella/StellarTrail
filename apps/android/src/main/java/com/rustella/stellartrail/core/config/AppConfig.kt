@@ -11,6 +11,10 @@ data class AppConfig(
     val baseUrl: String = sanitizeBaseUrl(BuildConfig.DEFAULT_API_BASE_URL),
     val assetsBaseUrl: String = sanitizeBaseUrl(BuildConfig.DEFAULT_ASSETS_BASE_URL),
     val domainCandidates: List<AppDomainCandidate> = parseDomainCandidates(BuildConfig.DEFAULT_DOMAIN_CANDIDATES),
+    val clientIdentity: String = buildClientIdentity(
+        client = BuildConfig.DEFAULT_CLIENT,
+        version = BuildConfig.DEFAULT_CLIENT_VERSION,
+    ),
     val requestSignature: RequestSignatureCredentials? = requestSignatureCredentials(
         appId = BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_ID,
         appSecret = BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_SECRET,
@@ -76,6 +80,12 @@ class InMemoryAppConfigStore(initial: AppConfig = AppConfig()) : AppConfigStore 
 }
 
 fun sanitizeBaseUrl(baseUrl: String): String = baseUrl.trim().trimEnd('/')
+
+fun buildClientIdentity(client: String, version: String): String {
+    val sanitizedClient = client.trim().ifEmpty { "android" }
+    val sanitizedVersion = version.trim().ifEmpty { "0.1.0" }
+    return "$sanitizedClient/$sanitizedVersion"
+}
 
 fun parseDomainCandidates(value: String): List<AppDomainCandidate> =
     value.split(';')

@@ -58,6 +58,7 @@ import type {
   ClientDomainCandidate,
   ClientRequestSignatureConfig,
 } from "./client-config";
+import { loadClientConfig } from "./client-config";
 import {
   clearUserOfflineCaches,
   makeOfflineCacheKey,
@@ -2182,7 +2183,7 @@ async function requestJsonOnce<T>(
   }
   const token = options.auth ? await ensureAccessToken() : undefined;
   const cacheDescriptor = offlineCacheDescriptor(requestPath, options);
-  const header: Record<string, string> = {};
+  const header: Record<string, string> = clientIdentityHeader();
   if (options.data !== undefined) {
     header["content-type"] = "application/json";
   }
@@ -2333,6 +2334,7 @@ function probeHealthz(apiBaseUrl: string): Promise<boolean> {
     wx.request({
       url: `${apiBaseUrl}${HEALTH_PATH}`,
       method: "GET" as any,
+      header: clientIdentityHeader(),
       timeout: API_DOMAIN_HEALTH_TIMEOUT_MS,
       success: (response) => {
         resolve(response.statusCode >= 200 && response.statusCode < 300);
@@ -2389,6 +2391,25 @@ function getRequestSignatureConfig(): ClientRequestSignatureConfig | undefined {
     return undefined;
   }
   return { app_id, app_secret };
+}
+
+function clientIdentityHeader(): Record<string, string> {
+  return {
+    "X-StellarTrail-Client": getClientIdentity(),
+  };
+}
+
+function getClientIdentity(): string {
+  const app = getApp<{
+    globalData?: {
+      clientIdentity?: string;
+    };
+  }>();
+  const clientIdentity = app.globalData?.clientIdentity?.trim();
+  if (clientIdentity) {
+    return clientIdentity;
+  }
+  return loadClientConfig().clientIdentity;
 }
 
 function versionedApiPath(path: string): string {
@@ -2591,6 +2612,7 @@ async function uploadWechatAvatarOnce(
       filePath,
       name: "file",
       header: {
+        ...clientIdentityHeader(),
         authorization: `Bearer ${token}`,
       },
       success: (response) => {
@@ -2635,6 +2657,7 @@ async function uploadFeedbackImageOnce(
         purpose: "feedback",
       },
       header: {
+        ...clientIdentityHeader(),
         authorization: `Bearer ${token}`,
       },
       success: (response) => {
@@ -2885,6 +2908,7 @@ async function uploadSignedMultipartFile<T>(options: {
       method: "POST" as any,
       data: body.buffer as any,
       header: {
+        ...clientIdentityHeader(),
         authorization: `Bearer ${options.token}`,
         "content-type": `multipart/form-data; boundary=${boundary}`,
       },

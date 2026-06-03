@@ -9,6 +9,38 @@ GET /healthz
 GET /api/v1/meta
 ```
 
+## 客户端标识请求头
+
+所有非 `OPTIONS` 的 `/api/v1/*` 业务请求必须携带单个客户端标识请求头：
+
+```http
+X-StellarTrail-Client: <client>/<version>
+```
+
+`client` 只接受 `web`、`wechat`、`android`、`ios`、`mac`；`version` trim 后必须非空，长度不超过 64。公开接口、登录接口和认证接口都不豁免。缺失、空值、格式错误、非法 client 或非法 version 会返回：
+
+```http
+HTTP/1.1 400 Bad Request
+```
+
+```json
+{
+  "code": "invalid_header",
+  "message": "missing or invalid header",
+  "parameter": "X-StellarTrail-Client"
+}
+```
+
+`/healthz` 和 `OPTIONS` 请求豁免服务端校验；各客户端的健康探测仍应带上该 header，便于端上请求层保持一致。CORS 已允许 `x-stellartrail-client`。该 header 不写入 `client_key` 数据模型，不落库，不参与 API usage 聚合，也不参与请求签名 canonical string。
+
+默认客户端标识由各端配置文件管理，请求函数只读取最终配置值：
+
+- Web：默认从 `apps/web/package.json` 的 `version` 通过 Vite 注入，生成 `web/0.1.0`。
+- WeChat：`apps/wechat-miniprogram/miniprogram/config.example.ts` 默认 `client: "wechat"`、`version: "0.2.2"`，本地 `config.ts` 可覆盖。
+- Android：`apps/android/config.example.properties` / `config.properties` 默认 `stellartrail.client=android`、`stellartrail.clientVersion=0.1.0`，Gradle 注入 `BuildConfig`。
+- iOS：`apps/ios/StellarTrail/Resources/ClientConfig.example.plist` 默认 `CLIENT=ios`、`CLIENT_VERSION=0.1.0`，本地 `ClientConfig.plist` 可覆盖。
+- macOS：`apps/macos/StellarTrailMac/Resources/ClientConfig.example.plist` 默认 `CLIENT=mac`、`CLIENT_VERSION=0.1.0`，本地 `ClientConfig.plist` 可覆盖。
+
 ## 全局限流
 
 所有非 `OPTIONS` 请求都会经过全局限流。未登录请求按客户端 IP 计数；带有效 Bearer Token 的请求会同时按客户端 IP 和用户 ID 计数，任一维度超限都会返回 `429 Too Many Requests`。

@@ -107,6 +107,7 @@ async fn send_json(
     body: Value,
 ) -> (StatusCode, Value) {
     let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
         .method(method)
         .uri(path)
         .header(header::CONTENT_TYPE, "application/json");
@@ -134,7 +135,10 @@ async fn send_empty(
     path: &str,
     token: Option<&str>,
 ) -> (StatusCode, Vec<u8>) {
-    let mut builder = Request::builder().method(method).uri(path);
+    let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
+        .method(method)
+        .uri(path);
     if let Some(token) = token {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
     }
@@ -280,6 +284,7 @@ async fn upload_image(
     body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
 
     let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
         .method("POST")
         .uri("/api/v1/me/uploads")
         .header(
@@ -324,6 +329,7 @@ async fn upload_avatar(
     body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
 
     let mut builder = Request::builder()
+        .header("X-StellarTrail-Client", "web/test")
         .method("PUT")
         .uri("/api/v1/me/profile/avatar")
         .header(
