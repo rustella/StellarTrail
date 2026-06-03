@@ -176,3 +176,9 @@ cargo +1.95.0 clippy --workspace --all-targets -- -D warnings
 - 🚀 [Deployment guide](docs/deployment.md)
 - 🏗️ [Architecture](docs/architecture.md)
 - 🔌 [API docs](docs/api.md)
+
+## 📄 License
+
+Licensed under the Apache License, Version 2.0.
+
+Copyright 2026 Rustella.
