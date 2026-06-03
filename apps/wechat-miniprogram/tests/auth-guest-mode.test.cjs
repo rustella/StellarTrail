@@ -144,9 +144,10 @@ test("navigation helper rejects external redirects and switches tab pages", () =
   );
   assert.equal(isGuestAccessiblePage("/pages/login/index"), true);
   assert.equal(isGuestAccessiblePage("/pages/register/index"), true);
+  assert.equal(isGuestAccessiblePage("/pages/gears/index"), true);
   assert.equal(isGuestAccessiblePage("/pages/skills/index"), true);
-  assert.equal(isGuestAccessiblePage("/pages/trips/index"), false);
-  assert.equal(isGuestAccessiblePage("/pages/profile/index"), false);
+  assert.equal(isGuestAccessiblePage("/pages/trips/index"), true);
+  assert.equal(isGuestAccessiblePage("/pages/profile/index"), true);
 
   assert.equal(
     decodeRedirect(encodeURIComponent("https://example.com")),

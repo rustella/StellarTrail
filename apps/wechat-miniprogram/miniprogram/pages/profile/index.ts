@@ -15,7 +15,6 @@ import {
 } from "../../utils/api-profile";
 import { buildAccountProfile } from "../../utils/account-profile";
 import { loginPageUrl } from "../../utils/auth-prompt";
-import { navigateToGuestFallback } from "../../utils/navigation";
 import {
   getThemeViewData,
   syncPageTheme,
@@ -117,10 +116,6 @@ Page({
 
   onShow() {
     syncPageTheme(this);
-    if (!hasAccessToken()) {
-      navigateToGuestFallback();
-      return;
-    }
     void this.refreshAccountState({
       force: consumeProfileShouldRefresh(),
     });
@@ -241,7 +236,7 @@ Page({
   logout() {
     wx.showModal({
       title: "退出登录？",
-      content: "退出后仍可浏览装备图鉴。",
+      content: "退出后会清除本机登录状态。",
       confirmText: "退出",
       confirmColor: "#dc2626",
       success: (result) => {
@@ -250,7 +245,7 @@ Page({
         }
         clearLoginState();
         wx.showToast({ title: "已退出", icon: "success" });
-        navigateToGuestFallback();
+        void this.refreshAccountState({ force: true });
       },
     });
   },

@@ -69,14 +69,13 @@ test("guest users can browse home and the gear atlas", () => {
     /GUEST_FALLBACK_PAGE = "\/pages\/gear-atlas\/index"/,
   );
   assert.match(navigationTs, /"\/pages\/index\/index"/);
-  assert.match(navigationTs, /"\/pages\/gear-atlas\/detail\/index"/);
+  assert.match(navigationTs, /"\/pages\/gears\/index"/);
+  assert.match(navigationTs, /"\/pages\/trips\/index"/);
   assert.match(navigationTs, /"\/pages\/skills\/index"/);
+  assert.match(navigationTs, /"\/pages\/profile\/index"/);
+  assert.match(navigationTs, /"\/pages\/gear-atlas\/detail\/index"/);
   assert.match(navigationTs, /"\/pages\/login\/index"/);
   assert.match(navigationTs, /"\/pages\/register\/index"/);
-  assert.doesNotMatch(
-    navigationTs,
-    /GUEST_ACCESSIBLE_PAGES[\s\S]*"\/pages\/trips\/index"/,
-  );
   assert.doesNotMatch(homeTs, /navigateToGuestFallback/);
   assert.match(homeTs, /GUEST_HERO_STATUS_TEXT = "装备状态待同步"/);
   assert.doesNotMatch(homeTs, /未登录也可先浏览/);
@@ -87,8 +86,9 @@ test("guest users can browse home and the gear atlas", () => {
     /message: "登录并同意绳结教程免责声明后，可以查看绳结列表。"/,
   );
   assert.match(skillDetailTs, /navigateToGuestFallback/);
-  assert.match(profileTs, /navigateToGuestFallback/);
+  assert.doesNotMatch(profileTs, /navigateToGuestFallback/);
   assert.doesNotMatch(profileTs, /退出后仍可浏览装备图鉴和绳结教学/);
+  assert.doesNotMatch(profileTs, /退出后仍可浏览装备图鉴/);
   assert.match(gearWxml, /装备图鉴/);
   assert.match(gearWxml, /goGearAtlas/);
   assert.match(gearWxml, /goPackingLists/);
@@ -1027,6 +1027,7 @@ ${ts}`;
   assert.match(wxml, /account-settings-entry/);
   assert.match(wxml, /查看账号资料与户外资料/);
   assert.match(wxml, /account-logout-button/);
+  assert.match(wxml, /登录 \/ 注册/);
   assert.doesNotMatch(wxml, /account-button danger/);
   assert.match(wxss, /\.account-main\s*\{[\s\S]*flex:\s*1;/);
   assert.match(wxss, /\.account-settings-entry\s*\{[\s\S]*flex:\s*1;/);
@@ -1038,6 +1039,8 @@ ${ts}`;
   assert.doesNotMatch(wxml, /accountProfile\.emailText/);
   assert.doesNotMatch(wxml, /已绑定/);
   assert.match(wxml, /设置与帮助/);
+  assert.match(pageSource, /退出后会清除本机登录状态/);
+  assert.doesNotMatch(pageSource, /navigateToGuestFallback/);
   assert.match(wxml, /绳结离线缓存/);
   assert.match(wxml, /意见反馈/);
   assert.doesNotMatch(wxml, /bindtap="openOutdoorProfile"/);
