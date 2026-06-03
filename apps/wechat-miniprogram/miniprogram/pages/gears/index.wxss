@@ -172,8 +172,7 @@
 .error-card,
 .loading-card,
 .empty-card,
-.gear-card,
-.guest-card {
+.gear-card {
   margin-top: 20rpx;
   border: 1rpx solid var(--border-color);
   border-radius: var(--card-radius);
@@ -671,43 +670,6 @@
   background: var(--brand-color);
 }
 
-.guest-card {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  padding: 26rpx;
-}
-
-.guest-card > view {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.guest-title {
-  color: var(--text-color);
-  font-size: 30rpx;
-  font-weight: 900;
-}
-
-.guest-desc {
-  margin-top: 8rpx;
-  color: var(--muted-color);
-  font-size: 24rpx;
-  line-height: 1.5;
-}
-
-.guest-card button {
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 0 24rpx;
-  border-radius: 999rpx;
-  color: var(--brand-text-color);
-  background: var(--brand-color);
-  font-size: 24rpx;
-  font-weight: 800;
-  line-height: 62rpx;
-}
-
 .gear-page.theme-dark {
   color: var(--text-color);
   background: var(--body-gradient);
@@ -719,8 +681,7 @@
 .gear-page.theme-dark .error-card,
 .gear-page.theme-dark .loading-card,
 .gear-page.theme-dark .empty-card,
-.gear-page.theme-dark .gear-card,
-.gear-page.theme-dark .guest-card {
+.gear-page.theme-dark .gear-card {
   border-color: var(--border-color);
   background: var(--surface-color);
   box-shadow: var(--shadow-soft);
@@ -765,7 +726,6 @@
 .gear-page.theme-dark .gear-name,
 .gear-page.theme-dark .empty-title,
 .gear-page.theme-dark .quick-entry-title,
-.gear-page.theme-dark .guest-title,
 .gear-page.theme-dark .filter-sheet-title {
   color: var(--text-color);
 }
@@ -779,7 +739,6 @@
 
 .gear-page.theme-dark .filter-summary-text,
 .gear-page.theme-dark .quick-entry-desc,
-.gear-page.theme-dark .guest-desc,
 .gear-page.theme-dark .gear-meta,
 .gear-page.theme-dark .load-more,
 .gear-page.theme-dark .loading-card,

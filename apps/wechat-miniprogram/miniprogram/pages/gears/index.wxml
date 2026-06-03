@@ -18,15 +18,6 @@
         </view>
       </button>
     </view>
-    <view class="guest-card">
-      <view>
-        <view class="guest-title">未登录也可先浏览</view>
-        <view class="guest-desc"
-          >可以先看装备图鉴；要保存自己的装备时再登录。</view
-        >
-      </view>
-      <button bindtap="goLogin">登录</button>
-    </view>
   </block>
 
   <block wx:else>

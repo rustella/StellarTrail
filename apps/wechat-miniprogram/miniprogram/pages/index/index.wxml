@@ -61,14 +61,6 @@
       <view class="section-link" bindtap="goGears">查看装备</view>
     </view>
 
-    <view wx:if="{{!isLoggedIn}}" class="guest-inline">
-      <view>
-        <view class="guest-title">可以先浏览装备图鉴</view>
-        <view class="guest-desc">登录后再管理自己的装备、重量和估值。</view>
-      </view>
-      <button bindtap="showLoginForGearSummary">去登录</button>
-    </view>
-
     <view wx:if="{{gearError}}" class="state-card error">
       <view>{{gearError}}</view>
       <button bindtap="loadGearSummary">重试</button>

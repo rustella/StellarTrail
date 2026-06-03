@@ -32,7 +32,8 @@ ${ts}`;
   assert.match(wxml, /placeholder="邮箱验证码"/);
   assert.match(wxml, /password="{{true}}"/);
   assert.match(wxml, /注册账号/);
-  assert.match(wxml, /不登录也可以先看装备图鉴/);
+  assert.match(wxml, /登录后可以保存和同步个人装备/);
+  assert.doesNotMatch(wxml, /不登录也可以先看装备图鉴/);
   assert.doesNotMatch(wxml, /绳结教学/);
   assert.match(pageSource, /this\.afterLoginSuccess\(\)/);
   assert.match(pageSource, /navigateToGuestFallback/);
@@ -83,7 +84,9 @@ test("guest users can browse home and the gear atlas", () => {
     /GUEST_ACCESSIBLE_PAGES[\s\S]*"\/pages\/trips\/index"/,
   );
   assert.doesNotMatch(homeTs, /navigateToGuestFallback/);
-  assert.match(homeWxml, /可以先浏览装备图鉴/);
+  assert.match(homeTs, /GUEST_HERO_STATUS_TEXT = "装备状态待同步"/);
+  assert.doesNotMatch(homeTs, /未登录也可先浏览/);
+  assert.doesNotMatch(homeWxml, /可以先浏览装备图鉴/);
   assert.match(skillsTs, /navigateToGuestFallback/);
   assert.match(skillDetailTs, /navigateToGuestFallback/);
   assert.match(profileTs, /navigateToGuestFallback/);
@@ -91,6 +94,8 @@ test("guest users can browse home and the gear atlas", () => {
   assert.match(guestGearBlock, /装备图鉴/);
   assert.match(guestGearBlock, /goGearAtlas/);
   assert.doesNotMatch(guestGearBlock, /goPackingLists/);
+  assert.doesNotMatch(guestGearBlock, /未登录也可先浏览/);
+  assert.doesNotMatch(guestGearBlock, /可以先看装备图鉴/);
   assert.doesNotMatch(guestGearBlock, /绳结教学/);
   assert.match(
     gearWxss,
@@ -1389,26 +1394,20 @@ test("register page styles include dark theme surfaces", () => {
   assert.match(wxss, /var\(--brand-color\)/);
 });
 
-test("home gear summary aligns logged-out and logged-in card surfaces", () => {
+test("home gear summary keeps locked cards without guest browse prompt", () => {
   const wxml = read("pages/index/index.wxml");
   const ts = read("pages/index/index.ts");
   const wxss = read("pages/index/index.wxss");
-  const guestInlineBlock =
-    wxss.match(/\.guest-inline \{[\s\S]*?\n\}/)?.[0] ?? "";
 
-  assert.match(wxml, /showLoginForGearSummary/);
+  assert.doesNotMatch(wxml, /showLoginForGearSummary/);
+  assert.doesNotMatch(wxml, /guest-inline/);
+  assert.doesNotMatch(wxss, /\.guest-inline/);
   assert.match(ts, /LOCKED_GEAR_STATS/);
   assert.match(ts, /登录后可见/);
   assert.match(ts, /buildHeroStatusText/);
   assert.doesNotMatch(ts, /登录后快速记录装备/);
   assert.doesNotMatch(ts, /我的装备已保存/);
   assert.match(ts, /value: "—"/);
-  assert.match(
-    guestInlineBlock,
-    /border: 1rpx solid var\(--soft-border-color\)/,
-  );
-  assert.match(guestInlineBlock, /background: var\(--control-bg\)/);
-  assert.doesNotMatch(guestInlineBlock, /var\(--notice-bg\)/);
 });
 
 test("gear page logged-out and logged-in cards share surface tokens", () => {

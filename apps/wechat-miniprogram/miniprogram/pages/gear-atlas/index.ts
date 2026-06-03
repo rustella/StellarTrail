@@ -195,7 +195,7 @@ Page({
     if (!hasAccessToken()) {
       wx.showModal({
         title: "登录后投稿",
-        content: "装备图鉴可以先浏览；投稿新装备需要登录。",
+        content: "投稿新装备需要登录。",
         confirmText: "去登录",
         confirmColor: "#0f766e",
         success: (result) => {
