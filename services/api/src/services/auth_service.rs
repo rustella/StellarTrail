@@ -439,7 +439,7 @@ fn retry_after_until(created_at: &str, window_seconds: u64, now: OffsetDateTime)
     let created_at = OffsetDateTime::parse(created_at, &Iso8601::DEFAULT).ok()?;
     let available_at = created_at + Duration::seconds(window_seconds as i64);
     let remaining = (available_at - now).whole_seconds();
-    (remaining > 0).then(|| remaining as u64)
+    (remaining > 0).then_some(remaining as u64)
 }
 
 fn sms_template_param(valid_time_seconds: u64) -> String {
