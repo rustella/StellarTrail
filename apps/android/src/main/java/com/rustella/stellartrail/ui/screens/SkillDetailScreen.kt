@@ -1,15 +1,7 @@
 package com.rustella.stellartrail.ui.screens
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,10 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -65,7 +54,6 @@ import com.rustella.stellartrail.ui.common.LoadingState
 import com.rustella.stellartrail.ui.common.NetworkMediaImage
 import com.rustella.stellartrail.ui.common.SurfaceCard
 import com.rustella.stellartrail.ui.common.TrailCardShape
-import com.rustella.stellartrail.ui.common.TrailInnerCardShape
 import com.rustella.stellartrail.ui.common.TrailPillShape
 import com.rustella.stellartrail.ui.common.currentTrailPalette
 
@@ -220,16 +208,12 @@ private fun MediaStage(
             NetworkMediaImage(
                 imageUrl = activeMedia?.url?.let(resolveMediaUrl),
                 contentDescription = detail.title,
-                fallbackLabel = if (detail.media.isEmpty()) "暂无演示图" else "${detail.media.size} 个素材",
+                fallbackLabel = "暂无绳结媒体",
+                loadingLabel = "媒体加载中",
+                errorLabel = "媒体加载失败",
                 modifier = Modifier.fillMaxSize(),
                 shape = RoundedCornerShape(0.dp),
                 contentScale = ContentScale.Fit,
-                fallbackContent = {
-                    KnotMediaFallback(
-                        mediaType = activeMedia?.mediaType,
-                        label = activeMeta?.label ?: if (detail.media.isEmpty()) "暂无演示图" else "${detail.media.size} 个素材",
-                    )
-                },
             )
         }
         if (media.isNotEmpty()) {
@@ -298,7 +282,7 @@ private fun MediaControl(meta: MediaMeta, selected: Boolean, onClick: () -> Unit
 @Composable
 private fun SummaryPanel(
     detail: KnotDetail,
-    mediaCredit: String,
+    mediaCredit: String?,
     state: SkillDetailUiState,
     isLoggedIn: Boolean,
     onToggleFavorite: () -> Unit,
@@ -338,12 +322,14 @@ private fun SummaryPanel(
                 tags.take(3).forEach { tag -> Badge(tag, tone = BadgeTone.Info) }
             }
         }
-        Text(
-            mediaCredit,
-            color = palette.textMuted,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Bold,
-        )
+        if (mediaCredit != null) {
+            Text(
+                mediaCredit,
+                color = palette.textMuted,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+            )
+        }
         if (state.actionError != null) {
             Text(
                 state.actionError,
@@ -352,91 +338,6 @@ private fun SummaryPanel(
                 fontWeight = FontWeight.Bold,
             )
         }
-    }
-}
-
-@Composable
-private fun KnotMediaFallback(mediaType: String?, label: String) {
-    val animated = mediaType == "draw_gif" || mediaType == "turntable_gif"
-    val turntable = mediaType == "turntable_gif"
-    val transition = rememberInfiniteTransition(label = "knot-media-fallback")
-    val progress by transition.animateFloat(
-        initialValue = if (animated) 0f else 1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1400, easing = LinearEasing),
-            repeatMode = if (animated && !turntable) RepeatMode.Reverse else RepeatMode.Restart,
-        ),
-        label = "knot-media-progress",
-    )
-    val rotation by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = if (turntable) 360f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "knot-media-rotation",
-    )
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFF8FAFC))
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Canvas(
-            modifier = Modifier
-                .size(142.dp)
-                .graphicsLayer {
-                    rotationZ = if (turntable) rotation else 0f
-                },
-        ) {
-            val stroke = size.minDimension * 0.085f
-            val loopCenter = androidx.compose.ui.geometry.Offset(
-                x = size.width * 0.5f,
-                y = size.height * 0.54f,
-            )
-            val sway = if (animated && !turntable) (progress - 0.5f) * size.minDimension * 0.16f else 0f
-            val rope = Color(0xFFD97706)
-            val highlight = Color(0xFFFBBF24)
-            val shadow = Color(0xFF92400E)
-            fun line(color: Color, startX: Float, startY: Float, endX: Float, endY: Float, width: Float) {
-                drawLine(
-                    color = color,
-                    start = androidx.compose.ui.geometry.Offset(startX, startY),
-                    end = androidx.compose.ui.geometry.Offset(endX, endY),
-                    strokeWidth = width,
-                    cap = StrokeCap.Round,
-                )
-            }
-            line(shadow, size.width * 0.16f, size.height * 0.72f, loopCenter.x - size.width * 0.18f, loopCenter.y + sway, stroke * 1.2f)
-            line(rope, size.width * 0.16f, size.height * 0.72f, loopCenter.x - size.width * 0.18f, loopCenter.y + sway, stroke)
-            drawCircle(
-                color = shadow,
-                radius = size.minDimension * 0.2f,
-                center = loopCenter,
-                style = Stroke(width = stroke * 1.15f, cap = StrokeCap.Round),
-            )
-            drawCircle(
-                color = highlight,
-                radius = size.minDimension * 0.2f,
-                center = loopCenter,
-                style = Stroke(width = stroke * 0.78f, cap = StrokeCap.Round),
-            )
-            line(shadow, loopCenter.x + size.width * 0.16f, loopCenter.y + sway * 0.4f, size.width * 0.84f, size.height * 0.28f, stroke * 1.2f)
-            line(highlight, loopCenter.x + size.width * 0.16f, loopCenter.y + sway * 0.4f, size.width * 0.84f, size.height * 0.28f, stroke)
-            line(shadow, size.width * 0.5f + sway * 0.35f, size.height * 0.08f, loopCenter.x + sway * 0.2f, loopCenter.y - size.height * 0.24f, stroke * 1.2f)
-            line(rope, size.width * 0.5f + sway * 0.35f, size.height * 0.08f, loopCenter.x + sway * 0.2f, loopCenter.y - size.height * 0.24f, stroke)
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            label,
-            color = Color(0xFF64748B),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.ExtraBold,
-        )
     }
 }
 
@@ -513,10 +414,8 @@ private fun mediaMeta(mediaType: String): MediaMeta = when (mediaType) {
     else -> MediaMeta("动图", "•", "查看绳结动图。")
 }
 
-private fun mediaCredit(media: KnotMediaAsset?): String {
-    if (media == null) return "演示素材 · Knots 3D"
-    return "${mediaMeta(media.mediaType).label} · ${media.attribution ?: "Knots 3D"}"
-}
+private fun mediaCredit(media: KnotMediaAsset?): String? =
+    media?.let { "${mediaMeta(it.mediaType).label} · ${it.attribution ?: "Knots 3D"}" }
 
 private fun knotTags(detail: KnotDetail): List<String> =
     (detail.categories.map { it.title } + detail.types.map { it.title })

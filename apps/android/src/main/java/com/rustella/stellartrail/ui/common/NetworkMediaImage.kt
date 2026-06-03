@@ -31,7 +31,8 @@ fun NetworkMediaImage(
     modifier: Modifier = Modifier,
     shape: Shape = TrailInnerCardShape,
     contentScale: ContentScale = ContentScale.Crop,
-    fallbackContent: (@Composable () -> Unit)? = null,
+    loadingLabel: String = fallbackLabel,
+    errorLabel: String = fallbackLabel,
 ) {
     val palette = currentTrailPalette()
     val context = LocalContext.current
@@ -68,23 +69,17 @@ fun NetworkMediaImage(
             ) {
                 when (painter.state) {
                     is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent()
+                    is AsyncImagePainter.State.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        MediaFallbackText(errorLabel)
+                    }
                     else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        MediaFallback(fallbackLabel, fallbackContent)
+                        MediaFallbackText(loadingLabel)
                     }
                 }
             }
         } else {
-            MediaFallback(fallbackLabel, fallbackContent)
+            MediaFallbackText(fallbackLabel)
         }
-    }
-}
-
-@Composable
-private fun MediaFallback(label: String, fallbackContent: (@Composable () -> Unit)?) {
-    if (fallbackContent != null) {
-        fallbackContent()
-    } else {
-        MediaFallbackText(label)
     }
 }
 

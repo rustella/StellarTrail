@@ -180,6 +180,7 @@ private fun AuthenticatedApp(
                     onOpenGear = { id ->
                         if (isLoggedIn) navController.navigate(AppRoutes.gearDetail(id)) else navController.navigate(AppRoutes.AUTH)
                     },
+                    onOpenKnot = { id -> navController.navigate(AppRoutes.skillDetail(id)) },
                     onLogin = { navController.navigate(AppRoutes.AUTH) },
                 )
             }

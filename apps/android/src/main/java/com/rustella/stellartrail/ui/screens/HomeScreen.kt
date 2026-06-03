@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -64,6 +65,7 @@ fun HomeScreen(
     onOpenTrip: (String) -> Unit,
     onOpenProfile: () -> Unit,
     onOpenGear: (String) -> Unit,
+    onOpenKnot: (String) -> Unit,
     onLogin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -98,7 +100,7 @@ fun HomeScreen(
                 onLogin = onLogin,
             )
         }
-        item { FeaturedSkillsSection(state.featuredKnots, onOpenSkills) }
+        item { FeaturedSkillsSection(state.featuredKnots, onOpenSkills, onOpenKnot) }
     }
 }
 
@@ -198,7 +200,11 @@ private fun OverviewStatTile(stat: HomeOverviewStat, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun FeaturedSkillsSection(knots: List<KnotSummary>, onOpenSkills: () -> Unit) {
+private fun FeaturedSkillsSection(
+    knots: List<KnotSummary>,
+    onOpenSkills: () -> Unit,
+    onOpenKnot: (String) -> Unit,
+) {
     val palette = currentTrailPalette()
     SurfaceCard(contentPadding = PaddingValues(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -231,7 +237,7 @@ private fun FeaturedSkillsSection(knots: List<KnotSummary>, onOpenSkills: () -> 
                 if (knots.isEmpty()) {
                     Text("技能内容准备中。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    knots.take(3).forEach { knot -> KnotFeatureRow(knot, onOpenSkills) }
+                    knots.take(3).forEach { knot -> KnotFeatureRow(knot, onClick = { onOpenKnot(knot.id) }) }
                 }
             }
         }
@@ -256,6 +262,7 @@ private fun KnotFeatureRow(knot: KnotSummary, onClick: () -> Unit) {
             fallbackLabel = "绳结",
             modifier = Modifier.size(width = 86.dp, height = 64.dp),
             shape = RoundedCornerShape(12.dp),
+            contentScale = ContentScale.Fit,
         )
         Column(Modifier.weight(0.68f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
