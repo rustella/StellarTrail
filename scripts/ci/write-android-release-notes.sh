@@ -99,7 +99,7 @@ main() {
   [[ -n "$release_tag" ]] || fail "RELEASE_TAG is required."
   is_release_tag "$release_tag" || fail "RELEASE_TAG ${release_tag} does not match the Android release tag pattern."
 
-  apk_asset_name="${APK_ASSET_NAME:-StellarTrail-${release_tag}-android-debug.apk}"
+  apk_asset_name="${APK_ASSET_NAME:-StellarTrail-${release_tag}-android-release.apk}"
 
   if [[ -z "$apk_sha256" ]]; then
     apk_sha256="$(read_sha256_file "release/${apk_asset_name}.sha256")"
@@ -128,7 +128,7 @@ main() {
   {
     printf '# StellarTrail Android %s\n\n' "$release_tag"
     printf '### 下载\n\n'
-    printf -- '- [下载 Android APK](%s)\n' "$download_url"
+    printf -- '- [下载签名 Android APK](%s)\n' "$download_url"
     printf -- '- SHA-256: `%s`\n\n' "$apk_sha256"
     printf '### 更新内容\n\n'
     printf '%s\n\n' "$commit_bullets"

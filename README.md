@@ -13,12 +13,13 @@
   <img alt="Rust" src="https://img.shields.io/badge/API-Rust%20%2B%20Axum-orange" />
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat%20Mini%20Program-%E5%8F%AF%E7%94%A8-07C160" />
   <img alt="Web" src="https://img.shields.io/badge/Web-%E5%8F%AF%E7%94%A8-0EA5E9" />
-  <img alt="Native clients" src="https://img.shields.io/badge/iOS%20%2F%20macOS%20%2F%20Android%20%2F%20HarmonyOS-%E4%B8%8D%E5%8F%AF%E7%94%A8-lightgrey" />
+  <img alt="Android" src="https://img.shields.io/badge/Android-%E5%8F%AF%E7%94%A8-34D399" />
+  <img alt="Other native clients" src="https://img.shields.io/badge/iOS%20%2F%20macOS%20%2F%20HarmonyOS-%E4%B8%8D%E5%8F%AF%E7%94%A8-lightgrey" />
   <img alt="Content Driven" src="https://img.shields.io/badge/Content-DB%20%2B%20MinIO-8A2BE2" />
 </p>
 
 <p align="center">
-  <strong>微信小程序与 Web 已可用</strong> · <strong>原生客户端暂不可用</strong>
+  <strong>微信小程序、Web 与 Android 已可用</strong> · <strong>iOS / macOS / HarmonyOS 暂不可用</strong>
 </p>
 
 ---
@@ -27,7 +28,7 @@
 
 StellarTrail 聚焦徒步、露营和轻量户外用户，围绕 **装备整理**、**路线计划**、**户外技能工具箱** 等准备和出行前协作场景展开。
 
-当前可直接体验的入口是 **微信小程序端** 和 **Web**：两端覆盖账号登录、个人装备库、装备图鉴、绳结技能和反馈能力。Web 在其他端能力基础上增加了管理员功能。Android、iOS、macOS、HarmonyOS 暂不可用，不作为当前交付入口。
+当前可直接体验的入口是 **微信小程序端**、**Web** 和 **Android**：三端覆盖账号登录、个人装备库、装备图鉴、绳结技能和反馈能力。Web 在其他端能力基础上增加了管理员功能。Android 使用 Kotlin + Jetpack Compose，并通过 CI 产出签名 Release APK。iOS、macOS、HarmonyOS 暂不可用，不作为当前交付入口。
 
 | 产品功能      | 当前说明                                   |
 | ------------- | ------------------------------------------ |
@@ -63,7 +64,7 @@ StellarTrail 聚焦徒步、露营和轻量户外用户，围绕 **装备整理*
 | ------------ | -------- | --------------------------------------------------------------------- |
 | 微信小程序端 | 可用     | 首页、装备库、装备图鉴、绳结技能、我的、登录/注册、反馈和离线只读缓存 |
 | Web          | 可用     | 覆盖其他端的核心能力，并增加管理员功能                                |
-| Android      | 不可用   | 代码仍在仓库中，但当前不作为可运行交付入口                            |
+| Android      | 可用     | 原生 Kotlin + Jetpack Compose 客户端；CI 可构建签名 Release APK       |
 | iOS          | 不可用   | 代码仍在仓库中，但当前不作为可运行交付入口                            |
 | macOS        | 不可用   | 代码仍在仓库中，但当前不作为可运行交付入口                            |
 | HarmonyOS    | 不可用   | 尚未作为当前交付客户端接入                                            |
@@ -100,6 +101,7 @@ StellarTrail/
 - 🦀 Rust 1.95 stable toolchain（Rust 2024 edition；仓库 `rust-version` 为 `1.95`，并包含 `rust-toolchain.toml`；需要 `rustfmt` 和 `clippy`）。
 - 🟢 Node.js 22+ 与 npm。
 - 💬 微信开发者工具（调试小程序时需要）。
+- 🤖 Android 本地构建需要 JDK 21、Android SDK 36 和 Build Tools 36.0.0。
 - 🗄️ PostgreSQL 16+ / MySQL-compatible 数据库（本地默认 SQLite；生产和集成测试推荐 PostgreSQL；MySQL URL 已保留识别边界）。
 - 🪣 MinIO 或 S3-compatible 对象存储。
 - ⚡ Redis 7+（可选；配置 `REDIS_URL` 后启用服务端缓存）。
@@ -142,8 +144,10 @@ curl http://127.0.0.1:8080/api/v1/meta
 | ---------- | ------------------------------------------------------- | ----------------------------------------------- |
 | Web        | `apps/web/.env.example`                                 | `apps/web/.env.local`                           |
 | 微信小程序 | `apps/wechat-miniprogram/miniprogram/config.example.ts` | `apps/wechat-miniprogram/miniprogram/config.ts` |
+| Android    | `apps/android/config.example.properties`                | `apps/android/config.properties`                |
 
 Web 可通过 `VITE_STELLARTRAIL_API_BASE_URL` 和 `VITE_STELLARTRAIL_ASSETS_BASE_URL` 覆盖；本地 Vite 开发默认使用同源 `/api/v1`，并通过 `VITE_STELLARTRAIL_API_PROXY_TARGET` 代理到真实或本地 API，避免浏览器 CORS 拦截。微信小程序端会读取 `miniprogram/config.ts`，缺失时回退到占位地址。
+Android 会读取被 Git 忽略的 `apps/android/config.properties`，缺失时回退到示例占位地址；签名 Release APK 由 GitHub Actions 通过仓库级 Secrets 注入真实域名和签名材料。
 
 完整接口说明见 [API 文档](docs/api.md)。
 
@@ -154,6 +158,16 @@ Web 可通过 `VITE_STELLARTRAIL_API_BASE_URL` 和 `VITE_STELLARTRAIL_ASSETS_BAS
 ### 6. 打开微信小程序源码
 
 用微信开发者工具打开 `apps/wechat-miniprogram`。项目配置中的 `miniprogramRoot` 指向 `miniprogram/`。当前小程序端已覆盖首页、装备库、装备图鉴、绳结技能、我的、登录/注册、头像/邮箱绑定、反馈和离线只读缓存。
+
+### 7. 构建 Android 客户端
+
+Android 本地调试可复制 `apps/android/config.example.properties` 到被 Git 忽略的 `apps/android/config.properties`，再替换 API 与资源地址。Debug 构建不需要签名变量：
+
+```bash
+./gradlew :apps:android:testDebugUnitTest :apps:android:lintDebug :apps:android:assembleDebug
+```
+
+本地 Release 构建需要通过环境变量提供 release keystore 路径和密码；CI 合入 `main` 后会使用 GitHub Actions Secrets 构建 signed release APK，并在 workflow artifact 中提供 `StellarTrail-main-<short_sha>-android-release.apk` 与对应 `.sha256` 文件。更完整的签名、Secrets 和下载说明见 [Android README](apps/android/README.md)。
 
 ## 🧪 常用检查命令
 
@@ -169,6 +183,9 @@ cargo +1.95.0 fmt --all -- --check
 cargo +1.95.0 check --workspace
 cargo +1.95.0 test --workspace
 cargo +1.95.0 clippy --workspace --all-targets -- -D warnings
+
+# Android Debug 检查
+./gradlew :apps:android:testDebugUnitTest :apps:android:lintDebug :apps:android:assembleDebug
 ```
 
 ## 📚 文档索引

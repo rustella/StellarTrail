@@ -6,6 +6,17 @@ on:
       - main
     tags:
       - "v*"
+    paths:
+      - "apps/android/**"
+      - "gradle/**"
+      - "gradle.properties"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradlew"
+      - "gradlew.bat"
+      - "scripts/ci/detect-android-release-tags.sh"
+      - "scripts/ci/write-android-release-notes.sh"
+      - ".github/workflows/android-release.yml"
   workflow_dispatch:
     inputs:
       tag:
@@ -21,6 +32,108 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  main-release-apk:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x ./gradlew
+      - name: Prepare Android release configuration
+        env:
+          STELLARTRAIL_API_BASE_URL: ${{ secrets.STELLARTRAIL_API_BASE_URL }}
+          STELLARTRAIL_ASSETS_BASE_URL: ${{ secrets.STELLARTRAIL_ASSETS_BASE_URL }}
+          STELLARTRAIL_DOMAIN_CANDIDATES: ${{ secrets.STELLARTRAIL_DOMAIN_CANDIDATES }}
+        run: |
+          set -euo pipefail
+
+          : "${STELLARTRAIL_API_BASE_URL:?Missing STELLARTRAIL_API_BASE_URL secret}"
+          : "${STELLARTRAIL_ASSETS_BASE_URL:?Missing STELLARTRAIL_ASSETS_BASE_URL secret}"
+
+          {
+            printf 'stellartrail.apiBaseUrl=%s\n' "${STELLARTRAIL_API_BASE_URL}"
+            printf 'stellartrail.assetsBaseUrl=%s\n' "${STELLARTRAIL_ASSETS_BASE_URL}"
+            printf 'stellartrail.domainCandidates=%s\n' "${STELLARTRAIL_DOMAIN_CANDIDATES:-}"
+          } > apps/android/config.properties
+      - name: Prepare Android release signing
+        env:
+          STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD }}
+          STELLARTRAIL_ANDROID_KEY_ALIAS: ${{ secrets.STELLARTRAIL_ANDROID_KEY_ALIAS }}
+          STELLARTRAIL_ANDROID_KEY_PASSWORD: ${{ secrets.STELLARTRAIL_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          : "${STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64:?Missing STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64 secret}"
+          : "${STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD:?Missing STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD secret}"
+          : "${STELLARTRAIL_ANDROID_KEY_ALIAS:?Missing STELLARTRAIL_ANDROID_KEY_ALIAS secret}"
+          : "${STELLARTRAIL_ANDROID_KEY_PASSWORD:?Missing STELLARTRAIL_ANDROID_KEY_PASSWORD secret}"
+
+          echo "::add-mask::${STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD}"
+          echo "::add-mask::${STELLARTRAIL_ANDROID_KEY_ALIAS}"
+          echo "::add-mask::${STELLARTRAIL_ANDROID_KEY_PASSWORD}"
+
+          keystore_path="${RUNNER_TEMP}/stellartrail-android-release.jks"
+          printf '%s' "${STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64}" | base64 -d > "${keystore_path}"
+          chmod 600 "${keystore_path}"
+
+          {
+            printf 'STELLARTRAIL_ANDROID_KEYSTORE_PATH=%s\n' "${keystore_path}"
+            printf 'STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD=%s\n' "${STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD}"
+            printf 'STELLARTRAIL_ANDROID_KEY_ALIAS=%s\n' "${STELLARTRAIL_ANDROID_KEY_ALIAS}"
+            printf 'STELLARTRAIL_ANDROID_KEY_PASSWORD=%s\n' "${STELLARTRAIL_ANDROID_KEY_PASSWORD}"
+          } >> "${GITHUB_ENV}"
+      - run: ./gradlew :apps:android:testDebugUnitTest :apps:android:lintDebug :apps:android:assembleRelease
+      - name: Prepare main release artifact
+        run: |
+          set -euo pipefail
+
+          mkdir -p release
+          mapfile -t apk_files < <(find apps/android/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | sort)
+
+          if ((${#apk_files[@]} == 0)); then
+            echo "No release APK found under apps/android/build/outputs/apk/release" >&2
+            exit 1
+          fi
+
+          if ((${#apk_files[@]} > 1)); then
+            printf 'Multiple release APK files found; refusing to guess:\n' >&2
+            printf '  %s\n' "${apk_files[@]}" >&2
+            exit 1
+          fi
+
+          apk_src="${apk_files[0]}"
+          "${ANDROID_HOME}/build-tools/36.0.0/apksigner" verify --verbose "${apk_src}"
+
+          short_sha="$(git rev-parse --short=12 HEAD)"
+          apk_name="StellarTrail-main-${short_sha}-android-release.apk"
+          cp "${apk_src}" "release/${apk_name}"
+
+          (
+            cd release
+            sha256sum "${apk_name}" > "${apk_name}.sha256"
+          )
+
+          {
+            printf 'APK_ASSET_NAME=%s\n' "${apk_name}"
+            printf 'APK_ARTIFACT_NAME=StellarTrail-main-%s-android-release\n' "${short_sha}"
+          } >> "${GITHUB_ENV}"
+      - name: Upload signed release APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_ARTIFACT_NAME }}
+          path: |
+            release/${{ env.APK_ASSET_NAME }}
+            release/${{ env.APK_ASSET_NAME }}.sha256
+          if-no-files-found: error
+          retention-days: 30
+
   detect:
     runs-on: ubuntu-latest
     outputs:
@@ -64,7 +177,51 @@ jobs:
       - run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x ./gradlew scripts/ci/*.sh
-      - run: ./gradlew :apps:android:testDebugUnitTest :apps:android:lintDebug :apps:android:assembleDebug
+      - name: Prepare Android release configuration
+        env:
+          STELLARTRAIL_API_BASE_URL: ${{ secrets.STELLARTRAIL_API_BASE_URL }}
+          STELLARTRAIL_ASSETS_BASE_URL: ${{ secrets.STELLARTRAIL_ASSETS_BASE_URL }}
+          STELLARTRAIL_DOMAIN_CANDIDATES: ${{ secrets.STELLARTRAIL_DOMAIN_CANDIDATES }}
+        run: |
+          set -euo pipefail
+
+          : "${STELLARTRAIL_API_BASE_URL:?Missing STELLARTRAIL_API_BASE_URL secret}"
+          : "${STELLARTRAIL_ASSETS_BASE_URL:?Missing STELLARTRAIL_ASSETS_BASE_URL secret}"
+
+          {
+            printf 'stellartrail.apiBaseUrl=%s\n' "${STELLARTRAIL_API_BASE_URL}"
+            printf 'stellartrail.assetsBaseUrl=%s\n' "${STELLARTRAIL_ASSETS_BASE_URL}"
+            printf 'stellartrail.domainCandidates=%s\n' "${STELLARTRAIL_DOMAIN_CANDIDATES:-}"
+          } > apps/android/config.properties
+      - name: Prepare Android release signing
+        env:
+          STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD }}
+          STELLARTRAIL_ANDROID_KEY_ALIAS: ${{ secrets.STELLARTRAIL_ANDROID_KEY_ALIAS }}
+          STELLARTRAIL_ANDROID_KEY_PASSWORD: ${{ secrets.STELLARTRAIL_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          : "${STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64:?Missing STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64 secret}"
+          : "${STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD:?Missing STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD secret}"
+          : "${STELLARTRAIL_ANDROID_KEY_ALIAS:?Missing STELLARTRAIL_ANDROID_KEY_ALIAS secret}"
+          : "${STELLARTRAIL_ANDROID_KEY_PASSWORD:?Missing STELLARTRAIL_ANDROID_KEY_PASSWORD secret}"
+
+          echo "::add-mask::${STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD}"
+          echo "::add-mask::${STELLARTRAIL_ANDROID_KEY_ALIAS}"
+          echo "::add-mask::${STELLARTRAIL_ANDROID_KEY_PASSWORD}"
+
+          keystore_path="${RUNNER_TEMP}/stellartrail-android-release.jks"
+          printf '%s' "${STELLARTRAIL_ANDROID_RELEASE_KEYSTORE_BASE64}" | base64 -d > "${keystore_path}"
+          chmod 600 "${keystore_path}"
+
+          {
+            printf 'STELLARTRAIL_ANDROID_KEYSTORE_PATH=%s\n' "${keystore_path}"
+            printf 'STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD=%s\n' "${STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD}"
+            printf 'STELLARTRAIL_ANDROID_KEY_ALIAS=%s\n' "${STELLARTRAIL_ANDROID_KEY_ALIAS}"
+            printf 'STELLARTRAIL_ANDROID_KEY_PASSWORD=%s\n' "${STELLARTRAIL_ANDROID_KEY_PASSWORD}"
+          } >> "${GITHUB_ENV}"
+      - run: ./gradlew :apps:android:testDebugUnitTest :apps:android:lintDebug :apps:android:assembleRelease
       - name: Prepare release asset
         env:
           TAG: ${{ matrix.tag }}
@@ -74,33 +231,35 @@ jobs:
           test "$(git rev-parse HEAD)" = "$(git rev-parse "${TAG}^{commit}")"
 
           mkdir -p release
-          mapfile -t apk_files < <(find apps/android/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' | sort)
+          mapfile -t apk_files < <(find apps/android/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | sort)
 
           if ((${#apk_files[@]} == 0)); then
-            echo "No debug APK found under apps/android/build/outputs/apk/debug" >&2
+            echo "No release APK found under apps/android/build/outputs/apk/release" >&2
             exit 1
           fi
 
           if ((${#apk_files[@]} > 1)); then
-            printf 'Multiple debug APK files found; refusing to guess:\n' >&2
+            printf 'Multiple release APK files found; refusing to guess:\n' >&2
             printf '  %s\n' "${apk_files[@]}" >&2
             exit 1
           fi
 
           apk_src="${apk_files[0]}"
-          apk_name="StellarTrail-${TAG}-android-debug.apk"
-          cp "$apk_src" "release/$apk_name"
+          "${ANDROID_HOME}/build-tools/36.0.0/apksigner" verify --verbose "${apk_src}"
+
+          apk_name="StellarTrail-${TAG}-android-release.apk"
+          cp "${apk_src}" "release/${apk_name}"
 
           (
             cd release
-            sha256sum "$apk_name" > "$apk_name.sha256"
+            sha256sum "${apk_name}" > "${apk_name}.sha256"
           )
-          read -r apk_sha256 _ < "release/$apk_name.sha256"
+          read -r apk_sha256 _ < "release/${apk_name}.sha256"
 
           {
-            echo "APK_ASSET_NAME=$apk_name"
-            echo "APK_SHA256=$apk_sha256"
-          } >> "$GITHUB_ENV"
+            echo "APK_ASSET_NAME=${apk_name}"
+            echo "APK_SHA256=${apk_sha256}"
+          } >> "${GITHUB_ENV}"
       - name: Write release notes
         env:
           RELEASE_TAG: ${{ matrix.tag }}
@@ -114,15 +273,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          apk_name="StellarTrail-${TAG}-android-debug.apk"
-          if gh release view "$TAG" >/dev/null 2>&1; then
+          apk_name="StellarTrail-${TAG}-android-release.apk"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
             echo "GitHub Release ${TAG} already exists; skipping creation."
             exit 0
           fi
 
-          gh release create "$TAG" \
-            "release/$apk_name#$apk_name" \
-            "release/$apk_name.sha256#$apk_name.sha256" \
+          gh release create "${TAG}" \
+            "release/${apk_name}#${apk_name}" \
+            "release/${apk_name}.sha256#${apk_name}.sha256" \
             --verify-tag \
-            --title "StellarTrail Android $TAG" \
-            --notes-file "release/release-notes-$TAG.md"
+            --title "StellarTrail Android ${TAG}" \
+            --notes-file "release/release-notes-${TAG}.md"
