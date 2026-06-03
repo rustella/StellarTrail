@@ -1415,6 +1415,12 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
   const toolbarBlock = wxss.match(/\.gear-toolbar \{[\s\S]*?\n\}/)?.[0] ?? "";
   const toolbarSearchBlock =
     wxss.match(/\.toolbar-search \{[\s\S]*?\n\}/)?.[0] ?? "";
+  const toolbarLoginFilterBlock =
+    wxss.match(/\.toolbar-filter\.requires-login \{[\s\S]*?\n\}/)?.[0] ?? "";
+  const toolbarAddBlock =
+    wxss.match(/\.toolbar-add \{[\s\S]*?\n\}/)?.[0] ?? "";
+  const toolbarAddIconBlock =
+    wxss.match(/\.toolbar-add-icon \{[\s\S]*?\n\}/)?.[0] ?? "";
   const statsPanelBlock = wxss.match(/\.stats-panel \{[\s\S]*?\n\}/)?.[0] ?? "";
   const statsDetailBlock =
     wxss.match(/\.stats-detail-link \{[\s\S]*?\n\}/)?.[0] ?? "";
@@ -1432,7 +1438,9 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
   assert.match(wxml, /class="gear-toolbar"/);
   assert.match(wxml, /class="toolbar-search-input"/);
   assert.match(wxml, /bindtap="openFilterSheet"/);
+  assert.match(wxml, /\{\{!isLoggedIn \? 'requires-login' : ''\}\}/);
   assert.match(wxml, /class="toolbar-add"[\s\S]*bindtap="goCreate"/);
+  assert.match(wxml, /<text class="toolbar-add-icon">\+<\/text>/);
   assert.match(wxml, /bindtap="handleEmptyAction"/);
   assert.match(ts, /emptyText: "登录后才能管理装备"/);
   assert.match(ts, /emptyActionText: "登录管理装备"/);
@@ -1479,6 +1487,14 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
   assert.match(toolbarBlock, /background: var\(--surface-color\)/);
   assert.match(toolbarBlock, /box-shadow: var\(--shadow-soft\)/);
   assert.match(toolbarSearchBlock, /background: var\(--control-bg\)/);
+  assert.match(toolbarLoginFilterBlock, /background: var\(--brand-soft-bg\)/);
+  assert.match(toolbarLoginFilterBlock, /color: var\(--brand-soft-text\)/);
+  assert.match(toolbarAddBlock, /display: flex/);
+  assert.match(toolbarAddBlock, /align-items: center/);
+  assert.match(toolbarAddBlock, /justify-content: center/);
+  assert.match(toolbarAddBlock, /padding: 0/);
+  assert.match(toolbarAddBlock, /line-height: 1/);
+  assert.match(toolbarAddIconBlock, /line-height: 1/);
   assert.match(statsPanelBlock, /padding: 20rpx/);
   assert.match(statsDetailBlock, /background: var\(--brand-soft-bg\)/);
   assert.match(

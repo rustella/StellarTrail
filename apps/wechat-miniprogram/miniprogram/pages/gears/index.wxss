@@ -115,6 +115,11 @@
   background: var(--brand-soft-bg);
 }
 
+.toolbar-filter.requires-login {
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+}
+
 .toolbar-filter-count {
   min-width: 28rpx;
   height: 28rpx;
@@ -127,15 +132,24 @@
 }
 
 .toolbar-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 72rpx;
   height: 72rpx;
   margin: 0;
+  padding: 0;
   border-radius: 999rpx;
   color: var(--brand-text-color);
   background: var(--brand-color);
   font-size: 42rpx;
   font-weight: 900;
-  line-height: 68rpx;
+  line-height: 1;
+}
+
+.toolbar-add-icon {
+  display: block;
+  line-height: 1;
 }
 
 .filter-summary {
@@ -699,6 +713,7 @@
 }
 
 .gear-page.theme-dark .toolbar-filter.active,
+.gear-page.theme-dark .toolbar-filter.requires-login,
 .gear-page.theme-dark .filter-summary-reset,
 .gear-page.theme-dark .stats-detail-link,
 .gear-page.theme-dark .category-badge,

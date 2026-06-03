@@ -59,7 +59,7 @@
       </button>
     </view>
     <button
-      class="toolbar-filter {{activeFilterCount ? 'active' : ''}}"
+      class="toolbar-filter {{activeFilterCount ? 'active' : ''}} {{!isLoggedIn ? 'requires-login' : ''}}"
       bindtap="openFilterSheet"
     >
       筛选
@@ -67,7 +67,9 @@
         >{{activeFilterCount}}</text
       >
     </button>
-    <button class="toolbar-add" bindtap="goCreate">+</button>
+    <button class="toolbar-add" bindtap="goCreate">
+      <text class="toolbar-add-icon">+</text>
+    </button>
   </view>
 
   <view class="filter-summary">
