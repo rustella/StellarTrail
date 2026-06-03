@@ -3,8 +3,8 @@ package com.rustella.stellartrail.ui.screens
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rustella.stellartrail.domain.skills.KnotSummary
+import com.rustella.stellartrail.domain.skills.preferredThumbnailUrl
 import com.rustella.stellartrail.feature.skills.SkillsMode
 import com.rustella.stellartrail.feature.skills.SkillsViewModel
 import com.rustella.stellartrail.ui.common.Badge
@@ -42,6 +43,7 @@ import com.rustella.stellartrail.ui.common.EmptyState
 import com.rustella.stellartrail.ui.common.ErrorState
 import com.rustella.stellartrail.ui.common.IntroCard
 import com.rustella.stellartrail.ui.common.LoadingState
+import com.rustella.stellartrail.ui.common.NetworkMediaImage
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SurfaceCard
 import com.rustella.stellartrail.ui.common.TrailInnerCardShape
@@ -56,7 +58,7 @@ fun SkillsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     LazyColumn(
         modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 28.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -250,18 +252,14 @@ private fun KnotCategoryIcon(modifier: Modifier = Modifier) {
 
 @Composable
 private fun KnotCard(knot: KnotSummary, onClick: () -> Unit) {
-    val palette = currentTrailPalette()
     SurfaceCard(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(
-                Modifier
-                    .size(width = 82.dp, height = 62.dp)
-                    .clip(TrailInnerCardShape)
-                    .background(palette.controlBackground),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("绳结", color = palette.textMuted, fontWeight = FontWeight.ExtraBold)
-            }
+            NetworkMediaImage(
+                imageUrl = knot.media.preferredThumbnailUrl(),
+                contentDescription = knot.title,
+                fallbackLabel = "绳结",
+                modifier = Modifier.size(width = 82.dp, height = 62.dp),
+            )
             Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Badge(knot.categories.firstOrNull()?.title ?: "绳结", tone = BadgeTone.Info)

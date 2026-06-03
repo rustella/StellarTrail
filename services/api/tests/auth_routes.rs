@@ -11,12 +11,15 @@ use std::sync::{Arc, Mutex};
 use axum::{
     Router,
     body::{Body, to_bytes},
-    http::{Request, StatusCode, header},
+    http::{HeaderMap, Request, StatusCode, header},
 };
 use sea_orm::{ConnectionTrait, Statement};
 use serde_json::{Value, json};
 use stellartrail_api::{
-    config::{ApiConfig, CorsConfig, MailConfig, MailSmtpTls, RedisCacheConfig},
+    config::{
+        ApiConfig, CorsConfig, MailConfig, MailSmtpTls, RedisCacheConfig, SmsConfig,
+        SmsPhoneRateLimitConfig,
+    },
     email::{EmailSender, VerificationEmail},
     migrate_database,
     routes::build_router,
@@ -37,6 +40,10 @@ struct TestApp {
 }
 
 async fn test_app() -> TestApp {
+    test_app_with_sms_config(sms_config_with_phone_rate_limit(false, 60, 86_400, 20)).await
+}
+
+async fn test_app_with_sms_config(sms: SmsConfig) -> TestApp {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
@@ -61,12 +68,29 @@ async fn test_app() -> TestApp {
         rate_limit: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
-        sms: Default::default(),
+        sms,
     };
     TestApp {
         router: build_router(AppState::new(config, db.clone())),
         db,
         _temp_dir: temp_dir,
+    }
+}
+
+fn sms_config_with_phone_rate_limit(
+    enabled: bool,
+    cooldown_seconds: u64,
+    window_seconds: u64,
+    max_sends_per_window: u64,
+) -> SmsConfig {
+    SmsConfig {
+        phone_rate_limit: SmsPhoneRateLimitConfig {
+            enabled,
+            cooldown_seconds,
+            window_seconds,
+            max_sends_per_window,
+        },
+        ..Default::default()
     }
 }
 
@@ -145,6 +169,36 @@ async fn send_json(
         serde_json::from_slice(&bytes).unwrap()
     };
     (status, value)
+}
+
+async fn send_json_with_headers(
+    app: &Router,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+    body: Value,
+) -> (StatusCode, Value, HeaderMap) {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(path)
+        .header(header::CONTENT_TYPE, "application/json");
+    if let Some(token) = token {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(builder.body(Body::from(body.to_string())).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let value = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap()
+    };
+    (status, value, headers)
 }
 
 async fn register_password_user(
@@ -262,6 +316,29 @@ async fn send_empty(
         serde_json::from_slice(&bytes).unwrap()
     };
     (status, value)
+}
+
+async fn insert_sms_challenge(app: &TestApp, phone: &str, id_suffix: usize) {
+    let now = time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Iso8601::DEFAULT)
+        .unwrap();
+    app.db
+        .execute(Statement::from_sql_and_values(
+            app.db.get_database_backend(),
+            r#"INSERT INTO sms_verification_challenges (
+                id, phone, purpose, out_id, expires_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?)"#,
+            vec![
+                format!("sms-limit-{phone}-{id_suffix}").into(),
+                phone.to_owned().into(),
+                "fixture".into(),
+                format!("out-{phone}-{id_suffix}").into(),
+                "2099-01-01T00:00:00Z".into(),
+                now.into(),
+            ],
+        ))
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -777,6 +854,95 @@ async fn sms_registration_sets_phone_and_password_login_accepts_phone() {
         phone_login_value["user"]["id"].as_str().unwrap(),
         register_value["user"]["id"].as_str().unwrap(),
     );
+}
+
+#[tokio::test]
+async fn sms_send_rate_limit_blocks_same_phone_across_purposes() {
+    let app =
+        test_app_with_sms_config(sms_config_with_phone_rate_limit(true, 60, 86_400, 20)).await;
+
+    let (first_status, first_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-registration-code",
+        None,
+        json!({"phone": "13800138110"}),
+    )
+    .await;
+    assert_eq!(first_status, StatusCode::OK, "{first_value}");
+
+    let (second_status, second_value, second_headers) = send_json_with_headers(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-login-code",
+        None,
+        json!({"phone": "13800138110"}),
+    )
+    .await;
+
+    assert_eq!(
+        second_status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "{second_value}"
+    );
+    assert_eq!(second_value["code"], "rate_limited");
+    assert!(second_value["retry_after_seconds"].as_u64().unwrap() > 0);
+    assert!(second_headers.get(header::RETRY_AFTER).is_some());
+}
+
+#[tokio::test]
+async fn sms_send_rate_limit_blocks_more_than_window_quota() {
+    let app = test_app_with_sms_config(sms_config_with_phone_rate_limit(true, 1, 86_400, 20)).await;
+    for index in 0..20 {
+        insert_sms_challenge(&app, "13800138111", index).await;
+    }
+
+    let (status, value, headers) = send_json_with_headers(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-registration-code",
+        None,
+        json!({"phone": "13800138111"}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "{value}");
+    assert_eq!(value["code"], "rate_limited");
+    assert!(value["retry_after_seconds"].as_u64().unwrap() > 60);
+    assert!(headers.get(header::RETRY_AFTER).is_some());
+}
+
+#[tokio::test]
+async fn phantom_sms_send_for_missing_phone_counts_toward_rate_limit() {
+    let app =
+        test_app_with_sms_config(sms_config_with_phone_rate_limit(true, 60, 86_400, 20)).await;
+
+    let (first_status, first_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-login-code",
+        None,
+        json!({"phone": "13800138112"}),
+    )
+    .await;
+    assert_eq!(first_status, StatusCode::OK, "{first_value}");
+    assert!(first_value.get("debug_code").is_none(), "{first_value}");
+
+    let (second_status, second_value) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/auth/sms-password-reset-code",
+        None,
+        json!({"phone": "13800138112"}),
+    )
+    .await;
+
+    assert_eq!(
+        second_status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "{second_value}"
+    );
+    assert_eq!(second_value["code"], "rate_limited");
 }
 
 #[tokio::test]

@@ -34,6 +34,8 @@ import com.rustella.stellartrail.feature.auth.AuthMode
 import com.rustella.stellartrail.feature.auth.AuthRegisterMethod
 import com.rustella.stellartrail.feature.auth.AuthResetMethod
 import com.rustella.stellartrail.feature.auth.AuthViewModel
+import com.rustella.stellartrail.feature.auth.smsCodeActionLabel
+import com.rustella.stellartrail.feature.auth.smsCooldownRemaining
 import com.rustella.stellartrail.ui.common.ErrorState
 import com.rustella.stellartrail.ui.common.HeroCard
 import com.rustella.stellartrail.ui.common.HeroVisualContract
@@ -189,6 +191,7 @@ private fun VerificationCodeLoginForm(viewModel: AuthViewModel) {
             onSend = viewModel::sendVerificationLoginCode,
             enabled = !state.loading,
             label = "验证码",
+            cooldownSeconds = state.smsCooldownRemaining(state.verificationAccount),
         )
         PrimaryPillButton(
             AuthVisualContract.verificationCodePrimaryAction,
@@ -238,6 +241,7 @@ private fun RegisterForm(viewModel: AuthViewModel) {
                 onValueChange = viewModel::updateSmsCode,
                 onSend = viewModel::sendSmsRegistrationCode,
                 enabled = !state.loading,
+                cooldownSeconds = state.smsCooldownRemaining(state.phone),
             )
         } else {
             AuthTextField(
@@ -304,6 +308,7 @@ private fun ResetPasswordForm(viewModel: AuthViewModel) {
                 onValueChange = viewModel::updateSmsCode,
                 onSend = viewModel::sendSmsPasswordResetCode,
                 enabled = !state.loading,
+                cooldownSeconds = state.smsCooldownRemaining(state.phone),
             )
         } else {
             AuthTextField(
@@ -349,6 +354,7 @@ private fun SmsCodeRow(
     onSend: () -> Unit,
     enabled: Boolean,
     label: String = "短信验证码",
+    cooldownSeconds: Int = 0,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         AuthTextField(
@@ -360,9 +366,9 @@ private fun SmsCodeRow(
         )
         OutlinedButton(
             onClick = onSend,
-            enabled = enabled,
+            enabled = enabled && cooldownSeconds <= 0,
             modifier = Modifier.height(56.dp).widthIn(min = 112.dp),
-        ) { Text(AuthVisualContract.sendCodeAction, fontWeight = FontWeight.Bold) }
+        ) { Text(smsCodeActionLabel(cooldownSeconds), fontWeight = FontWeight.Bold) }
     }
 }
 

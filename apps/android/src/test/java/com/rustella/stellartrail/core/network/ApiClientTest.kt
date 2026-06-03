@@ -162,6 +162,31 @@ class ApiClientTest {
     }
 
     @Test
+    fun rateLimitedResponseParsesRetryAfterSeconds() = runTest {
+        val engine = MockEngine {
+            respond(
+                content = """{"code":"rate_limited","message":"Too many requests.","retry_after_seconds":42}""",
+                status = HttpStatusCode.TooManyRequests,
+                headers = headersOf(
+                    HttpHeaders.ContentType to listOf("application/json"),
+                    "Retry-After" to listOf("75"),
+                ),
+            )
+        }
+        val client = ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+        )
+
+        val exception = runCatching { client.get<HealthResponse>("/healthz") }.exceptionOrNull()
+
+        assertTrue(exception is ApiException)
+        exception as ApiException
+        assertTrue(exception.isRateLimited)
+        assertEquals(75L, exception.retryAfterSeconds)
+    }
+
+    @Test
     fun authenticatedRequestRefreshesOnceOnUnauthorizedAndRetries() = runTest {
         val requests = mutableListOf<io.ktor.client.request.HttpRequestData>()
         var accessToken = "expired-access-token"

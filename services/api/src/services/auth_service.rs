@@ -198,7 +198,7 @@ pub async fn send_sms_login_code(
     ensure_sms_delivery_available(state)?;
     let repo = AuthRepository::new(state.db().clone());
     if repo.find_user_by_phone(&phone).await?.is_none() {
-        return phantom_sms_code_response(state, phone);
+        return phantom_sms_code_response(state, &repo, phone, SMS_CODE_PURPOSE_LOGIN).await;
     }
     send_sms_code_for_purpose(
         state,
@@ -219,7 +219,8 @@ pub async fn send_sms_password_reset_code(
     ensure_sms_delivery_available(state)?;
     let repo = AuthRepository::new(state.db().clone());
     if repo.find_user_by_phone(&phone).await?.is_none() {
-        return phantom_sms_code_response(state, phone);
+        return phantom_sms_code_response(state, &repo, phone, SMS_CODE_PURPOSE_PASSWORD_RESET)
+            .await;
     }
     send_sms_code_for_purpose(
         state,
@@ -342,6 +343,7 @@ async fn send_sms_code_for_purpose(
     let expires_at =
         OffsetDateTime::now_utc() + Duration::seconds(state.config().sms.valid_time_seconds as i64);
     let out_id = Uuid::new_v4().to_string();
+    enforce_sms_phone_rate_limit(state, repo, &phone).await?;
     repo.create_sms_verification_challenge(&phone, purpose, &out_id, expires_at)
         .await?;
 
@@ -355,7 +357,9 @@ async fn send_sms_code_for_purpose(
     let outcome = tokio::task::spawn_blocking(move || sms_client.send_verify_code(request))
         .await
         .map_err(ApiError::internal)?
-        .map_err(map_sms_provider_error)?;
+        .map_err(|error| {
+            map_sms_provider_error(error, state.config().sms.phone_rate_limit.cooldown_seconds)
+        })?;
 
     Ok(SmsCodeResponse {
         phone,
@@ -369,17 +373,73 @@ async fn send_sms_code_for_purpose(
     })
 }
 
-fn phantom_sms_code_response(state: &AppState, phone: String) -> Result<SmsCodeResponse, ApiError> {
+async fn phantom_sms_code_response(
+    state: &AppState,
+    repo: &AuthRepository,
+    phone: String,
+    purpose: &'static str,
+) -> Result<SmsCodeResponse, ApiError> {
     let expires_at =
         OffsetDateTime::now_utc() + Duration::seconds(state.config().sms.valid_time_seconds as i64);
+    let out_id = Uuid::new_v4().to_string();
+    enforce_sms_phone_rate_limit(state, repo, &phone).await?;
+    repo.create_sms_verification_challenge(&phone, purpose, &out_id, expires_at)
+        .await?;
     Ok(SmsCodeResponse {
         phone,
-        sms_ticket: Uuid::new_v4().to_string(),
+        sms_ticket: out_id,
         expires_at: expires_at
             .format(&Iso8601::DEFAULT)
             .map_err(ApiError::internal)?,
         debug_code: None,
     })
+}
+
+async fn enforce_sms_phone_rate_limit(
+    state: &AppState,
+    repo: &AuthRepository,
+    phone: &str,
+) -> Result<(), ApiError> {
+    let config = &state.config().sms.phone_rate_limit;
+    if !config.enabled {
+        return Ok(());
+    }
+    let now = OffsetDateTime::now_utc();
+    let window = Duration::seconds(config.window_seconds as i64);
+    let stats = repo
+        .sms_verification_send_stats_since(phone, now - window)
+        .await?;
+
+    let cooldown_retry_after = stats
+        .latest_created_at
+        .as_deref()
+        .and_then(|created_at| retry_after_until(created_at, config.cooldown_seconds, now));
+    let window_retry_after = if stats.count >= config.max_sends_per_window {
+        stats
+            .oldest_created_at
+            .as_deref()
+            .and_then(|created_at| retry_after_until(created_at, config.window_seconds, now))
+    } else {
+        None
+    };
+    let retry_after_seconds = cooldown_retry_after
+        .into_iter()
+        .chain(window_retry_after)
+        .max()
+        .unwrap_or(0);
+    if retry_after_seconds > 0 {
+        return Err(ApiError::RateLimited {
+            retry_after_seconds,
+        });
+    }
+    Ok(())
+}
+
+fn retry_after_until(created_at: &str, window_seconds: u64, now: OffsetDateTime) -> Option<u64> {
+    let created_at = OffsetDateTime::parse(created_at, &Iso8601::DEFAULT).ok()?;
+    let available_at = created_at + Duration::seconds(window_seconds as i64);
+    let remaining = (available_at - now).whole_seconds();
+    (remaining > 0).then(|| remaining as u64)
 }
 
 fn sms_template_param(valid_time_seconds: u64) -> String {
@@ -1048,7 +1108,9 @@ async fn verify_sms_code(
     let outcome = tokio::task::spawn_blocking(move || sms_client.check_verify_code(request))
         .await
         .map_err(ApiError::internal)?
-        .map_err(map_sms_provider_error)?;
+        .map_err(|error| {
+            map_sms_provider_error(error, state.config().sms.phone_rate_limit.cooldown_seconds)
+        })?;
     if !outcome.passed {
         return Err(invalid_sms_code_error());
     }
@@ -1339,10 +1401,10 @@ fn map_wechat_login_error(error: anyhow::Error) -> ApiError {
     }
 }
 
-fn map_sms_provider_error(error: SmsVerificationError) -> ApiError {
+fn map_sms_provider_error(error: SmsVerificationError, retry_after_seconds: u64) -> ApiError {
     match error {
         SmsVerificationError::RateLimited { .. } => ApiError::RateLimited {
-            retry_after_seconds: 60,
+            retry_after_seconds,
         },
         SmsVerificationError::Rejected { .. } | SmsVerificationError::HttpStatus { .. } => {
             ApiError::SmsDeliveryFailed
@@ -1388,10 +1450,13 @@ mod tests {
 
     #[test]
     fn sms_http_status_errors_are_delivery_failures() {
-        let error = map_sms_provider_error(SmsVerificationError::HttpStatus {
-            status: 403,
-            body: "forbidden".to_owned(),
-        });
+        let error = map_sms_provider_error(
+            SmsVerificationError::HttpStatus {
+                status: 403,
+                body: "forbidden".to_owned(),
+            },
+            60,
+        );
 
         assert!(matches!(error, ApiError::SmsDeliveryFailed));
     }

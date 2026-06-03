@@ -96,6 +96,11 @@ sms:
   password_reset_template_code: "100003"
   bind_new_phone_template_code: "100004"
   verify_bound_phone_template_code: "100005"
+  phone_rate_limit:
+    enabled: true
+    cooldown_seconds: 60
+    window_seconds: 86400
+    max_sends_per_window: 20
 
 public_api:
   rate_limit_enabled: true

@@ -2,14 +2,10 @@ package com.rustella.stellartrail.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -128,11 +123,6 @@ private fun AuthenticatedApp(
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            if (currentRoute in topLevelDestinations.map { it.route }) {
-                MiniProgramTopBar(title = miniProgramTopBarTitle(currentRoute))
-            }
-        },
         bottomBar = {
             if (currentRoute in topLevelDestinations.map { it.route }) {
                 val palette = currentTrailPalette()
@@ -145,11 +135,7 @@ private fun AuthenticatedApp(
                             destination = destination,
                             selected = currentRoute == destination.route,
                             onClick = {
-                                navController.navigate(destination.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                navController.navigateToTopLevelDestination(destination)
                             },
                         )
                     }
@@ -206,6 +192,9 @@ private fun AuthenticatedApp(
                     viewModel = viewModel,
                     onOpenGear = { id ->
                         if (isLoggedIn) navController.navigate(AppRoutes.gearDetail(id)) else navController.navigate(AppRoutes.AUTH)
+                    },
+                    onEditGear = { id ->
+                        if (isLoggedIn) navController.navigate(AppRoutes.gearEdit(id)) else navController.navigate(AppRoutes.AUTH)
                     },
                     onCreateGear = {
                         if (isLoggedIn) navController.navigate(AppRoutes.GEAR_NEW) else navController.navigate(AppRoutes.AUTH)
@@ -472,8 +461,13 @@ private fun AuthenticatedApp(
                     key = "skill-detail-$id",
                     factory = viewModelFactory { SkillDetailViewModel(container.skillRepository, id) },
                 )
-                LaunchedEffect(id) { viewModel.load() }
-                SkillDetailScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                LaunchedEffect(id, isLoggedIn) { viewModel.load(isLoggedIn) }
+                SkillDetailScreen(
+                    viewModel = viewModel,
+                    isLoggedIn = isLoggedIn,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
+                )
             }
             composable(AppRoutes.PROFILE) {
                 val viewModel: ProfileViewModel = viewModel(factory = viewModelFactory {
@@ -548,6 +542,16 @@ private fun AuthenticatedApp(
     }
 }
 
+private fun NavHostController.navigateToTopLevelDestination(destination: TopLevelDestination) {
+    val targetRoute = destination.route
+    if (currentDestination?.route == targetRoute) return
+    if (popBackStack(targetRoute, inclusive = false)) return
+    navigate(targetRoute) {
+        popUpTo(AppRoutes.HOME) { inclusive = false }
+        launchSingleTop = true
+    }
+}
+
 @Composable
 private fun RowScope.MiniProgramBottomNavItem(
     destination: TopLevelDestination,
@@ -579,24 +583,5 @@ private fun RowScope.MiniProgramBottomNavItem(
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
         )
-    }
-}
-
-private fun miniProgramTopBarTitle(route: String?): String = when (route) {
-    AppRoutes.SKILLS -> "户外技能"
-    else -> "寻径星野"
-}
-
-@Composable
-private fun MiniProgramTopBar(title: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(84.dp)
-            .background(Color(0xFF0F172A))
-            .statusBarsPadding(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(title, color = Color.White, fontWeight = FontWeight.ExtraBold)
     }
 }

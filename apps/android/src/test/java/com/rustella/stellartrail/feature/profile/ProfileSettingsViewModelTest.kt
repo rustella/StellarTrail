@@ -1,6 +1,7 @@
 package com.rustella.stellartrail.feature.profile
 
 import com.rustella.stellartrail.core.config.InMemoryAppConfigStore
+import com.rustella.stellartrail.core.network.ApiException
 import com.rustella.stellartrail.core.theme.InMemoryThemeRepository
 import com.rustella.stellartrail.data.auth.AuthRepositoryContract
 import com.rustella.stellartrail.domain.auth.CaptchaChallengeResponse
@@ -98,9 +99,56 @@ class ProfileSettingsViewModelTest {
         assertEquals("密码已更新", viewModel.actionState.value.passwordNotice)
     }
 
+    @Test
+    fun bindPhoneCodeCooldownBlocksRepeatSends() = runTest {
+        val repository = FakeAuthRepository()
+        val viewModel = ProfileSettingsViewModel(
+            repository,
+            InMemoryThemeRepository(),
+            InMemoryAppConfigStore(),
+            smsCodeCooldownSeconds = 60,
+        )
+
+        viewModel.sendBindPhoneCode("+86 139-0000-0000")
+        dispatcher.scheduler.runCurrent()
+        viewModel.sendBindPhoneCode("13900000000")
+
+        assertEquals(1, repository.bindPhoneCodeCalls)
+        assertEquals(60, viewModel.actionState.value.smsCooldownRemaining("13900000000"))
+        assertEquals("请 60 秒后再获取验证码", viewModel.actionState.value.accountError)
+    }
+
+    @Test
+    fun phoneCodeRateLimitErrorUsesRetryAfterCooldown() = runTest {
+        val repository = FakeAuthRepository().apply {
+            bindPhoneCodeError = ApiException(
+                statusCode = 429,
+                errorCode = "rate_limited",
+                rawBody = """{"code":"rate_limited"}""",
+                retryAfterSeconds = 75,
+                message = "Too many requests",
+            )
+        }
+        val viewModel = ProfileSettingsViewModel(
+            repository,
+            InMemoryThemeRepository(),
+            InMemoryAppConfigStore(),
+            smsCodeCooldownSeconds = 60,
+        )
+
+        viewModel.sendBindPhoneCode("13900000001")
+        dispatcher.scheduler.runCurrent()
+
+        assertEquals(1, repository.bindPhoneCodeCalls)
+        assertEquals(75, viewModel.actionState.value.smsCooldownRemaining("13900000001"))
+        assertTrue(viewModel.actionState.value.accountError.orEmpty().contains("75 秒"))
+    }
+
     private class FakeAuthRepository : AuthRepositoryContract {
         private val sessionState = MutableStateFlow<UserSession?>(null)
         override val session: StateFlow<UserSession?> = sessionState
+        var bindPhoneCodeCalls = 0
+        var bindPhoneCodeError: Throwable? = null
         var lastBindPhone: String? = null
         var lastBindSmsTicket: String? = null
         var lastBindSmsCode: String? = null
@@ -110,12 +158,16 @@ class ProfileSettingsViewModelTest {
         var lastSmsResetTicket: String? = null
         var lastSmsResetCode: String? = null
 
-        override suspend fun sendBindPhoneCode(phone: String): SmsCodeResponse = SmsCodeResponse(
-            phone = phone,
-            smsTicket = "new-phone-ticket",
-            expiresAt = "2099-01-01T00:00:00Z",
-            debugCode = "123456",
-        )
+        override suspend fun sendBindPhoneCode(phone: String): SmsCodeResponse {
+            bindPhoneCodeCalls += 1
+            bindPhoneCodeError?.let { throw it }
+            return SmsCodeResponse(
+                phone = phone,
+                smsTicket = "new-phone-ticket",
+                expiresAt = "2099-01-01T00:00:00Z",
+                debugCode = "123456",
+            )
+        }
 
         override suspend fun sendRebindCurrentPhoneCode(): SmsCodeResponse = SmsCodeResponse(
             phone = "13800000000",

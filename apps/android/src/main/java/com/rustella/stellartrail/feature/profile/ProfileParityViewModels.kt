@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rustella.stellartrail.BuildConfig
 import com.rustella.stellartrail.core.config.AppConfigStore
+import com.rustella.stellartrail.core.network.ApiException
 import com.rustella.stellartrail.core.network.userMessage
 import com.rustella.stellartrail.core.theme.ThemeMode
 import com.rustella.stellartrail.core.theme.ThemeRepository
@@ -14,6 +15,9 @@ import com.rustella.stellartrail.domain.profile.OutdoorProfile
 import com.rustella.stellartrail.domain.profile.RoadmapItem
 import com.rustella.stellartrail.domain.profile.RoadmapStatusFilter
 import com.rustella.stellartrail.domain.trip.OutdoorExperience
+import com.rustella.stellartrail.feature.auth.normalizeSmsCooldownKey
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -335,13 +339,18 @@ data class ProfileSettingsActionState(
     val passwordSmsTicket: String = "",
     val passwordCodeLoading: Boolean = false,
     val passwordLoading: Boolean = false,
+    val smsCooldownSecondsByPhone: Map<String, Int> = emptyMap(),
 )
+
+fun ProfileSettingsActionState.smsCooldownRemaining(target: String): Int =
+    smsCooldownSecondsByPhone[normalizeSmsCooldownKey(target)] ?: 0
 
 class ProfileSettingsViewModel(
     private val authRepository: AuthRepositoryContract,
     private val themeRepository: ThemeRepository,
     private val appConfigStore: AppConfigStore,
     private val profileRepository: ProfileRepositoryContract? = null,
+    private val smsCodeCooldownSeconds: Int = BuildConfig.SMS_CODE_COOLDOWN_SECONDS,
 ) : ViewModel() {
     val session = authRepository.session
     val theme: StateFlow<ThemeMode> = themeRepository.theme
@@ -350,6 +359,7 @@ class ProfileSettingsViewModel(
 
     private val _actionState = MutableStateFlow(ProfileSettingsActionState())
     val actionState: StateFlow<ProfileSettingsActionState> = _actionState
+    private val smsCooldownJobs = mutableMapOf<String, Job>()
 
     fun setTheme(theme: ThemeMode) = themeRepository.setTheme(theme)
 
@@ -362,6 +372,12 @@ class ProfileSettingsViewModel(
     }
 
     fun logout() = authRepository.logout()
+
+    override fun onCleared() {
+        smsCooldownJobs.values.forEach { it.cancel() }
+        smsCooldownJobs.clear()
+        super.onCleared()
+    }
 
     fun refreshCurrentProfile() {
         if (session.value == null) return
@@ -425,6 +441,7 @@ class ProfileSettingsViewModel(
 
     fun sendBindPhoneCode(phone: String) {
         if (_actionState.value.phoneCodeLoading) return
+        if (!ensureSmsCooldownAllowsSend(phone)) return
         viewModelScope.launch {
             _actionState.update {
                 it.copy(
@@ -436,6 +453,7 @@ class ProfileSettingsViewModel(
                 )
             }
             runCatching { authRepository.sendBindPhoneCode(phone) }.onSuccess { response ->
+                startSmsCooldown(response.phone)
                 _actionState.update {
                     it.copy(
                         phoneCodeLoading = false,
@@ -444,13 +462,15 @@ class ProfileSettingsViewModel(
                     )
                 }
             }.onFailure { error ->
-                _actionState.update { it.copy(phoneCodeLoading = false, accountError = error.userMessage()) }
+                _actionState.update { it.copy(phoneCodeLoading = false, accountError = smsRateLimitMessage(phone, error) ?: error.userMessage()) }
             }
         }
     }
 
     fun sendRebindCurrentPhoneCode() {
         if (_actionState.value.currentPhoneCodeLoading) return
+        val currentPhone = session.value?.user?.phone.orEmpty()
+        if (!ensureSmsCooldownAllowsSend(currentPhone)) return
         viewModelScope.launch {
             _actionState.update {
                 it.copy(
@@ -462,6 +482,7 @@ class ProfileSettingsViewModel(
                 )
             }
             runCatching { authRepository.sendRebindCurrentPhoneCode() }.onSuccess { response ->
+                startSmsCooldown(response.phone)
                 _actionState.update {
                     it.copy(
                         currentPhoneCodeLoading = false,
@@ -470,7 +491,7 @@ class ProfileSettingsViewModel(
                     )
                 }
             }.onFailure { error ->
-                _actionState.update { it.copy(currentPhoneCodeLoading = false, accountError = error.userMessage()) }
+                _actionState.update { it.copy(currentPhoneCodeLoading = false, accountError = smsRateLimitMessage(currentPhone, error) ?: error.userMessage()) }
             }
         }
     }
@@ -537,9 +558,11 @@ class ProfileSettingsViewModel(
 
     fun sendSmsPasswordResetCode(phone: String) {
         if (_actionState.value.passwordCodeLoading) return
+        if (!ensureSmsCooldownAllowsSend(phone)) return
         viewModelScope.launch {
             _actionState.update { it.copy(passwordCodeLoading = true, accountError = null, passwordNotice = null, passwordSmsTicket = "") }
             runCatching { authRepository.sendSmsPasswordResetCode(phone) }.onSuccess { response ->
+                startSmsCooldown(response.phone)
                 _actionState.update {
                     it.copy(
                         passwordCodeLoading = false,
@@ -548,7 +571,7 @@ class ProfileSettingsViewModel(
                     )
                 }
             }.onFailure { error ->
-                _actionState.update { it.copy(passwordCodeLoading = false, accountError = error.userMessage()) }
+                _actionState.update { it.copy(passwordCodeLoading = false, accountError = smsRateLimitMessage(phone, error) ?: error.userMessage()) }
             }
         }
     }
@@ -604,6 +627,41 @@ class ProfileSettingsViewModel(
 
     private fun debugSuffix(debugCode: String?): String =
         if (BuildConfig.DEBUG && debugCode != null) " 验证码提示：$debugCode" else ""
+
+    private fun ensureSmsCooldownAllowsSend(target: String): Boolean {
+        val remaining = _actionState.value.smsCooldownRemaining(target)
+        if (remaining <= 0) return true
+        _actionState.update { it.copy(accountError = "请 ${remaining} 秒后再获取验证码") }
+        return false
+    }
+
+    private fun smsRateLimitMessage(target: String, throwable: Throwable): String? {
+        val exception = throwable as? ApiException
+        if (exception?.isRateLimited != true) return null
+        val retryAfterSeconds = exception.retryAfterSeconds?.toInt()?.takeIf { it > 0 }
+            ?: smsCodeCooldownSeconds.coerceAtLeast(1)
+        startSmsCooldown(target, retryAfterSeconds)
+        return "验证码发送太频繁，请 ${retryAfterSeconds} 秒后重试"
+    }
+
+    private fun startSmsCooldown(target: String, seconds: Int = smsCodeCooldownSeconds) {
+        val key = normalizeSmsCooldownKey(target)
+        val normalizedSeconds = seconds.coerceAtLeast(0)
+        if (key.isBlank() || normalizedSeconds <= 0) return
+        smsCooldownJobs.remove(key)?.cancel()
+        smsCooldownJobs[key] = viewModelScope.launch {
+            for (remaining in normalizedSeconds downTo 1) {
+                _actionState.update {
+                    it.copy(smsCooldownSecondsByPhone = it.smsCooldownSecondsByPhone + (key to remaining))
+                }
+                delay(1_000)
+            }
+            _actionState.update {
+                it.copy(smsCooldownSecondsByPhone = it.smsCooldownSecondsByPhone - key)
+            }
+            smsCooldownJobs.remove(key)
+        }
+    }
 }
 
 fun OutdoorExperience.toForm(): OutdoorExperienceForm = OutdoorExperienceForm(

@@ -9,6 +9,8 @@ import com.rustella.stellartrail.data.auth.AuthRepositoryContract
 import com.rustella.stellartrail.domain.auth.RegisterRequest
 import com.rustella.stellartrail.domain.auth.SmsCodeResponse
 import com.rustella.stellartrail.domain.auth.SmsRegisterRequest
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,14 +50,23 @@ data class AuthUiState(
     val notice: String? = null,
     val error: String? = null,
     val loading: Boolean = false,
+    val smsCooldownSecondsByPhone: Map<String, Int> = emptyMap(),
 )
+
+fun AuthUiState.smsCooldownRemaining(target: String): Int =
+    smsCooldownSecondsByPhone[normalizeSmsCooldownKey(target)] ?: 0
+
+fun smsCodeActionLabel(remainingSeconds: Int): String =
+    if (remainingSeconds > 0) "重新获取 ${remainingSeconds}s" else "获取验证码"
 
 class AuthViewModel(
     private val repository: AuthRepositoryContract,
     initialMode: AuthMode = AuthMode.LOGIN,
+    private val smsCodeCooldownSeconds: Int = BuildConfig.SMS_CODE_COOLDOWN_SECONDS,
 ) : ViewModel() {
     private val _state = MutableStateFlow(AuthUiState(mode = initialMode))
     val state: StateFlow<AuthUiState> = _state.asStateFlow()
+    private val smsCooldownJobs = mutableMapOf<String, Job>()
 
     fun switchMode(mode: AuthMode) {
         _state.update {
@@ -90,6 +101,12 @@ class AuthViewModel(
     fun updateResetPassword(value: String) = _state.update { it.copy(resetPassword = value) }
     fun updateResetConfirmPassword(value: String) = _state.update { it.copy(resetConfirmPassword = value) }
     fun updateCaptchaAnswer(value: String) = _state.update { it.copy(captchaAnswer = value) }
+
+    override fun onCleared() {
+        smsCooldownJobs.values.forEach { it.cancel() }
+        smsCooldownJobs.clear()
+        super.onCleared()
+    }
 
     fun setRegisterMethod(method: AuthRegisterMethod) {
         _state.update {
@@ -225,7 +242,7 @@ class AuthViewModel(
                 _state.update { it.copy(smsLoginTicket = "") }
                 sendEmailCodeRequest { repository.sendEmailLoginCode(target).let { it.email to it.debugCode } }
             } else {
-                sendSmsCodeRequest { repository.sendSmsLoginCode(target) }
+                sendSmsCodeRequest(target) { repository.sendSmsLoginCode(target) }
                     ?.let { response -> _state.update { it.copy(smsLoginTicket = response.smsTicket) } }
             }
         }
@@ -468,16 +485,58 @@ class AuthViewModel(
     }
 
     private suspend fun sendSmsCodeRequest(request: suspend () -> SmsCodeResponse): SmsCodeResponse? {
+        return sendSmsCodeRequest(_state.value.phone, request)
+    }
+
+    private suspend fun sendSmsCodeRequest(target: String, request: suspend () -> SmsCodeResponse): SmsCodeResponse? {
+        if (!ensureSmsCooldownAllowsSend(target)) return null
         _state.update { it.copy(loading = true, error = null, notice = null) }
         return try {
             val response = request()
+            startSmsCooldown(response.phone)
             _state.update { it.copy(notice = codeNotice(response.phone, response.debugCode)) }
             response
         } catch (throwable: Throwable) {
-            _state.update { it.copy(error = throwable.userMessage()) }
+            val errorMessage = smsRateLimitMessage(target, throwable) ?: throwable.userMessage()
+            _state.update { it.copy(error = errorMessage) }
             null
         } finally {
             _state.update { it.copy(loading = false) }
+        }
+    }
+
+    private fun ensureSmsCooldownAllowsSend(target: String): Boolean {
+        val remaining = _state.value.smsCooldownRemaining(target)
+        if (remaining <= 0) return true
+        _state.update { it.copy(error = "请 ${remaining} 秒后再获取验证码", notice = null) }
+        return false
+    }
+
+    private fun smsRateLimitMessage(target: String, throwable: Throwable): String? {
+        val exception = throwable as? ApiException
+        if (exception?.isRateLimited != true) return null
+        val retryAfterSeconds = exception.retryAfterSeconds?.toInt()?.takeIf { it > 0 }
+            ?: smsCodeCooldownSeconds.coerceAtLeast(1)
+        startSmsCooldown(target, retryAfterSeconds)
+        return "验证码发送太频繁，请 ${retryAfterSeconds} 秒后重试"
+    }
+
+    private fun startSmsCooldown(target: String, seconds: Int = smsCodeCooldownSeconds) {
+        val key = normalizeSmsCooldownKey(target)
+        val normalizedSeconds = seconds.coerceAtLeast(0)
+        if (key.isBlank() || normalizedSeconds <= 0) return
+        smsCooldownJobs.remove(key)?.cancel()
+        smsCooldownJobs[key] = viewModelScope.launch {
+            for (remaining in normalizedSeconds downTo 1) {
+                _state.update {
+                    it.copy(smsCooldownSecondsByPhone = it.smsCooldownSecondsByPhone + (key to remaining))
+                }
+                delay(1_000)
+            }
+            _state.update {
+                it.copy(smsCooldownSecondsByPhone = it.smsCooldownSecondsByPhone - key)
+            }
+            smsCooldownJobs.remove(key)
         }
     }
 
@@ -489,4 +548,9 @@ class AuthViewModel(
         }
 
     private fun String.isEmailLoginTarget(): Boolean = contains("@")
+}
+
+fun normalizeSmsCooldownKey(target: String): String {
+    val digits = target.filter { it.isDigit() }
+    return if (digits.length == 13 && digits.startsWith("86")) digits.drop(2) else digits
 }

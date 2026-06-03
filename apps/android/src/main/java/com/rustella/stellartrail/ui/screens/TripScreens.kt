@@ -85,7 +85,7 @@ fun TripsScreen(
     LaunchedEffect(isLoggedIn) { viewModel.refresh(isLoggedIn) }
     LazyColumn(
         modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 28.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {

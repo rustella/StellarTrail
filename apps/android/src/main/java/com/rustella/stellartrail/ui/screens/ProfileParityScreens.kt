@@ -65,6 +65,8 @@ import com.rustella.stellartrail.feature.profile.OutdoorProfileForm
 import com.rustella.stellartrail.feature.profile.OutdoorProfileViewModel
 import com.rustella.stellartrail.feature.profile.ProfileSettingsViewModel
 import com.rustella.stellartrail.feature.profile.RoadmapViewModel
+import com.rustella.stellartrail.feature.profile.smsCooldownRemaining
+import com.rustella.stellartrail.feature.auth.smsCodeActionLabel
 import com.rustella.stellartrail.feature.profile.toForm
 import com.rustella.stellartrail.ui.common.AvatarImage
 import com.rustella.stellartrail.ui.common.Badge
@@ -763,6 +765,7 @@ private fun VerificationCodeInputRow(
     onSendCode: () -> Unit,
     enabled: Boolean,
     keyboardType: KeyboardType = KeyboardType.Number,
+    cooldownSeconds: Int = 0,
 ) {
     Row(
         Modifier.fillMaxWidth(),
@@ -771,10 +774,10 @@ private fun VerificationCodeInputRow(
     ) {
         FormTextField(label, value, onValueChange, "验证码", Modifier.weight(1f), keyboardType = keyboardType)
         CompactPillAction(
-            "获取验证码",
+            smsCodeActionLabel(cooldownSeconds),
             onSendCode,
             modifier = Modifier.heightIn(min = 44.dp),
-            enabled = enabled,
+            enabled = enabled && cooldownSeconds <= 0,
         )
     }
 }
@@ -836,19 +839,21 @@ private fun PhoneBindingSheet(
                 VerificationCodeInputRow(
                     label = "当前手机号验证码",
                     value = currentCode,
-                    onValueChange = { currentCode = it },
-                    onSendCode = onSendCurrentCode,
-                    enabled = !actionState.currentPhoneCodeLoading,
-                )
-            }
+                onValueChange = { currentCode = it },
+                onSendCode = onSendCurrentCode,
+                enabled = !actionState.currentPhoneCodeLoading,
+                cooldownSeconds = actionState.smsCooldownRemaining(currentPhone.orEmpty()),
+            )
+        }
             FormTextField("新手机号", phone, { phone = it }, "手机号", keyboardType = KeyboardType.Phone)
             VerificationCodeInputRow(
                 label = "短信验证码",
                 value = code,
-                onValueChange = { code = it },
-                onSendCode = { onSendNewCode(phone) },
-                enabled = !actionState.phoneCodeLoading,
-            )
+            onValueChange = { code = it },
+            onSendCode = { onSendNewCode(phone) },
+            enabled = !actionState.phoneCodeLoading,
+            cooldownSeconds = actionState.smsCooldownRemaining(phone),
+        )
             actionState.phoneNotice?.let { Text(it, color = currentTrailPalette().successText) }
             actionState.accountError?.let { Text(it, color = currentTrailPalette().dangerText) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -935,6 +940,7 @@ private fun PasswordSheet(
                     if (method == PasswordVerificationMethod.EMAIL) onSendEmailCode(email) else onSendSmsCode(phone)
                 },
                 enabled = canUseSelectedMethod && !actionState.passwordCodeLoading,
+                cooldownSeconds = if (method == PasswordVerificationMethod.PHONE) actionState.smsCooldownRemaining(phone) else 0,
             )
             OutlinedTextField(
                 value = password,

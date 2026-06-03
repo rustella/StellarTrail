@@ -1,6 +1,7 @@
 package com.rustella.stellartrail.feature.auth
 
 import com.rustella.stellartrail.data.auth.AuthRepositoryContract
+import com.rustella.stellartrail.core.network.ApiException
 import com.rustella.stellartrail.domain.auth.CaptchaChallengeResponse
 import com.rustella.stellartrail.domain.auth.EmailVerificationCodeResponse
 import com.rustella.stellartrail.domain.auth.LoginResponse
@@ -22,6 +23,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -95,6 +97,53 @@ class AuthViewModelTest {
         assertEquals("123456", repository.lastSmsLoginCode)
         assertEquals(0, repository.emailLoginCalls)
         assertNull(viewModel.state.value.error)
+    }
+
+    @Test
+    fun smsCodeSendStartsConfiguredCooldownAndBlocksRepeatSends() = runTest {
+        val repository = FakeAuthRepository()
+        val viewModel = AuthViewModel(repository, smsCodeCooldownSeconds = 60)
+
+        viewModel.switchMode(AuthMode.VERIFICATION_CODE)
+        viewModel.updateVerificationAccount("+86 138-0000-0000")
+        viewModel.sendVerificationLoginCode()
+        dispatcher.scheduler.runCurrent()
+
+        assertEquals(1, repository.smsLoginCodeCalls)
+        assertEquals(60, viewModel.state.value.smsCooldownRemaining("13800000000"))
+
+        viewModel.updatePhone("13800000000")
+        viewModel.sendSmsRegistrationCode()
+        viewModel.sendSmsPasswordResetCode()
+        dispatcher.scheduler.runCurrent()
+
+        assertEquals(0, repository.smsRegistrationCodeCalls)
+        assertEquals(0, repository.smsPasswordResetCodeCalls)
+        assertEquals(1, repository.smsLoginCodeCalls)
+        assertEquals("请 60 秒后再获取验证码", viewModel.state.value.error)
+    }
+
+    @Test
+    fun smsRateLimitErrorUsesRetryAfterForCooldown() = runTest {
+        val repository = FakeAuthRepository().apply {
+            smsLoginCodeError = ApiException(
+                statusCode = 429,
+                errorCode = "rate_limited",
+                rawBody = """{"code":"rate_limited"}""",
+                retryAfterSeconds = 75,
+                message = "Too many requests",
+            )
+        }
+        val viewModel = AuthViewModel(repository, smsCodeCooldownSeconds = 60)
+
+        viewModel.switchMode(AuthMode.VERIFICATION_CODE)
+        viewModel.updateVerificationAccount("13800000001")
+        viewModel.sendVerificationLoginCode()
+        dispatcher.scheduler.runCurrent()
+
+        assertEquals(1, repository.smsLoginCodeCalls)
+        assertEquals(75, viewModel.state.value.smsCooldownRemaining("13800000001"))
+        assertTrue(viewModel.state.value.error.orEmpty().contains("75 秒"))
     }
 
     @Test
@@ -192,8 +241,11 @@ class AuthViewModelTest {
         var resetPasswordCalls = 0
         var smsLoginCodeCalls = 0
         var smsLoginCalls = 0
+        var smsRegistrationCodeCalls = 0
         var smsRegisterCalls = 0
+        var smsPasswordResetCodeCalls = 0
         var smsResetPasswordCalls = 0
+        var smsLoginCodeError: Throwable? = null
         var lastEmailLoginEmail: String? = null
         var lastRegisterRequest: RegisterRequest? = null
         var lastResetEmail: String? = null
@@ -233,7 +285,10 @@ class AuthViewModelTest {
         override suspend fun sendBindEmailCode(email: String): EmailVerificationCodeResponse = emailCodeResponse(email)
         override suspend fun bindEmail(email: String, emailCode: String): LoginUser = user(email)
 
-        override suspend fun sendSmsRegistrationCode(phone: String): SmsCodeResponse = smsCodeResponse(phone, "sms-register-ticket")
+        override suspend fun sendSmsRegistrationCode(phone: String): SmsCodeResponse {
+            smsRegistrationCodeCalls += 1
+            return smsCodeResponse(phone, "sms-register-ticket")
+        }
 
         override suspend fun smsRegister(request: SmsRegisterRequest): LoginResponse {
             smsRegisterCalls += 1
@@ -243,6 +298,7 @@ class AuthViewModelTest {
 
         override suspend fun sendSmsLoginCode(phone: String): SmsCodeResponse {
             smsLoginCodeCalls += 1
+            smsLoginCodeError?.let { throw it }
             return smsCodeResponse(phone, "sms-login-ticket")
         }
 
@@ -254,7 +310,10 @@ class AuthViewModelTest {
             return loginResponse(phone)
         }
 
-        override suspend fun sendSmsPasswordResetCode(phone: String): SmsCodeResponse = smsCodeResponse(phone, "sms-reset-ticket")
+        override suspend fun sendSmsPasswordResetCode(phone: String): SmsCodeResponse {
+            smsPasswordResetCodeCalls += 1
+            return smsCodeResponse(phone, "sms-reset-ticket")
+        }
 
         override suspend fun smsResetPassword(
             phone: String,

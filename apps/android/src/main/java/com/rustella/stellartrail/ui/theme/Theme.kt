@@ -86,3 +86,9 @@ fun StellarTrailTheme(
         content = content,
     )
 }
+
+fun shouldUseLightSystemBars(themeMode: ThemeMode, systemInDarkTheme: Boolean): Boolean = when (themeMode) {
+    ThemeMode.LIGHT -> true
+    ThemeMode.DARK -> false
+    ThemeMode.SYSTEM -> !systemInDarkTheme
+}

@@ -3,6 +3,7 @@ package com.rustella.stellartrail.feature.profile
 import com.rustella.stellartrail.core.network.InMemoryOfflineHttpCacheStore
 import com.rustella.stellartrail.data.skills.KnotCacheStatus
 import com.rustella.stellartrail.data.skills.SkillRepositoryContract
+import com.rustella.stellartrail.domain.skills.FavoriteKnotStatusResponse
 import com.rustella.stellartrail.domain.skills.KnotDetail
 import com.rustella.stellartrail.domain.skills.KnotListResponse
 import com.rustella.stellartrail.domain.skills.ListFavoriteSkillsRequest
@@ -210,6 +211,9 @@ class ProfileCacheViewModelTest {
         override suspend fun listKnots(locale: SkillLocale, request: ListKnotsRequest): KnotListResponse = error("unused")
         override suspend fun knotDetail(id: String, locale: SkillLocale): KnotDetail = error("unused")
         override suspend fun listFavoriteSkills(locale: SkillLocale, request: ListFavoriteSkillsRequest): ListFavoriteSkillsResponse = error("unused")
+        override suspend fun getFavoriteKnotStatus(id: String): FavoriteKnotStatusResponse = error("unused")
+        override suspend fun favoriteKnot(id: String): FavoriteKnotStatusResponse = error("unused")
+        override suspend fun unfavoriteKnot(id: String): FavoriteKnotStatusResponse = error("unused")
         override fun resolveMediaUrl(pathOrUrl: String): String = pathOrUrl
     }
 }

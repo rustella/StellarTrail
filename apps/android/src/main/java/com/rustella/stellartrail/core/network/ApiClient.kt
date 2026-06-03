@@ -129,7 +129,7 @@ class ApiClient(
             }
             val text = response.bodyAsText()
             if (!response.status.isSuccess()) {
-                throw ApiException.from(response.status, text, json)
+                throw ApiException.from(response.status, text, json, response.headers["Retry-After"])
             }
             if (Response::class == Unit::class) {
                 @Suppress("UNCHECKED_CAST")
@@ -164,6 +164,13 @@ class ApiClient(
     fun resolveAssetUrl(pathOrUrl: String): String {
         if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
             return normalizeKnownAssetUrl(pathOrUrl)
+        }
+        if (
+            pathOrUrl.startsWith("android.resource://") ||
+            pathOrUrl.startsWith("content://") ||
+            pathOrUrl.startsWith("file://")
+        ) {
+            return pathOrUrl
         }
         return activeConfig().assetsBaseUrl.trimEnd('/') + "/" + pathOrUrl.trimStart('/')
     }

@@ -32,4 +32,23 @@ class SkillModelsTest {
         assertEquals(SkillLocale.ZH_CN, detail.locale)
         assertNull(detail.href)
     }
+
+    @Test
+    fun favoriteKnotStatusDecodesBackendResponse() {
+        val status = ApiClient.defaultJson.decodeFromString<FavoriteKnotStatusResponse>(
+            """
+            {
+              "skill_category": "knots",
+              "knot_id": "adjustable-grip-hitch-knot",
+              "is_favorited": true,
+              "favorited_at": "2026-05-01T00:00:00Z"
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals("knots", status.skillCategory)
+        assertEquals("adjustable-grip-hitch-knot", status.knotId)
+        assertEquals(true, status.isFavorited)
+        assertEquals("2026-05-01T00:00:00Z", status.favoritedAt)
+    }
 }

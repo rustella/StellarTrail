@@ -3,6 +3,7 @@ package com.rustella.stellartrail.data.skills
 import com.rustella.stellartrail.domain.skills.KnotDetail
 import com.rustella.stellartrail.domain.skills.KnotListResponse
 import com.rustella.stellartrail.domain.skills.KnotSummary
+import com.rustella.stellartrail.domain.skills.FavoriteKnotStatusResponse
 import com.rustella.stellartrail.domain.skills.ListFavoriteSkillsRequest
 import com.rustella.stellartrail.domain.skills.ListFavoriteSkillsResponse
 import com.rustella.stellartrail.domain.skills.ListKnotsRequest
@@ -20,6 +21,9 @@ interface SkillRepositoryContract {
         locale: SkillLocale = SkillLocale.ZH_CN,
         request: ListFavoriteSkillsRequest = ListFavoriteSkillsRequest(),
     ): ListFavoriteSkillsResponse
+    suspend fun getFavoriteKnotStatus(id: String): FavoriteKnotStatusResponse
+    suspend fun favoriteKnot(id: String): FavoriteKnotStatusResponse
+    suspend fun unfavoriteKnot(id: String): FavoriteKnotStatusResponse
     suspend fun cacheAllKnots(locale: SkillLocale = SkillLocale.ZH_CN): KnotCacheStatus
     suspend fun clearKnotCache(): KnotCacheStatus
 
@@ -46,6 +50,15 @@ class SkillRepository(
 
     override suspend fun listFavoriteSkills(locale: SkillLocale, request: ListFavoriteSkillsRequest): ListFavoriteSkillsResponse =
         api.listFavoriteSkills(locale, request)
+
+    override suspend fun getFavoriteKnotStatus(id: String): FavoriteKnotStatusResponse =
+        api.getFavoriteKnotStatus(id)
+
+    override suspend fun favoriteKnot(id: String): FavoriteKnotStatusResponse =
+        api.favoriteKnot(id)
+
+    override suspend fun unfavoriteKnot(id: String): FavoriteKnotStatusResponse =
+        api.unfavoriteKnot(id)
 
     override suspend fun cacheAllKnots(locale: SkillLocale): KnotCacheStatus {
         val summaries = mutableListOf<KnotSummary>()

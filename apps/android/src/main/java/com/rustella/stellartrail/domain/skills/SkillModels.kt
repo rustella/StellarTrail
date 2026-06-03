@@ -98,6 +98,14 @@ data class ListFavoriteSkillsResponse(
     val page: PageInfo,
 )
 
+@Serializable
+data class FavoriteKnotStatusResponse(
+    @SerialName("skill_category") val skillCategory: String,
+    @SerialName("knot_id") val knotId: String,
+    @SerialName("is_favorited") val isFavorited: Boolean,
+    @SerialName("favorited_at") val favoritedAt: String? = null,
+)
+
 data class ListFavoriteSkillsRequest(
     val skillCategory: FavoriteSkillCategory = FavoriteSkillCategory.ALL,
     val offset: Int = 0,
@@ -129,5 +137,22 @@ data class ListKnotsRequest(
 
 fun resolveMediaUrl(assetsBaseUrl: String, mediaUrl: String): String {
     if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) return mediaUrl
+    if (
+        mediaUrl.startsWith("android.resource://") ||
+        mediaUrl.startsWith("content://") ||
+        mediaUrl.startsWith("file://")
+    ) {
+        return mediaUrl
+    }
     return assetsBaseUrl.trimEnd('/') + "/" + mediaUrl.trimStart('/')
 }
+
+fun List<KnotMediaAsset>.preferredThumbnailUrl(): String? =
+    firstOrNull { it.mediaType == "thumbnail" }?.url
+        ?: firstOrNull { it.mediaType == "preview" }?.url
+        ?: firstOrNull { it.mimeType.startsWith("image/") }?.url
+
+fun List<KnotMediaAsset>.preferredPreviewUrl(): String? =
+    firstOrNull { it.mediaType == "preview" }?.url
+        ?: firstOrNull { it.mediaType == "thumbnail" }?.url
+        ?: firstOrNull { it.mimeType.startsWith("image/") }?.url

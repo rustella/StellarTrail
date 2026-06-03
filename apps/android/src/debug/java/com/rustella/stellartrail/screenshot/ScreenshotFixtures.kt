@@ -73,6 +73,7 @@ import com.rustella.stellartrail.domain.profile.ProfileUserResponse
 import com.rustella.stellartrail.domain.profile.RoadmapItem
 import com.rustella.stellartrail.domain.profile.RoadmapStatusFilter
 import com.rustella.stellartrail.domain.skills.FavoriteKnotItem
+import com.rustella.stellartrail.domain.skills.FavoriteKnotStatusResponse
 import com.rustella.stellartrail.domain.skills.KnotDetail
 import com.rustella.stellartrail.domain.skills.KnotListResponse
 import com.rustella.stellartrail.domain.skills.KnotMediaAsset
@@ -474,6 +475,11 @@ private class FixtureSkillRepository : SkillRepositoryContract {
         SkillCategorySummary("knots", "knots", "绳结", "常用露营、钓鱼、连接和固定绳结，按场景快速复习。", 3, "/api/v1/skills/knots"),
     )
     private val knots = fixtureKnots()
+    private var favoriteStatus = FavoriteKnotStatusResponse(
+        skillCategory = "knots",
+        knotId = "taut-line",
+        isFavorited = false,
+    )
 
     override suspend fun listSkills(locale: SkillLocale): SkillCategoriesResponse = SkillCategoriesResponse(categories)
     override suspend fun listKnots(locale: SkillLocale, request: ListKnotsRequest): KnotListResponse =
@@ -484,6 +490,16 @@ private class FixtureSkillRepository : SkillRepositoryContract {
             items = listOf(FavoriteKnotItem("knots", "2026-05-01T00:00:00Z", knots.first())),
             page = PageInfo(limit = request.limit, offset = request.offset),
         )
+    override suspend fun getFavoriteKnotStatus(id: String): FavoriteKnotStatusResponse =
+        favoriteStatus.copy(knotId = id)
+    override suspend fun favoriteKnot(id: String): FavoriteKnotStatusResponse {
+        favoriteStatus = FavoriteKnotStatusResponse("knots", id, true, "2026-05-01T00:00:00Z")
+        return favoriteStatus
+    }
+    override suspend fun unfavoriteKnot(id: String): FavoriteKnotStatusResponse {
+        favoriteStatus = FavoriteKnotStatusResponse("knots", id, false, null)
+        return favoriteStatus
+    }
     override suspend fun knotDetail(id: String, locale: SkillLocale): KnotDetail = knots.firstOrNull { it.id == id }?.let {
         KnotDetail(
             id = it.id,
@@ -849,7 +865,11 @@ private fun fixtureKnots() = listOf(
         summary = "调节绳索上的张力。",
         categories = listOf(KnotTaxonomyItem("camp", "camp", "露营")),
         types = listOf(KnotTaxonomyItem("tension", "tension", "张力调节")),
-        media = listOf(KnotMediaAsset("thumbnail", "preview", "knots/taut-line.png", "image/png")),
+        media = listOf(
+            KnotMediaAsset("taut-preview", "preview", "knots/taut-line.png", "image/png", attribution = "Knots 3D"),
+            KnotMediaAsset("taut-draw", "draw_gif", "knots/taut-line-draw.gif", "image/gif", attribution = "Knots 3D"),
+            KnotMediaAsset("taut-turntable", "turntable_gif", "knots/taut-line-turntable.gif", "image/gif", attribution = "Knots 3D"),
+        ),
         href = "/api/v1/skills/knots/detail/taut-line",
     ),
     KnotSummary(

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +32,7 @@ import com.rustella.stellartrail.domain.gear.formatWeight
 import com.rustella.stellartrail.domain.gear.joinBrandModel
 import com.rustella.stellartrail.domain.skills.KnotSummary
 import com.rustella.stellartrail.domain.skills.SkillCategorySummary
+import com.rustella.stellartrail.domain.skills.preferredThumbnailUrl
 import com.rustella.stellartrail.domain.trip.TripHomeHighlightItem
 import com.rustella.stellartrail.domain.trip.dateText
 import com.rustella.stellartrail.domain.trip.durationText
@@ -44,6 +46,7 @@ import com.rustella.stellartrail.ui.common.HeroCard
 import com.rustella.stellartrail.ui.common.HeroSoftButton
 import com.rustella.stellartrail.ui.common.LoadingState
 import com.rustella.stellartrail.ui.common.MetricTile
+import com.rustella.stellartrail.ui.common.NetworkMediaImage
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SectionTitle
 import com.rustella.stellartrail.ui.common.SoftPillButton
@@ -67,7 +70,7 @@ fun HomeScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     LazyColumn(
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 24.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(HomeHeroVisualContract.followingSectionGapDp.dp),
     ) {
         item {
@@ -237,7 +240,6 @@ private fun FeaturedSkillsSection(knots: List<KnotSummary>, onOpenSkills: () -> 
 
 @Composable
 private fun KnotFeatureRow(knot: KnotSummary, onClick: () -> Unit) {
-    val palette = currentTrailPalette()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -248,16 +250,13 @@ private fun KnotFeatureRow(knot: KnotSummary, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .weight(0.32f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(palette.softControlBackground)
-                .padding(vertical = 18.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("绳结", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.ExtraBold)
-        }
+        NetworkMediaImage(
+            imageUrl = knot.media.preferredThumbnailUrl(),
+            contentDescription = knot.title,
+            fallbackLabel = "绳结",
+            modifier = Modifier.size(width = 86.dp, height = 64.dp),
+            shape = RoundedCornerShape(12.dp),
+        )
         Column(Modifier.weight(0.68f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 knot.categories.take(1).forEach { category ->

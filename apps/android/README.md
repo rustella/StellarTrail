@@ -13,6 +13,7 @@ StellarTrail Android 是原生 Kotlin + Jetpack Compose 客户端，复用仓库
 - 生产构建通过 Git 忽略的 `config.properties` 注入真实候选域名；首次 API 请求前会按配置顺序探测 `/healthz`，首个可用域名族会同时决定 API 和资源域名。本地调试地址会跳过探测。
 
 构建时会读取 Git 忽略的 `config.properties`，缺失时回退到 `config.example.properties`。本地联调可复制示例文件并把 API 地址改为 `http://10.0.2.2:8080`，模拟器即可访问宿主机服务。真机联调时也可在 Profile 页面临时修改 API Base URL。
+`stellartrail.smsCodeCooldownSeconds` 控制 Android 本地短信验证码按钮倒计时，后端仍负责真正的发送频控。
 
 ```bash
 ./gradlew :apps:android:assembleDebug

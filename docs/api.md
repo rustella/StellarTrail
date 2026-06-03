@@ -29,6 +29,17 @@ rate_limit:
 
 Redis 可用时限流计数写入 Redis；Redis 未配置或不可用时会退回单进程内存计数，仅作为降级保护。生产多实例部署应配置 Redis 并监控限流降级日志。
 
+短信验证码还有独立的手机号限流。默认同一规范化手机号、所有短信用途合并计数，60 秒内最多发送 1 次，滚动 24 小时内最多发送 20 次；可通过 `sms.phone_rate_limit` 配置块调整：
+
+```yaml
+sms:
+  phone_rate_limit:
+    enabled: true
+    cooldown_seconds: 60
+    window_seconds: 86400
+    max_sends_per_window: 20
+```
+
 超限响应示例：
 
 ```http
