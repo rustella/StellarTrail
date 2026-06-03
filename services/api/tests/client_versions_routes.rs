@@ -51,6 +51,7 @@ async fn test_app_with_commit_hash(commit_hash: Option<&str>) -> TestApp {
         knots_media_storage: Default::default(),
         public_api: PublicApiConfig::default(),
         rate_limit: Default::default(),
+        request_signature: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
         sms: Default::default(),

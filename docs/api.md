@@ -57,6 +57,54 @@ X-RateLimit-Reset: 1770000000
 }
 ```
 
+## 请求签名
+
+除 `OPTIONS`、`/healthz`、`/ping`、`/echo`、`/api/v1/ping`、`/api/v1/echo` 外，启用签名配置后所有 `/api/v1/*` 请求都需要携带 `app_id`、`nonce`、`signature`。`app_id` 与 `app_secret` 只允许写在被 `.gitignore` 忽略的真实配置文件中，例如根目录 `config.yaml` 或 `config.*.yaml`；仓库中的示例文件只能使用占位值。
+
+```yaml
+request_signature:
+  enabled: true
+  nonce_ttl_seconds: 300
+  clients:
+    - app_id: example-client-id
+      app_secret: example-client-secret
+```
+
+服务端不会读取 `REQUEST_SIGNATURE_*` 环境变量。`nonce_ttl_seconds` 默认为 300 秒；同一 `{app_id, nonce}` 在 TTL 内重复使用会返回 `401 invalid_request_signature`。Redis 可用时 nonce 记录写入 Redis；Redis 不可用时退回单进程内存记录。
+
+参数位置：
+
+- `GET` 或无 body 请求：`app_id`、`nonce`、`signature` 放 query。
+- JSON 请求：`app_id`、`nonce`、`signature` 放顶层 JSON 字段，业务 DTO 会忽略这些签名字段。
+- multipart 上传：`app_id`、`nonce`、`signature` 放 query，body hash 使用原始 multipart body。
+
+签名串固定为：
+
+```text
+STELLARTRAIL-HMAC-SHA256
+{METHOD}
+{path}
+{canonical_query_without_signature}
+{body_sha256_hex}
+{app_id}
+{nonce}
+```
+
+`signature = hex(HMAC-SHA256(app_secret, canonical_string))`。Query canonicalization 使用原始 query 参数按 key、value 升序排列，并移除 `signature` 参数；JSON body hash 使用移除顶层 `app_id`、`nonce`、`signature` 后的稳定 JSON。
+
+签名失败响应示例：
+
+```http
+HTTP/1.1 401 Unauthorized
+```
+
+```json
+{
+  "code": "invalid_request_signature",
+  "message": "missing or invalid request signature"
+}
+```
+
 ## Auth
 
 ```http

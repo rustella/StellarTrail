@@ -108,6 +108,7 @@ async fn test_app() -> TestApp {
         },
         public_api: PublicApiConfig::default(),
         rate_limit: Default::default(),
+        request_signature: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
         sms: Default::default(),

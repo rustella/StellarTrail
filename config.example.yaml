@@ -70,6 +70,14 @@ rate_limit:
   trust_proxy_headers: false
   trusted_proxy_cidrs: []
 
+request_signature:
+  # Keep real app_id/app_secret pairs only in ignored config.yaml or config.*.yaml files.
+  enabled: false
+  nonce_ttl_seconds: 300
+  clients:
+    - app_id: example-client-id
+      app_secret: example-client-secret
+
 mail:
   enabled: false
   smtp_host: smtp.example.invalid

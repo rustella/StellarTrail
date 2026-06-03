@@ -80,6 +80,7 @@ async fn test_app_with_upload_config(upload: UploadConfig) -> TestApp {
         knots_media_storage: Default::default(),
         public_api: PublicApiConfig::default(),
         rate_limit: Default::default(),
+        request_signature: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
         sms: Default::default(),

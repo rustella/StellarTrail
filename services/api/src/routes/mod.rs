@@ -32,7 +32,11 @@ use axum::{
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::{
-    api_usage, config::CorsConfig, error::ApiError, services::rate_limit_service, state::AppState,
+    api_usage,
+    config::CorsConfig,
+    error::ApiError,
+    services::{rate_limit_service, request_signature_service},
+    state::AppState,
 };
 
 /// Versioned prefix for every business API route.
@@ -69,6 +73,10 @@ pub fn build_router(state: AppState) -> Router {
         state.clone(),
         rate_limit_service::enforce_global_rate_limit,
     );
+    let request_signature_layer = axum::middleware::from_fn_with_state(
+        state.clone(),
+        request_signature_service::enforce_request_signature,
+    );
     let api_router = Router::new()
         .route("/meta", get(meta::meta))
         .merge(auth::routes())
@@ -91,6 +99,7 @@ pub fn build_router(state: AppState) -> Router {
         .nest(API_PREFIX, api_router)
         .fallback(not_found)
         .layer(DefaultBodyLimit::max(body_limit))
+        .layer(request_signature_layer)
         .layer(rate_limit_layer)
         .route_layer(middleware::from_fn_with_state(
             usage_state,

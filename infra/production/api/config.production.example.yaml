@@ -76,6 +76,13 @@ rate_limit:
   trusted_proxy_cidrs:
     - 172.16.0.0/12
 
+request_signature:
+  enabled: true
+  nonce_ttl_seconds: 300
+  clients:
+    - app_id: example-client-id
+      app_secret: example-client-secret
+
 public_api:
   rate_limit_enabled: true
   rate_limit_window_seconds: 60
