@@ -9,16 +9,16 @@ class HomeVisualContractTest {
     fun quickActionsMatchWechatDayModeHomeGrid() {
         val actions = HomeQuickAction.defaults(isLoggedIn = false)
 
-        assertEquals(listOf("装备库", "添加装备", "户外技能", "个人设置"), actions.map { it.title })
-        assertEquals(listOf(HomeActionTarget.Gears, HomeActionTarget.Login, HomeActionTarget.Skills, HomeActionTarget.Profile), actions.map { it.target })
+        assertEquals(listOf("装备库", "我的行程", "户外技能", "个人设置"), actions.map { it.title })
+        assertEquals(listOf(HomeActionTarget.Gears, HomeActionTarget.Trips, HomeActionTarget.Skills, HomeActionTarget.Profile), actions.map { it.target })
         assertEquals(4, actions.size)
     }
 
     @Test
-    fun quickActionsOpenCreateGearWhenLoggedIn() {
+    fun quickActionsKeepTripEntryWhenLoggedIn() {
         val actions = HomeQuickAction.defaults(isLoggedIn = true)
 
-        assertEquals(HomeActionTarget.NewGear, actions.single { it.title == "添加装备" }.target)
+        assertEquals(HomeActionTarget.Trips, actions.single { it.title == "我的行程" }.target)
     }
 
     @Test
@@ -32,10 +32,11 @@ class HomeVisualContractTest {
 
         val overview = HomeGearOverview.from(stats = stats, isLoggedIn = true)
 
-        assertEquals("GEAR READY", overview.eyebrow)
+        assertEquals("装备准备", overview.eyebrow)
         assertEquals("装备概览", overview.title)
-        assertEquals(listOf("可用装备", "历史装备", "总重量"), overview.stats.map { it.label })
-        assertEquals(listOf("6", "2", "3250g"), overview.stats.map { it.value })
+        assertEquals(listOf("装备数量", "总重量", "装备估值"), overview.stats.map { it.label })
+        assertEquals(listOf("当前库存", "已记录装备重量", "按 CNY 购入价汇总"), overview.stats.map { it.hint })
+        assertEquals(listOf("6", "3.25 kg", "¥1299"), overview.stats.map { it.value })
     }
     @Test
     fun heroLayoutReservesSpaceBelowActionButtons() {

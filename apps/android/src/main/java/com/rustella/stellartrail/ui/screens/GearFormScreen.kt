@@ -41,6 +41,7 @@ import com.rustella.stellartrail.domain.gear.label
 import com.rustella.stellartrail.feature.gear.form.GearFormViewModel
 import com.rustella.stellartrail.ui.common.Badge
 import com.rustella.stellartrail.ui.common.BadgeTone
+import com.rustella.stellartrail.ui.common.DatePickerField
 import com.rustella.stellartrail.ui.common.ErrorState
 import com.rustella.stellartrail.ui.common.LoadingState
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
@@ -107,8 +108,8 @@ fun GearFormScreen(
                     OutlinedTextField(state.form.purchaseLocation, viewModel::updatePurchaseLocation, label = { Text("购买渠道") }, singleLine = true, modifier = Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(state.form.purchaseDate, viewModel::updatePurchaseDate, label = { Text("购买日期") }, singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(state.form.expiryOrWarrantyDate, viewModel::updateWarrantyDate, label = { Text("保修/过期") }, singleLine = true, modifier = Modifier.weight(1f))
+                    DatePickerField("购买日期", state.form.purchaseDate, viewModel::updatePurchaseDate, Modifier.weight(1f))
+                    DatePickerField("保修/过期", state.form.expiryOrWarrantyDate, viewModel::updateWarrantyDate, Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(state.form.color, viewModel::updateColor, label = { Text("颜色") }, singleLine = true, modifier = Modifier.weight(1f))

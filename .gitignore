@@ -17,6 +17,10 @@ infra/production/**/config.*.yaml
 infra/production/**/.env
 infra/production/**/.env.*
 !infra/production/**/.env.example
+infra/production/**/*.override.yml
+infra/production/**/*.override.yaml
+!infra/production/**/*.override.example.yml
+!infra/production/**/*.override.example.yaml
 infra/production/traefik/acme.json
 infra/production/traefik/acme/
 

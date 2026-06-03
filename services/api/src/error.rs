@@ -51,6 +51,8 @@ struct ErrorBody {
     captcha: Option<CaptchaChallenge>,
     #[serde(skip_serializing_if = "Option::is_none")]
     parameter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retry_after_seconds: Option<u64>,
 }
 
 /// Stable data boundary for `CaptchaChallenge`, exposed by or reused within this module.
@@ -275,6 +277,7 @@ impl IntoResponse for ApiError {
                 conflicts,
                 captcha,
                 parameter,
+                retry_after_seconds: retry_after,
             }),
         )
             .into_response();

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,18 +31,23 @@ import com.rustella.stellartrail.domain.gear.GearTemplate
 import com.rustella.stellartrail.domain.gear.formatPrice
 import com.rustella.stellartrail.domain.gear.formatWeight
 import com.rustella.stellartrail.domain.gear.joinBrandModel
+import com.rustella.stellartrail.domain.skills.KnotSummary
 import com.rustella.stellartrail.domain.skills.SkillCategorySummary
+import com.rustella.stellartrail.domain.skills.preferredThumbnailUrl
+import com.rustella.stellartrail.domain.trip.TripHomeHighlightItem
+import com.rustella.stellartrail.domain.trip.dateText
+import com.rustella.stellartrail.domain.trip.durationText
 import com.rustella.stellartrail.feature.home.HomeViewModel
 import com.rustella.stellartrail.ui.common.Badge
 import com.rustella.stellartrail.ui.common.BadgeTone
 import com.rustella.stellartrail.ui.common.EmptyState
 import com.rustella.stellartrail.ui.common.ErrorState
-import com.rustella.stellartrail.ui.common.FeatureTile
 import com.rustella.stellartrail.ui.common.HeroButton
 import com.rustella.stellartrail.ui.common.HeroCard
 import com.rustella.stellartrail.ui.common.HeroSoftButton
 import com.rustella.stellartrail.ui.common.LoadingState
 import com.rustella.stellartrail.ui.common.MetricTile
+import com.rustella.stellartrail.ui.common.NetworkMediaImage
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SectionTitle
 import com.rustella.stellartrail.ui.common.SoftPillButton
@@ -54,40 +61,36 @@ fun HomeScreen(
     onOpenGears: () -> Unit,
     onCreateGear: () -> Unit,
     onOpenSkills: () -> Unit,
+    onOpenTrips: () -> Unit,
+    onOpenTrip: (String) -> Unit,
     onOpenProfile: () -> Unit,
     onOpenGear: (String) -> Unit,
+    onOpenKnot: (String) -> Unit,
     onLogin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val quickActions = HomeQuickAction.defaults(state.isLoggedIn)
-    val openAction: (HomeActionTarget) -> Unit = { target ->
-        when (target) {
-            HomeActionTarget.Gears -> onOpenGears()
-            HomeActionTarget.NewGear -> onCreateGear()
-            HomeActionTarget.Skills -> onOpenSkills()
-            HomeActionTarget.Profile -> onOpenProfile()
-            HomeActionTarget.Login -> onLogin()
-        }
-    }
     LazyColumn(
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 24.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(HomeHeroVisualContract.followingSectionGapDp.dp),
     ) {
         item {
             HeroCard(
-                eyebrow = "寻径星野 · 出发前检查",
+                eyebrow = "寻径星野",
                 title = "今天准备好出发了吗？",
-                subtitle = "跟着清单确认背包、技能和个人设置，轻松开始下一段路线。",
-                chips = listOf(if (state.isLoggedIn) "我的装备已保存" else "可先浏览清单", "绳结教学可直接看"),
+                subtitle = "出发前准备充分，留意天气变化，注意户外安全。",
+                chips = listOf(homeHeroStatusText(state.stats, state.isLoggedIn)),
+                eyebrowPill = true,
                 actions = {
-                    HeroButton("查看装备", onOpenGears, Modifier.weight(1f))
+                    HeroButton("检查装备", onOpenGears, Modifier.weight(1f))
                     HeroSoftButton("学习技能", onOpenSkills, Modifier.weight(1f))
                 },
             )
         }
-        item { QuickActionGrid(actions = quickActions, onAction = openAction) }
+        state.tripHighlight?.let { highlight ->
+            item { HomeTripHighlightCard(highlight = highlight, onClick = { onOpenTrip(highlight.trip.id) }) }
+        }
         if (state.error != null) item { ErrorState(state.error!!, onRetry = { viewModel.load(state.isLoggedIn) }) }
         if (state.loading) item { LoadingState() }
         item {
@@ -97,48 +100,32 @@ fun HomeScreen(
                 onLogin = onLogin,
             )
         }
-        if (state.isLoggedIn && state.recentGears.isNotEmpty()) {
-            item { SectionTitle("最近装备", "快速查看近期更新。") }
-            items(state.recentGears, key = { it.id }) { gear ->
-                GearPreviewCard(gear = gear, onClick = { onOpenGear(gear.id) })
-            }
-        }
-        item { SectionTitle("出行装备参考", "按场景准备背包，登录后保存自己的清单。") }
-        if (!state.loading && state.templates.isEmpty()) {
-            item { EmptyState("暂无装备参考", "稍后刷新或检查网络。") }
-        }
-        items(state.templates, key = { it.id }) { template ->
-            TemplateMiniCard(template = template)
-        }
-        item { PrimaryPillButton("查看全部装备", onOpenGears, Modifier.fillMaxWidth()) }
-        item { SectionTitle("户外技能", "出发前先掌握常用绳结与营地技能。") }
-        if (!state.loading && state.skills.isEmpty()) {
-            item { EmptyState("暂无技能分类", "稍后刷新或检查网络。") }
-        }
-        items(state.skills, key = { it.id }) { skill ->
-            SkillPreviewCard(skill = skill, onClick = onOpenSkills)
-        }
-        item { PrimaryPillButton("学习技能", onOpenSkills, Modifier.fillMaxWidth()) }
+        item { FeaturedSkillsSection(state.featuredKnots, onOpenSkills, onOpenKnot) }
     }
 }
 
+private fun homeHeroStatusText(stats: com.rustella.stellartrail.domain.gear.GearStatsResponse, isLoggedIn: Boolean): String {
+    if (!isLoggedIn) return "登录后同步装备"
+    return if (stats.currentCount > 0) "装备 ${stats.currentCount} 件" else "还没有装备记录"
+}
+
 @Composable
-private fun QuickActionGrid(actions: List<HomeQuickAction>, onAction: (HomeActionTarget) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        actions.chunked(2).forEach { rowActions ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                rowActions.forEach { action ->
-                    FeatureTile(
-                        icon = action.icon,
-                        title = action.title,
-                        body = action.body,
-                        onClick = { onAction(action.target) },
-                        modifier = Modifier.weight(1f),
-                        compact = true,
-                    )
-                }
+private fun HomeTripHighlightCard(highlight: TripHomeHighlightItem, onClick: () -> Unit) {
+    SurfaceCard(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                Badge("近期行程", tone = BadgeTone.Info)
+                Text(highlight.trip.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
             }
+            SoftPillButton("查看行程", onClick)
         }
+        Text(highlight.trip.dateText(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MetricTile("准备度", "${highlight.trip.readiness.completionPercent}%", Modifier.weight(1f))
+            MetricTile("成员", "${highlight.trip.memberCount}", Modifier.weight(1f))
+            MetricTile("行程", highlight.trip.durationText(), Modifier.weight(1f))
+        }
+        Text("出发前检查：装备、技能、天气和安全预案。", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -148,10 +135,15 @@ private fun GearOverviewCard(overview: HomeGearOverview, onOpenGears: () -> Unit
     SurfaceCard(contentPadding = PaddingValues(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Badge(overview.eyebrow, tone = BadgeTone.Info)
+                Text(
+                    overview.eyebrow,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = palette.brandSoftText,
+                )
                 Text(overview.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
             }
-            SoftPillButton("查看装备", onOpenGears)
+            SectionLinkPill("查看装备", onOpenGears)
         }
         if (overview.promptTitle != null && overview.promptBody != null) {
             Box(
@@ -196,8 +188,111 @@ private fun OverviewStatTile(stat: HomeOverviewStat, modifier: Modifier = Modifi
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(stat.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stat.label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            stat.hint,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
+}
+
+@Composable
+private fun FeaturedSkillsSection(
+    knots: List<KnotSummary>,
+    onOpenSkills: () -> Unit,
+    onOpenKnot: (String) -> Unit,
+) {
+    val palette = currentTrailPalette()
+    SurfaceCard(contentPadding = PaddingValues(16.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "技能复习",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = palette.brandSoftText,
+                )
+                Text("户外技能精选", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            }
+            SectionLinkPill("全部技能", onOpenSkills)
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(palette.controlBackground)
+                .padding(12.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("绳结", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                        Text("常用连接、固定与收纳绳结", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    PrimaryPillButton("查看全部", onOpenSkills)
+                }
+                if (knots.isEmpty()) {
+                    Text("技能内容准备中。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    knots.take(3).forEach { knot -> KnotFeatureRow(knot, onClick = { onOpenKnot(knot.id) }) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KnotFeatureRow(knot: KnotSummary, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.58f))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        NetworkMediaImage(
+            imageUrl = knot.media.preferredThumbnailUrl(),
+            contentDescription = knot.title,
+            fallbackLabel = "绳结",
+            modifier = Modifier.size(width = 86.dp, height = 64.dp),
+            shape = RoundedCornerShape(12.dp),
+            contentScale = ContentScale.Fit,
+        )
+        Column(Modifier.weight(0.68f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                knot.categories.take(1).forEach { category ->
+                    Badge(category.title, tone = BadgeTone.Info)
+                }
+            }
+            Text(knot.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+            if (knot.aliases.isNotEmpty()) {
+                Text(knot.aliases.joinToString(" / "), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            }
+            Text(knot.summary, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun SectionLinkPill(text: String, onClick: () -> Unit) {
+    val palette = currentTrailPalette()
+    Text(
+        text = text,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(palette.brandSoft)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        color = palette.brandSoftText,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.ExtraBold,
+    )
 }
 
 @Composable

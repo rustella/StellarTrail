@@ -18,6 +18,9 @@ if (clientConfigSource.exists()) {
 fun clientConfigValue(key: String, fallback: String): String =
     clientConfigProperties.getProperty(key)?.trim()?.takeIf { it.isNotEmpty() } ?: fallback
 
+fun clientConfigIntValue(key: String, fallback: Int): Int =
+    clientConfigValue(key, fallback.toString()).toIntOrNull()?.takeIf { it > 0 } ?: fallback
+
 fun quotedBuildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
@@ -48,6 +51,11 @@ android {
             "String",
             "DEFAULT_DOMAIN_CANDIDATES",
             quotedBuildConfigString(clientConfigValue("stellartrail.domainCandidates", "")),
+        )
+        buildConfigField(
+            "int",
+            "SMS_CODE_COOLDOWN_SECONDS",
+            clientConfigIntValue("stellartrail.smsCodeCooldownSeconds", 60).toString(),
         )
     }
 
@@ -100,6 +108,8 @@ dependencies {
     implementation(libs.ktor.serialization.json)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

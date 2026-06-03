@@ -1,11 +1,12 @@
 package com.rustella.stellartrail.ui.screens
 
 import com.rustella.stellartrail.domain.gear.GearStatsResponse
-import com.rustella.stellartrail.domain.gear.formatWeight
+import com.rustella.stellartrail.domain.gear.formatPrice
 import com.rustella.stellartrail.ui.common.HeroStar
 import com.rustella.stellartrail.ui.common.HeroVisualContract
+import java.util.Locale
 
-enum class HomeActionTarget { Gears, NewGear, Skills, Profile, Login }
+enum class HomeActionTarget { Gears, NewGear, Trips, Skills, Profile, Login }
 
 data class HomeQuickAction(
     val icon: String,
@@ -22,13 +23,13 @@ data class HomeQuickAction(
                 target = HomeActionTarget.Gears,
             ),
             HomeQuickAction(
-                icon = "＋",
-                title = "添加装备",
-                body = "登录后快速记录装备",
-                target = if (isLoggedIn) HomeActionTarget.NewGear else HomeActionTarget.Login,
+                icon = "行",
+                title = "我的行程",
+                body = "单人准备与组队协作",
+                target = HomeActionTarget.Trips,
             ),
             HomeQuickAction(
-                icon = "🪢",
+                icon = "结",
                 title = "户外技能",
                 body = "绳结、天气、急救知识",
                 target = HomeActionTarget.Skills,
@@ -43,7 +44,7 @@ data class HomeQuickAction(
     }
 }
 
-data class HomeOverviewStat(val label: String, val value: String)
+data class HomeOverviewStat(val label: String, val value: String, val hint: String)
 
 data class HomeGearOverview(
     val eyebrow: String,
@@ -54,17 +55,23 @@ data class HomeGearOverview(
 ) {
     companion object {
         fun from(stats: GearStatsResponse, isLoggedIn: Boolean): HomeGearOverview = HomeGearOverview(
-            eyebrow = "GEAR READY",
+            eyebrow = "装备准备",
             title = "装备概览",
-            promptTitle = if (isLoggedIn) null else "可以先查看出行清单",
-            promptBody = if (isLoggedIn) null else "登录后再管理自己的装备、重量和估值。",
+            promptTitle = if (isLoggedIn) null else "登录后管理装备",
+            promptBody = if (isLoggedIn) null else "保存自己的装备、重量和估值，出发前整理清单更安心。",
             stats = listOf(
-                HomeOverviewStat("可用装备", stats.currentCount.toString()),
-                HomeOverviewStat("历史装备", stats.archivedCount.toString()),
-                HomeOverviewStat("总重量", formatWeight(stats.totalWeightG)),
+                HomeOverviewStat("装备数量", stats.currentCount.toString(), "当前库存"),
+                HomeOverviewStat("总重量", formatHomeWeight(stats.totalWeightG), "已记录装备重量"),
+                HomeOverviewStat("装备估值", formatPrice(stats.totalValueCents), "按 CNY 购入价汇总"),
             ),
         )
     }
+}
+
+fun formatHomeWeight(grams: Int): String {
+    if (grams <= 0) return "0kg"
+    if (grams < 1000) return "${grams}g"
+    return String.format(Locale.US, "%.2f kg", grams / 1000.0)
 }
 
 object HomeHeroVisualContract {

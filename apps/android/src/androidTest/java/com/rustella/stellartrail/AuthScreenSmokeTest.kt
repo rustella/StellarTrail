@@ -17,6 +17,6 @@ class AuthScreenSmokeTest {
     fun unauthenticatedUserSeesAuthScreen() {
         composeRule.onNodeWithText("寻径星野").assertIsDisplayed()
         composeRule.onNodeWithText("登录").assertIsDisplayed()
-        composeRule.onNodeWithText("注册").assertIsDisplayed()
+        composeRule.onNodeWithText("注册账号").assertIsDisplayed()
     }
 }

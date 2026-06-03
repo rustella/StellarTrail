@@ -173,6 +173,16 @@ struct FileSmsConfig {
     password_reset_template_code: Option<String>,
     bind_new_phone_template_code: Option<String>,
     verify_bound_phone_template_code: Option<String>,
+    phone_rate_limit: FileSmsPhoneRateLimitConfig,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct FileSmsPhoneRateLimitConfig {
+    enabled: Option<bool>,
+    cooldown_seconds: Option<u64>,
+    window_seconds: Option<u64>,
+    max_sends_per_window: Option<u64>,
 }
 
 impl FileConfig {
@@ -455,6 +465,27 @@ pub struct SmsConfig {
     pub password_reset_template_code: String,
     pub bind_new_phone_template_code: String,
     pub verify_bound_phone_template_code: String,
+    pub phone_rate_limit: SmsPhoneRateLimitConfig,
+}
+
+/// Per-phone SMS send quota used before calling the SMS provider.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmsPhoneRateLimitConfig {
+    pub enabled: bool,
+    pub cooldown_seconds: u64,
+    pub window_seconds: u64,
+    pub max_sends_per_window: u64,
+}
+
+impl Default for SmsPhoneRateLimitConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            cooldown_seconds: 60,
+            window_seconds: 86_400,
+            max_sends_per_window: 20,
+        }
+    }
 }
 
 impl fmt::Debug for SmsConfig {
@@ -489,6 +520,7 @@ impl fmt::Debug for SmsConfig {
                 "verify_bound_phone_template_code",
                 &self.verify_bound_phone_template_code,
             )
+            .field("phone_rate_limit", &self.phone_rate_limit)
             .finish()
     }
 }
@@ -509,6 +541,7 @@ impl Default for SmsConfig {
             password_reset_template_code: "100003".to_owned(),
             bind_new_phone_template_code: "100004".to_owned(),
             verify_bound_phone_template_code: "100005".to_owned(),
+            phone_rate_limit: SmsPhoneRateLimitConfig::default(),
         }
     }
 }
@@ -887,6 +920,24 @@ impl ApiConfig {
                 file_sms.verify_bound_phone_template_code,
                 &default_sms.verify_bound_phone_template_code,
             ),
+            phone_rate_limit: SmsPhoneRateLimitConfig {
+                enabled: file_sms
+                    .phone_rate_limit
+                    .enabled
+                    .unwrap_or(default_sms.phone_rate_limit.enabled),
+                cooldown_seconds: file_sms
+                    .phone_rate_limit
+                    .cooldown_seconds
+                    .unwrap_or(default_sms.phone_rate_limit.cooldown_seconds),
+                window_seconds: file_sms
+                    .phone_rate_limit
+                    .window_seconds
+                    .unwrap_or(default_sms.phone_rate_limit.window_seconds),
+                max_sends_per_window: file_sms
+                    .phone_rate_limit
+                    .max_sends_per_window
+                    .unwrap_or(default_sms.phone_rate_limit.max_sends_per_window),
+            },
         };
         validate_sms_config(&sms)?;
 
@@ -1227,6 +1278,20 @@ fn validate_sms_config(config: &SmsConfig) -> anyhow::Result<()> {
     }
     if config.interval_seconds == 0 {
         anyhow::bail!("sms.interval_seconds must be greater than 0");
+    }
+    if config.phone_rate_limit.cooldown_seconds == 0 {
+        anyhow::bail!("sms.phone_rate_limit.cooldown_seconds must be greater than 0");
+    }
+    if config.phone_rate_limit.window_seconds == 0 {
+        anyhow::bail!("sms.phone_rate_limit.window_seconds must be greater than 0");
+    }
+    if config.phone_rate_limit.max_sends_per_window == 0 {
+        anyhow::bail!("sms.phone_rate_limit.max_sends_per_window must be greater than 0");
+    }
+    if config.phone_rate_limit.cooldown_seconds > config.phone_rate_limit.window_seconds {
+        anyhow::bail!(
+            "sms.phone_rate_limit.cooldown_seconds must not exceed sms.phone_rate_limit.window_seconds"
+        );
     }
     for (name, value) in [
         ("sms.endpoint", &config.endpoint),
@@ -1874,6 +1939,11 @@ sms:
   password_reset_template_code: "100003"
   bind_new_phone_template_code: "100004"
   verify_bound_phone_template_code: "100005"
+  phone_rate_limit:
+    enabled: true
+    cooldown_seconds: 75
+    window_seconds: 3600
+    max_sends_per_window: 8
 "#,
         )
         .unwrap();
@@ -1897,7 +1967,41 @@ sms:
         assert_eq!(config.sms.password_reset_template_code, "100003");
         assert_eq!(config.sms.bind_new_phone_template_code, "100004");
         assert_eq!(config.sms.verify_bound_phone_template_code, "100005");
+        assert!(config.sms.phone_rate_limit.enabled);
+        assert_eq!(config.sms.phone_rate_limit.cooldown_seconds, 75);
+        assert_eq!(config.sms.phone_rate_limit.window_seconds, 3600);
+        assert_eq!(config.sms.phone_rate_limit.max_sends_per_window, 8);
 
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_rejects_invalid_sms_phone_rate_limit_config() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            config_file.path(),
+            r#"
+database:
+  url: sqlite://stellartrail.db
+sms:
+  phone_rate_limit:
+    enabled: true
+    cooldown_seconds: 120
+    window_seconds: 60
+    max_sends_per_window: 20
+"#,
+        )
+        .unwrap();
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("CONFIG_PATH", config_file.path());
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(error.contains("cooldown_seconds"), "{error}");
         restore_env(saved);
     }
 

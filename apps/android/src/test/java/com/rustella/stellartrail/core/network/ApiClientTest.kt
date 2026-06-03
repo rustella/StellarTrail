@@ -14,8 +14,10 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 
 class ApiClientTest {
     @Test
@@ -160,6 +162,31 @@ class ApiClientTest {
     }
 
     @Test
+    fun rateLimitedResponseParsesRetryAfterSeconds() = runTest {
+        val engine = MockEngine {
+            respond(
+                content = """{"code":"rate_limited","message":"Too many requests.","retry_after_seconds":42}""",
+                status = HttpStatusCode.TooManyRequests,
+                headers = headersOf(
+                    HttpHeaders.ContentType to listOf("application/json"),
+                    "Retry-After" to listOf("75"),
+                ),
+            )
+        }
+        val client = ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+        )
+
+        val exception = runCatching { client.get<HealthResponse>("/healthz") }.exceptionOrNull()
+
+        assertTrue(exception is ApiException)
+        exception as ApiException
+        assertTrue(exception.isRateLimited)
+        assertEquals(75L, exception.retryAfterSeconds)
+    }
+
+    @Test
     fun authenticatedRequestRefreshesOnceOnUnauthorizedAndRetries() = runTest {
         val requests = mutableListOf<io.ktor.client.request.HttpRequestData>()
         var accessToken = "expired-access-token"
@@ -215,6 +242,158 @@ class ApiClientTest {
         assertEquals("Bearer expired-access-token", requests[0].headers[HttpHeaders.Authorization])
         assertEquals("Bearer fresh-access-token", requests[2].headers[HttpHeaders.Authorization])
         assertEquals("new-refresh-token", refreshToken)
+    }
+
+    @Test
+    fun refreshNetworkFailureDoesNotExpireSession() = runTest {
+        var expired = false
+        val engine = MockEngine { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/me/gears/categories" -> respondJson(
+                    """{"code":"unauthorized","message":"Unauthorized"}""",
+                    HttpStatusCode.Unauthorized,
+                )
+                "/api/v1/auth/refresh" -> throw IOException("offline")
+                else -> error("unexpected path ${request.url.encodedPath}")
+            }
+        }
+        val client = ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            tokenProvider = { "expired-access-token" },
+            refreshTokenProvider = { "refresh-token" },
+            sessionExpiredHandler = { expired = true },
+            httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+        )
+
+        val exception = runCatching { client.get<HealthResponse>("/me/gears/categories") }.exceptionOrNull()
+
+        assertTrue(exception is ApiException)
+        assertFalse(expired)
+    }
+
+    @Test
+    fun refreshUnauthorizedExpiresSession() = runTest {
+        var expired = false
+        val engine = MockEngine { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/me/gears/categories" -> respondJson(
+                    """{"code":"unauthorized","message":"Unauthorized"}""",
+                    HttpStatusCode.Unauthorized,
+                )
+                "/api/v1/auth/refresh" -> respondJson(
+                    """{"code":"unauthorized","message":"Unauthorized"}""",
+                    HttpStatusCode.Unauthorized,
+                )
+                else -> error("unexpected path ${request.url.encodedPath}")
+            }
+        }
+        val client = ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            tokenProvider = { "expired-access-token" },
+            refreshTokenProvider = { "refresh-token" },
+            sessionExpiredHandler = { expired = true },
+            httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+        )
+
+        val exception = runCatching { client.get<HealthResponse>("/me/gears/categories") }.exceptionOrNull()
+
+        assertTrue(exception is ApiException)
+        assertTrue(expired)
+    }
+
+    @Test
+    fun getStoresAndReplaysCachedResponseOnNetworkFailure() = runTest {
+        val cacheStore = InMemoryOfflineHttpCacheStore()
+        val onlineClient = ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            cacheScopeProvider = { "user-a" },
+            offlineCacheStore = cacheStore,
+            httpClient = HttpClient(MockEngine { respondJson("""{"status":"fresh"}""") }) {
+                install(ContentNegotiation) { json(ApiClient.defaultJson) }
+            },
+        )
+
+        val fresh = onlineClient.get<HealthResponse>("/me/gears/categories", query = mapOf("tab" to "available"))
+
+        assertEquals("fresh", fresh.status)
+        assertEquals(1, cacheStore.status.value.cachedResponseCount)
+
+        val offlineClient = ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            cacheScopeProvider = { "user-a" },
+            offlineCacheStore = cacheStore,
+            httpClient = HttpClient(MockEngine { throw IOException("offline") }) {
+                install(ContentNegotiation) { json(ApiClient.defaultJson) }
+            },
+        )
+
+        val cached = offlineClient.get<HealthResponse>("/me/gears/categories", query = mapOf("tab" to "available"))
+
+        assertEquals("fresh", cached.status)
+    }
+
+    @Test
+    fun cachedResponsesAreSeparatedByUserScope() = runTest {
+        val cacheStore = InMemoryOfflineHttpCacheStore()
+        ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            cacheScopeProvider = { "user-a" },
+            offlineCacheStore = cacheStore,
+            httpClient = HttpClient(MockEngine { respondJson("""{"status":"user-a"}""") }) {
+                install(ContentNegotiation) { json(ApiClient.defaultJson) }
+            },
+        ).get<HealthResponse>("/me/gears/categories")
+
+        val userBClient = ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            cacheScopeProvider = { "user-b" },
+            offlineCacheStore = cacheStore,
+            httpClient = HttpClient(MockEngine { throw IOException("offline") }) {
+                install(ContentNegotiation) { json(ApiClient.defaultJson) }
+            },
+        )
+
+        val userBException = runCatching { userBClient.get<HealthResponse>("/me/gears/categories") }.exceptionOrNull()
+        assertTrue(userBException is IOException)
+
+        val userAClient = ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            cacheScopeProvider = { "user-a" },
+            offlineCacheStore = cacheStore,
+            httpClient = HttpClient(MockEngine { throw IOException("offline") }) {
+                install(ContentNegotiation) { json(ApiClient.defaultJson) }
+            },
+        )
+        assertEquals("user-a", userAClient.get<HealthResponse>("/me/gears/categories").status)
+    }
+
+    @Test
+    fun mutationFailuresDoNotReplayCachedGetResponses() = runTest {
+        val cacheStore = InMemoryOfflineHttpCacheStore()
+        ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            offlineCacheStore = cacheStore,
+            httpClient = HttpClient(MockEngine { respondJson("""{"status":"cached"}""") }) {
+                install(ContentNegotiation) { json(ApiClient.defaultJson) }
+            },
+        ).get<HealthResponse>("/me/gears/categories")
+
+        val offlineClient = ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            offlineCacheStore = cacheStore,
+            httpClient = HttpClient(MockEngine { throw IOException("offline") }) {
+                install(ContentNegotiation) { json(ApiClient.defaultJson) }
+            },
+        )
+
+        val exception = runCatching {
+            offlineClient.post<kotlinx.serialization.json.JsonObject, HealthResponse>(
+                "/me/gears/categories",
+                kotlinx.serialization.json.buildJsonObject { },
+            )
+        }.exceptionOrNull()
+
+        assertTrue(exception is IOException)
     }
 
     private fun MockRequestHandleScope.respondJson(

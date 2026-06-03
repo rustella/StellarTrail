@@ -55,6 +55,10 @@ impl MigrationTrait for Migration {
         )
         .await?;
         db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_sms_verification_phone_created ON sms_verification_challenges(phone, created_at)",
+        )
+        .await?;
+        db.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_sms_verification_out_id ON sms_verification_challenges(out_id)",
         )
         .await?;

@@ -43,11 +43,13 @@ import java.net.URI
 
 /** Thin HTTP boundary around the existing StellarTrail Rust JSON API. */
 class ApiClient(
-    private val configProvider: () -> AppConfig,
+    @PublishedApi internal val configProvider: () -> AppConfig,
     @PublishedApi internal val tokenProvider: () -> String? = { null },
     @PublishedApi internal val refreshTokenProvider: () -> String? = { null },
     @PublishedApi internal val sessionRefreshHandler: suspend (LoginResponse) -> Unit = {},
     @PublishedApi internal val sessionExpiredHandler: () -> Unit = {},
+    @PublishedApi internal val offlineCacheStore: OfflineHttpCacheStore? = null,
+    @PublishedApi internal val cacheScopeProvider: () -> String = { CACHE_SCOPE_GUEST },
     @PublishedApi internal val httpClient: HttpClient = defaultHttpClient(),
     @PublishedApi internal val json: Json = defaultJson,
     private val domainProbeTimeoutMillis: Long? = API_DOMAIN_HEALTH_TIMEOUT_MS,
@@ -84,9 +86,20 @@ class ApiClient(
         setBody(request)
     }
 
+    suspend inline fun <reified Request : Any, reified Response> put(
+        path: String,
+        request: Request,
+    ): Response = send(HttpMethod.Put, path) {
+        contentType(ContentType.Application.Json)
+        setBody(request)
+    }
+
     suspend fun delete(path: String) {
         send<Unit>(HttpMethod.Delete, path)
     }
+
+    suspend inline fun <reified Response> deleteReturning(path: String): Response =
+        send(HttpMethod.Delete, path)
 
     suspend inline fun <reified Response> send(
         method: HttpMethod,
@@ -95,7 +108,9 @@ class ApiClient(
         locale: SkillLocale? = null,
         crossinline configure: HttpRequestBuilder.() -> Unit = {},
     ): Response {
-        val requestUrl = buildUrl(configForRequest(path), path, query)
+        val requestConfig = configForRequest(path)
+        val requestUrl = buildUrl(requestConfig, path, query)
+        val cacheKey = cacheKeyForRequest(method, configProvider(), path, query, locale)
         try {
             var response = httpClient.prepareRequest(requestUrl) {
                 this.method = method
@@ -114,17 +129,31 @@ class ApiClient(
             }
             val text = response.bodyAsText()
             if (!response.status.isSuccess()) {
-                throw ApiException.from(response.status, text, json)
+                throw ApiException.from(response.status, text, json, response.headers["Retry-After"])
             }
             if (Response::class == Unit::class) {
                 @Suppress("UNCHECKED_CAST")
                 return Unit as Response
             }
+            cacheKey?.let { offlineCacheStore?.write(it, text) }
             return json.decodeFromString(text)
         } catch (error: ApiException) {
             throw error
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
+            val cachedBody = cacheKey?.takeIf { error.isOfflineReplayableFailure() }?.let {
+                offlineCacheStore?.read(it)?.body
+            }
+            if (cachedBody != null) {
+                logNetworkWarning(
+                    "${method.value} ${requestUrl.substringBefore('?')} failed offline; using cached response.",
+                )
+                if (Response::class == Unit::class) {
+                    @Suppress("UNCHECKED_CAST")
+                    return Unit as Response
+                }
+                return json.decodeFromString(cachedBody)
+            }
             logNetworkWarning(
                 "${method.value} ${requestUrl.substringBefore('?')} failed: ${error::class.java.name}: ${error.message}",
             )
@@ -135,6 +164,13 @@ class ApiClient(
     fun resolveAssetUrl(pathOrUrl: String): String {
         if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
             return normalizeKnownAssetUrl(pathOrUrl)
+        }
+        if (
+            pathOrUrl.startsWith("android.resource://") ||
+            pathOrUrl.startsWith("content://") ||
+            pathOrUrl.startsWith("file://")
+        ) {
+            return pathOrUrl
         }
         return activeConfig().assetsBaseUrl.trimEnd('/') + "/" + pathOrUrl.trimStart('/')
     }
@@ -257,6 +293,32 @@ class ApiClient(
         !versionedApiPath(path).startsWith("$API_PREFIX/auth/")
 
     @PublishedApi
+    internal fun cacheKeyForRequest(
+        method: HttpMethod,
+        config: AppConfig,
+        path: String,
+        query: Map<String, String?>,
+        locale: SkillLocale?,
+    ): String? {
+        if (method != HttpMethod.Get || path == HEALTH_PATH) return null
+        val scope = cacheScopeProvider().trim().takeIf { it.isNotEmpty() } ?: CACHE_SCOPE_GUEST
+        val queryKey = query.entries
+            .asSequence()
+            .filter { (_, value) -> !value.isNullOrBlank() }
+            .sortedWith(compareBy({ it.key }, { it.value.orEmpty() }))
+            .joinToString("&") { (key, value) -> "$key=$value" }
+        return listOf(
+            CACHE_KEY_VERSION,
+            scope,
+            sanitizeComparableBaseUrl(config.baseUrl),
+            method.value,
+            versionedApiPath(path),
+            queryKey,
+            locale?.headerValue.orEmpty(),
+        ).joinToString("|")
+    }
+
+    @PublishedApi
     internal suspend fun refreshWithStoredToken(): Boolean {
         val refreshToken = refreshTokenProvider()?.takeIf { it.isNotBlank() } ?: return false
         return try {
@@ -266,9 +328,13 @@ class ApiClient(
             )
             sessionRefreshHandler(response)
             true
+        } catch (error: ApiException) {
+            if (error.isUnauthorized || error.errorCode == "unauthorized") {
+                sessionExpiredHandler()
+            }
+            false
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
-            sessionExpiredHandler()
             false
         }
     }
@@ -303,10 +369,22 @@ internal const val API_PREFIX = "/api/v1"
 internal const val HEALTH_PATH = "/healthz"
 
 private const val API_DOMAIN_HEALTH_TIMEOUT_MS = 3_000L
+private const val CACHE_KEY_VERSION = "v1"
+private const val CACHE_SCOPE_GUEST = "guest"
 
 @PublishedApi
 internal fun logNetworkWarning(message: String) {
     runCatching { Log.w(NETWORK_LOG_TAG, message) }
+}
+
+@PublishedApi
+internal fun Throwable.isOfflineReplayableFailure(): Boolean {
+    var current: Throwable? = this
+    while (current != null) {
+        if (current is IOException) return true
+        current = current.cause
+    }
+    return false
 }
 
 private fun sanitizeComparableBaseUrl(baseUrl: String): String = baseUrl.trim().trimEnd('/')

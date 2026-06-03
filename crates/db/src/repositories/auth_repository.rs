@@ -45,6 +45,14 @@ pub struct SmsVerificationChallengeRecord {
     pub expires_at: String,
 }
 
+/// Aggregated SMS send history for one normalized phone number.
+#[derive(Clone, Debug, Default)]
+pub struct SmsVerificationSendStats {
+    pub count: u64,
+    pub latest_created_at: Option<String>,
+    pub oldest_created_at: Option<String>,
+}
+
 /// Minimal session projection needed after a refresh-token lookup.
 ///
 /// The lookup returns the session id so the caller can rotate exactly that row,
@@ -374,6 +382,39 @@ impl AuthRepository {
             ))
             .await?;
         Ok(id)
+    }
+
+    /// Counts SMS send attempts for one phone since a cutoff and returns the oldest/latest timestamps.
+    pub async fn sms_verification_send_stats_since(
+        &self,
+        phone: &str,
+        since: OffsetDateTime,
+    ) -> Result<SmsVerificationSendStats, DbErr> {
+        let since = since
+            .format(&Iso8601::DEFAULT)
+            .map_err(|err| DbErr::Custom(err.to_string()))?;
+        let row = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                r#"SELECT COUNT(*) AS send_count,
+                          MAX(created_at) AS latest_created_at,
+                          MIN(created_at) AS oldest_created_at
+                   FROM sms_verification_challenges
+                   WHERE phone = ?
+                     AND created_at >= ?"#,
+                vec![phone.to_owned().into(), since.into()],
+            ))
+            .await?;
+        let Some(row) = row else {
+            return Ok(SmsVerificationSendStats::default());
+        };
+        let count: i64 = row.try_get("", "send_count")?;
+        Ok(SmsVerificationSendStats {
+            count: u64::try_from(count.max(0)).unwrap_or_default(),
+            latest_created_at: row.try_get("", "latest_created_at")?,
+            oldest_created_at: row.try_get("", "oldest_created_at")?,
+        })
     }
 
     /// Finds an active SMS challenge by phone, purpose, and provider out-id.

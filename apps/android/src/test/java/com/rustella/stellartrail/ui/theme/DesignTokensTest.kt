@@ -2,6 +2,7 @@ package com.rustella.stellartrail.ui.theme
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import com.rustella.stellartrail.core.theme.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -44,9 +45,20 @@ class DesignTokensTest {
     @Test
     fun mobileChromeTokensMatchWechatMiniProgram() {
         assertColor(0xFFF8FAFC, StellarTrailDesignColors.Light.topBarBackground)
+        assertNotEquals(0xFF0F172A.toInt(), StellarTrailDesignColors.Light.topBarBackground.toArgb())
         assertColor(0xFFFFFFFF, StellarTrailDesignColors.Light.footerBackground)
         assertColor(0xFF07051A, StellarTrailDesignColors.Dark.topBarBackground)
         assertColor(0xF00E0A22, StellarTrailDesignColors.Dark.footerBackground)
+    }
+
+    @Test
+    fun systemBarIconAppearanceFollowsResolvedTheme() {
+        assertEquals(true, shouldUseLightSystemBars(ThemeMode.LIGHT, systemInDarkTheme = false))
+        assertEquals(true, shouldUseLightSystemBars(ThemeMode.LIGHT, systemInDarkTheme = true))
+        assertEquals(false, shouldUseLightSystemBars(ThemeMode.DARK, systemInDarkTheme = false))
+        assertEquals(false, shouldUseLightSystemBars(ThemeMode.DARK, systemInDarkTheme = true))
+        assertEquals(true, shouldUseLightSystemBars(ThemeMode.SYSTEM, systemInDarkTheme = false))
+        assertEquals(false, shouldUseLightSystemBars(ThemeMode.SYSTEM, systemInDarkTheme = true))
     }
 
     @Test

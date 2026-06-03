@@ -136,6 +136,18 @@ class GearListViewModel(private val repository: GearRepositoryContract) : ViewMo
 
     fun submitSearch() = refresh(_state.value.isLoggedIn)
 
+    fun resetFilters() {
+        _state.update {
+            it.copy(
+                selectedCategory = null,
+                selectedStatus = null,
+                sort = GearSort.CREATED_AT_DESC,
+                query = "",
+            )
+        }
+        refresh(_state.value.isLoggedIn)
+    }
+
     fun archive(id: String) {
         if (!_state.value.isLoggedIn) return
         viewModelScope.launch {
@@ -153,6 +165,18 @@ class GearListViewModel(private val repository: GearRepositoryContract) : ViewMo
         viewModelScope.launch {
             try {
                 repository.restore(id)
+                refresh(true)
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(error = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun delete(id: String) {
+        if (!_state.value.isLoggedIn) return
+        viewModelScope.launch {
+            try {
+                repository.delete(id)
                 refresh(true)
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }

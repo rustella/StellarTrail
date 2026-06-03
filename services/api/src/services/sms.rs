@@ -557,6 +557,7 @@ fn encode_query_value(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::SmsPhoneRateLimitConfig;
 
     #[test]
     fn signed_rpc_path_url_encodes_signature_inputs() {
@@ -663,6 +664,7 @@ mod tests {
             password_reset_template_code: "100003".to_owned(),
             bind_new_phone_template_code: "100004".to_owned(),
             verify_bound_phone_template_code: "100005".to_owned(),
+            phone_rate_limit: SmsPhoneRateLimitConfig::default(),
         };
         let mut params = signed_common_params(&config);
         params.insert("Action".to_owned(), "CheckSmsVerifyCode".to_owned());
