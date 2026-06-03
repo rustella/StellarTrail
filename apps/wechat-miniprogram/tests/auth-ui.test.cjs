@@ -58,14 +58,11 @@ test("guest users can browse home and the gear atlas", () => {
   const skillsTs = read("pages/skills/index.ts");
   const skillDetailTs = read("pages/skills/detail/index.ts");
   const profileTs = read("pages/profile/index.ts");
+  const gearTs = read("pages/gears/index.ts");
   const gearWxml = read("pages/gears/index.wxml");
   const gearWxss = read("pages/gears/index.wxss");
   const tripsWxml = read("pages/trips/index.wxml");
   const tripsTs = read("pages/trips/index.ts");
-  const guestGearBlock = gearWxml.slice(
-    gearWxml.indexOf('<block wx:if="{{!isLoggedIn}}">'),
-    gearWxml.indexOf("<block wx:else>"),
-  );
 
   assert.match(
     navigationTs,
@@ -91,16 +88,17 @@ test("guest users can browse home and the gear atlas", () => {
   assert.match(skillDetailTs, /navigateToGuestFallback/);
   assert.match(profileTs, /navigateToGuestFallback/);
   assert.doesNotMatch(profileTs, /退出后仍可浏览装备图鉴和绳结教学/);
-  assert.match(guestGearBlock, /装备图鉴/);
-  assert.match(guestGearBlock, /goGearAtlas/);
-  assert.doesNotMatch(guestGearBlock, /goPackingLists/);
-  assert.doesNotMatch(guestGearBlock, /未登录也可先浏览/);
-  assert.doesNotMatch(guestGearBlock, /可以先看装备图鉴/);
-  assert.doesNotMatch(guestGearBlock, /绳结教学/);
-  assert.match(
-    gearWxss,
-    /\.guest-quick-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/,
-  );
+  assert.match(gearWxml, /装备图鉴/);
+  assert.match(gearWxml, /goGearAtlas/);
+  assert.match(gearWxml, /goPackingLists/);
+  assert.match(gearTs, /emptyText: "登录后才能管理装备"/);
+  assert.match(gearWxml, /\{\{emptySubtitle\}\}/);
+  assert.match(gearWxml, /\{\{emptyActionText\}\}/);
+  assert.doesNotMatch(gearWxml, /wx:if="\{\{!isLoggedIn\}\}"/);
+  assert.doesNotMatch(gearWxml, /未登录也可先浏览/);
+  assert.doesNotMatch(gearWxml, /可以先看装备图鉴/);
+  assert.doesNotMatch(gearWxml, /绳结教学/);
+  assert.doesNotMatch(gearWxss, /\.guest-quick-entry/);
   assert.match(tripsWxml, /管理单人行程与组队协作，出发前准备更清晰。/);
   assert.doesNotMatch(tripsWxml, /历史经历都从这里管理/);
   assert.match(tripsWxml, /查看装备图鉴/);
@@ -1412,6 +1410,7 @@ test("home gear summary keeps locked cards without guest browse prompt", () => {
 
 test("gear page logged-out and logged-in cards share surface tokens", () => {
   const wxml = read("pages/gears/index.wxml");
+  const ts = read("pages/gears/index.ts");
   const wxss = read("pages/gears/index.wxss");
   const toolbarBlock = wxss.match(/\.gear-toolbar \{[\s\S]*?\n\}/)?.[0] ?? "";
   const toolbarSearchBlock =
@@ -1434,6 +1433,12 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
   assert.match(wxml, /class="toolbar-search-input"/);
   assert.match(wxml, /bindtap="openFilterSheet"/);
   assert.match(wxml, /class="toolbar-add"[\s\S]*bindtap="goCreate"/);
+  assert.match(wxml, /bindtap="handleEmptyAction"/);
+  assert.match(ts, /emptyText: "登录后才能管理装备"/);
+  assert.match(ts, /emptyActionText: "登录管理装备"/);
+  assert.match(ts, /message: "登录后可以筛选和管理自己的装备。"/);
+  assert.match(ts, /message: "登录后可以查看自己的装备统计。"/);
+  assert.match(ts, /message: "登录后可以管理自己的打包清单。"/);
   assert.match(wxml, /class="filter-summary"/);
   assert.match(wxml, /\{\{activeFilterText\}\}/);
   assert.match(wxml, /class="stats-panel"/);

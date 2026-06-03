@@ -247,11 +247,6 @@
   margin-top: 18rpx;
 }
 
-.guest-quick-entry {
-  grid-template-columns: minmax(0, 1fr);
-  margin-top: 4rpx;
-}
-
 .quick-entry-card {
   display: flex;
   align-items: center;

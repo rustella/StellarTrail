@@ -113,6 +113,8 @@ Page({
     error: "",
     offlineNotice: "",
     emptyText: "还没有装备，先添加第一件户外装备吧",
+    emptySubtitle: "用装备卡片记录重量、价格、存放位置和标签备注。",
+    emptyActionText: "添加第一件装备",
     loginPrompt: getDefaultLoginPrompt(),
     ...getThemeViewData(),
   },
@@ -148,15 +150,32 @@ Page({
     const isLoggedIn = hasAccessToken();
     this.setData({ isLoggedIn, error: "" });
     if (!isLoggedIn) {
+      const categories = [{ id: "all", label: "全部装备", count: 0 }];
       this.setData({
         loading: false,
         loadingMore: false,
-        categories: [{ id: "all", label: "全部装备", count: 0 }],
+        categories,
+        selectedCategory: DEFAULT_CATEGORY,
+        selectedStatus: DEFAULT_STATUS,
+        selectedStatusIndex: DEFAULT_STATUS_INDEX,
+        selectedSort: DEFAULT_SORT,
+        selectedSortIndex: DEFAULT_SORT_INDEX,
+        ...defaultDraftFilterData(),
+        activeFilterText: buildActiveFilterText(
+          categories,
+          DEFAULT_CATEGORY,
+          DEFAULT_STATUS_INDEX,
+          DEFAULT_SORT_INDEX,
+        ),
+        activeFilterCount: 0,
         stats: EMPTY_STATS,
         statCards: buildStatCards(EMPTY_STATS, 0),
         gears: [] as GearCard[],
         nextCursor: null,
-        emptyText: "登录后查看我的装备",
+        emptyText: "登录后才能管理装备",
+        emptySubtitle:
+          "登录后可以添加、编辑、删除装备，并同步重量、价格和存放位置。",
+        emptyActionText: "登录管理装备",
         filterSheetVisible: false,
       });
       return;
@@ -200,6 +219,8 @@ Page({
           this.data.selectedSort,
         ),
         emptyText: "还没有装备，先添加第一件户外装备吧",
+        emptySubtitle: "用装备卡片记录重量、价格、存放位置和标签备注。",
+        emptyActionText: "添加第一件装备",
         ...(offlineNotice ? { offlineNotice } : {}),
       });
     } catch (error) {
@@ -326,6 +347,10 @@ Page({
 
   openFilterSheet() {
     if (!this.data.isLoggedIn) {
+      showLoginPrompt(this, {
+        message: "登录后可以筛选和管理自己的装备。",
+        redirectUrl: "/pages/gears/index",
+      });
       return;
     }
     this.setData({
@@ -449,6 +474,10 @@ Page({
 
   submitSearch() {
     if (!this.data.isLoggedIn) {
+      showLoginPrompt(this, {
+        message: "登录后可以搜索自己的装备。",
+        redirectUrl: "/pages/gears/index",
+      });
       return;
     }
     this.setData({ nextCursor: null, gears: [] });
@@ -462,6 +491,14 @@ Page({
     }
     this.setData({ q: "", nextCursor: null, gears: [] });
     this.loadFirstPage();
+  },
+
+  handleEmptyAction() {
+    if (!this.data.isLoggedIn) {
+      this.goLogin();
+      return;
+    }
+    this.goCreate();
   },
 
   goCreate() {
@@ -485,10 +522,26 @@ Page({
   },
 
   goPackingLists() {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以管理自己的打包清单。",
+        redirectUrl: "/pages/packing-lists/index",
+      })
+    ) {
+      return;
+    }
     wx.navigateTo({ url: "/pages/packing-lists/index" });
   },
 
   goStatsDetail() {
+    if (
+      !requireLoginForAction(this, {
+        message: "登录后可以查看自己的装备统计。",
+        redirectUrl: "/pages/gears/stats/index",
+      })
+    ) {
+      return;
+    }
     wx.navigateTo({ url: "/pages/gears/stats/index" });
   },
 
