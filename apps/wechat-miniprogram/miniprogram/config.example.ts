@@ -4,6 +4,10 @@ import type { ClientConfig } from "./utils/client-config";
 const config: ClientConfig = {
   apiBaseUrl: "https://api.example.invalid",
   assetsBaseUrl: "https://assets.example.invalid",
+  requestSignature: {
+    app_id: "example-client-id",
+    app_secret: "example-client-secret",
+  },
   domainCandidates: [
     {
       id: "primary",

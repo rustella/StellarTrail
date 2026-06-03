@@ -43,6 +43,7 @@ async fn test_app() -> TestApp {
         knots_media_storage: Default::default(),
         public_api: Default::default(),
         rate_limit: Default::default(),
+        request_signature: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
         sms: Default::default(),

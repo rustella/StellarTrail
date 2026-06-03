@@ -2,22 +2,34 @@ package com.rustella.stellartrail.core.network
 
 import com.rustella.stellartrail.core.config.AppConfig
 import com.rustella.stellartrail.core.config.AppDomainCandidate
+import com.rustella.stellartrail.core.config.RequestSignatureCredentials
 import com.rustella.stellartrail.domain.common.HealthResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
+import io.ktor.client.request.HttpRequestData
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 class ApiClientTest {
     @Test
@@ -43,6 +55,88 @@ class ApiClientTest {
         assertEquals("/base/healthz", request.url.encodedPath)
         assertEquals("q=trail", request.url.encodedQuery)
         assertEquals("Bearer access-token", request.headers[HttpHeaders.Authorization])
+    }
+
+    @Test
+    fun getSignsProtectedRequestQuery() = runTest {
+        val requests = mutableListOf<HttpRequestData>()
+        val engine = MockEngine { request ->
+            requests += request
+            respondJson("""{"status":"ok"}""")
+        }
+        val client = ApiClient(
+            configProvider = { signedConfig },
+            httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+            nonceProvider = { "nonce-1" },
+        )
+
+        val response = client.get<HealthResponse>(
+            "/me/gears/categories",
+            query = mapOf("z" to "3", "empty" to "", "a" to "2"),
+        )
+
+        assertEquals("ok", response.status)
+        val query = requests.single().url.parameters
+        assertEquals("android-test-client", query["app_id"])
+        assertEquals("nonce-1", query["nonce"])
+        assertEquals(
+            testHmacSha256Hex(
+                "android-test-secret",
+                listOf(
+                    "STELLARTRAIL-HMAC-SHA256",
+                    "GET",
+                    "/api/v1/me/gears/categories",
+                    "a=2&app_id=android-test-client&nonce=nonce-1&z=3",
+                    EMPTY_BODY_SHA256_HEX,
+                    "android-test-client",
+                    "nonce-1",
+                ).joinToString("\n"),
+            ),
+            query["signature"],
+        )
+    }
+
+    @Test
+    fun jsonPostAddsSignatureFieldsWithoutMutatingDto() = runTest {
+        val requests = mutableListOf<HttpRequestData>()
+        val engine = MockEngine { request ->
+            requests += request
+            respondJson("""{"status":"ok"}""")
+        }
+        val client = ApiClient(
+            configProvider = { signedConfig },
+            httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+            nonceProvider = { "nonce-2" },
+        )
+        val body = buildJsonObject {
+            put("b", 2)
+            put("a", buildJsonObject { put("z", true) })
+        }
+        assertEquals("""{"a":{"z":true},"b":2}""", canonicalJsonBodyForSigning(body))
+
+        val response = client.post<JsonObject, HealthResponse>("/me/gears", body)
+
+        assertEquals("ok", response.status)
+        assertFalse(body.containsKey("app_id"))
+        val sentBody = ApiClient.defaultJson.parseToJsonElement(requests.single().bodyText()).jsonObject
+        assertEquals(JsonPrimitive(2), sentBody["b"])
+        assertEquals("android-test-client", sentBody["app_id"]?.jsonPrimitive?.content)
+        assertEquals("nonce-2", sentBody["nonce"]?.jsonPrimitive?.content)
+        assertEquals(
+            testHmacSha256Hex(
+                "android-test-secret",
+                listOf(
+                    "STELLARTRAIL-HMAC-SHA256",
+                    "POST",
+                    "/api/v1/me/gears",
+                    "",
+                    sha256Hex("""{"a":{"z":true},"b":2}""".encodeToByteArray()),
+                    "android-test-client",
+                    "nonce-2",
+                ).joinToString("\n"),
+            ),
+            sentBody["signature"]?.jsonPrimitive?.content,
+        )
     }
 
     @Test
@@ -403,6 +497,23 @@ class ApiClientTest {
         content = content,
         status = status,
         headers = headersOf(HttpHeaders.ContentType, "application/json"),
+    )
+
+    private fun HttpRequestData.bodyText(): String =
+        (body as TextContent).text
+
+    private fun testHmacSha256Hex(secret: String, message: String): String {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(secret.encodeToByteArray(), "HmacSHA256"))
+        return mac.doFinal(message.encodeToByteArray()).joinToString(separator = "") { "%02x".format(it.toInt() and 0xff) }
+    }
+
+    private val signedConfig = AppConfig(
+        baseUrl = "https://api.example.test",
+        requestSignature = RequestSignatureCredentials(
+            appId = "android-test-client",
+            appSecret = "android-test-secret",
+        ),
     )
 
     private val domainCandidates = listOf(

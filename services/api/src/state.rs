@@ -16,6 +16,7 @@ use crate::{
     services::{
         public_response_cache::InMemoryPublicResponseCache,
         rate_limit_service::InMemoryRateLimiter,
+        request_signature_service::InMemoryRequestSignatureNonceStore,
         sms::{InMemorySmsVerificationClient, SmsVerificationClient},
         wechat::{HttpWechatCodeSessionClient, WechatCodeSessionClient},
     },
@@ -40,6 +41,7 @@ struct AppStateInner {
     skill_favorite_repository: SkillFavoriteRepository,
     gear_template_repository: GearTemplateRepository,
     rate_limiter: InMemoryRateLimiter,
+    request_signature_nonce_store: InMemoryRequestSignatureNonceStore,
     public_response_cache: InMemoryPublicResponseCache,
     api_usage_reporter: ApiUsageReporter,
 }
@@ -180,6 +182,7 @@ impl AppState {
                 skill_favorite_repository,
                 gear_template_repository,
                 rate_limiter: InMemoryRateLimiter::default(),
+                request_signature_nonce_store: InMemoryRequestSignatureNonceStore::default(),
                 public_response_cache: InMemoryPublicResponseCache::default(),
                 api_usage_reporter,
             }),
@@ -244,6 +247,11 @@ impl AppState {
     /// Returns the in-memory fallback global API limiter.
     pub fn rate_limiter(&self) -> &InMemoryRateLimiter {
         &self.inner.rate_limiter
+    }
+
+    /// Returns the in-memory fallback nonce store for request signature replay protection.
+    pub fn request_signature_nonce_store(&self) -> &InMemoryRequestSignatureNonceStore {
+        &self.inner.request_signature_nonce_store
     }
 
     /// Returns the in-memory fallback public response cache.

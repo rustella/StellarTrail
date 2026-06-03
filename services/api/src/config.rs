@@ -5,6 +5,7 @@
 //! instead of passing SMS secrets through the process environment.
 
 use std::{
+    collections::HashSet,
     env, fmt, fs,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -30,6 +31,7 @@ struct FileConfig {
     avatar_storage: FileAvatarStorageConfig,
     knots_media_storage: FileKnotsMediaStorageConfig,
     rate_limit: FileRateLimitConfig,
+    request_signature: FileRequestSignatureConfig,
     public_api: FilePublicApiConfig,
     cors: FileCorsConfig,
     mail: FileMailConfig,
@@ -120,6 +122,21 @@ struct FileRateLimitConfig {
     max_requests_per_user: Option<u64>,
     trust_proxy_headers: Option<bool>,
     trusted_proxy_cidrs: Option<Vec<String>>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct FileRequestSignatureConfig {
+    enabled: Option<bool>,
+    nonce_ttl_seconds: Option<u64>,
+    clients: Option<Vec<FileRequestSignatureClientConfig>>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct FileRequestSignatureClientConfig {
+    app_id: Option<String>,
+    app_secret: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -291,6 +308,52 @@ impl RedisCacheConfig {
             key_prefix: "stellartrail".to_owned(),
             gear_ttl_seconds: 30,
         }
+    }
+}
+
+/// Request signature validation configuration loaded only from ignored YAML config files.
+#[derive(Clone, Eq, PartialEq)]
+pub struct RequestSignatureConfig {
+    pub enabled: bool,
+    pub nonce_ttl_seconds: u64,
+    pub clients: Vec<RequestSignatureClientConfig>,
+}
+
+impl fmt::Debug for RequestSignatureConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("RequestSignatureConfig")
+            .field("enabled", &self.enabled)
+            .field("nonce_ttl_seconds", &self.nonce_ttl_seconds)
+            .field("clients", &self.clients)
+            .finish()
+    }
+}
+
+impl Default for RequestSignatureConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            nonce_ttl_seconds: 300,
+            clients: Vec::new(),
+        }
+    }
+}
+
+/// One request-signing client credential pair.
+#[derive(Clone, Eq, PartialEq)]
+pub struct RequestSignatureClientConfig {
+    pub app_id: String,
+    pub app_secret: String,
+}
+
+impl fmt::Debug for RequestSignatureClientConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("RequestSignatureClientConfig")
+            .field("app_id", &self.app_id)
+            .field("app_secret", &"<redacted>")
+            .finish()
     }
 }
 
@@ -565,6 +628,7 @@ pub struct ApiConfig {
     pub knots_media_storage: KnotsMediaStorageConfig,
     pub public_api: PublicApiConfig,
     pub rate_limit: RateLimitConfig,
+    pub request_signature: RequestSignatureConfig,
     pub cors: CorsConfig,
     pub mail: MailConfig,
     pub sms: SmsConfig,
@@ -587,6 +651,7 @@ impl ApiConfig {
             avatar_storage: file_avatar_storage,
             knots_media_storage: file_knots_media_storage,
             rate_limit: file_rate_limit,
+            request_signature: file_request_signature,
             public_api: file_public_api,
             cors: file_cors,
             mail: file_mail,
@@ -791,6 +856,9 @@ impl ApiConfig {
         };
         validate_rate_limit_config(&rate_limit)?;
 
+        let request_signature = request_signature_config_from_file(file_request_signature)?;
+        validate_request_signature_config(&request_signature)?;
+
         let public_api = PublicApiConfig {
             rate_limit_enabled: config_bool_env(
                 "PUBLIC_API_RATE_LIMIT_ENABLED",
@@ -968,6 +1036,7 @@ impl ApiConfig {
             knots_media_storage,
             public_api,
             rate_limit,
+            request_signature,
             cors,
             mail,
             sms,
@@ -1221,6 +1290,54 @@ fn validate_rate_limit_config(config: &RateLimitConfig) -> anyhow::Result<()> {
         anyhow::bail!(
             "RATE_LIMIT_TRUSTED_PROXY_CIDRS must be set when RATE_LIMIT_TRUST_PROXY_HEADERS=true"
         );
+    }
+    Ok(())
+}
+
+fn request_signature_config_from_file(
+    file_config: FileRequestSignatureConfig,
+) -> anyhow::Result<RequestSignatureConfig> {
+    let default = RequestSignatureConfig::default();
+    let clients = file_config
+        .clients
+        .unwrap_or_default()
+        .into_iter()
+        .map(|client| {
+            let app_id = normalize_file_string(client.app_id).unwrap_or_default();
+            let app_secret = normalize_file_string(client.app_secret).unwrap_or_default();
+            Ok(RequestSignatureClientConfig { app_id, app_secret })
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    Ok(RequestSignatureConfig {
+        enabled: file_config.enabled.unwrap_or(default.enabled),
+        nonce_ttl_seconds: file_config
+            .nonce_ttl_seconds
+            .unwrap_or(default.nonce_ttl_seconds),
+        clients,
+    })
+}
+
+fn validate_request_signature_config(config: &RequestSignatureConfig) -> anyhow::Result<()> {
+    if config.nonce_ttl_seconds == 0 {
+        anyhow::bail!("request_signature.nonce_ttl_seconds must be greater than 0");
+    }
+    if !config.enabled {
+        return Ok(());
+    }
+    if config.clients.is_empty() {
+        anyhow::bail!("request_signature.clients must not be empty when enabled=true");
+    }
+    let mut seen_app_ids = HashSet::new();
+    for client in &config.clients {
+        if client.app_id.trim().is_empty() {
+            anyhow::bail!("request_signature.clients[].app_id must not be empty");
+        }
+        if client.app_secret.trim().is_empty() {
+            anyhow::bail!("request_signature.clients[].app_secret must not be empty");
+        }
+        if !seen_app_ids.insert(client.app_id.as_str()) {
+            anyhow::bail!("request_signature.clients[].app_id must be unique");
+        }
     }
     Ok(())
 }
@@ -1496,6 +1613,12 @@ rate_limit:
   trust_proxy_headers: true
   trusted_proxy_cidrs:
     - 172.16.0.0/12
+request_signature:
+  enabled: true
+  nonce_ttl_seconds: 180
+  clients:
+    - app_id: yaml-client
+      app_secret: yaml-signing-secret
 public_api:
   rate_limit_enabled: true
   rate_limit_window_seconds: 15
@@ -1560,6 +1683,14 @@ mail:
         assert_eq!(
             config.rate_limit.trusted_proxy_cidrs,
             vec!["172.16.0.0/12".to_owned()]
+        );
+        assert!(config.request_signature.enabled);
+        assert_eq!(config.request_signature.nonce_ttl_seconds, 180);
+        assert_eq!(config.request_signature.clients.len(), 1);
+        assert_eq!(config.request_signature.clients[0].app_id, "yaml-client");
+        assert_eq!(
+            config.request_signature.clients[0].app_secret,
+            "yaml-signing-secret"
         );
         assert_eq!(config.public_api.rate_limit_window_seconds, 15);
         assert_eq!(
@@ -1739,6 +1870,67 @@ public_api:
         let error = ApiConfig::from_env().unwrap_err().to_string();
 
         assert!(error.contains("RATE_LIMIT_WINDOW_SECONDS"), "{error}");
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_rejects_enabled_request_signature_without_clients() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            config_file.path(),
+            r#"
+database:
+  url: sqlite://stellartrail.db
+request_signature:
+  enabled: true
+  clients: []
+"#,
+        )
+        .unwrap();
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("CONFIG_PATH", config_file.path());
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(error.contains("request_signature.clients"), "{error}");
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_rejects_duplicate_request_signature_app_id() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            config_file.path(),
+            r#"
+database:
+  url: sqlite://stellartrail.db
+request_signature:
+  enabled: true
+  clients:
+    - app_id: duplicate-client
+      app_secret: first-secret
+    - app_id: duplicate-client
+      app_secret: second-secret
+"#,
+        )
+        .unwrap();
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("CONFIG_PATH", config_file.path());
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(
+            error.contains("request_signature.clients[].app_id"),
+            "{error}"
+        );
         restore_env(saved);
     }
 

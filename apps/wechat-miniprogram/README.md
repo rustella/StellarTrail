@@ -16,3 +16,8 @@ ignored `project.private.config.json` file:
 `project.private.config.json` is intentionally ignored by Git so each developer
 can keep their own local Mini Program project settings without exposing them in
 repository history.
+
+For API request signing, copy `miniprogram/config.example.ts` to the ignored
+`miniprogram/config.ts` file and replace only the local copy's
+`requestSignature.app_id` and `requestSignature.app_secret` values. The tracked
+example must keep placeholder values.

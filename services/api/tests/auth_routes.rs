@@ -66,6 +66,7 @@ async fn test_app_with_sms_config(sms: SmsConfig) -> TestApp {
         knots_media_storage: Default::default(),
         public_api: Default::default(),
         rate_limit: Default::default(),
+        request_signature: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
         sms,
@@ -556,6 +557,7 @@ async fn production_email_verification_sends_mail_and_hides_debug_code() {
         knots_media_storage: Default::default(),
         public_api: Default::default(),
         rate_limit: Default::default(),
+        request_signature: Default::default(),
         cors: CorsConfig::default(),
         mail: MailConfig {
             enabled: true,
@@ -623,6 +625,7 @@ async fn production_email_verification_delivery_failure_returns_safe_error() {
         knots_media_storage: Default::default(),
         public_api: Default::default(),
         rate_limit: Default::default(),
+        request_signature: Default::default(),
         cors: CorsConfig::default(),
         mail: MailConfig {
             enabled: true,
@@ -683,6 +686,7 @@ async fn production_wechat_login_uses_code2session_client() {
         knots_media_storage: Default::default(),
         public_api: Default::default(),
         rate_limit: Default::default(),
+        request_signature: Default::default(),
         cors: CorsConfig::default(),
         mail: Default::default(),
         sms: Default::default(),
@@ -1837,6 +1841,7 @@ async fn production_email_login_and_reset_codes_send_mail_and_hide_debug_code() 
         knots_media_storage: Default::default(),
         public_api: Default::default(),
         rate_limit: Default::default(),
+        request_signature: Default::default(),
         cors: CorsConfig::default(),
         mail: MailConfig {
             enabled: true,
@@ -1926,6 +1931,7 @@ async fn production_bind_email_code_sends_mail_and_hides_debug_code() {
         knots_media_storage: Default::default(),
         public_api: Default::default(),
         rate_limit: Default::default(),
+        request_signature: Default::default(),
         cors: CorsConfig::default(),
         mail: MailConfig {
             enabled: true,

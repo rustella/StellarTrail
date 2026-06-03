@@ -6,6 +6,7 @@ import {
 import {
   loadClientConfig,
   type ClientDomainCandidate,
+  type ClientRequestSignatureConfig,
 } from "./utils/client-config";
 import { initNetworkState } from "./utils/network-state";
 
@@ -17,6 +18,7 @@ App<IAppOption>({
     this.globalData.apiBaseUrl = clientConfig.apiBaseUrl;
     this.globalData.assetsBaseUrl = clientConfig.assetsBaseUrl;
     this.globalData.domainCandidates = clientConfig.domainCandidates;
+    this.globalData.requestSignature = clientConfig.requestSignature;
     this.globalData.theme = theme;
     applyThemeToSystem(theme);
   },
@@ -25,6 +27,7 @@ App<IAppOption>({
     apiBaseUrl: "https://api.example.invalid",
     assetsBaseUrl: "https://assets.example.invalid",
     domainCandidates: [],
+    requestSignature: undefined,
     theme: "light",
   },
 });
@@ -34,6 +37,7 @@ interface IAppOption {
     apiBaseUrl: string;
     assetsBaseUrl: string;
     domainCandidates: ClientDomainCandidate[];
+    requestSignature?: ClientRequestSignatureConfig;
     theme: ThemeMode;
   };
 }
