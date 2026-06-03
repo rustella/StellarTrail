@@ -24,6 +24,33 @@ fun clientConfigIntValue(key: String, fallback: Int): Int =
 fun quotedBuildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
+val releaseSigningEnvironmentKeys = listOf(
+    "STELLARTRAIL_ANDROID_KEYSTORE_PATH",
+    "STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD",
+    "STELLARTRAIL_ANDROID_KEY_ALIAS",
+    "STELLARTRAIL_ANDROID_KEY_PASSWORD",
+)
+
+fun releaseSigningEnvValue(key: String): String? =
+    providers.environmentVariable(key).orNull?.trim()?.takeIf { it.isNotEmpty() }
+
+fun isAndroidReleaseTaskRequested(): Boolean =
+    gradle.startParameter.taskNames.any { requestedTask ->
+        val taskName = requestedTask.substringAfterLast(':')
+        taskName.equals("assemble", ignoreCase = true) ||
+            taskName.equals("bundle", ignoreCase = true) ||
+            taskName.contains("Release", ignoreCase = true)
+    }
+
+val releaseSigningRequested = isAndroidReleaseTaskRequested()
+
+fun requiredReleaseSigningEnvValue(key: String): String =
+    releaseSigningEnvValue(key) ?: error(
+        "$key is required for Android release signing. " +
+            "Set all release signing environment variables before running release builds: " +
+            releaseSigningEnvironmentKeys.joinToString(", "),
+    )
+
 
 android {
     namespace = "com.rustella.stellartrail"
@@ -59,12 +86,26 @@ android {
         )
     }
 
+    signingConfigs {
+        if (releaseSigningRequested) {
+            create("release") {
+                storeFile = file(requiredReleaseSigningEnvValue("STELLARTRAIL_ANDROID_KEYSTORE_PATH"))
+                storePassword = requiredReleaseSigningEnvValue("STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = requiredReleaseSigningEnvValue("STELLARTRAIL_ANDROID_KEY_ALIAS")
+                keyPassword = requiredReleaseSigningEnvValue("STELLARTRAIL_ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }
         release {
+            if (releaseSigningRequested) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

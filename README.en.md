@@ -13,12 +13,13 @@
   <img alt="Rust" src="https://img.shields.io/badge/API-Rust%20%2B%20Axum-orange" />
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat%20Mini%20Program-Ready-07C160" />
   <img alt="Web" src="https://img.shields.io/badge/Web-Ready-0EA5E9" />
-  <img alt="Native clients" src="https://img.shields.io/badge/iOS%20%2F%20macOS%20%2F%20Android%20%2F%20HarmonyOS-Unavailable-lightgrey" />
+  <img alt="Android" src="https://img.shields.io/badge/Android-Ready-34D399" />
+  <img alt="Other native clients" src="https://img.shields.io/badge/iOS%20%2F%20macOS%20%2F%20HarmonyOS-Unavailable-lightgrey" />
   <img alt="Content Driven" src="https://img.shields.io/badge/Content-DB%20%2B%20MinIO-8A2BE2" />
 </p>
 
 <p align="center">
-  <strong>WeChat Mini Program and Web are ready</strong> · <strong>Native clients are unavailable</strong>
+  <strong>WeChat Mini Program, Web, and Android are ready</strong> · <strong>iOS / macOS / HarmonyOS are unavailable</strong>
 </p>
 
 ---
@@ -27,7 +28,7 @@
 
 StellarTrail serves hikers, campers, and lightweight outdoor users. The app is organized around **gear organization**, **route planning**, **outdoor skills**, and the related preparation workflows around them.
 
-The directly usable entry points today are the **WeChat Mini Program** and **Web**. Both cover account access, personal gear, gear atlas, knot skills, and feedback. Web adds administrator capabilities on top of the other client surfaces. Android, iOS, macOS, and HarmonyOS are currently unavailable and are not delivery targets for the active product.
+The directly usable entry points today are the **WeChat Mini Program**, **Web**, and **Android**. They cover account access, personal gear, gear atlas, knot skills, and feedback. Web adds administrator capabilities on top of the other client surfaces. Android is a Kotlin + Jetpack Compose client and CI can produce signed release APKs. iOS, macOS, and HarmonyOS are currently unavailable and are not delivery targets for the active product.
 
 | Product capability | Current notes                                                       |
 | ------------------ | ------------------------------------------------------------------- |
@@ -63,7 +64,7 @@ Routes, trips, skills, realtime navigation, social feeds, guided-trip marketplac
 | ------------------- | ----------- | --------------------------------------------------------------------------------------------------------- |
 | WeChat Mini Program | Ready       | Home, gear library, gear atlas, knot skills, profile, login/registration, feedback, and offline read-only |
 | Web                 | Ready       | Covers the core client capabilities and adds administrator features                                       |
-| Android             | Unavailable | Code remains in the repository, but it is not a runnable delivery target today                            |
+| Android             | Ready       | Native Kotlin + Jetpack Compose client; CI can build signed release APKs                                  |
 | iOS                 | Unavailable | Code remains in the repository, but it is not a runnable delivery target today                            |
 | macOS               | Unavailable | Code remains in the repository, but it is not a runnable delivery target today                            |
 | HarmonyOS           | Unavailable | Not connected as an active delivery client                                                                |
@@ -100,6 +101,7 @@ StellarTrail/
 - 🦀 Rust 1.95 stable toolchain with Rust 2024 edition. The workspace `rust-version` is `1.95`, the repository includes `rust-toolchain.toml`, and `rustfmt` plus `clippy` are expected.
 - 🟢 Node.js 22+ and npm.
 - 💬 WeChat DevTools for Mini Program debugging.
+- 🤖 Android local builds require JDK 21, Android SDK 36, and Build Tools 36.0.0.
 - 🗄️ PostgreSQL 16+ / MySQL-compatible database. Local development defaults to SQLite; production and integration tests prefer PostgreSQL; MySQL URLs are recognized at the configuration boundary.
 - 🪣 MinIO or S3-compatible object storage.
 - ⚡ Redis 7+ (optional; set `REDIS_URL` to enable server-side caching).
@@ -142,8 +144,10 @@ Copy the matching example when you need to override client endpoints:
 | ------------------- | ------------------------------------------------------- | ----------------------------------------------- |
 | Web                 | `apps/web/.env.example`                                 | `apps/web/.env.local`                           |
 | WeChat Mini Program | `apps/wechat-miniprogram/miniprogram/config.example.ts` | `apps/wechat-miniprogram/miniprogram/config.ts` |
+| Android             | `apps/android/config.example.properties`                | `apps/android/config.properties`                |
 
 Web reads `VITE_STELLARTRAIL_API_BASE_URL` and `VITE_STELLARTRAIL_ASSETS_BASE_URL`; local Vite development uses same-origin `/api/v1` by default and proxies it through `VITE_STELLARTRAIL_API_PROXY_TARGET` to the real or local API to avoid browser CORS failures. The WeChat Mini Program reads `miniprogram/config.ts` and falls back to placeholder endpoints when it is absent.
+Android reads the Git-ignored `apps/android/config.properties` file and falls back to checked-in placeholder endpoints when that file is absent. Signed release APKs are built by GitHub Actions with repository-level Secrets for real domains and signing material.
 
 See [API docs](docs/api.md) for the complete API surface.
 
@@ -154,6 +158,16 @@ Local Docker Compose integration testing and production Docker / Traefik notes n
 ### 6. Open the WeChat Mini Program source
 
 Open `apps/wechat-miniprogram` in WeChat DevTools. The project config points `miniprogramRoot` to `miniprogram/`. The Mini Program currently covers Home, gear library, gear atlas, knot skills, Profile, login/registration, avatar/email binding, feedback, and offline read-only cache.
+
+### 7. Build the Android client
+
+For local Android debugging, copy `apps/android/config.example.properties` to the Git-ignored `apps/android/config.properties` file and replace the API and asset endpoints. Debug builds do not need release signing variables:
+
+```bash
+./gradlew :apps:android:testDebugUnitTest :apps:android:lintDebug :apps:android:assembleDebug
+```
+
+Local release builds require release keystore path and password environment variables. After Android or Gradle changes land on `main`, CI uses GitHub Actions Secrets to build a signed release APK and uploads `StellarTrail-main-<short_sha>-android-release.apk` plus its `.sha256` file as workflow artifacts. See the [Android README](apps/android/README.md) for signing, Secrets, and download details.
 
 ## 🧪 Common checks
 
@@ -169,6 +183,9 @@ cargo +1.95.0 fmt --all -- --check
 cargo +1.95.0 check --workspace
 cargo +1.95.0 test --workspace
 cargo +1.95.0 clippy --workspace --all-targets -- -D warnings
+
+# Android Debug checks
+./gradlew :apps:android:testDebugUnitTest :apps:android:lintDebug :apps:android:assembleDebug
 ```
 
 ## 📚 Documentation
