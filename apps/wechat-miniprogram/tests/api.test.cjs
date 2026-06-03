@@ -359,6 +359,76 @@ test("request signature is injected into GET query parameters", async () => {
   assert.deepEqual(response.items, []);
 });
 
+test("request signature nonce stays unique when random source returns zeros", async () => {
+  const originalDateNow = Date.now;
+  const originalMathRandom = Math.random;
+  const originalCryptoDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "crypto",
+  );
+  const nonces = [];
+
+  try {
+    Date.now = () => 1780000000000;
+    Math.random = () => 0;
+    Object.defineProperty(globalThis, "crypto", {
+      value: undefined,
+      configurable: true,
+    });
+    installWxMock(
+      (options) => {
+        const { query } = parseRequestUrl(options.url);
+        const params = new URLSearchParams(query);
+        const nonce = params.get("nonce");
+        nonces.push(nonce);
+        assert.notEqual(
+          nonce,
+          "mppy1i4g-00000000000000000000000000000000",
+        );
+        verifyRequestSignature({
+          url: options.url,
+          method: "GET",
+          bodyHash: sha256Hex(Buffer.alloc(0)),
+          appId: params.get("app_id"),
+          appSecret: "wechat-secret",
+          nonce,
+          signature: params.get("signature"),
+        });
+        options.success({
+          statusCode: 200,
+          data: { next_cursor: null, items: [] },
+        });
+      },
+      null,
+      {
+        globalData: {
+          requestSignature: {
+            app_id: "wechat-client",
+            app_secret: "wechat-secret",
+          },
+        },
+        getRandomValues(array) {
+          return array;
+        },
+      },
+    );
+    const { listClientVersions } = require("../.tmp-test/utils/api.js");
+
+    await listClientVersions("wechat_miniprogram");
+    await listClientVersions("wechat_miniprogram");
+  } finally {
+    Date.now = originalDateNow;
+    Math.random = originalMathRandom;
+    if (originalCryptoDescriptor) {
+      Object.defineProperty(globalThis, "crypto", originalCryptoDescriptor);
+    } else {
+      delete globalThis.crypto;
+    }
+  }
+
+  assert.equal(new Set(nonces).size, 2);
+});
+
 test("updateWechatNickname keeps the stored avatar in the profile payload", async () => {
   const calls = [];
   const storage = installWxMock((options) => {

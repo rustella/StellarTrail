@@ -113,6 +113,7 @@ let refreshPromise: Promise<string> | null = null;
 let domainProbePromise: Promise<void> | null = null;
 let domainProbeCompleted = false;
 let offlineCacheNoticePending = false;
+let signatureNonceCounter = 0;
 let cachedApiBaseUrl: string | null = null;
 let cachedAssetsBaseUrl: string | null = null;
 let cachedAccessToken: string | null | undefined;
@@ -3037,22 +3038,91 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function createSignatureNonce(): string {
-  return `${Date.now().toString(36)}-${randomHex(16)}`;
+  const timestamp = Date.now();
+  signatureNonceCounter = (signatureNonceCounter + 1) >>> 0;
+  return `${timestamp.toString(36)}-${randomHex(
+    16,
+    timestamp,
+    signatureNonceCounter,
+  )}`;
 }
 
-function randomHex(byteLength: number): string {
+function randomHex(
+  byteLength: number,
+  timestamp: number,
+  counter: number,
+): string {
   const bytes = new Uint8Array(byteLength);
+  if (!fillRandomBytes(bytes)) {
+    fillPseudoRandomBytes(bytes);
+  }
+  mixNonceEntropy(bytes, timestamp, counter);
+  return bytesToHex(bytes);
+}
+
+function fillRandomBytes(bytes: Uint8Array): boolean {
+  const globalCrypto = (globalThis as unknown as {
+    crypto?: { getRandomValues?: (array: Uint8Array) => Uint8Array };
+  }).crypto;
+  if (typeof globalCrypto?.getRandomValues === "function") {
+    try {
+      globalCrypto.getRandomValues(bytes);
+      if (!isAllZeroBytes(bytes)) {
+        return true;
+      }
+    } catch {
+      // Fall through to the Mini Program API and finally Math.random below.
+    }
+  }
+
   const wxWithRandom = wx as unknown as {
     getRandomValues?: (array: Uint8Array) => Uint8Array;
   };
   if (typeof wxWithRandom.getRandomValues === "function") {
-    wxWithRandom.getRandomValues(bytes);
-  } else {
-    for (let index = 0; index < bytes.length; index += 1) {
-      bytes[index] = Math.floor(Math.random() * 256);
+    try {
+      wxWithRandom.getRandomValues(bytes);
+      if (!isAllZeroBytes(bytes)) {
+        return true;
+      }
+    } catch {
+      // Some WeChat runtimes expose wx.getRandomValues with a different shape.
     }
   }
-  return bytesToHex(bytes);
+
+  return false;
+}
+
+function fillPseudoRandomBytes(bytes: Uint8Array): void {
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Math.floor(Math.random() * 256);
+  }
+}
+
+function mixNonceEntropy(
+  bytes: Uint8Array,
+  timestamp: number,
+  counter: number,
+): void {
+  let timestampValue = Math.max(0, Math.floor(timestamp));
+  for (let index = 0; index < Math.min(8, bytes.length); index += 1) {
+    bytes[index] ^= timestampValue & 0xff;
+    timestampValue = Math.floor(timestampValue / 256);
+  }
+
+  let counterValue = counter >>> 0;
+  for (let index = 0; index < Math.min(4, bytes.length); index += 1) {
+    const targetIndex = bytes.length - 1 - index;
+    bytes[targetIndex] ^= counterValue & 0xff;
+    counterValue >>>= 8;
+  }
+
+  if (isAllZeroBytes(bytes) && bytes.length > 0) {
+    bytes[0] = 1;
+  }
+}
+
+function isAllZeroBytes(bytes: Uint8Array): boolean {
+  return bytes.every((byte) => byte === 0);
 }
 
 function hmacSha256Hex(secret: string, message: string): string {
