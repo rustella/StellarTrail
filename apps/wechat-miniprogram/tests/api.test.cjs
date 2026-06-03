@@ -260,6 +260,33 @@ test("loginWithWechat sends provided profile without default nickname", async ()
   });
 });
 
+test("loginWithWechat uses configured local code without wx.login", async () => {
+  const calls = [];
+  installWxMock(
+    (options) => {
+      calls.push(options.data);
+      options.success({
+        statusCode: 200,
+        data: loginResponse("access-local-code", "refresh-local-code"),
+      });
+    },
+    null,
+    {
+      globalData: {
+        wechatLoginCode: " local-dev-user ",
+      },
+    },
+  );
+  global.wx.login = () => {
+    throw new Error("wx.login should not be called");
+  };
+  const { loginWithWechat } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(loginWithWechat());
+
+  assert.deepEqual(calls, [{ code: "local-dev-user" }]);
+});
+
 test("request signature is injected into JSON requests without mutating business fields", async () => {
   const calls = [];
   installWxMock(

@@ -3313,6 +3313,10 @@ function shouldRefreshAccessToken(): boolean {
 }
 
 function getWechatLoginCode(): Promise<string> {
+  const configuredCode = getConfiguredWechatLoginCode();
+  if (configuredCode) {
+    return Promise.resolve(configuredCode);
+  }
   return new Promise((resolve) => {
     let settled = false;
     const finish = (code: string) => {
@@ -3336,6 +3340,16 @@ function getWechatLoginCode(): Promise<string> {
       },
     });
   });
+}
+
+function getConfiguredWechatLoginCode(): string | undefined {
+  const app = getApp<{
+    globalData?: {
+      wechatLoginCode?: string;
+    };
+  }>();
+  const code = app.globalData?.wechatLoginCode?.trim();
+  return code || undefined;
 }
 
 function requestFailureMessage(errMsg?: string): string {

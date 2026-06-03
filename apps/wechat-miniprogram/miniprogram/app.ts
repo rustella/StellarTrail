@@ -18,6 +18,7 @@ App<IAppOption>({
     this.globalData.apiBaseUrl = clientConfig.apiBaseUrl;
     this.globalData.assetsBaseUrl = clientConfig.assetsBaseUrl;
     this.globalData.clientIdentity = clientConfig.clientIdentity;
+    this.globalData.wechatLoginCode = clientConfig.wechatLoginCode;
     this.globalData.domainCandidates = clientConfig.domainCandidates;
     this.globalData.requestSignature = clientConfig.requestSignature;
     this.globalData.theme = theme;
@@ -28,6 +29,7 @@ App<IAppOption>({
     apiBaseUrl: "https://api.example.invalid",
     assetsBaseUrl: "https://assets.example.invalid",
     clientIdentity: "wechat/0.2.2",
+    wechatLoginCode: undefined,
     domainCandidates: [],
     requestSignature: undefined,
     theme: "light",
@@ -39,6 +41,7 @@ interface IAppOption {
     apiBaseUrl: string;
     assetsBaseUrl: string;
     clientIdentity: string;
+    wechatLoginCode?: string;
     domainCandidates: ClientDomainCandidate[];
     requestSignature?: ClientRequestSignatureConfig;
     theme: ThemeMode;

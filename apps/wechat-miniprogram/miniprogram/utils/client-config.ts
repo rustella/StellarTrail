@@ -1,6 +1,7 @@
 export interface ClientConfig {
   apiBaseUrl: string;
   assetsBaseUrl: string;
+  wechatLoginCode?: string;
   domainCandidates?: ClientDomainCandidate[];
   requestSignature?: ClientRequestSignatureConfig;
   clientIdentity?: ClientIdentityConfig;
@@ -78,6 +79,7 @@ export function loadClientConfig(): ResolvedClientConfig {
     apiBaseUrl,
     assetsBaseUrl,
     clientIdentity: normalizeClientIdentity(local.clientIdentity),
+    wechatLoginCode: normalizeOptionalConfigString(local.wechatLoginCode),
     requestSignature: normalizeRequestSignature(local.requestSignature),
     domainCandidates: resolveDomainCandidates(local, apiBaseUrl, assetsBaseUrl),
   };
@@ -124,4 +126,11 @@ function normalizeRequestSignature(
     return undefined;
   }
   return { app_id, app_secret };
+}
+
+function normalizeOptionalConfigString(
+  value: string | undefined,
+): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
 }
