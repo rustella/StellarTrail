@@ -50,9 +50,10 @@ ${ts}`;
   assert.doesNotMatch(wxml, /API|后端|接口|游客|免登录|写操作|模板/);
 });
 
-test("guest users can only browse the gear atlas", () => {
+test("guest users can browse home and the gear atlas", () => {
   const navigationTs = read("utils/navigation.ts");
   const homeTs = read("pages/index/index.ts");
+  const homeWxml = read("pages/index/index.wxml");
   const skillsTs = read("pages/skills/index.ts");
   const skillDetailTs = read("pages/skills/detail/index.ts");
   const profileTs = read("pages/profile/index.ts");
@@ -69,6 +70,7 @@ test("guest users can only browse the gear atlas", () => {
     navigationTs,
     /GUEST_FALLBACK_PAGE = "\/pages\/gear-atlas\/index"/,
   );
+  assert.match(navigationTs, /"\/pages\/index\/index"/);
   assert.match(navigationTs, /"\/pages\/gear-atlas\/detail\/index"/);
   assert.match(navigationTs, /"\/pages\/login\/index"/);
   assert.match(navigationTs, /"\/pages\/register\/index"/);
@@ -80,7 +82,8 @@ test("guest users can only browse the gear atlas", () => {
     navigationTs,
     /GUEST_ACCESSIBLE_PAGES[\s\S]*"\/pages\/trips\/index"/,
   );
-  assert.match(homeTs, /navigateToGuestFallback/);
+  assert.doesNotMatch(homeTs, /navigateToGuestFallback/);
+  assert.match(homeWxml, /可以先浏览装备图鉴/);
   assert.match(skillsTs, /navigateToGuestFallback/);
   assert.match(skillDetailTs, /navigateToGuestFallback/);
   assert.match(profileTs, /navigateToGuestFallback/);

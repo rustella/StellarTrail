@@ -8,6 +8,7 @@ const TAB_PAGES = new Set([
 export const GUEST_FALLBACK_PAGE = "/pages/gear-atlas/index";
 
 const GUEST_ACCESSIBLE_PAGES = new Set([
+  "/pages/index/index",
   GUEST_FALLBACK_PAGE,
   "/pages/gear-atlas/detail/index",
   "/pages/login/index",

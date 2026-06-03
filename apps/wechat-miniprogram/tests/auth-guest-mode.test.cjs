@@ -136,6 +136,7 @@ test("navigation helper rejects external redirects and switches tab pages", () =
   } = require("../.tmp-test/utils/navigation.js");
 
   assert.equal(GUEST_FALLBACK_PAGE, "/pages/gear-atlas/index");
+  assert.equal(isGuestAccessiblePage("/pages/index/index"), true);
   assert.equal(isGuestAccessiblePage("/pages/gear-atlas/index"), true);
   assert.equal(
     isGuestAccessiblePage("/pages/gear-atlas/detail/index?id=g1"),

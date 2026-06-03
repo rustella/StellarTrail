@@ -31,7 +31,6 @@ import {
   openLoginPageFromPrompt,
   requireLoginForAction,
 } from "../../utils/auth-prompt";
-import { navigateToGuestFallback } from "../../utils/navigation";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import { resolveCachedMediaUrl } from "../../utils/media-cache";
 
@@ -138,10 +137,6 @@ Page({
 
   onShow() {
     syncPageTheme(this);
-    if (!hasAccessToken()) {
-      navigateToGuestFallback();
-      return;
-    }
     const shouldRefreshGears =
       wx.getStorageSync(GEARS_SHOULD_REFRESH_KEY) === true;
     const shouldRefreshTrip =
