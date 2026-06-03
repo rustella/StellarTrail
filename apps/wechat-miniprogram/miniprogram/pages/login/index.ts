@@ -13,6 +13,7 @@ import {
 } from "../../utils/api-auth";
 import {
   decodeRedirect,
+  isGuestAccessiblePage,
   navigateToGuestFallback,
   navigateToRedirect,
 } from "../../utils/navigation";
@@ -322,6 +323,10 @@ Page({
   },
 
   skip() {
+    if (isGuestAccessiblePage(this.data.redirect)) {
+      navigateToRedirect(this.data.redirect);
+      return;
+    }
     navigateToGuestFallback();
   },
 

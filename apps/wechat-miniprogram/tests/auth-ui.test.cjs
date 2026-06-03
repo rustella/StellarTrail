@@ -76,6 +76,11 @@ test("guest users can browse home and the gear atlas", () => {
   assert.match(navigationTs, /"\/pages\/gear-atlas\/detail\/index"/);
   assert.match(navigationTs, /"\/pages\/login\/index"/);
   assert.match(navigationTs, /"\/pages\/register\/index"/);
+  assert.match(navigationTs, /"\/pages\/profile\/roadmap\/index"/);
+  assert.match(
+    read("pages/login/index.ts"),
+    /isGuestAccessiblePage\(this\.data\.redirect\)/,
+  );
   assert.doesNotMatch(homeTs, /navigateToGuestFallback/);
   assert.match(homeTs, /GUEST_HERO_STATUS_TEXT = "装备状态待同步"/);
   assert.doesNotMatch(homeTs, /未登录也可先浏览/);
@@ -1206,9 +1211,10 @@ ${ts}`;
   assert.match(wxml, /loginPrompt\.visible/);
   assert.match(pageSource, /listRoadmap/);
   assert.match(pageSource, /listMyRoadmap/);
-  assert.match(pageSource, /loadRoadmapWithPublicFallback/);
+  assert.match(pageSource, /loadRoadmapForGuestAccess/);
+  assert.match(pageSource, /const publicResponse = await listRoadmap\(request\)/);
   assert.match(pageSource, /return await listMyRoadmap\(request\)/);
-  assert.match(pageSource, /return await listRoadmap\(request\)/);
+  assert.match(pageSource, /return publicResponse/);
   assert.match(pageSource, /voteRoadmapItem/);
   assert.match(pageSource, /unvoteRoadmapItem/);
   assert.match(pageSource, /subscribeRoadmapItem/);

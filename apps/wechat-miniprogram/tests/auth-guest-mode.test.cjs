@@ -148,6 +148,7 @@ test("navigation helper rejects external redirects and switches tab pages", () =
   assert.equal(isGuestAccessiblePage("/pages/skills/index"), true);
   assert.equal(isGuestAccessiblePage("/pages/trips/index"), true);
   assert.equal(isGuestAccessiblePage("/pages/profile/index"), true);
+  assert.equal(isGuestAccessiblePage("/pages/profile/roadmap/index"), true);
 
   assert.equal(
     decodeRedirect(encodeURIComponent("https://example.com")),
@@ -160,12 +161,14 @@ test("navigation helper rejects external redirects and switches tab pages", () =
 
   navigateToRedirect("/pages/profile/index");
   navigateToRedirect("/pages/trips/index");
+  navigateToRedirect("/pages/profile/roadmap/index");
   navigateToRedirect("/pages/gears/detail/index?id=g1");
   navigateToGuestFallback();
 
   assert.deepEqual(calls, [
     { type: "switchTab", url: "/pages/profile/index" },
     { type: "switchTab", url: "/pages/trips/index" },
+    { type: "redirectTo", url: "/pages/profile/roadmap/index" },
     { type: "redirectTo", url: "/pages/gears/detail/index?id=g1" },
     { type: "redirectTo", url: "/pages/gear-atlas/index" },
   ]);

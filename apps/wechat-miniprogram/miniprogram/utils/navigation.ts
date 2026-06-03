@@ -17,6 +17,7 @@ const GUEST_ACCESSIBLE_PAGES = new Set([
   "/pages/gear-atlas/detail/index",
   "/pages/login/index",
   "/pages/register/index",
+  "/pages/profile/roadmap/index",
 ]);
 
 export function decodeRedirect(

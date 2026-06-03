@@ -87,7 +87,7 @@ Page({
     const request = roadmapRequest(this.data.selectedStatus);
     this.setData({ loading: true, error: "", offlineNotice: "" });
     try {
-      const response = await loadRoadmapWithPublicFallback(request);
+      const response = await loadRoadmapForGuestAccess(request);
       this.setData({
         items: response.items.map(mapRoadmapItem),
         loading: false,
@@ -216,23 +216,20 @@ function roadmapRequest(selectedStatus: RoadmapStatusFilter) {
   };
 }
 
-async function loadRoadmapWithPublicFallback(
+async function loadRoadmapForGuestAccess(
   request: ListRoadmapRequest,
 ): Promise<ListRoadmapResponse> {
+  const publicResponse = await listRoadmap(request);
   if (!hasAccessToken()) {
-    return listRoadmap(request);
+    return publicResponse;
   }
   try {
     return await listMyRoadmap(request);
   } catch (error) {
     if (isLoginRequiredError(error)) {
-      return listRoadmap(request);
+      return publicResponse;
     }
-    try {
-      return await listRoadmap(request);
-    } catch {
-      throw error;
-    }
+    return publicResponse;
   }
 }
 
