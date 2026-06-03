@@ -70,12 +70,9 @@ test("guest users can browse home and the gear atlas", () => {
   );
   assert.match(navigationTs, /"\/pages\/index\/index"/);
   assert.match(navigationTs, /"\/pages\/gear-atlas\/detail\/index"/);
+  assert.match(navigationTs, /"\/pages\/skills\/index"/);
   assert.match(navigationTs, /"\/pages\/login\/index"/);
   assert.match(navigationTs, /"\/pages\/register\/index"/);
-  assert.doesNotMatch(
-    navigationTs,
-    /GUEST_ACCESSIBLE_PAGES[\s\S]*"\/pages\/skills\/index"/,
-  );
   assert.doesNotMatch(
     navigationTs,
     /GUEST_ACCESSIBLE_PAGES[\s\S]*"\/pages\/trips\/index"/,
@@ -84,7 +81,11 @@ test("guest users can browse home and the gear atlas", () => {
   assert.match(homeTs, /GUEST_HERO_STATUS_TEXT = "装备状态待同步"/);
   assert.doesNotMatch(homeTs, /未登录也可先浏览/);
   assert.doesNotMatch(homeWxml, /可以先浏览装备图鉴/);
-  assert.match(skillsTs, /navigateToGuestFallback/);
+  assert.doesNotMatch(skillsTs, /navigateToGuestFallback/);
+  assert.match(
+    skillsTs,
+    /message: "登录并同意绳结教程免责声明后，可以查看绳结列表。"/,
+  );
   assert.match(skillDetailTs, /navigateToGuestFallback/);
   assert.match(profileTs, /navigateToGuestFallback/);
   assert.doesNotMatch(profileTs, /退出后仍可浏览装备图鉴和绳结教学/);
@@ -101,9 +102,9 @@ test("guest users can browse home and the gear atlas", () => {
   assert.doesNotMatch(gearWxss, /\.guest-quick-entry/);
   assert.match(tripsWxml, /管理单人行程与组队协作，出发前准备更清晰。/);
   assert.doesNotMatch(tripsWxml, /历史经历都从这里管理/);
-  assert.match(tripsWxml, /查看装备图鉴/);
+  assert.doesNotMatch(tripsWxml, /查看装备图鉴/);
   assert.match(tripsTs, /登录后可以加入多人行程/);
-  assert.match(tripsTs, /navigateToGuestFallback/);
+  assert.doesNotMatch(tripsTs, /navigateToGuestFallback/);
 });
 
 test("home page does not automatically prompt to import WeChat profile", () => {

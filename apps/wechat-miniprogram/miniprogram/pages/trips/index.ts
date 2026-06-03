@@ -21,7 +21,6 @@ import {
   requireLoginForAction,
   showLoginPrompt,
 } from "../../utils/auth-prompt";
-import { navigateToGuestFallback } from "../../utils/navigation";
 import {
   isOffline,
   showOfflineWriteBlockedToast,
@@ -210,10 +209,6 @@ Page({
       return;
     }
     wx.navigateTo({ url: "/pages/trips/join/index" });
-  },
-
-  goGearAtlas() {
-    navigateToGuestFallback();
   },
 
   goLogin() {

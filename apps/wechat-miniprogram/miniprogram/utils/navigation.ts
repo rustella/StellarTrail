@@ -9,6 +9,7 @@ export const GUEST_FALLBACK_PAGE = "/pages/gear-atlas/index";
 
 const GUEST_ACCESSIBLE_PAGES = new Set([
   "/pages/index/index",
+  "/pages/skills/index",
   GUEST_FALLBACK_PAGE,
   "/pages/gear-atlas/detail/index",
   "/pages/login/index",

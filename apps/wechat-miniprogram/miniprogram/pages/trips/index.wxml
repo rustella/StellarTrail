@@ -21,9 +21,6 @@
     <view class="state-title">登录后查看我的行程</view>
     <view class="state-desc">行程计划和装备分工会保存到账号中。</view>
     <view class="state-actions">
-      <button class="secondary-action" bindtap="goGearAtlas">
-        查看装备图鉴
-      </button>
       <button bindtap="goLogin">登录</button>
     </view>
   </view>

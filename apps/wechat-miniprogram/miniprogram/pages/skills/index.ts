@@ -40,7 +40,6 @@ import {
   requireLoginForAction,
 } from "../../utils/auth-prompt";
 import { isOffline, showOfflineWriteBlockedToast } from "../../utils/network-state";
-import { navigateToGuestFallback } from "../../utils/navigation";
 
 type SkillsMode = "catalog" | "knots" | "favorites";
 
@@ -135,10 +134,6 @@ Page({
 
   onShow() {
     syncPageTheme(this);
-    if (!hasAccessToken()) {
-      navigateToGuestFallback();
-      return;
-    }
     this.ensureSkillsPageReady();
   },
 
