@@ -2375,6 +2375,7 @@ test("roadmap API utilities call public and authenticated endpoints", async () =
       path,
       method: options.method || "GET",
       authorization: options.header && options.header.authorization,
+      clientIdentity: options.header && options.header["X-StellarTrail-Client"],
     });
     options.success({
       statusCode: 200,
@@ -2425,31 +2426,37 @@ test("roadmap API utilities call public and authenticated endpoints", async () =
       path: "/api/v1/roadmap?client_key=wechat_miniprogram&status=planned",
       method: "GET",
       authorization: undefined,
+      clientIdentity: "wechat/0.2.2",
     },
     {
       path: "/api/v1/me/roadmap?client_key=wechat_miniprogram",
       method: "GET",
       authorization: "Bearer access-old",
+      clientIdentity: "wechat/0.2.2",
     },
     {
       path: "/api/v1/me/roadmap/smart-packing-template/vote",
       method: "PUT",
       authorization: "Bearer access-old",
+      clientIdentity: "wechat/0.2.2",
     },
     {
       path: "/api/v1/me/roadmap/smart-packing-template/vote",
       method: "DELETE",
       authorization: "Bearer access-old",
+      clientIdentity: "wechat/0.2.2",
     },
     {
       path: "/api/v1/me/roadmap/smart-packing-template/subscription",
       method: "PUT",
       authorization: "Bearer access-old",
+      clientIdentity: "wechat/0.2.2",
     },
     {
       path: "/api/v1/me/roadmap/smart-packing-template/subscription",
       method: "DELETE",
       authorization: "Bearer access-old",
+      clientIdentity: "wechat/0.2.2",
     },
   ]);
 });
