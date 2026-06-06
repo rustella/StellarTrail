@@ -3,9 +3,14 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
+use hmac::{Hmac, Mac};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use stellartrail_api::{
-    config::{ApiConfig, CorsConfig, PublicApiConfig, RedisCacheConfig, UploadConfig},
+    config::{
+        ApiConfig, CorsConfig, PublicApiConfig, RedisCacheConfig, RequestSignatureClientConfig,
+        RequestSignatureConfig, UploadConfig,
+    },
     migrate_database,
     routes::build_router,
     state::AppState,
@@ -17,6 +22,13 @@ use stellartrail_db::{
 use tempfile::TempDir;
 use tower::ServiceExt;
 
+type HmacSha256 = Hmac<Sha256>;
+
+const TEST_SIGNATURE_APP_ID: &str = "test-client";
+const TEST_SIGNATURE_APP_SECRET: &str = "test-secret";
+const TEST_CLIENT_IDENTITY_HEADER: &str = "X-StellarTrail-Client";
+const TEST_CLIENT_IDENTITY: &str = "web/test";
+
 struct TestApp {
     router: Router,
     db: sea_orm::DatabaseConnection,
@@ -24,6 +36,10 @@ struct TestApp {
 }
 
 async fn test_app() -> TestApp {
+    test_app_with_request_signature(Default::default()).await
+}
+
+async fn test_app_with_request_signature(request_signature: RequestSignatureConfig) -> TestApp {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
@@ -46,7 +62,7 @@ async fn test_app() -> TestApp {
         knots_media_storage: Default::default(),
         public_api: PublicApiConfig::default(),
         rate_limit: Default::default(),
-        request_signature: Default::default(),
+        request_signature,
         cors: CorsConfig::default(),
         mail: Default::default(),
         sms: Default::default(),
@@ -66,7 +82,7 @@ async fn send_json(
     body: Value,
 ) -> (StatusCode, Value) {
     let mut builder = Request::builder()
-        .header("X-StellarTrail-Client", "web/test")
+        .header(TEST_CLIENT_IDENTITY_HEADER, TEST_CLIENT_IDENTITY)
         .method(method)
         .uri(path)
         .header(header::CONTENT_TYPE, "application/json");
@@ -87,10 +103,20 @@ async fn send_empty(
     path: &str,
     token: Option<&str>,
 ) -> (StatusCode, Value) {
-    let mut builder = Request::builder()
-        .header("X-StellarTrail-Client", "web/test")
-        .method(method)
-        .uri(path);
+    send_empty_with_client(app, method, path, token, Some(TEST_CLIENT_IDENTITY)).await
+}
+
+async fn send_empty_with_client(
+    app: &Router,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+    client_identity: Option<&str>,
+) -> (StatusCode, Value) {
+    let mut builder = Request::builder().method(method).uri(path);
+    if let Some(client_identity) = client_identity {
+        builder = builder.header(TEST_CLIENT_IDENTITY_HEADER, client_identity);
+    }
     if let Some(token) = token {
         builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
     }
@@ -214,6 +240,47 @@ async fn public_roadmap_returns_seeded_wechat_items_and_validates_filters() {
         send_empty(&app.router, "GET", "/api/v1/roadmap?cursor=next-page", None).await;
     assert_eq!(bad_status, StatusCode::UNPROCESSABLE_ENTITY, "{bad_body}");
     assert_eq!(bad_body["fields"][0]["field"], "cursor");
+}
+
+#[tokio::test]
+async fn signed_public_roadmap_strips_signature_query_before_filter_parsing() {
+    let app = test_app_with_request_signature(signature_config()).await;
+    let path = signed_get_path(
+        "/api/v1/roadmap",
+        "client_key=wechat_miniprogram&limit=50",
+        "nonce-roadmap-ok",
+    );
+
+    let (status, body) =
+        send_empty_with_client(&app.router, "GET", &path, None, Some("wechat/0.2.2")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body["items"].as_array().unwrap().len() >= 8);
+
+    let (missing_header_status, missing_header_body) =
+        send_empty_with_client(&app.router, "GET", &path, None, None).await;
+    assert_eq!(missing_header_status, StatusCode::BAD_REQUEST);
+    assert_eq!(missing_header_body["code"], "invalid_header");
+    assert_eq!(
+        missing_header_body["parameter"],
+        TEST_CLIENT_IDENTITY_HEADER
+    );
+
+    let bad_signature_path = signed_get_path_with_signature(
+        "/api/v1/roadmap",
+        "client_key=wechat_miniprogram&limit=50",
+        "nonce-roadmap-bad",
+        "not-hex",
+    );
+    let (bad_signature_status, bad_signature_body) = send_empty_with_client(
+        &app.router,
+        "GET",
+        &bad_signature_path,
+        None,
+        Some("wechat/0.2.2"),
+    )
+    .await;
+    assert_eq!(bad_signature_status, StatusCode::UNAUTHORIZED);
+    assert_eq!(bad_signature_body["code"], "invalid_request_signature");
 }
 
 #[tokio::test]
@@ -433,4 +500,97 @@ async fn admin_roadmap_validates_payload_fields() {
             "missing {expected}: {fields:?}"
         );
     }
+}
+
+fn signature_config() -> RequestSignatureConfig {
+    RequestSignatureConfig {
+        enabled: true,
+        nonce_ttl_seconds: 300,
+        clients: vec![RequestSignatureClientConfig {
+            app_id: TEST_SIGNATURE_APP_ID.to_owned(),
+            app_secret: TEST_SIGNATURE_APP_SECRET.to_owned(),
+        }],
+    }
+}
+
+fn signed_get_path(path: &str, business_query: &str, nonce: &str) -> String {
+    let unsigned_query = signing_query_without_signature(business_query, nonce);
+    let canonical = canonical_request(
+        "GET",
+        path,
+        &canonical_query_without_signature(&unsigned_query),
+        &sha256_hex(b""),
+        TEST_SIGNATURE_APP_ID,
+        nonce,
+    );
+    let signature = hmac_sha256_hex(TEST_SIGNATURE_APP_SECRET, &canonical);
+    format!("{path}?{unsigned_query}&signature={signature}")
+}
+
+fn signed_get_path_with_signature(
+    path: &str,
+    business_query: &str,
+    nonce: &str,
+    signature: &str,
+) -> String {
+    let unsigned_query = signing_query_without_signature(business_query, nonce);
+    format!("{path}?{unsigned_query}&signature={signature}")
+}
+
+fn signing_query_without_signature(business_query: &str, nonce: &str) -> String {
+    let signing_fields = format!("app_id={TEST_SIGNATURE_APP_ID}&nonce={nonce}");
+    if business_query.is_empty() {
+        signing_fields
+    } else {
+        format!("{business_query}&{signing_fields}")
+    }
+}
+
+fn canonical_query_without_signature(query: &str) -> String {
+    let mut pairs = query
+        .split('&')
+        .filter(|pair| !pair.is_empty())
+        .map(|pair| pair.split_once('=').unwrap_or((pair, "")))
+        .filter(|(key, _)| *key != "signature")
+        .collect::<Vec<_>>();
+    pairs.sort_by(|(left_key, left_value), (right_key, right_value)| {
+        left_key
+            .cmp(right_key)
+            .then_with(|| left_value.cmp(right_value))
+    });
+    pairs
+        .into_iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect::<Vec<_>>()
+        .join("&")
+}
+
+fn canonical_request(
+    method: &str,
+    path: &str,
+    canonical_query: &str,
+    body_hash_hex: &str,
+    app_id: &str,
+    nonce: &str,
+) -> String {
+    [
+        "STELLARTRAIL-HMAC-SHA256",
+        method,
+        path,
+        canonical_query,
+        body_hash_hex,
+        app_id,
+        nonce,
+    ]
+    .join("\n")
+}
+
+fn hmac_sha256_hex(secret: &str, payload: &str) -> String {
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
+    mac.update(payload.as_bytes());
+    hex::encode(mac.finalize().into_bytes())
+}
+
+fn sha256_hex(bytes: impl AsRef<[u8]>) -> String {
+    hex::encode(Sha256::digest(bytes.as_ref()))
 }

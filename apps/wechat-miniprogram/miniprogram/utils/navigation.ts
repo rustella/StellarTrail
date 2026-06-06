@@ -8,10 +8,16 @@ const TAB_PAGES = new Set([
 export const GUEST_FALLBACK_PAGE = "/pages/gear-atlas/index";
 
 const GUEST_ACCESSIBLE_PAGES = new Set([
+  "/pages/index/index",
+  "/pages/gears/index",
+  "/pages/trips/index",
+  "/pages/skills/index",
+  "/pages/profile/index",
   GUEST_FALLBACK_PAGE,
   "/pages/gear-atlas/detail/index",
   "/pages/login/index",
   "/pages/register/index",
+  "/pages/profile/roadmap/index",
 ]);
 
 export function decodeRedirect(

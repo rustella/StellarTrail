@@ -8,6 +8,8 @@ const config: ClientConfig = {
     client: "wechat",
     version: "0.2.2",
   },
+  // Optional for local mock-login test environments.
+  // wechatLoginCode: "local-dev-user",
   requestSignature: {
     app_id: "example-client-id",
     app_secret: "example-client-secret",

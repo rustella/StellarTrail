@@ -113,6 +113,7 @@ let refreshPromise: Promise<string> | null = null;
 let domainProbePromise: Promise<void> | null = null;
 let domainProbeCompleted = false;
 let offlineCacheNoticePending = false;
+let signatureNonceCounter = 0;
 let cachedApiBaseUrl: string | null = null;
 let cachedAssetsBaseUrl: string | null = null;
 let cachedAccessToken: string | null | undefined;
@@ -222,6 +223,23 @@ export interface PasswordResetRequest {
   email_verification_code: string;
   password: string;
   confirm_password: string;
+}
+
+export interface SmsCodeRequest {
+  phone: string;
+}
+
+export interface SmsCodeResponse {
+  phone: string;
+  sms_ticket: string;
+  expires_at: string;
+  debug_code?: string;
+}
+
+export interface SmsLoginRequest {
+  phone: string;
+  sms_ticket: string;
+  sms_verification_code: string;
 }
 
 export interface BindEmailCodeRequest {
@@ -837,11 +855,32 @@ export function sendEmailLoginCode(
   });
 }
 
+export function sendSmsLoginCode(phone: string): Promise<SmsCodeResponse> {
+  return requestJson("/api/v1/auth/sms-login-code", {
+    method: "POST",
+    data: { phone } satisfies SmsCodeRequest,
+  });
+}
+
 export async function loginWithEmailCode(
   request: EmailLoginRequest,
 ): Promise<string> {
   const response = await requestJson<WechatLoginResponse>(
     "/api/v1/auth/email-login",
+    {
+      method: "POST",
+      data: request,
+    },
+  );
+  saveLoginResponse(response);
+  return response.access_token;
+}
+
+export async function loginWithSmsCode(
+  request: SmsLoginRequest,
+): Promise<string> {
+  const response = await requestJson<WechatLoginResponse>(
+    "/api/v1/auth/sms-login",
     {
       method: "POST",
       data: request,
@@ -3037,22 +3076,91 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function createSignatureNonce(): string {
-  return `${Date.now().toString(36)}-${randomHex(16)}`;
+  const timestamp = Date.now();
+  signatureNonceCounter = (signatureNonceCounter + 1) >>> 0;
+  return `${timestamp.toString(36)}-${randomHex(
+    16,
+    timestamp,
+    signatureNonceCounter,
+  )}`;
 }
 
-function randomHex(byteLength: number): string {
+function randomHex(
+  byteLength: number,
+  timestamp: number,
+  counter: number,
+): string {
   const bytes = new Uint8Array(byteLength);
+  if (!fillRandomBytes(bytes)) {
+    fillPseudoRandomBytes(bytes);
+  }
+  mixNonceEntropy(bytes, timestamp, counter);
+  return bytesToHex(bytes);
+}
+
+function fillRandomBytes(bytes: Uint8Array): boolean {
+  const globalCrypto = (globalThis as unknown as {
+    crypto?: { getRandomValues?: (array: Uint8Array) => Uint8Array };
+  }).crypto;
+  if (typeof globalCrypto?.getRandomValues === "function") {
+    try {
+      globalCrypto.getRandomValues(bytes);
+      if (!isAllZeroBytes(bytes)) {
+        return true;
+      }
+    } catch {
+      // Fall through to the Mini Program API and finally Math.random below.
+    }
+  }
+
   const wxWithRandom = wx as unknown as {
     getRandomValues?: (array: Uint8Array) => Uint8Array;
   };
   if (typeof wxWithRandom.getRandomValues === "function") {
-    wxWithRandom.getRandomValues(bytes);
-  } else {
-    for (let index = 0; index < bytes.length; index += 1) {
-      bytes[index] = Math.floor(Math.random() * 256);
+    try {
+      wxWithRandom.getRandomValues(bytes);
+      if (!isAllZeroBytes(bytes)) {
+        return true;
+      }
+    } catch {
+      // Some WeChat runtimes expose wx.getRandomValues with a different shape.
     }
   }
-  return bytesToHex(bytes);
+
+  return false;
+}
+
+function fillPseudoRandomBytes(bytes: Uint8Array): void {
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Math.floor(Math.random() * 256);
+  }
+}
+
+function mixNonceEntropy(
+  bytes: Uint8Array,
+  timestamp: number,
+  counter: number,
+): void {
+  let timestampValue = Math.max(0, Math.floor(timestamp));
+  for (let index = 0; index < Math.min(8, bytes.length); index += 1) {
+    bytes[index] ^= timestampValue & 0xff;
+    timestampValue = Math.floor(timestampValue / 256);
+  }
+
+  let counterValue = counter >>> 0;
+  for (let index = 0; index < Math.min(4, bytes.length); index += 1) {
+    const targetIndex = bytes.length - 1 - index;
+    bytes[targetIndex] ^= counterValue & 0xff;
+    counterValue >>>= 8;
+  }
+
+  if (isAllZeroBytes(bytes) && bytes.length > 0) {
+    bytes[0] = 1;
+  }
+}
+
+function isAllZeroBytes(bytes: Uint8Array): boolean {
+  return bytes.every((byte) => byte === 0);
 }
 
 function hmacSha256Hex(secret: string, message: string): string {
@@ -3243,29 +3351,66 @@ function shouldRefreshAccessToken(): boolean {
 }
 
 function getWechatLoginCode(): Promise<string> {
-  return new Promise((resolve) => {
+  const configuredCode = getConfiguredWechatLoginCode();
+  if (configuredCode) {
+    return Promise.resolve(configuredCode);
+  }
+  return new Promise((resolve, reject) => {
     let settled = false;
-    const finish = (code: string) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+    const fail = (message: string) => {
       if (settled) {
         return;
       }
       settled = true;
-      clearTimeout(timer);
-      resolve(code);
+      cleanup();
+      reject(new Error(message));
     };
-    const timer = setTimeout(() => {
-      finish("local-dev-user");
+    const finish = (code?: string) => {
+      const normalizedCode = code?.trim();
+      if (!normalizedCode) {
+        fail("微信登录失败，请重试");
+        return;
+      }
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(normalizedCode);
+    };
+    timer = setTimeout(() => {
+      fail("微信登录超时，请重试");
     }, WECHAT_LOGIN_TIMEOUT_MS);
 
-    wx.login({
-      success: (result) => {
-        finish(result.code || "local-dev-user");
-      },
-      fail: () => {
-        finish("local-dev-user");
-      },
-    });
+    try {
+      wx.login({
+        success: (result) => {
+          finish(result.code);
+        },
+        fail: () => {
+          fail("微信登录失败，请重试");
+        },
+      });
+    } catch {
+      fail("微信登录失败，请重试");
+    }
   });
+}
+
+function getConfiguredWechatLoginCode(): string | undefined {
+  const app = getApp<{
+    globalData?: {
+      wechatLoginCode?: string;
+    };
+  }>();
+  const code = app.globalData?.wechatLoginCode?.trim();
+  return code || undefined;
 }
 
 function requestFailureMessage(errMsg?: string): string {

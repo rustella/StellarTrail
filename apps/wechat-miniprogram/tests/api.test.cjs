@@ -260,6 +260,52 @@ test("loginWithWechat sends provided profile without default nickname", async ()
   });
 });
 
+test("loginWithWechat uses configured local code without wx.login", async () => {
+  const calls = [];
+  installWxMock(
+    (options) => {
+      calls.push(options.data);
+      options.success({
+        statusCode: 200,
+        data: loginResponse("access-local-code", "refresh-local-code"),
+      });
+    },
+    null,
+    {
+      globalData: {
+        wechatLoginCode: " local-dev-user ",
+      },
+    },
+  );
+  global.wx.login = () => {
+    throw new Error("wx.login should not be called");
+  };
+  const { loginWithWechat } = require("../.tmp-test/utils/api.js");
+
+  await assert.doesNotReject(loginWithWechat());
+
+  assert.deepEqual(calls, [{ code: "local-dev-user" }]);
+});
+
+test("loginWithWechat rejects when wx.login fails without configured local code", async () => {
+  const calls = [];
+  installWxMock((options) => {
+    calls.push(options.data);
+    options.success({
+      statusCode: 200,
+      data: loginResponse("access-unexpected", "refresh-unexpected"),
+    });
+  });
+  global.wx.login = (options) => {
+    options.fail({ errMsg: "login:fail" });
+  };
+  const { loginWithWechat } = require("../.tmp-test/utils/api.js");
+
+  await assert.rejects(loginWithWechat(), /微信登录失败/);
+
+  assert.deepEqual(calls, []);
+});
+
 test("request signature is injected into JSON requests without mutating business fields", async () => {
   const calls = [];
   installWxMock(
@@ -357,6 +403,76 @@ test("request signature is injected into GET query parameters", async () => {
   });
 
   assert.deepEqual(response.items, []);
+});
+
+test("request signature nonce stays unique when random source returns zeros", async () => {
+  const originalDateNow = Date.now;
+  const originalMathRandom = Math.random;
+  const originalCryptoDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "crypto",
+  );
+  const nonces = [];
+
+  try {
+    Date.now = () => 1780000000000;
+    Math.random = () => 0;
+    Object.defineProperty(globalThis, "crypto", {
+      value: undefined,
+      configurable: true,
+    });
+    installWxMock(
+      (options) => {
+        const { query } = parseRequestUrl(options.url);
+        const params = new URLSearchParams(query);
+        const nonce = params.get("nonce");
+        nonces.push(nonce);
+        assert.notEqual(
+          nonce,
+          "mppy1i4g-00000000000000000000000000000000",
+        );
+        verifyRequestSignature({
+          url: options.url,
+          method: "GET",
+          bodyHash: sha256Hex(Buffer.alloc(0)),
+          appId: params.get("app_id"),
+          appSecret: "wechat-secret",
+          nonce,
+          signature: params.get("signature"),
+        });
+        options.success({
+          statusCode: 200,
+          data: { next_cursor: null, items: [] },
+        });
+      },
+      null,
+      {
+        globalData: {
+          requestSignature: {
+            app_id: "wechat-client",
+            app_secret: "wechat-secret",
+          },
+        },
+        getRandomValues(array) {
+          return array;
+        },
+      },
+    );
+    const { listClientVersions } = require("../.tmp-test/utils/api.js");
+
+    await listClientVersions("wechat_miniprogram");
+    await listClientVersions("wechat_miniprogram");
+  } finally {
+    Date.now = originalDateNow;
+    Math.random = originalMathRandom;
+    if (originalCryptoDescriptor) {
+      Object.defineProperty(globalThis, "crypto", originalCryptoDescriptor);
+    } else {
+      delete globalThis.crypto;
+    }
+  }
+
+  assert.equal(new Set(nonces).size, 2);
 });
 
 test("updateWechatNickname keeps the stored avatar in the profile payload", async () => {
@@ -2278,6 +2394,7 @@ test("roadmap API utilities call public and authenticated endpoints", async () =
       path,
       method: options.method || "GET",
       authorization: options.header && options.header.authorization,
+      clientIdentity: options.header && options.header["X-StellarTrail-Client"],
     });
     options.success({
       statusCode: 200,
@@ -2328,31 +2445,37 @@ test("roadmap API utilities call public and authenticated endpoints", async () =
       path: "/api/v1/roadmap?client_key=wechat_miniprogram&status=planned",
       method: "GET",
       authorization: undefined,
+      clientIdentity: "wechat/0.2.2",
     },
     {
       path: "/api/v1/me/roadmap?client_key=wechat_miniprogram",
       method: "GET",
       authorization: "Bearer access-old",
+      clientIdentity: "wechat/0.2.2",
     },
     {
       path: "/api/v1/me/roadmap/smart-packing-template/vote",
       method: "PUT",
       authorization: "Bearer access-old",
+      clientIdentity: "wechat/0.2.2",
     },
     {
       path: "/api/v1/me/roadmap/smart-packing-template/vote",
       method: "DELETE",
       authorization: "Bearer access-old",
+      clientIdentity: "wechat/0.2.2",
     },
     {
       path: "/api/v1/me/roadmap/smart-packing-template/subscription",
       method: "PUT",
       authorization: "Bearer access-old",
+      clientIdentity: "wechat/0.2.2",
     },
     {
       path: "/api/v1/me/roadmap/smart-packing-template/subscription",
       method: "DELETE",
       authorization: "Bearer access-old",
+      clientIdentity: "wechat/0.2.2",
     },
   ]);
 });
@@ -2627,6 +2750,67 @@ test("loginWithPassword persists access and refresh tokens", async () => {
   assert.equal(calls[0].authorization, undefined);
   assert.equal(storage.get("stellartrail_access_token"), "access-pass");
   assert.equal(storage.get("stellartrail_refresh_token"), "refresh-pass");
+});
+
+test("SMS login helpers call phone auth endpoints and persist tokens", async () => {
+  const calls = [];
+  const storage = installWxMock((options) => {
+    calls.push({
+      url: options.url,
+      method: options.method,
+      data: options.data,
+      authorization: options.header && options.header.authorization,
+    });
+    if (options.url.endsWith("/api/v1/auth/sms-login-code")) {
+      options.success({
+        statusCode: 200,
+        data: {
+          phone: "13800138000",
+          sms_ticket: "sms-ticket-1",
+          expires_at: "2026-06-01T02:10:00Z",
+          debug_code: "123456",
+        },
+      });
+      return;
+    }
+    assert.equal(options.url, "https://api.example.test/api/v1/auth/sms-login");
+    options.success({
+      statusCode: 200,
+      data: loginResponse("access-sms", "refresh-sms"),
+    });
+  });
+  const { loginWithSmsCode, sendSmsLoginCode } = require("../.tmp-test/utils/api.js");
+
+  const code = await sendSmsLoginCode("13800138000");
+  await assert.doesNotReject(
+    loginWithSmsCode({
+      phone: code.phone,
+      sms_ticket: code.sms_ticket,
+      sms_verification_code: code.debug_code,
+    }),
+  );
+
+  assert.equal(code.debug_code, "123456");
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.example.test/api/v1/auth/sms-login-code",
+      method: "POST",
+      data: { phone: "13800138000" },
+      authorization: undefined,
+    },
+    {
+      url: "https://api.example.test/api/v1/auth/sms-login",
+      method: "POST",
+      data: {
+        phone: "13800138000",
+        sms_ticket: "sms-ticket-1",
+        sms_verification_code: "123456",
+      },
+      authorization: undefined,
+    },
+  ]);
+  assert.equal(storage.get("stellartrail_access_token"), "access-sms");
+  assert.equal(storage.get("stellartrail_refresh_token"), "refresh-sms");
 });
 
 test("registerWithPassword persists the returned session", async () => {

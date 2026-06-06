@@ -17,25 +17,42 @@ test("register page is available from the mini program page registry", () => {
   assert.ok(config.pages.includes("pages/register/index"));
 });
 
-test("login page offers WeChat account email-code and password-reset entry points", () => {
+test("login page offers combined code WeChat account and password-reset entry points", () => {
   const wxml = read("pages/login/index.wxml");
   const ts = read("pages/login/index.ts");
   const pageSource = `${wxml}
 ${ts}`;
+  assert.match(wxml, /微信登录[\s\S]*验证码登录[\s\S]*账号登录/);
+  assert.match(wxml, /验证码登录/);
   assert.match(wxml, /微信登录/);
   assert.match(wxml, /账号登录/);
-  assert.match(wxml, /邮箱登录/);
+  assert.doesNotMatch(wxml, /手机登录/);
+  assert.doesNotMatch(wxml, /手机号密码登录/);
+  assert.doesNotMatch(wxml, /邮箱登录/);
+  assert.match(wxml, /手机号或邮箱需已注册或已在账号设置中绑定/);
+  assert.match(wxml, /placeholder="手机号或邮箱"/);
+  assert.match(wxml, /placeholder="短信或邮箱验证码"/);
   assert.doesNotMatch(wxml, /使用微信身份快速进入/);
   assert.match(wxml, /找回密码/);
   assert.match(wxml, /重设密码并登录/);
-  assert.match(wxml, /placeholder="账号或邮箱"/);
+  assert.match(wxml, /placeholder="账号、手机号或邮箱"/);
   assert.match(wxml, /placeholder="邮箱验证码"/);
   assert.match(wxml, /password="{{true}}"/);
   assert.match(wxml, /注册账号/);
-  assert.match(wxml, /不登录也可以先看装备图鉴/);
+  assert.match(wxml, /登录后可以保存和同步个人装备/);
+  assert.doesNotMatch(wxml, /不登录也可以先看装备图鉴/);
   assert.doesNotMatch(wxml, /绳结教学/);
   assert.match(pageSource, /this\.afterLoginSuccess\(\)/);
   assert.match(pageSource, /navigateToGuestFallback/);
+  assert.match(ts, /loginMode: "wechat"/);
+  assert.match(ts, /sendVerificationLoginCode/);
+  assert.match(ts, /loginWithVerificationCode/);
+  assert.match(ts, /sendSmsLoginCode/);
+  assert.match(ts, /loginWithSmsCode/);
+  assert.match(ts, /sendEmailLoginCode/);
+  assert.match(ts, /loginWithEmailCode/);
+  assert.match(ts, /verificationLoginErrorMessage/);
+  assert.doesNotMatch(ts, /phoneLoginMode/);
   assert.doesNotMatch(
     pageSource,
     /afterLoginSuccess\("\/pages\/index\/index"\)/,
@@ -45,59 +62,69 @@ ${ts}`;
   assert.doesNotMatch(wxml, /open-type="chooseAvatar"/);
   assert.doesNotMatch(wxml, /type="nickname"/);
   assert.doesNotMatch(wxml, /导入并登录/);
-  assert.match(pageSource, /sendLoginCode/);
   assert.match(pageSource, /sendResetCode/);
   assert.doesNotMatch(wxml, /API|后端|接口|游客|免登录|写操作|模板/);
 });
 
-test("guest users can only browse the gear atlas", () => {
+test("guest users can browse home and the gear atlas", () => {
   const navigationTs = read("utils/navigation.ts");
   const homeTs = read("pages/index/index.ts");
+  const homeWxml = read("pages/index/index.wxml");
   const skillsTs = read("pages/skills/index.ts");
   const skillDetailTs = read("pages/skills/detail/index.ts");
   const profileTs = read("pages/profile/index.ts");
+  const gearTs = read("pages/gears/index.ts");
   const gearWxml = read("pages/gears/index.wxml");
   const gearWxss = read("pages/gears/index.wxss");
   const tripsWxml = read("pages/trips/index.wxml");
   const tripsTs = read("pages/trips/index.ts");
-  const guestGearBlock = gearWxml.slice(
-    gearWxml.indexOf('<block wx:if="{{!isLoggedIn}}">'),
-    gearWxml.indexOf("<block wx:else>"),
-  );
 
   assert.match(
     navigationTs,
     /GUEST_FALLBACK_PAGE = "\/pages\/gear-atlas\/index"/,
   );
+  assert.match(navigationTs, /"\/pages\/index\/index"/);
+  assert.match(navigationTs, /"\/pages\/gears\/index"/);
+  assert.match(navigationTs, /"\/pages\/trips\/index"/);
+  assert.match(navigationTs, /"\/pages\/skills\/index"/);
+  assert.match(navigationTs, /"\/pages\/profile\/index"/);
   assert.match(navigationTs, /"\/pages\/gear-atlas\/detail\/index"/);
   assert.match(navigationTs, /"\/pages\/login\/index"/);
   assert.match(navigationTs, /"\/pages\/register\/index"/);
-  assert.doesNotMatch(
-    navigationTs,
-    /GUEST_ACCESSIBLE_PAGES[\s\S]*"\/pages\/skills\/index"/,
-  );
-  assert.doesNotMatch(
-    navigationTs,
-    /GUEST_ACCESSIBLE_PAGES[\s\S]*"\/pages\/trips\/index"/,
-  );
-  assert.match(homeTs, /navigateToGuestFallback/);
-  assert.match(skillsTs, /navigateToGuestFallback/);
-  assert.match(skillDetailTs, /navigateToGuestFallback/);
-  assert.match(profileTs, /navigateToGuestFallback/);
-  assert.doesNotMatch(profileTs, /退出后仍可浏览装备图鉴和绳结教学/);
-  assert.match(guestGearBlock, /装备图鉴/);
-  assert.match(guestGearBlock, /goGearAtlas/);
-  assert.doesNotMatch(guestGearBlock, /goPackingLists/);
-  assert.doesNotMatch(guestGearBlock, /绳结教学/);
+  assert.match(navigationTs, /"\/pages\/profile\/roadmap\/index"/);
   assert.match(
-    gearWxss,
-    /\.guest-quick-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/,
+    read("pages/login/index.ts"),
+    /isGuestAccessiblePage\(this\.data\.redirect\)/,
   );
+  assert.doesNotMatch(homeTs, /navigateToGuestFallback/);
+  assert.match(homeTs, /GUEST_HERO_STATUS_TEXT = "装备状态待同步"/);
+  assert.doesNotMatch(homeTs, /未登录也可先浏览/);
+  assert.doesNotMatch(homeWxml, /可以先浏览装备图鉴/);
+  assert.doesNotMatch(skillsTs, /navigateToGuestFallback/);
+  assert.match(
+    skillsTs,
+    /message: "登录并同意绳结教程免责声明后，可以查看绳结列表。"/,
+  );
+  assert.match(skillDetailTs, /navigateToGuestFallback/);
+  assert.doesNotMatch(profileTs, /navigateToGuestFallback/);
+  assert.doesNotMatch(profileTs, /退出后仍可浏览装备图鉴和绳结教学/);
+  assert.doesNotMatch(profileTs, /退出后仍可浏览装备图鉴/);
+  assert.match(gearWxml, /装备图鉴/);
+  assert.match(gearWxml, /goGearAtlas/);
+  assert.match(gearWxml, /goPackingLists/);
+  assert.match(gearTs, /emptyText: "登录后才能管理装备"/);
+  assert.match(gearWxml, /\{\{emptySubtitle\}\}/);
+  assert.match(gearWxml, /\{\{emptyActionText\}\}/);
+  assert.doesNotMatch(gearWxml, /wx:if="\{\{!isLoggedIn\}\}"/);
+  assert.doesNotMatch(gearWxml, /未登录也可先浏览/);
+  assert.doesNotMatch(gearWxml, /可以先看装备图鉴/);
+  assert.doesNotMatch(gearWxml, /绳结教学/);
+  assert.doesNotMatch(gearWxss, /\.guest-quick-entry/);
   assert.match(tripsWxml, /管理单人行程与组队协作，出发前准备更清晰。/);
   assert.doesNotMatch(tripsWxml, /历史经历都从这里管理/);
-  assert.match(tripsWxml, /查看装备图鉴/);
+  assert.doesNotMatch(tripsWxml, /查看装备图鉴/);
   assert.match(tripsTs, /登录后可以加入多人行程/);
-  assert.match(tripsTs, /navigateToGuestFallback/);
+  assert.doesNotMatch(tripsTs, /navigateToGuestFallback/);
 });
 
 test("home page does not automatically prompt to import WeChat profile", () => {
@@ -1020,6 +1047,7 @@ ${ts}`;
   assert.match(wxml, /account-settings-entry/);
   assert.match(wxml, /查看账号资料与户外资料/);
   assert.match(wxml, /account-logout-button/);
+  assert.match(wxml, /登录 \/ 注册/);
   assert.doesNotMatch(wxml, /account-button danger/);
   assert.match(wxss, /\.account-main\s*\{[\s\S]*flex:\s*1;/);
   assert.match(wxss, /\.account-settings-entry\s*\{[\s\S]*flex:\s*1;/);
@@ -1031,6 +1059,8 @@ ${ts}`;
   assert.doesNotMatch(wxml, /accountProfile\.emailText/);
   assert.doesNotMatch(wxml, /已绑定/);
   assert.match(wxml, /设置与帮助/);
+  assert.match(pageSource, /退出后会清除本机登录状态/);
+  assert.doesNotMatch(pageSource, /navigateToGuestFallback/);
   assert.match(wxml, /绳结离线缓存/);
   assert.match(wxml, /意见反馈/);
   assert.doesNotMatch(wxml, /bindtap="openOutdoorProfile"/);
@@ -1196,6 +1226,10 @@ ${ts}`;
   assert.match(wxml, /loginPrompt\.visible/);
   assert.match(pageSource, /listRoadmap/);
   assert.match(pageSource, /listMyRoadmap/);
+  assert.match(pageSource, /loadRoadmapForGuestAccess/);
+  assert.match(pageSource, /const publicResponse = await listRoadmap\(request\)/);
+  assert.match(pageSource, /return await listMyRoadmap\(request\)/);
+  assert.match(pageSource, /return publicResponse/);
   assert.match(pageSource, /voteRoadmapItem/);
   assert.match(pageSource, /unvoteRoadmapItem/);
   assert.match(pageSource, /subscribeRoadmapItem/);
@@ -1386,34 +1420,35 @@ test("register page styles include dark theme surfaces", () => {
   assert.match(wxss, /var\(--brand-color\)/);
 });
 
-test("home gear summary aligns logged-out and logged-in card surfaces", () => {
+test("home gear summary keeps locked cards without guest browse prompt", () => {
   const wxml = read("pages/index/index.wxml");
   const ts = read("pages/index/index.ts");
   const wxss = read("pages/index/index.wxss");
-  const guestInlineBlock =
-    wxss.match(/\.guest-inline \{[\s\S]*?\n\}/)?.[0] ?? "";
 
-  assert.match(wxml, /showLoginForGearSummary/);
+  assert.doesNotMatch(wxml, /showLoginForGearSummary/);
+  assert.doesNotMatch(wxml, /guest-inline/);
+  assert.doesNotMatch(wxss, /\.guest-inline/);
   assert.match(ts, /LOCKED_GEAR_STATS/);
   assert.match(ts, /登录后可见/);
   assert.match(ts, /buildHeroStatusText/);
   assert.doesNotMatch(ts, /登录后快速记录装备/);
   assert.doesNotMatch(ts, /我的装备已保存/);
   assert.match(ts, /value: "—"/);
-  assert.match(
-    guestInlineBlock,
-    /border: 1rpx solid var\(--soft-border-color\)/,
-  );
-  assert.match(guestInlineBlock, /background: var\(--control-bg\)/);
-  assert.doesNotMatch(guestInlineBlock, /var\(--notice-bg\)/);
 });
 
 test("gear page logged-out and logged-in cards share surface tokens", () => {
   const wxml = read("pages/gears/index.wxml");
+  const ts = read("pages/gears/index.ts");
   const wxss = read("pages/gears/index.wxss");
   const toolbarBlock = wxss.match(/\.gear-toolbar \{[\s\S]*?\n\}/)?.[0] ?? "";
   const toolbarSearchBlock =
     wxss.match(/\.toolbar-search \{[\s\S]*?\n\}/)?.[0] ?? "";
+  const toolbarLoginFilterBlock =
+    wxss.match(/\.toolbar-filter\.requires-login \{[\s\S]*?\n\}/)?.[0] ?? "";
+  const toolbarAddBlock =
+    wxss.match(/\.toolbar-add \{[\s\S]*?\n\}/)?.[0] ?? "";
+  const toolbarAddIconBlock =
+    wxss.match(/\.toolbar-add-icon \{[\s\S]*?\n\}/)?.[0] ?? "";
   const statsPanelBlock = wxss.match(/\.stats-panel \{[\s\S]*?\n\}/)?.[0] ?? "";
   const statsDetailBlock =
     wxss.match(/\.stats-detail-link \{[\s\S]*?\n\}/)?.[0] ?? "";
@@ -1431,7 +1466,15 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
   assert.match(wxml, /class="gear-toolbar"/);
   assert.match(wxml, /class="toolbar-search-input"/);
   assert.match(wxml, /bindtap="openFilterSheet"/);
+  assert.match(wxml, /\{\{!isLoggedIn \? 'requires-login' : ''\}\}/);
   assert.match(wxml, /class="toolbar-add"[\s\S]*bindtap="goCreate"/);
+  assert.match(wxml, /<text class="toolbar-add-icon">\+<\/text>/);
+  assert.match(wxml, /bindtap="handleEmptyAction"/);
+  assert.match(ts, /emptyText: "登录后才能管理装备"/);
+  assert.match(ts, /emptyActionText: "登录管理装备"/);
+  assert.match(ts, /message: "登录后可以筛选和管理自己的装备。"/);
+  assert.match(ts, /message: "登录后可以查看自己的装备统计。"/);
+  assert.match(ts, /message: "登录后可以管理自己的打包清单。"/);
   assert.match(wxml, /class="filter-summary"/);
   assert.match(wxml, /\{\{activeFilterText\}\}/);
   assert.match(wxml, /class="stats-panel"/);
@@ -1472,6 +1515,14 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
   assert.match(toolbarBlock, /background: var\(--surface-color\)/);
   assert.match(toolbarBlock, /box-shadow: var\(--shadow-soft\)/);
   assert.match(toolbarSearchBlock, /background: var\(--control-bg\)/);
+  assert.match(toolbarLoginFilterBlock, /background: var\(--brand-soft-bg\)/);
+  assert.match(toolbarLoginFilterBlock, /color: var\(--brand-soft-text\)/);
+  assert.match(toolbarAddBlock, /display: flex/);
+  assert.match(toolbarAddBlock, /align-items: center/);
+  assert.match(toolbarAddBlock, /justify-content: center/);
+  assert.match(toolbarAddBlock, /padding: 0/);
+  assert.match(toolbarAddBlock, /line-height: 1/);
+  assert.match(toolbarAddIconBlock, /line-height: 1/);
   assert.match(statsPanelBlock, /padding: 20rpx/);
   assert.match(statsDetailBlock, /background: var\(--brand-soft-bg\)/);
   assert.match(

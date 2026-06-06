@@ -371,6 +371,7 @@ export interface WechatLoginResponse {
     id: string;
     username?: string | null;
     email?: string | null;
+    phone?: string | null;
     nickname?: string | null;
     avatar_url?: string | null;
   };

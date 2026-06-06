@@ -92,7 +92,7 @@
 .auth-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16rpx;
+  gap: 8rpx;
   margin-top: 22rpx;
   padding: 8rpx;
   border: 1rpx solid var(--border-color);
@@ -105,7 +105,7 @@
   border-radius: 999rpx;
   color: var(--soft-control-text);
   background: transparent;
-  font-size: 25rpx;
+  font-size: 23rpx;
   font-weight: 900;
   line-height: 64rpx;
 }
@@ -201,6 +201,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10rpx;
   margin-top: 18rpx;
+}
+
+.action-row.phone-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .action-row button.link-button {

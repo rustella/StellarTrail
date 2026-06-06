@@ -31,7 +31,6 @@ import {
   openLoginPageFromPrompt,
   requireLoginForAction,
 } from "../../utils/auth-prompt";
-import { navigateToGuestFallback } from "../../utils/navigation";
 import { getThemeViewData, syncPageTheme } from "../../utils/theme";
 import { resolveCachedMediaUrl } from "../../utils/media-cache";
 
@@ -86,6 +85,7 @@ const LOCKED_GEAR_STATS: HomeStatCard[] = [
 ];
 
 const INITIAL_LOGGED_IN = hasAccessToken();
+const GUEST_HERO_STATUS_TEXT = "装备状态待同步";
 const HOME_SOFT_REFRESH_MS = 30_000;
 const GEARS_SHOULD_REFRESH_KEY = "stellartrail_gears_should_refresh";
 const TRIP_HOME_SHOULD_REFRESH_KEY = "stellartrail_home_trip_refresh";
@@ -120,7 +120,9 @@ Page({
     title: "寻径星野",
     checklistItems: CHECKLIST_ITEMS,
     isLoggedIn: INITIAL_LOGGED_IN,
-    heroStatusText: INITIAL_LOGGED_IN ? "正在同步装备状态" : "未登录也可先浏览",
+    heroStatusText: INITIAL_LOGGED_IN
+      ? "正在同步装备状态"
+      : GUEST_HERO_STATUS_TEXT,
     gearLoading: false,
     gearError: "",
     skillLoading: false,
@@ -138,10 +140,6 @@ Page({
 
   onShow() {
     syncPageTheme(this);
-    if (!hasAccessToken()) {
-      navigateToGuestFallback();
-      return;
-    }
     const shouldRefreshGears =
       wx.getStorageSync(GEARS_SHOULD_REFRESH_KEY) === true;
     const shouldRefreshTrip =
@@ -180,7 +178,9 @@ Page({
     lastHomeDashboardLoginState = isLoggedIn;
     this.setData({
       isLoggedIn,
-      heroStatusText: isLoggedIn ? "正在同步装备状态" : "未登录也可先浏览",
+      heroStatusText: isLoggedIn
+        ? "正在同步装备状态"
+        : GUEST_HERO_STATUS_TEXT,
       offlineNotice: "",
     });
     const tasks = [this.loadFeaturedSkills()];
@@ -191,7 +191,7 @@ Page({
       this.setData({
         gearLoading: false,
         gearError: "",
-        heroStatusText: "未登录也可先浏览",
+        heroStatusText: GUEST_HERO_STATUS_TEXT,
         gearStatCards: LOCKED_GEAR_STATS,
         tripHighlight: null,
       });
@@ -217,7 +217,7 @@ Page({
           isLoggedIn: false,
           gearError: "",
           gearLoading: false,
-          heroStatusText: "未登录也可先浏览",
+          heroStatusText: GUEST_HERO_STATUS_TEXT,
           gearStatCards: buildGearStatCards(EMPTY_STATS),
         });
         return;

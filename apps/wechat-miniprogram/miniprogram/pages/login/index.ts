@@ -3,16 +3,20 @@ import {
   getErrorMessage,
   getStoredUser,
   hasAccessToken,
+  isApiResponseError,
   isCaptchaRequiredError,
   loginWithEmailCode,
   loginWithPassword,
+  loginWithSmsCode,
   loginWithWechat,
   resetPassword,
   sendEmailLoginCode,
   sendPasswordResetCode,
+  sendSmsLoginCode,
 } from "../../utils/api-auth";
 import {
   decodeRedirect,
+  isGuestAccessiblePage,
   navigateToGuestFallback,
   navigateToRedirect,
 } from "../../utils/navigation";
@@ -22,7 +26,7 @@ import {
   OFFLINE_WRITE_BLOCKED_MESSAGE,
 } from "../../utils/network-state";
 
-type LoginMode = "wechat" | "password" | "email" | "reset";
+type LoginMode = "code" | "wechat" | "password" | "reset";
 
 Page({
   data: {
@@ -35,6 +39,9 @@ Page({
     error: "",
     notice: "",
     loginMode: "wechat" as LoginMode,
+    codeAccount: "",
+    verificationCode: "",
+    smsTicket: "",
     account: "",
     password: "",
     email: "",
@@ -68,23 +75,41 @@ Page({
       loginMode: "wechat",
       error: "",
       notice: "",
+      ...clearCaptchaState(),
+    });
+  },
+
+  switchToCode() {
+    this.setData({
+      loginMode: "code",
+      error: "",
+      notice: "",
+      ...clearCaptchaState(),
     });
   },
 
   switchToPassword() {
-    this.setData({ loginMode: "password", error: "", notice: "" });
-  },
-
-  switchToEmail() {
-    this.setData({ loginMode: "email", error: "", notice: "" });
+    this.setData({
+      loginMode: "password",
+      error: "",
+      notice: "",
+      ...clearCaptchaState(),
+    });
   },
 
   switchToReset() {
-    this.setData({ loginMode: "reset", error: "", notice: "" });
+    this.setData({
+      loginMode: "reset",
+      error: "",
+      notice: "",
+      ...clearCaptchaState(),
+    });
   },
 
   onFieldInput(event: WechatMiniprogram.Input) {
     const field = event.currentTarget.dataset.field as
+      | "codeAccount"
+      | "verificationCode"
       | "account"
       | "password"
       | "email"
@@ -93,6 +118,13 @@ Page({
       | "resetConfirmPassword"
       | "captchaAnswer";
     if (!field) {
+      return;
+    }
+    if (field === "codeAccount") {
+      this.setData({
+        codeAccount: event.detail.value,
+        smsTicket: "",
+      });
       return;
     }
     this.setData({ [field]: event.detail.value });
@@ -117,6 +149,87 @@ Page({
     }
   },
 
+  async sendVerificationLoginCode() {
+    if (this.data.codeLoading) {
+      return;
+    }
+    if (isOffline()) {
+      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
+      return;
+    }
+    const identity = resolveVerificationIdentity(this.data.codeAccount);
+    if (!identity) {
+      this.setData({ error: "请填写 11 位大陆手机号或可用邮箱", notice: "" });
+      return;
+    }
+    this.setData({ codeLoading: true, error: "", notice: "" });
+    try {
+      if (identity.type === "phone") {
+        const response = await sendSmsLoginCode(identity.phone);
+        this.setData({
+          codeAccount: response.phone,
+          smsTicket: response.sms_ticket,
+          notice: buildSmsCodeNotice(response.debug_code),
+        });
+      } else {
+        await sendEmailLoginCode(identity.email);
+        this.setData({
+          codeAccount: identity.email,
+          smsTicket: "",
+          notice: buildCodeNotice(),
+        });
+      }
+    } catch (error) {
+      this.setData({ error: getErrorMessage(error) });
+    } finally {
+      this.setData({ codeLoading: false });
+    }
+  },
+
+  async loginWithVerificationCode() {
+    if (this.data.loading) {
+      return;
+    }
+    if (isOffline()) {
+      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
+      return;
+    }
+    const identity = resolveVerificationIdentity(this.data.codeAccount);
+    const verificationCode = this.data.verificationCode.trim();
+    if (!identity) {
+      this.setData({ error: "请填写 11 位大陆手机号或可用邮箱", notice: "" });
+      return;
+    }
+    if (!verificationCode) {
+      this.setData({ error: "请填写验证码", notice: "" });
+      return;
+    }
+    this.setData({ loading: true, error: "", notice: "" });
+    try {
+      if (identity.type === "phone") {
+        if (!this.data.smsTicket) {
+          this.setData({ loading: false, error: "请先获取验证码", notice: "" });
+          return;
+        }
+        await loginWithSmsCode({
+          phone: identity.phone,
+          sms_ticket: this.data.smsTicket,
+          sms_verification_code: verificationCode,
+        });
+      } else {
+        await loginWithEmailCode({
+          email: identity.email,
+          email_verification_code: verificationCode,
+        });
+      }
+      this.afterLoginSuccess();
+    } catch (error) {
+      this.setData({ error: verificationLoginErrorMessage(error) });
+    } finally {
+      this.setData({ loading: false });
+    }
+  },
+
   async loginWithAccount() {
     if (this.data.loading) {
       return;
@@ -129,7 +242,7 @@ Page({
     const password = this.data.password;
     const captchaAnswer = this.data.captchaAnswer.trim();
     if (!account) {
-      this.setData({ error: "请填写账号或邮箱", notice: "" });
+      this.setData({ error: "请填写账号、手机号或邮箱", notice: "" });
       return;
     }
     if (!password) {
@@ -156,62 +269,6 @@ Page({
       } else {
         this.setData({ error: getErrorMessage(error) });
       }
-    } finally {
-      this.setData({ loading: false });
-    }
-  },
-
-  async sendLoginCode() {
-    const email = this.data.email.trim();
-    if (this.data.codeLoading) {
-      return;
-    }
-    if (isOffline()) {
-      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
-      return;
-    }
-    if (!isEmailLike(email)) {
-      this.setData({ error: "请填写可用邮箱", notice: "" });
-      return;
-    }
-    this.setData({ codeLoading: true, error: "", notice: "" });
-    try {
-      await sendEmailLoginCode(email);
-      this.setData({ notice: buildCodeNotice() });
-    } catch (error) {
-      this.setData({ error: getErrorMessage(error) });
-    } finally {
-      this.setData({ codeLoading: false });
-    }
-  },
-
-  async loginWithEmailCode() {
-    if (this.data.loading) {
-      return;
-    }
-    if (isOffline()) {
-      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
-      return;
-    }
-    const email = this.data.email.trim();
-    const emailCode = this.data.emailCode.trim();
-    if (!isEmailLike(email)) {
-      this.setData({ error: "请填写可用邮箱", notice: "" });
-      return;
-    }
-    if (!emailCode) {
-      this.setData({ error: "请填写邮箱验证码", notice: "" });
-      return;
-    }
-    this.setData({ loading: true, error: "", notice: "" });
-    try {
-      await loginWithEmailCode({
-        email,
-        email_verification_code: emailCode,
-      });
-      this.afterLoginSuccess();
-    } catch (error) {
-      this.setData({ error: getErrorMessage(error) });
     } finally {
       this.setData({ loading: false });
     }
@@ -293,7 +350,7 @@ Page({
       return;
     }
     if (!targetAccount) {
-      this.setData({ error: "请先填写账号或邮箱", notice: "" });
+      this.setData({ error: "请先填写账号、手机号或邮箱", notice: "" });
       return;
     }
     if (this.data.captchaLoading) {
@@ -322,6 +379,10 @@ Page({
   },
 
   skip() {
+    if (isGuestAccessiblePage(this.data.redirect)) {
+      navigateToRedirect(this.data.redirect);
+      return;
+    }
     navigateToGuestFallback();
   },
 
@@ -337,15 +398,65 @@ function buildUserDisplay(): string {
   if (!user) {
     return "未登录";
   }
-  return user.nickname || user.username || user.email || "微信用户";
+  return user.nickname || user.username || user.email || user.phone || "微信用户";
 }
 
 function buildCodeNotice(): string {
   return "验证码已发送，请查看邮箱";
 }
 
+function buildSmsCodeNotice(debugCode?: string): string {
+  if (debugCode) {
+    return `验证码已发送，测试验证码：${debugCode}`;
+  }
+  return "验证码已发送，请查看短信";
+}
+
 function isEmailLike(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function normalizePhoneInput(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 13 && digits.startsWith("86")) {
+    return digits.slice(2);
+  }
+  return digits;
+}
+
+function isMainlandPhone(value: string): boolean {
+  return /^1[3-9]\d{9}$/.test(normalizePhoneInput(value));
+}
+
+type VerificationIdentity =
+  | { type: "phone"; phone: string }
+  | { type: "email"; email: string };
+
+function resolveVerificationIdentity(value: string): VerificationIdentity | null {
+  const input = value.trim();
+  if (isEmailLike(input)) {
+    return { type: "email", email: input };
+  }
+  const phone = normalizePhoneInput(input);
+  if (isMainlandPhone(phone)) {
+    return { type: "phone", phone };
+  }
+  return null;
+}
+
+function verificationLoginErrorMessage(error: unknown): string {
+  if (isApiResponseError(error) && error.statusCode === 401) {
+    return "手机号或邮箱未注册或未绑定，请先注册账号或登录后绑定。";
+  }
+  return getErrorMessage(error);
+}
+
+function clearCaptchaState() {
+  return {
+    captchaAnswer: "",
+    captchaTicket: "",
+    captchaImageSrc: "",
+  };
 }
 
 function toSvgDataUri(svg: string): string {

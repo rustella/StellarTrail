@@ -31,6 +31,9 @@ mod create_user_gear_items;
 mod create_user_knot_favorites;
 mod create_user_outdoor_profiles;
 mod create_users_sessions;
+mod ensure_sms_verification_challenges;
+mod ensure_user_gear_archive_fields;
+mod ensure_users_phone_fields;
 mod sanitize_knot_risk_copy;
 mod update_shared_gear_demand_templates;
 
@@ -89,6 +92,9 @@ impl MigratorTrait for Migrator {
             Box::new(add_outdoor_profile_trip_safety_fields::Migration),
             Box::new(update_shared_gear_demand_templates::Migration),
             Box::new(add_client_version_commit_hash::Migration),
+            Box::new(ensure_users_phone_fields::Migration),
+            Box::new(ensure_sms_verification_challenges::Migration),
+            Box::new(ensure_user_gear_archive_fields::Migration),
         ]
     }
 }
@@ -143,6 +149,9 @@ mod tests {
             "add_outdoor_profile_trip_safety_fields",
             "update_shared_gear_demand_templates",
             "add_client_version_commit_hash",
+            "m20260606_000001_ensure_users_phone_fields",
+            "m20260606_000002_ensure_sms_verification_challenges",
+            "m20260607_000001_ensure_user_gear_archive_fields",
         ]
         .into_iter()
         .map(str::to_owned)

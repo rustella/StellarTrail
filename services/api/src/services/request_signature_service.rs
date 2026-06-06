@@ -9,7 +9,7 @@ use std::{
 use axum::{
     body::{Body, Bytes, to_bytes},
     extract::{Request, State},
-    http::{HeaderMap, Method, header},
+    http::{HeaderMap, Method, Uri, header, uri::PathAndQuery},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -93,19 +93,19 @@ fn is_signature_exempt_path(path: &str) -> bool {
 }
 
 async fn verify_request_signature(state: AppState, request: Request) -> Result<Request, ApiError> {
-    let (parts, body) = request.into_parts();
+    let (mut parts, body) = request.into_parts();
     let body_limit = signature_body_limit(&state);
     let body_bytes = to_bytes(body, body_limit)
         .await
         .map_err(|_| ApiError::PayloadTooLarge {
             max_bytes: body_limit as u64,
         })?;
-    let query = parts.uri.query().unwrap_or_default();
+    let query = parts.uri.query().unwrap_or_default().to_owned();
     let is_json_body = is_json_request(&parts.headers) && !body_bytes.is_empty();
     let fields = if is_json_body {
         signature_fields_from_json(&body_bytes)?
     } else {
-        signature_fields_from_query(query)?
+        signature_fields_from_query(&query)?
     };
     let app_secret = app_secret_for(&state.config().request_signature, &fields.app_id)?;
     let body_hash = if is_json_body {
@@ -116,7 +116,7 @@ async fn verify_request_signature(state: AppState, request: Request) -> Result<R
     let canonical_request = canonical_request(
         parts.method.as_str(),
         parts.uri.path(),
-        &canonical_query(query),
+        &canonical_query(&query),
         &body_hash,
         &fields.app_id,
         &fields.nonce,
@@ -125,6 +125,9 @@ async fn verify_request_signature(state: AppState, request: Request) -> Result<R
         return Err(ApiError::InvalidRequestSignature);
     }
     record_nonce_once(&state, &fields.app_id, &fields.nonce).await?;
+    if !is_json_body {
+        parts.uri = uri_without_signing_query_fields(&parts.uri)?;
+    }
     Ok(Request::from_parts(parts, Body::from(body_bytes)))
 }
 
@@ -286,6 +289,34 @@ fn query_pairs(query: &str) -> Vec<(&str, &str)> {
         .collect()
 }
 
+fn uri_without_signing_query_fields(uri: &Uri) -> Result<Uri, ApiError> {
+    let Some(query) = uri.query() else {
+        return Ok(uri.clone());
+    };
+    let forwarded_query = query_pairs(query)
+        .into_iter()
+        .filter(|(key, _)| !is_signing_query_field(key))
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect::<Vec<_>>()
+        .join("&");
+    let path_and_query = if forwarded_query.is_empty() {
+        uri.path().to_owned()
+    } else {
+        format!("{}?{forwarded_query}", uri.path())
+    };
+    let mut parts = uri.clone().into_parts();
+    parts.path_and_query =
+        Some(PathAndQuery::from_maybe_shared(path_and_query).map_err(ApiError::internal)?);
+    Uri::from_parts(parts).map_err(ApiError::internal)
+}
+
+fn is_signing_query_field(key: &str) -> bool {
+    matches!(
+        key,
+        SIGNING_FIELD_APP_ID | SIGNING_FIELD_NONCE | SIGNING_FIELD_SIGNATURE
+    )
+}
+
 fn canonical_request(
     method: &str,
     path: &str,
@@ -356,6 +387,31 @@ mod tests {
             canonical_query("z=3&signature=abc&app_id=client&nonce=n1&a=2&a=1"),
             "a=1&a=2&app_id=client&nonce=n1&z=3"
         );
+    }
+
+    #[test]
+    fn query_signing_fields_are_removed_before_handlers_read_query() {
+        let uri = "/api/v1/roadmap?client_key=wechat_miniprogram&app_id=client&nonce=n1&limit=50&signature=sig"
+            .parse::<Uri>()
+            .unwrap();
+
+        let cleaned = uri_without_signing_query_fields(&uri).unwrap();
+
+        assert_eq!(
+            cleaned.path_and_query().unwrap().as_str(),
+            "/api/v1/roadmap?client_key=wechat_miniprogram&limit=50"
+        );
+    }
+
+    #[test]
+    fn query_signing_field_removal_does_not_leave_empty_query() {
+        let uri = "/api/v1/meta?app_id=client&nonce=n1&signature=sig"
+            .parse::<Uri>()
+            .unwrap();
+
+        let cleaned = uri_without_signing_query_fields(&uri).unwrap();
+
+        assert_eq!(cleaned.path_and_query().unwrap().as_str(), "/api/v1/meta");
     }
 
     #[test]

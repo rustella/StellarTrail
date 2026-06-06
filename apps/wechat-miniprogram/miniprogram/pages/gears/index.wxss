@@ -115,6 +115,11 @@
   background: var(--brand-soft-bg);
 }
 
+.toolbar-filter.requires-login {
+  color: var(--brand-soft-text);
+  background: var(--brand-soft-bg);
+}
+
 .toolbar-filter-count {
   min-width: 28rpx;
   height: 28rpx;
@@ -127,15 +132,24 @@
 }
 
 .toolbar-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 72rpx;
   height: 72rpx;
   margin: 0;
+  padding: 0;
   border-radius: 999rpx;
   color: var(--brand-text-color);
   background: var(--brand-color);
   font-size: 42rpx;
   font-weight: 900;
-  line-height: 68rpx;
+  line-height: 1;
+}
+
+.toolbar-add-icon {
+  display: block;
+  line-height: 1;
 }
 
 .filter-summary {
@@ -172,8 +186,7 @@
 .error-card,
 .loading-card,
 .empty-card,
-.gear-card,
-.guest-card {
+.gear-card {
   margin-top: 20rpx;
   border: 1rpx solid var(--border-color);
   border-radius: var(--card-radius);
@@ -246,11 +259,6 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14rpx;
   margin-top: 18rpx;
-}
-
-.guest-quick-entry {
-  grid-template-columns: minmax(0, 1fr);
-  margin-top: 4rpx;
 }
 
 .quick-entry-card {
@@ -671,43 +679,6 @@
   background: var(--brand-color);
 }
 
-.guest-card {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  padding: 26rpx;
-}
-
-.guest-card > view {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.guest-title {
-  color: var(--text-color);
-  font-size: 30rpx;
-  font-weight: 900;
-}
-
-.guest-desc {
-  margin-top: 8rpx;
-  color: var(--muted-color);
-  font-size: 24rpx;
-  line-height: 1.5;
-}
-
-.guest-card button {
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 0 24rpx;
-  border-radius: 999rpx;
-  color: var(--brand-text-color);
-  background: var(--brand-color);
-  font-size: 24rpx;
-  font-weight: 800;
-  line-height: 62rpx;
-}
-
 .gear-page.theme-dark {
   color: var(--text-color);
   background: var(--body-gradient);
@@ -719,8 +690,7 @@
 .gear-page.theme-dark .error-card,
 .gear-page.theme-dark .loading-card,
 .gear-page.theme-dark .empty-card,
-.gear-page.theme-dark .gear-card,
-.gear-page.theme-dark .guest-card {
+.gear-page.theme-dark .gear-card {
   border-color: var(--border-color);
   background: var(--surface-color);
   box-shadow: var(--shadow-soft);
@@ -743,6 +713,7 @@
 }
 
 .gear-page.theme-dark .toolbar-filter.active,
+.gear-page.theme-dark .toolbar-filter.requires-login,
 .gear-page.theme-dark .filter-summary-reset,
 .gear-page.theme-dark .stats-detail-link,
 .gear-page.theme-dark .category-badge,
@@ -765,7 +736,6 @@
 .gear-page.theme-dark .gear-name,
 .gear-page.theme-dark .empty-title,
 .gear-page.theme-dark .quick-entry-title,
-.gear-page.theme-dark .guest-title,
 .gear-page.theme-dark .filter-sheet-title {
   color: var(--text-color);
 }
@@ -779,7 +749,6 @@
 
 .gear-page.theme-dark .filter-summary-text,
 .gear-page.theme-dark .quick-entry-desc,
-.gear-page.theme-dark .guest-desc,
 .gear-page.theme-dark .gear-meta,
 .gear-page.theme-dark .load-more,
 .gear-page.theme-dark .loading-card,

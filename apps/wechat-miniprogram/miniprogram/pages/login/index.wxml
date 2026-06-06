@@ -2,9 +2,7 @@
   <view class="login-card hero">
     <view class="eyebrow">寻径星野账号</view>
     <view class="title">登录后保存个人装备</view>
-    <view class="subtitle"
-      >不登录也可以先看装备图鉴；要保存自己的装备时再登录。</view
-    >
+    <view class="subtitle">登录后可以保存和同步个人装备。</view>
   </view>
 
   <view class="login-card">
@@ -29,33 +27,76 @@
         微信登录
       </button>
       <button
+        class="auth-tab {{loginMode === 'code' ? 'active' : ''}}"
+        bindtap="switchToCode"
+      >
+        验证码登录
+      </button>
+      <button
         class="auth-tab {{loginMode === 'password' ? 'active' : ''}}"
         bindtap="switchToPassword"
       >
         账号登录
-      </button>
-      <button
-        class="auth-tab {{loginMode === 'email' ? 'active' : ''}}"
-        bindtap="switchToEmail"
-      >
-        邮箱登录
       </button>
     </view>
 
     <view wx:if="{{error}}" class="error-text">{{error}}</view>
     <view wx:if="{{notice}}" class="notice-text">{{notice}}</view>
 
-    <view wx:if="{{loginMode === 'wechat'}}" class="auth-panel">
+    <view wx:if="{{loginMode === 'code'}}" class="auth-panel">
+      <view class="panel-desc">手机号或邮箱需已注册或已在账号设置中绑定。</view>
+      <label class="field-label">手机号或邮箱</label>
+      <input
+        class="field-input"
+        placeholder="手机号或邮箱"
+        value="{{codeAccount}}"
+        data-field="codeAccount"
+        bindinput="onFieldInput"
+      />
+
+      <label class="field-label">验证码</label>
+      <view class="code-row">
+        <input
+          class="field-input code-input"
+          placeholder="短信或邮箱验证码"
+          maxlength="8"
+          value="{{verificationCode}}"
+          data-field="verificationCode"
+          bindinput="onFieldInput"
+        />
+        <button
+          class="code-button"
+          loading="{{codeLoading}}"
+          bindtap="sendVerificationLoginCode"
+        >
+          获取验证码
+        </button>
+      </view>
+      <button
+        class="primary"
+        loading="{{loading}}"
+        bindtap="loginWithVerificationCode"
+      >
+        验证码登录
+      </button>
+
+      <view class="action-row phone-actions">
+        <button class="link-button" bindtap="goRegister">注册账号</button>
+        <button class="link-button" bindtap="switchToWechat">微信登录</button>
+      </view>
+    </view>
+
+    <view wx:elif="{{loginMode === 'wechat'}}" class="auth-panel">
       <button class="primary" loading="{{loading}}" bindtap="loginWechat">
         {{loggedIn ? '重新登录' : '微信登录'}}
       </button>
     </view>
 
     <view wx:elif="{{loginMode === 'password'}}" class="auth-panel">
-      <label class="field-label">账号或邮箱</label>
+      <label class="field-label">账号、手机号或邮箱</label>
       <input
         class="field-input"
-        placeholder="账号或邮箱"
+        placeholder="账号、手机号或邮箱"
         value="{{account}}"
         data-field="account"
         bindinput="onFieldInput"
@@ -99,49 +140,10 @@
         账号登录
       </button>
       <view class="action-row">
-        <button class="link-button" bindtap="switchToEmail">邮箱登录</button>
+        <button class="link-button" bindtap="switchToCode">验证码登录</button>
         <button class="link-button" bindtap="switchToReset">找回密码</button>
         <button class="link-button" bindtap="goRegister">注册账号</button>
       </view>
-    </view>
-
-    <view wx:elif="{{loginMode === 'email'}}" class="auth-panel">
-      <view class="panel-desc">收取邮箱验证码，不输入密码也能进入。</view>
-      <label class="field-label">邮箱</label>
-      <input
-        class="field-input"
-        placeholder="邮箱"
-        value="{{email}}"
-        data-field="email"
-        bindinput="onFieldInput"
-      />
-      <label class="field-label">邮箱验证码</label>
-      <view class="code-row">
-        <input
-          class="field-input code-input"
-          placeholder="邮箱验证码"
-          value="{{emailCode}}"
-          data-field="emailCode"
-          bindinput="onFieldInput"
-        />
-        <button
-          class="code-button"
-          loading="{{codeLoading}}"
-          bindtap="sendLoginCode"
-        >
-          获取验证码
-        </button>
-      </view>
-      <button
-        class="primary"
-        loading="{{loading}}"
-        bindtap="loginWithEmailCode"
-      >
-        邮箱登录
-      </button>
-      <button class="link-button" bindtap="switchToPassword">
-        返回账号登录
-      </button>
     </view>
 
     <view wx:else class="auth-panel">
