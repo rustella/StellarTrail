@@ -287,6 +287,25 @@ test("loginWithWechat uses configured local code without wx.login", async () => 
   assert.deepEqual(calls, [{ code: "local-dev-user" }]);
 });
 
+test("loginWithWechat rejects when wx.login fails without configured local code", async () => {
+  const calls = [];
+  installWxMock((options) => {
+    calls.push(options.data);
+    options.success({
+      statusCode: 200,
+      data: loginResponse("access-unexpected", "refresh-unexpected"),
+    });
+  });
+  global.wx.login = (options) => {
+    options.fail({ errMsg: "login:fail" });
+  };
+  const { loginWithWechat } = require("../.tmp-test/utils/api.js");
+
+  await assert.rejects(loginWithWechat(), /微信登录失败/);
+
+  assert.deepEqual(calls, []);
+});
+
 test("request signature is injected into JSON requests without mutating business fields", async () => {
   const calls = [];
   installWxMock(

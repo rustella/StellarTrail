@@ -3355,28 +3355,51 @@ function getWechatLoginCode(): Promise<string> {
   if (configuredCode) {
     return Promise.resolve(configuredCode);
   }
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let settled = false;
-    const finish = (code: string) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+    const fail = (message: string) => {
       if (settled) {
         return;
       }
       settled = true;
-      clearTimeout(timer);
-      resolve(code);
+      cleanup();
+      reject(new Error(message));
     };
-    const timer = setTimeout(() => {
-      finish("local-dev-user");
+    const finish = (code?: string) => {
+      const normalizedCode = code?.trim();
+      if (!normalizedCode) {
+        fail("微信登录失败，请重试");
+        return;
+      }
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(normalizedCode);
+    };
+    timer = setTimeout(() => {
+      fail("微信登录超时，请重试");
     }, WECHAT_LOGIN_TIMEOUT_MS);
 
-    wx.login({
-      success: (result) => {
-        finish(result.code || "local-dev-user");
-      },
-      fail: () => {
-        finish("local-dev-user");
-      },
-    });
+    try {
+      wx.login({
+        success: (result) => {
+          finish(result.code);
+        },
+        fail: () => {
+          fail("微信登录失败，请重试");
+        },
+      });
+    } catch {
+      fail("微信登录失败，请重试");
+    }
   });
 }
 
