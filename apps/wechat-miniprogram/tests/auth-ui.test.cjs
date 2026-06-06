@@ -22,6 +22,7 @@ test("login page offers combined code WeChat account and password-reset entry po
   const ts = read("pages/login/index.ts");
   const pageSource = `${wxml}
 ${ts}`;
+  assert.match(wxml, /微信登录[\s\S]*验证码登录[\s\S]*账号登录/);
   assert.match(wxml, /验证码登录/);
   assert.match(wxml, /微信登录/);
   assert.match(wxml, /账号登录/);
@@ -43,7 +44,7 @@ ${ts}`;
   assert.doesNotMatch(wxml, /绳结教学/);
   assert.match(pageSource, /this\.afterLoginSuccess\(\)/);
   assert.match(pageSource, /navigateToGuestFallback/);
-  assert.match(ts, /loginMode: "code"/);
+  assert.match(ts, /loginMode: "wechat"/);
   assert.match(ts, /sendVerificationLoginCode/);
   assert.match(ts, /loginWithVerificationCode/);
   assert.match(ts, /sendSmsLoginCode/);

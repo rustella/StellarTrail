@@ -38,7 +38,7 @@ Page({
     captchaLoading: false,
     error: "",
     notice: "",
-    loginMode: "code" as LoginMode,
+    loginMode: "wechat" as LoginMode,
     codeAccount: "",
     verificationCode: "",
     smsTicket: "",

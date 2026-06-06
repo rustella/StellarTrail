@@ -21,16 +21,16 @@
     <view class="section-title">选择登录方式</view>
     <view class="auth-tabs" aria-label="选择登录方式">
       <button
-        class="auth-tab {{loginMode === 'code' ? 'active' : ''}}"
-        bindtap="switchToCode"
-      >
-        验证码登录
-      </button>
-      <button
         class="auth-tab {{loginMode === 'wechat' ? 'active' : ''}}"
         bindtap="switchToWechat"
       >
         微信登录
+      </button>
+      <button
+        class="auth-tab {{loginMode === 'code' ? 'active' : ''}}"
+        bindtap="switchToCode"
+      >
+        验证码登录
       </button>
       <button
         class="auth-tab {{loginMode === 'password' ? 'active' : ''}}"
