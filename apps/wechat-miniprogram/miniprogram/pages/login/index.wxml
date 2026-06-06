@@ -21,10 +21,10 @@
     <view class="section-title">选择登录方式</view>
     <view class="auth-tabs" aria-label="选择登录方式">
       <button
-        class="auth-tab {{loginMode === 'phone' ? 'active' : ''}}"
-        bindtap="switchToPhone"
+        class="auth-tab {{loginMode === 'code' ? 'active' : ''}}"
+        bindtap="switchToCode"
       >
-        手机登录
+        验证码登录
       </button>
       <button
         class="auth-tab {{loginMode === 'wechat' ? 'active' : ''}}"
@@ -38,119 +38,47 @@
       >
         账号登录
       </button>
-      <button
-        class="auth-tab {{loginMode === 'email' ? 'active' : ''}}"
-        bindtap="switchToEmail"
-      >
-        邮箱登录
-      </button>
     </view>
 
     <view wx:if="{{error}}" class="error-text">{{error}}</view>
     <view wx:if="{{notice}}" class="notice-text">{{notice}}</view>
 
-    <view wx:if="{{loginMode === 'phone'}}" class="auth-panel">
-      <view class="panel-desc">手机号需已注册或已在账号设置中绑定。</view>
-      <view class="phone-mode-tabs" aria-label="选择手机登录方式">
-        <button
-          class="phone-mode-tab {{phoneLoginMode === 'sms' ? 'active' : ''}}"
-          data-mode="sms"
-          bindtap="switchPhoneMode"
-        >
-          验证码登录
-        </button>
-        <button
-          class="phone-mode-tab {{phoneLoginMode === 'password' ? 'active' : ''}}"
-          data-mode="password"
-          bindtap="switchPhoneMode"
-        >
-          密码登录
-        </button>
-      </view>
-      <label class="field-label">手机号</label>
+    <view wx:if="{{loginMode === 'code'}}" class="auth-panel">
+      <view class="panel-desc">手机号或邮箱需已注册或已在账号设置中绑定。</view>
+      <label class="field-label">手机号或邮箱</label>
       <input
         class="field-input"
-        placeholder="11 位大陆手机号"
-        type="number"
-        maxlength="13"
-        value="{{phone}}"
-        data-field="phone"
+        placeholder="手机号或邮箱"
+        value="{{codeAccount}}"
+        data-field="codeAccount"
         bindinput="onFieldInput"
       />
 
-      <view wx:if="{{phoneLoginMode === 'sms'}}">
-        <label class="field-label">短信验证码</label>
-        <view class="code-row">
-          <input
-            class="field-input code-input"
-            placeholder="短信验证码"
-            type="number"
-            maxlength="8"
-            value="{{smsCode}}"
-            data-field="smsCode"
-            bindinput="onFieldInput"
-          />
-          <button
-            class="code-button"
-            loading="{{codeLoading}}"
-            bindtap="sendPhoneLoginCode"
-          >
-            获取验证码
-          </button>
-        </view>
-        <button
-          class="primary"
-          loading="{{loading}}"
-          bindtap="loginWithPhoneSms"
-        >
-          手机登录
-        </button>
-      </view>
-
-      <view wx:else>
-        <label class="field-label">密码</label>
+      <label class="field-label">验证码</label>
+      <view class="code-row">
         <input
-          class="field-input"
-          placeholder="密码"
-          password="{{true}}"
-          value="{{phonePassword}}"
-          data-field="phonePassword"
+          class="field-input code-input"
+          placeholder="短信或邮箱验证码"
+          maxlength="8"
+          value="{{verificationCode}}"
+          data-field="verificationCode"
           bindinput="onFieldInput"
         />
-
-        <view wx:if="{{captchaTicket}}" class="captcha-box">
-          <view class="captcha-head">
-            <view class="field-label">图形验证码</view>
-            <button
-              class="text-button"
-              loading="{{captchaLoading}}"
-              bindtap="refreshCaptcha"
-            >
-              换一张
-            </button>
-          </view>
-          <image
-            class="captcha-image"
-            src="{{captchaImageSrc}}"
-            mode="aspectFit"
-          />
-          <input
-            class="field-input"
-            placeholder="图形验证码"
-            value="{{captchaAnswer}}"
-            data-field="captchaAnswer"
-            bindinput="onFieldInput"
-          />
-        </view>
-
         <button
-          class="primary"
-          loading="{{loading}}"
-          bindtap="loginWithPhonePassword"
+          class="code-button"
+          loading="{{codeLoading}}"
+          bindtap="sendVerificationLoginCode"
         >
-          手机号密码登录
+          获取验证码
         </button>
       </view>
+      <button
+        class="primary"
+        loading="{{loading}}"
+        bindtap="loginWithVerificationCode"
+      >
+        验证码登录
+      </button>
 
       <view class="action-row phone-actions">
         <button class="link-button" bindtap="goRegister">注册账号</button>
@@ -212,49 +140,10 @@
         账号登录
       </button>
       <view class="action-row">
-        <button class="link-button" bindtap="switchToEmail">邮箱登录</button>
+        <button class="link-button" bindtap="switchToCode">验证码登录</button>
         <button class="link-button" bindtap="switchToReset">找回密码</button>
         <button class="link-button" bindtap="goRegister">注册账号</button>
       </view>
-    </view>
-
-    <view wx:elif="{{loginMode === 'email'}}" class="auth-panel">
-      <view class="panel-desc">收取邮箱验证码，不输入密码也能进入。</view>
-      <label class="field-label">邮箱</label>
-      <input
-        class="field-input"
-        placeholder="邮箱"
-        value="{{email}}"
-        data-field="email"
-        bindinput="onFieldInput"
-      />
-      <label class="field-label">邮箱验证码</label>
-      <view class="code-row">
-        <input
-          class="field-input code-input"
-          placeholder="邮箱验证码"
-          value="{{emailCode}}"
-          data-field="emailCode"
-          bindinput="onFieldInput"
-        />
-        <button
-          class="code-button"
-          loading="{{codeLoading}}"
-          bindtap="sendLoginCode"
-        >
-          获取验证码
-        </button>
-      </view>
-      <button
-        class="primary"
-        loading="{{loading}}"
-        bindtap="loginWithEmailCode"
-      >
-        邮箱登录
-      </button>
-      <button class="link-button" bindtap="switchToPassword">
-        返回账号登录
-      </button>
     </view>
 
     <view wx:else class="auth-panel">

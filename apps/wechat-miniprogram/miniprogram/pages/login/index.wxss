@@ -91,7 +91,7 @@
 
 .auth-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8rpx;
   margin-top: 22rpx;
   padding: 8rpx;
@@ -119,32 +119,6 @@
   margin-top: 24rpx;
   border-radius: var(--card-inner-radius);
   background: var(--control-bg);
-}
-
-.phone-mode-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12rpx;
-  margin-top: 20rpx;
-  padding: 8rpx;
-  border: 1rpx solid var(--control-border);
-  border-radius: 22rpx;
-  background: var(--surface-color);
-}
-
-.phone-mode-tab {
-  margin: 0;
-  border-radius: 18rpx;
-  color: var(--soft-control-text);
-  background: transparent;
-  font-size: 25rpx;
-  font-weight: 900;
-  line-height: 64rpx;
-}
-
-.phone-mode-tab.active {
-  color: var(--brand-text-color);
-  background: var(--brand-color);
 }
 
 .field-label {

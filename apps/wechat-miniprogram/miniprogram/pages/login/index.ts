@@ -26,8 +26,7 @@ import {
   OFFLINE_WRITE_BLOCKED_MESSAGE,
 } from "../../utils/network-state";
 
-type LoginMode = "phone" | "wechat" | "password" | "email" | "reset";
-type PhoneLoginMode = "sms" | "password";
+type LoginMode = "code" | "wechat" | "password" | "reset";
 
 Page({
   data: {
@@ -39,11 +38,9 @@ Page({
     captchaLoading: false,
     error: "",
     notice: "",
-    loginMode: "phone" as LoginMode,
-    phoneLoginMode: "sms" as PhoneLoginMode,
-    phone: "",
-    phonePassword: "",
-    smsCode: "",
+    loginMode: "code" as LoginMode,
+    codeAccount: "",
+    verificationCode: "",
     smsTicket: "",
     account: "",
     password: "",
@@ -82,22 +79,9 @@ Page({
     });
   },
 
-  switchToPhone() {
+  switchToCode() {
     this.setData({
-      loginMode: "phone",
-      error: "",
-      notice: "",
-      ...clearCaptchaState(),
-    });
-  },
-
-  switchPhoneMode(event: WechatMiniprogram.BaseEvent) {
-    const mode = event.currentTarget.dataset.mode as PhoneLoginMode;
-    if (mode !== "sms" && mode !== "password") {
-      return;
-    }
-    this.setData({
-      phoneLoginMode: mode,
+      loginMode: "code",
       error: "",
       notice: "",
       ...clearCaptchaState(),
@@ -107,15 +91,6 @@ Page({
   switchToPassword() {
     this.setData({
       loginMode: "password",
-      error: "",
-      notice: "",
-      ...clearCaptchaState(),
-    });
-  },
-
-  switchToEmail() {
-    this.setData({
-      loginMode: "email",
       error: "",
       notice: "",
       ...clearCaptchaState(),
@@ -133,9 +108,8 @@ Page({
 
   onFieldInput(event: WechatMiniprogram.Input) {
     const field = event.currentTarget.dataset.field as
-      | "phone"
-      | "phonePassword"
-      | "smsCode"
+      | "codeAccount"
+      | "verificationCode"
       | "account"
       | "password"
       | "email"
@@ -146,9 +120,9 @@ Page({
     if (!field) {
       return;
     }
-    if (field === "phone") {
+    if (field === "codeAccount") {
       this.setData({
-        phone: event.detail.value,
+        codeAccount: event.detail.value,
         smsTicket: "",
       });
       return;
@@ -175,7 +149,7 @@ Page({
     }
   },
 
-  async sendPhoneLoginCode() {
+  async sendVerificationLoginCode() {
     if (this.data.codeLoading) {
       return;
     }
@@ -183,19 +157,28 @@ Page({
       this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
       return;
     }
-    const phone = normalizePhoneInput(this.data.phone);
-    if (!isMainlandPhone(phone)) {
-      this.setData({ error: "请填写 11 位大陆手机号", notice: "" });
+    const identity = resolveVerificationIdentity(this.data.codeAccount);
+    if (!identity) {
+      this.setData({ error: "请填写 11 位大陆手机号或可用邮箱", notice: "" });
       return;
     }
     this.setData({ codeLoading: true, error: "", notice: "" });
     try {
-      const response = await sendSmsLoginCode(phone);
-      this.setData({
-        phone: response.phone,
-        smsTicket: response.sms_ticket,
-        notice: buildSmsCodeNotice(response.debug_code),
-      });
+      if (identity.type === "phone") {
+        const response = await sendSmsLoginCode(identity.phone);
+        this.setData({
+          codeAccount: response.phone,
+          smsTicket: response.sms_ticket,
+          notice: buildSmsCodeNotice(response.debug_code),
+        });
+      } else {
+        await sendEmailLoginCode(identity.email);
+        this.setData({
+          codeAccount: identity.email,
+          smsTicket: "",
+          notice: buildCodeNotice(),
+        });
+      }
     } catch (error) {
       this.setData({ error: getErrorMessage(error) });
     } finally {
@@ -203,7 +186,7 @@ Page({
     }
   },
 
-  async loginWithPhoneSms() {
+  async loginWithVerificationCode() {
     if (this.data.loading) {
       return;
     }
@@ -211,74 +194,37 @@ Page({
       this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
       return;
     }
-    const phone = normalizePhoneInput(this.data.phone);
-    const smsCode = this.data.smsCode.trim();
-    if (!isMainlandPhone(phone)) {
-      this.setData({ error: "请填写 11 位大陆手机号", notice: "" });
+    const identity = resolveVerificationIdentity(this.data.codeAccount);
+    const verificationCode = this.data.verificationCode.trim();
+    if (!identity) {
+      this.setData({ error: "请填写 11 位大陆手机号或可用邮箱", notice: "" });
       return;
     }
-    if (!this.data.smsTicket) {
-      this.setData({ error: "请先获取短信验证码", notice: "" });
-      return;
-    }
-    if (!smsCode) {
-      this.setData({ error: "请填写短信验证码", notice: "" });
+    if (!verificationCode) {
+      this.setData({ error: "请填写验证码", notice: "" });
       return;
     }
     this.setData({ loading: true, error: "", notice: "" });
     try {
-      await loginWithSmsCode({
-        phone,
-        sms_ticket: this.data.smsTicket,
-        sms_verification_code: smsCode,
-      });
-      this.afterLoginSuccess();
-    } catch (error) {
-      this.setData({ error: phoneLoginErrorMessage(error) });
-    } finally {
-      this.setData({ loading: false });
-    }
-  },
-
-  async loginWithPhonePassword() {
-    if (this.data.loading) {
-      return;
-    }
-    if (isOffline()) {
-      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
-      return;
-    }
-    const phone = normalizePhoneInput(this.data.phone);
-    const password = this.data.phonePassword;
-    const captchaAnswer = this.data.captchaAnswer.trim();
-    if (!isMainlandPhone(phone)) {
-      this.setData({ error: "请填写 11 位大陆手机号", notice: "" });
-      return;
-    }
-    if (!password) {
-      this.setData({ error: "请填写密码", notice: "" });
-      return;
-    }
-    if (this.data.captchaTicket && !captchaAnswer) {
-      this.setData({ error: "请填写图形验证码", notice: "" });
-      return;
-    }
-
-    this.setData({ loading: true, error: "", notice: "" });
-    try {
-      await loginWithPassword({
-        account: phone,
-        password,
-        captcha_ticket: this.data.captchaTicket || undefined,
-        captcha_answer: captchaAnswer || undefined,
-      });
-      this.afterLoginSuccess();
-    } catch (error) {
-      if (isCaptchaRequiredError(error)) {
-        await this.refreshCaptcha(phone, "请先完成图形验证");
+      if (identity.type === "phone") {
+        if (!this.data.smsTicket) {
+          this.setData({ loading: false, error: "请先获取验证码", notice: "" });
+          return;
+        }
+        await loginWithSmsCode({
+          phone: identity.phone,
+          sms_ticket: this.data.smsTicket,
+          sms_verification_code: verificationCode,
+        });
       } else {
-        this.setData({ error: phoneLoginErrorMessage(error) });
+        await loginWithEmailCode({
+          email: identity.email,
+          email_verification_code: verificationCode,
+        });
       }
+      this.afterLoginSuccess();
+    } catch (error) {
+      this.setData({ error: verificationLoginErrorMessage(error) });
     } finally {
       this.setData({ loading: false });
     }
@@ -323,62 +269,6 @@ Page({
       } else {
         this.setData({ error: getErrorMessage(error) });
       }
-    } finally {
-      this.setData({ loading: false });
-    }
-  },
-
-  async sendLoginCode() {
-    const email = this.data.email.trim();
-    if (this.data.codeLoading) {
-      return;
-    }
-    if (isOffline()) {
-      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
-      return;
-    }
-    if (!isEmailLike(email)) {
-      this.setData({ error: "请填写可用邮箱", notice: "" });
-      return;
-    }
-    this.setData({ codeLoading: true, error: "", notice: "" });
-    try {
-      await sendEmailLoginCode(email);
-      this.setData({ notice: buildCodeNotice() });
-    } catch (error) {
-      this.setData({ error: getErrorMessage(error) });
-    } finally {
-      this.setData({ codeLoading: false });
-    }
-  },
-
-  async loginWithEmailCode() {
-    if (this.data.loading) {
-      return;
-    }
-    if (isOffline()) {
-      this.setData({ error: OFFLINE_WRITE_BLOCKED_MESSAGE, notice: "" });
-      return;
-    }
-    const email = this.data.email.trim();
-    const emailCode = this.data.emailCode.trim();
-    if (!isEmailLike(email)) {
-      this.setData({ error: "请填写可用邮箱", notice: "" });
-      return;
-    }
-    if (!emailCode) {
-      this.setData({ error: "请填写邮箱验证码", notice: "" });
-      return;
-    }
-    this.setData({ loading: true, error: "", notice: "" });
-    try {
-      await loginWithEmailCode({
-        email,
-        email_verification_code: emailCode,
-      });
-      this.afterLoginSuccess();
-    } catch (error) {
-      this.setData({ error: getErrorMessage(error) });
     } finally {
       this.setData({ loading: false });
     }
@@ -538,9 +428,25 @@ function isMainlandPhone(value: string): boolean {
   return /^1[3-9]\d{9}$/.test(normalizePhoneInput(value));
 }
 
-function phoneLoginErrorMessage(error: unknown): string {
+type VerificationIdentity =
+  | { type: "phone"; phone: string }
+  | { type: "email"; email: string };
+
+function resolveVerificationIdentity(value: string): VerificationIdentity | null {
+  const input = value.trim();
+  if (isEmailLike(input)) {
+    return { type: "email", email: input };
+  }
+  const phone = normalizePhoneInput(input);
+  if (isMainlandPhone(phone)) {
+    return { type: "phone", phone };
+  }
+  return null;
+}
+
+function verificationLoginErrorMessage(error: unknown): string {
   if (isApiResponseError(error) && error.statusCode === 401) {
-    return "手机号未注册或未绑定，请先注册账号或登录后绑定手机号。";
+    return "手机号或邮箱未注册或未绑定，请先注册账号或登录后绑定。";
   }
   return getErrorMessage(error);
 }

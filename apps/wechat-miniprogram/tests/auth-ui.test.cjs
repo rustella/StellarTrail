@@ -17,19 +17,20 @@ test("register page is available from the mini program page registry", () => {
   assert.ok(config.pages.includes("pages/register/index"));
 });
 
-test("login page offers phone WeChat account email-code and password-reset entry points", () => {
+test("login page offers combined code WeChat account and password-reset entry points", () => {
   const wxml = read("pages/login/index.wxml");
   const ts = read("pages/login/index.ts");
   const pageSource = `${wxml}
 ${ts}`;
-  assert.match(wxml, /手机登录/);
   assert.match(wxml, /验证码登录/);
-  assert.match(wxml, /手机号密码登录/);
   assert.match(wxml, /微信登录/);
   assert.match(wxml, /账号登录/);
-  assert.match(wxml, /邮箱登录/);
-  assert.match(wxml, /placeholder="11 位大陆手机号"/);
-  assert.match(wxml, /placeholder="短信验证码"/);
+  assert.doesNotMatch(wxml, /手机登录/);
+  assert.doesNotMatch(wxml, /手机号密码登录/);
+  assert.doesNotMatch(wxml, /邮箱登录/);
+  assert.match(wxml, /手机号或邮箱需已注册或已在账号设置中绑定/);
+  assert.match(wxml, /placeholder="手机号或邮箱"/);
+  assert.match(wxml, /placeholder="短信或邮箱验证码"/);
   assert.doesNotMatch(wxml, /使用微信身份快速进入/);
   assert.match(wxml, /找回密码/);
   assert.match(wxml, /重设密码并登录/);
@@ -42,10 +43,15 @@ ${ts}`;
   assert.doesNotMatch(wxml, /绳结教学/);
   assert.match(pageSource, /this\.afterLoginSuccess\(\)/);
   assert.match(pageSource, /navigateToGuestFallback/);
-  assert.match(ts, /loginMode: "phone"/);
+  assert.match(ts, /loginMode: "code"/);
+  assert.match(ts, /sendVerificationLoginCode/);
+  assert.match(ts, /loginWithVerificationCode/);
   assert.match(ts, /sendSmsLoginCode/);
   assert.match(ts, /loginWithSmsCode/);
-  assert.match(ts, /phoneLoginErrorMessage/);
+  assert.match(ts, /sendEmailLoginCode/);
+  assert.match(ts, /loginWithEmailCode/);
+  assert.match(ts, /verificationLoginErrorMessage/);
+  assert.doesNotMatch(ts, /phoneLoginMode/);
   assert.doesNotMatch(
     pageSource,
     /afterLoginSuccess\("\/pages\/index\/index"\)/,
@@ -55,7 +61,6 @@ ${ts}`;
   assert.doesNotMatch(wxml, /open-type="chooseAvatar"/);
   assert.doesNotMatch(wxml, /type="nickname"/);
   assert.doesNotMatch(wxml, /导入并登录/);
-  assert.match(pageSource, /sendLoginCode/);
   assert.match(pageSource, /sendResetCode/);
   assert.doesNotMatch(wxml, /API|后端|接口|游客|免登录|写操作|模板/);
 });
