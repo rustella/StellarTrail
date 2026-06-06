@@ -337,6 +337,24 @@ export interface ListClientVersionsResponse {
   next_cursor?: string | null;
 }
 
+export interface AppContentPageSection {
+  icon: string;
+  title: string;
+  body: string;
+}
+
+export interface AppContentPage {
+  page_key: string;
+  client_key: ClientKey;
+  locale: string;
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  sections: AppContentPageSection[];
+  button_text: string;
+  updated_at: string;
+}
+
 export type RoadmapStatus =
   | "planned"
   | "designing"
@@ -2097,6 +2115,19 @@ export async function listClientVersions(
   );
 }
 
+export async function getContentPage(
+  pageKey: string,
+  clientKey: ClientKey = "wechat_miniprogram",
+  locale = "zh-CN",
+): Promise<AppContentPage> {
+  return requestJson(
+    `/api/v1/content-pages/${encodeURIComponent(pageKey)}${queryString({
+      client_key: clientKey,
+      locale,
+    })}`,
+  );
+}
+
 export async function listRoadmap(
   request: ListRoadmapRequest = {},
 ): Promise<ListRoadmapResponse> {
@@ -2498,6 +2529,7 @@ function isPublicCacheablePath(path: string): boolean {
     path.startsWith("/api/v1/skills/") ||
     path === "/api/v1/roadmap" ||
     path.startsWith("/api/v1/roadmap?") ||
+    path.startsWith("/api/v1/content-pages/") ||
     path === "/api/v1/gear-templates" ||
     path.startsWith("/api/v1/gear-templates/") ||
     path === "/api/v1/gear-atlas" ||
@@ -3099,9 +3131,11 @@ function randomHex(
 }
 
 function fillRandomBytes(bytes: Uint8Array): boolean {
-  const globalCrypto = (globalThis as unknown as {
-    crypto?: { getRandomValues?: (array: Uint8Array) => Uint8Array };
-  }).crypto;
+  const globalCrypto = (
+    globalThis as unknown as {
+      crypto?: { getRandomValues?: (array: Uint8Array) => Uint8Array };
+    }
+  ).crypto;
   if (typeof globalCrypto?.getRandomValues === "function") {
     try {
       globalCrypto.getRandomValues(bytes);

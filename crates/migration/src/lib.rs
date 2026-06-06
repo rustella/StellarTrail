@@ -14,6 +14,7 @@ mod clear_knots3d_section_heading_steps;
 mod compat_folded_migrations;
 mod create_admin_roles;
 mod create_api_usage_daily;
+mod create_app_content_pages;
 mod create_captcha_challenges;
 mod create_client_versions;
 mod create_gear_atlas_items;
@@ -35,6 +36,7 @@ mod ensure_sms_verification_challenges;
 mod ensure_user_gear_archive_fields;
 mod ensure_users_phone_fields;
 mod sanitize_knot_risk_copy;
+mod update_profile_about_copy;
 mod update_shared_gear_demand_templates;
 
 /// Concrete SeaORM migrator used by the API server and test suites.
@@ -95,6 +97,8 @@ impl MigratorTrait for Migrator {
             Box::new(ensure_users_phone_fields::Migration),
             Box::new(ensure_sms_verification_challenges::Migration),
             Box::new(ensure_user_gear_archive_fields::Migration),
+            Box::new(create_app_content_pages::Migration),
+            Box::new(update_profile_about_copy::Migration),
         ]
     }
 }
@@ -152,6 +156,8 @@ mod tests {
             "m20260606_000001_ensure_users_phone_fields",
             "m20260606_000002_ensure_sms_verification_challenges",
             "m20260607_000001_ensure_user_gear_archive_fields",
+            "m20260607_000002_create_app_content_pages",
+            "m20260607_000003_update_profile_about_copy",
         ]
         .into_iter()
         .map(str::to_owned)

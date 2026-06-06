@@ -2,6 +2,7 @@
 
 pub mod admin_role_repository;
 pub mod api_usage_repository;
+pub mod app_content_page_repository;
 pub mod auth_repository;
 pub mod client_version_repository;
 pub mod disclaimer_acceptance_repository;
@@ -24,6 +25,7 @@ pub use admin_role_repository::{
 pub use api_usage_repository::{
     ApiUsageIncrement, ApiUsageQuery, ApiUsageRecord, ApiUsageRepository,
 };
+pub use app_content_page_repository::{AppContentPageRecord, AppContentPageRepository};
 pub use auth_repository::{AuthRepository, UserRecord, hash_token};
 pub use client_version_repository::{
     ClientVersionDraft, ClientVersionRecord, ClientVersionRepository, ListClientVersionsOptions,

@@ -92,6 +92,10 @@ async fn fresh_schema_contains_folded_migration_columns() {
         ),
         ("trip_shared_gear_demands", &["created_by_user_id"][..]),
         (
+            "app_content_pages",
+            &["page_key", "client_key", "locale", "content_json", "status"][..],
+        ),
+        (
             "trips",
             &[
                 "route_use_slope_adjustment",

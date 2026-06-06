@@ -1,7 +1,10 @@
 import {
   clearLoginState,
   createFeedback,
+  type AppContentPage,
+  type AppContentPageSection,
   type FeedbackCategory,
+  getContentPage,
   getCurrentUser,
   getErrorMessage,
   getStoredUser,
@@ -45,6 +48,7 @@ const FEEDBACK_SUCCESS_VISIBLE_MS = 10_000;
 const FEEDBACK_SUCCESS_TICK_MS = 1_000;
 const FEEDBACK_SUCCESS_VISIBLE_SECONDS =
   FEEDBACK_SUCCESS_VISIBLE_MS / FEEDBACK_SUCCESS_TICK_MS;
+const PROFILE_ABOUT_CONTENT_PAGE_KEY = "profile_about";
 let feedbackSuccessTimer: ReturnType<typeof setTimeout> | null = null;
 
 const FEEDBACK_CATEGORY_OPTIONS: Array<{
@@ -79,6 +83,14 @@ interface ClientVersionNoteView {
   text: string;
 }
 
+interface AboutContentView {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  sections: AppContentPageSection[];
+  buttonText: string;
+}
+
 Page({
   data: {
     title: "我的寻径星野",
@@ -98,6 +110,7 @@ Page({
     feedbackSuccessMessage: FEEDBACK_SUCCESS_MESSAGE,
     feedbackSuccessSecondsRemaining: 0,
     aboutModalVisible: false,
+    aboutContent: null as AboutContentView | null,
     versionInfoDesc: "点击查看版本更新",
     versionModalVisible: false,
     versionLoading: false,
@@ -633,11 +646,28 @@ Page({
   },
 
   openAboutModal() {
-    this.setData({ aboutModalVisible: true });
+    void this.loadAboutContent();
   },
 
   closeAboutModal() {
     this.setData({ aboutModalVisible: false });
+  },
+
+  async loadAboutContent() {
+    this.setData({ aboutModalVisible: false, aboutContent: null });
+    try {
+      const content = await getContentPage(
+        PROFILE_ABOUT_CONTENT_PAGE_KEY,
+        "wechat_miniprogram",
+      );
+      const aboutContent = buildAboutContentView(content);
+      if (!aboutContent) {
+        return;
+      }
+      this.setData({ aboutContent, aboutModalVisible: true });
+    } catch (_error) {
+      this.setData({ aboutContent: null, aboutModalVisible: false });
+    }
   },
 
   openVersionInfoModal() {
@@ -720,6 +750,37 @@ Page({
 function normalizeOptionalText(value: string): string | null {
   const normalized = value.trim();
   return normalized || null;
+}
+
+function buildAboutContentView(
+  content: AppContentPage,
+): AboutContentView | null {
+  const sections = (content.sections || [])
+    .map((section) => ({
+      icon: normalizedText(section.icon),
+      title: normalizedText(section.title),
+      body: normalizedText(section.body),
+    }))
+    .filter((section) => section.title && section.body);
+  const eyebrow = normalizedText(content.eyebrow);
+  const title = normalizedText(content.title);
+  const subtitle = normalizedText(content.subtitle);
+  const buttonText = normalizedText(content.button_text);
+  if (!eyebrow || !title || !subtitle || sections.length === 0 || !buttonText) {
+    return null;
+  }
+  return {
+    eyebrow,
+    title,
+    subtitle,
+    sections,
+    buttonText,
+  };
+}
+
+function normalizedText(value: string | undefined): string {
+  const normalized = value?.trim();
+  return normalized || "";
 }
 
 function buildCachedKnotsInfo(inventory: KnotOfflineCacheInventory): {
