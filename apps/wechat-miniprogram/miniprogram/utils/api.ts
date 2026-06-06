@@ -225,6 +225,23 @@ export interface PasswordResetRequest {
   confirm_password: string;
 }
 
+export interface SmsCodeRequest {
+  phone: string;
+}
+
+export interface SmsCodeResponse {
+  phone: string;
+  sms_ticket: string;
+  expires_at: string;
+  debug_code?: string;
+}
+
+export interface SmsLoginRequest {
+  phone: string;
+  sms_ticket: string;
+  sms_verification_code: string;
+}
+
 export interface BindEmailCodeRequest {
   email: string;
 }
@@ -838,11 +855,32 @@ export function sendEmailLoginCode(
   });
 }
 
+export function sendSmsLoginCode(phone: string): Promise<SmsCodeResponse> {
+  return requestJson("/api/v1/auth/sms-login-code", {
+    method: "POST",
+    data: { phone } satisfies SmsCodeRequest,
+  });
+}
+
 export async function loginWithEmailCode(
   request: EmailLoginRequest,
 ): Promise<string> {
   const response = await requestJson<WechatLoginResponse>(
     "/api/v1/auth/email-login",
+    {
+      method: "POST",
+      data: request,
+    },
+  );
+  saveLoginResponse(response);
+  return response.access_token;
+}
+
+export async function loginWithSmsCode(
+  request: SmsLoginRequest,
+): Promise<string> {
+  const response = await requestJson<WechatLoginResponse>(
+    "/api/v1/auth/sms-login",
     {
       method: "POST",
       data: request,

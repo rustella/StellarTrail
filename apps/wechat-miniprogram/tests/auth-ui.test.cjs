@@ -17,18 +17,23 @@ test("register page is available from the mini program page registry", () => {
   assert.ok(config.pages.includes("pages/register/index"));
 });
 
-test("login page offers WeChat account email-code and password-reset entry points", () => {
+test("login page offers phone WeChat account email-code and password-reset entry points", () => {
   const wxml = read("pages/login/index.wxml");
   const ts = read("pages/login/index.ts");
   const pageSource = `${wxml}
 ${ts}`;
+  assert.match(wxml, /手机登录/);
+  assert.match(wxml, /验证码登录/);
+  assert.match(wxml, /手机号密码登录/);
   assert.match(wxml, /微信登录/);
   assert.match(wxml, /账号登录/);
   assert.match(wxml, /邮箱登录/);
+  assert.match(wxml, /placeholder="11 位大陆手机号"/);
+  assert.match(wxml, /placeholder="短信验证码"/);
   assert.doesNotMatch(wxml, /使用微信身份快速进入/);
   assert.match(wxml, /找回密码/);
   assert.match(wxml, /重设密码并登录/);
-  assert.match(wxml, /placeholder="账号或邮箱"/);
+  assert.match(wxml, /placeholder="账号、手机号或邮箱"/);
   assert.match(wxml, /placeholder="邮箱验证码"/);
   assert.match(wxml, /password="{{true}}"/);
   assert.match(wxml, /注册账号/);
@@ -37,6 +42,10 @@ ${ts}`;
   assert.doesNotMatch(wxml, /绳结教学/);
   assert.match(pageSource, /this\.afterLoginSuccess\(\)/);
   assert.match(pageSource, /navigateToGuestFallback/);
+  assert.match(ts, /loginMode: "phone"/);
+  assert.match(ts, /sendSmsLoginCode/);
+  assert.match(ts, /loginWithSmsCode/);
+  assert.match(ts, /phoneLoginErrorMessage/);
   assert.doesNotMatch(
     pageSource,
     /afterLoginSuccess\("\/pages\/index\/index"\)/,
