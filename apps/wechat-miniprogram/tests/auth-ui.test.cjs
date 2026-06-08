@@ -1139,26 +1139,28 @@ ${ts}`;
   assert.match(wxml, /为户外爱好者准备的出行、装备与技能工具。/);
   assert.match(wxml, /about-modal-card/);
   assert.match(wxml, /about-hero/);
-  assert.match(wxml, /🏕️ 寻径星野/);
-  assert.match(wxml, /把每次出发前的准备，整理得更安心。/);
-  assert.match(wxml, /🧭/);
-  assert.match(wxml, /出发准备/);
-  assert.match(
-    wxml,
-    /寻径星野是一个面向户外爱好者的个人工具，希望把出发前准备、装备管理、装备图鉴、户外技能复习和离线可用的知识内容慢慢整理到一起。/,
-  );
-  assert.match(wxml, /🎒/);
-  assert.match(wxml, /山野陪伴/);
-  assert.match(
-    wxml,
-    /它不只服务某一次路线或某一类装备，而是想陪伴每一次走向山野之前的准备过程：少一点遗漏，多一点安心。/,
-  );
-  assert.match(wxml, /✨/);
-  assert.match(wxml, /作者的话/);
-  assert.match(
-    wxml,
-    /这个项目由作者在业余时间出于爱好开发，也会按自己的使用感受持续打磨。寻径星野会永久免费，无广告，不做打扰用户的商业化设计。/,
-  );
+  assert.match(wxml, /aboutContent\.eyebrow/);
+  assert.match(wxml, /aboutContent\.title/);
+  assert.match(wxml, /aboutContent\.subtitle/);
+  assert.match(wxml, /wx:for="\{\{aboutContent\.sections\}\}"/);
+  assert.match(wxml, /item\.icon/);
+  assert.match(wxml, /item\.title/);
+  assert.match(wxml, /item\.body/);
+  assert.match(wxml, /aboutContent\.buttonText/);
+  assert.match(pageSource, /getContentPage/);
+  assert.match(pageSource, /PROFILE_ABOUT_CONTENT_PAGE_KEY = "profile_about"/);
+  assert.match(pageSource, /buildAboutContentView/);
+  assert.doesNotMatch(pageSource, /DEFAULT_PROFILE_ABOUT_CONTENT/);
+  assert.doesNotMatch(pageSource, /后续如果引入广告或商业化支持/);
+  assert.doesNotMatch(wxml, /把每次出发前的准备，整理得更安心。/);
+  assert.doesNotMatch(pageSource, /把每次出发前的准备，整理得更安心。/);
+  assert.doesNotMatch(wxml, /寻径星野是一个面向户外爱好者的个人工具/);
+  assert.doesNotMatch(pageSource, /寻径星野是一个面向户外爱好者的个人工具/);
+  assert.doesNotMatch(wxml, /它不只服务某一次路线或某一类装备/);
+  assert.doesNotMatch(pageSource, /它不只服务某一次路线或某一类装备/);
+  assert.doesNotMatch(wxml, /寻径星野会永久免费/);
+  assert.doesNotMatch(pageSource, /寻径星野会永久免费/);
+  assert.doesNotMatch(pageSource, /无广告，不做打扰用户的商业化设计/);
   assert.doesNotMatch(wxml, /运行版本/);
   assert.doesNotMatch(wxml, /版本号/);
   assert.doesNotMatch(wxml, /aboutInfo\.envText/);
@@ -1227,7 +1229,10 @@ ${ts}`;
   assert.match(pageSource, /listRoadmap/);
   assert.match(pageSource, /listMyRoadmap/);
   assert.match(pageSource, /loadRoadmapForGuestAccess/);
-  assert.match(pageSource, /const publicResponse = await listRoadmap\(request\)/);
+  assert.match(
+    pageSource,
+    /const publicResponse = await listRoadmap\(request\)/,
+  );
   assert.match(pageSource, /return await listMyRoadmap\(request\)/);
   assert.match(pageSource, /return publicResponse/);
   assert.match(pageSource, /voteRoadmapItem/);
@@ -1445,8 +1450,7 @@ test("gear page logged-out and logged-in cards share surface tokens", () => {
     wxss.match(/\.toolbar-search \{[\s\S]*?\n\}/)?.[0] ?? "";
   const toolbarLoginFilterBlock =
     wxss.match(/\.toolbar-filter\.requires-login \{[\s\S]*?\n\}/)?.[0] ?? "";
-  const toolbarAddBlock =
-    wxss.match(/\.toolbar-add \{[\s\S]*?\n\}/)?.[0] ?? "";
+  const toolbarAddBlock = wxss.match(/\.toolbar-add \{[\s\S]*?\n\}/)?.[0] ?? "";
   const toolbarAddIconBlock =
     wxss.match(/\.toolbar-add-icon \{[\s\S]*?\n\}/)?.[0] ?? "";
   const statsPanelBlock = wxss.match(/\.stats-panel \{[\s\S]*?\n\}/)?.[0] ?? "";

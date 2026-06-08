@@ -405,6 +405,61 @@ test("request signature is injected into GET query parameters", async () => {
   assert.deepEqual(response.items, []);
 });
 
+test("getContentPage signs public DB-backed copy requests", async () => {
+  installWxMock(
+    (options) => {
+      const { path, query } = parseRequestUrl(options.url);
+      const params = new URLSearchParams(query);
+      assert.equal(path, "/api/v1/content-pages/profile_about");
+      assert.equal(params.get("client_key"), "wechat_miniprogram");
+      assert.equal(params.get("locale"), "zh-CN");
+      assert.equal(params.get("app_id"), "wechat-client");
+      assert.match(params.get("nonce"), /^[a-z0-9]+-[0-9a-f]{32}$/);
+      assert.match(params.get("signature"), /^[0-9a-f]{64}$/);
+      assert.equal(options.header["X-StellarTrail-Client"], "wechat/0.2.2");
+      verifyRequestSignature({
+        url: options.url,
+        method: "GET",
+        bodyHash: sha256Hex(Buffer.alloc(0)),
+        appId: params.get("app_id"),
+        appSecret: "wechat-secret",
+        nonce: params.get("nonce"),
+        signature: params.get("signature"),
+      });
+      options.success({
+        statusCode: 200,
+        data: {
+          page_key: "profile_about",
+          client_key: "wechat_miniprogram",
+          locale: "zh-CN",
+          eyebrow: "寻径星野",
+          title: "关于寻径星野",
+          subtitle: "数据库文案",
+          sections: [{ icon: "星", title: "出发准备", body: "来自数据库" }],
+          button_text: "知道了",
+          updated_at: "2026-06-07T00:00:00Z",
+        },
+      });
+    },
+    null,
+    {
+      globalData: {
+        clientIdentity: "wechat/0.2.2",
+        requestSignature: {
+          app_id: "wechat-client",
+          app_secret: "wechat-secret",
+        },
+      },
+    },
+  );
+  const { getContentPage } = require("../.tmp-test/utils/api.js");
+
+  const response = await getContentPage("profile_about");
+
+  assert.equal(response.subtitle, "数据库文案");
+  assert.equal(response.sections[0].body, "来自数据库");
+});
+
 test("request signature nonce stays unique when random source returns zeros", async () => {
   const originalDateNow = Date.now;
   const originalMathRandom = Math.random;
@@ -427,10 +482,7 @@ test("request signature nonce stays unique when random source returns zeros", as
         const params = new URLSearchParams(query);
         const nonce = params.get("nonce");
         nonces.push(nonce);
-        assert.notEqual(
-          nonce,
-          "mppy1i4g-00000000000000000000000000000000",
-        );
+        assert.notEqual(nonce, "mppy1i4g-00000000000000000000000000000000");
         verifyRequestSignature({
           url: options.url,
           method: "GET",
@@ -2779,7 +2831,10 @@ test("SMS login helpers call phone auth endpoints and persist tokens", async () 
       data: loginResponse("access-sms", "refresh-sms"),
     });
   });
-  const { loginWithSmsCode, sendSmsLoginCode } = require("../.tmp-test/utils/api.js");
+  const {
+    loginWithSmsCode,
+    sendSmsLoginCode,
+  } = require("../.tmp-test/utils/api.js");
 
   const code = await sendSmsLoginCode("13800138000");
   await assert.doesNotReject(
@@ -2997,6 +3052,46 @@ test("cacheable GET responses are reused after network failure", async () => {
 
   const online = await listKnots({ offset: 0, limit: 2 });
   const offline = await listKnots({ offset: 0, limit: 2 });
+
+  assert.deepEqual(offline, online);
+  assert.equal(consumeOfflineCacheNotice(), "当前离线，正在显示已缓存内容");
+});
+
+test("content page GET responses are reused after network failure", async () => {
+  let callCount = 0;
+  installWxMock((options) => {
+    callCount += 1;
+    assert.equal(
+      options.url,
+      "https://api.example.test/api/v1/content-pages/profile_about?client_key=wechat_miniprogram&locale=zh-CN",
+    );
+    if (callCount === 1) {
+      options.success({
+        statusCode: 200,
+        data: {
+          page_key: "profile_about",
+          client_key: "wechat_miniprogram",
+          locale: "zh-CN",
+          eyebrow: "寻径星野",
+          title: "关于寻径星野",
+          subtitle: "数据库文案",
+          sections: [{ icon: "星", title: "出发准备", body: "来自数据库" }],
+          button_text: "知道了",
+          updated_at: "2026-06-07T00:00:00Z",
+        },
+      });
+      return;
+    }
+    options.fail({ errMsg: "request:fail" });
+  });
+  const {
+    consumeOfflineCacheNotice,
+    getContentPage,
+  } = require("../.tmp-test/utils/api.js");
+  require("../.tmp-test/utils/network-state.js").initNetworkState();
+
+  const online = await getContentPage("profile_about");
+  const offline = await getContentPage("profile_about");
 
   assert.deepEqual(offline, online);
   assert.equal(consumeOfflineCacheNotice(), "当前离线，正在显示已缓存内容");

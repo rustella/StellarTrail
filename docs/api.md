@@ -560,9 +560,9 @@ POST /api/v1/auth/refresh
 }
 ```
 
-## Public skills, gear templates, and gear atlas
+## Public skills, content pages, gear templates, and gear atlas
 
-公共技能、装备模板和装备图鉴浏览接口不需要 Bearer Token。API 启动不再读取 repo-local `content/` 文件树，也不再挂载 `/assets/*` 静态目录；公开媒体 URL 均来自 DB 中保存的 MinIO/S3-compatible 对象存储地址。山峰和路线模块尚未开始实现，因此不注册 `/api/v1/mountains*` 或 `/api/v1/routes*`。
+公共技能、内容页、装备模板和装备图鉴浏览接口不需要 Bearer Token。API 启动不再读取 repo-local `content/` 文件树，也不再挂载 `/assets/*` 静态目录；公开媒体 URL 均来自 DB 中保存的 MinIO/S3-compatible 对象存储地址。山峰和路线模块尚未开始实现，因此不注册 `/api/v1/mountains*` 或 `/api/v1/routes*`。
 
 ```http
 GET /api/v1/skills
@@ -572,17 +572,18 @@ GET /api/v1/skills/knots/offline-manifest
 GET /api/v1/skills/knots/detail/:id
 GET /api/v1/me/skills/knots/disclaimer
 POST /api/v1/me/skills/knots/disclaimer/acceptance
+GET /api/v1/content-pages/profile_about?client_key=wechat_miniprogram&locale=zh-CN
 GET /api/v1/gear-templates
 GET /api/v1/gear-templates/:id
 GET /api/v1/gear-atlas?category=lighting_system&q=headlamp&sort=name_asc&limit=20&cursor=0
 GET /api/v1/gear-atlas/:id
 ```
 
-`/api/v1/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情读取数据库中的 Knots3D metadata，不暴露 Markdown mock。`/api/v1/gear-templates` 和 `/api/v1/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。`/api/v1/gear-atlas` 和 `/api/v1/gear-atlas/:id` 返回已审核通过且 `is_deleted=false` 的公共装备图鉴，不包含用户个人购买、位置、标签、备注、拒绝原因、原始投稿快照、审核改动摘要、来源名称、来源链接或来源评分字段；响应保留 `created_at`、`updated_at` 和 `is_deleted` 供客户端统一显示记录时间与可见性状态。图鉴公共尺寸使用 `variants` 数组表示，每项包含 `key`、`label`，以及可选 `official_price_cents`、`official_price_currency`、`weight_g`；分类参数 `specs` 不再接受或返回 `size`、`backpack_size`、`size_or_length`。外部导入来源只在管理员审核接口暴露 `source_name`、`source_url`、`source_rating_score` 和 `source_rating_count` 等审计摘要，不暴露内部去重键、导入批次或授权备注。
+`/api/v1/skills` 返回技能分类（第一期仅 `knots`）；绳结列表和详情读取数据库中的 Knots3D metadata，不暴露 Markdown mock。`/api/v1/content-pages/:page_key` 返回数据库中的客户端文案页，当前用于微信端 `profile_about` 弹窗，响应包含 `eyebrow`、`title`、`subtitle`、`sections[]`、`button_text` 和 `updated_at`；缺少对应已发布行返回 `404`，不支持的 `client_key` 或 `locale` 返回 `422 validation_failed`。`/api/v1/gear-templates` 和 `/api/v1/gear-templates/:id` 从数据库读取装备模板分类和条目；服务启动时会幂等写入默认系统模板，替代旧的 `content/gear-templates/*.yaml` 文件源。`/api/v1/gear-atlas` 和 `/api/v1/gear-atlas/:id` 返回已审核通过且 `is_deleted=false` 的公共装备图鉴，不包含用户个人购买、位置、标签、备注、拒绝原因、原始投稿快照、审核改动摘要、来源名称、来源链接或来源评分字段；响应保留 `created_at`、`updated_at` 和 `is_deleted` 供客户端统一显示记录时间与可见性状态。图鉴公共尺寸使用 `variants` 数组表示，每项包含 `key`、`label`，以及可选 `official_price_cents`、`official_price_currency`、`weight_g`；分类参数 `specs` 不再接受或返回 `size`、`backpack_size`、`size_or_length`。外部导入来源只在管理员审核接口暴露 `source_name`、`source_url`、`source_rating_score` 和 `source_rating_count` 等审计摘要，不暴露内部去重键、导入批次或授权备注。
 
 用户自己的 `GET /api/v1/me/gear-atlas-submissions` 和管理员审核接口会返回投稿状态字段 `status`、可选 `rejection_reason`、以及审核通过时的 `review_changes`。`review_changes` 是数组，每项包含 `field`、中文 `label`、`before` 和 `after`，表示管理员按原始投稿快照和最终通过值生成的公共字段差异。管理员列表默认只返回 `is_deleted=false`，可用 `deleted=active|deleted|all` 切换可见性。管理员 `PATCH /api/v1/admin/gear-atlas-submissions/:id` 只能替换图鉴公共字段；`DELETE /api/v1/admin/gear-atlas-submissions/:id` 会设置 `is_deleted=true`，`POST /api/v1/admin/gear-atlas-submissions/:id/restore` 会恢复；`POST /api/v1/admin/gear-atlas-submissions/:id/reject` 必须提交非空 `reason`，空白原因返回 `422`。
 
-公共内容语言不使用 query 参数，统一通过请求头：
+装备模板和技能等本地化公共内容不使用 query 参数，统一通过请求头：
 
 ```http
 X-StellarTrail-Locale: zh-CN
@@ -590,7 +591,7 @@ X-StellarTrail-Locale: zh-CN
 X-StellarTrail-Locale: en
 ```
 
-未显式传 `X-StellarTrail-Locale` 时会尝试 `Accept-Language`，再 fallback 到 `zh-CN`。`?locale=...` 会返回 `400 unsupported_query_parameter`。公开响应只返回当前语言字段，不返回并列的 `zh/en` 字段；缺少目标语言行时 fallback 到另一种受支持语言，再 fallback 到主表兼容字段。
+未显式传 `X-StellarTrail-Locale` 时会尝试 `Accept-Language`，再 fallback 到 `zh-CN`。这类接口的 `?locale=...` 会返回 `400 unsupported_query_parameter`。内容页接口是例外：`/api/v1/content-pages/:page_key` 使用 `client_key` 和 `locale` query 精确选择一条 DB 文案行。公开响应只返回当前语言字段，不返回并列的 `zh/en` 字段；缺少目标语言行时 fallback 到另一种受支持语言，再 fallback 到主表兼容字段。
 
 ### Outdoor skills / knots
 

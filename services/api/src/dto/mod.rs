@@ -4,6 +4,7 @@ pub mod admin;
 pub mod api_usage;
 pub mod auth;
 pub mod client_version;
+pub mod content_page;
 pub mod disclaimer;
 pub mod feedback;
 pub mod gear;

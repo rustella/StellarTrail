@@ -380,36 +380,20 @@
   <view wx:if="{{aboutModalVisible}}" class="profile-modal-mask">
     <view class="profile-modal-card about-modal-card">
       <view class="about-hero">
-        <view class="about-eyebrow">🏕️ 寻径星野</view>
-        <view class="about-title">关于寻径星野</view>
-        <view class="about-subtitle">把每次出发前的准备，整理得更安心。</view>
+        <view class="about-eyebrow">{{aboutContent.eyebrow}}</view>
+        <view class="about-title">{{aboutContent.title}}</view>
+        <view class="about-subtitle">{{aboutContent.subtitle}}</view>
       </view>
       <view class="about-body">
-        <view class="about-copy">
-          <view class="about-icon">🧭</view>
+        <view
+          wx:for="{{aboutContent.sections}}"
+          wx:key="title"
+          class="about-copy"
+        >
+          <view class="about-icon">{{item.icon}}</view>
           <view class="about-copy-main">
-            <view class="about-copy-title">出发准备</view>
-            <view class="about-copy-text"
-              >寻径星野是一个面向户外爱好者的个人工具，希望把出发前准备、装备管理、装备图鉴、户外技能复习和离线可用的知识内容慢慢整理到一起。</view
-            >
-          </view>
-        </view>
-        <view class="about-copy">
-          <view class="about-icon">🎒</view>
-          <view class="about-copy-main">
-            <view class="about-copy-title">山野陪伴</view>
-            <view class="about-copy-text"
-              >它不只服务某一次路线或某一类装备，而是想陪伴每一次走向山野之前的准备过程：少一点遗漏，多一点安心。</view
-            >
-          </view>
-        </view>
-        <view class="about-copy">
-          <view class="about-icon">✨</view>
-          <view class="about-copy-main">
-            <view class="about-copy-title">作者的话</view>
-            <view class="about-copy-text"
-              >这个项目由作者在业余时间出于爱好开发，也会按自己的使用感受持续打磨。寻径星野会永久免费，无广告，不做打扰用户的商业化设计。</view
-            >
+            <view class="about-copy-title">{{item.title}}</view>
+            <view class="about-copy-text">{{item.body}}</view>
           </view>
         </view>
         <view class="profile-modal-actions about-actions">
@@ -417,7 +401,7 @@
             class="account-inline-button profile-modal-action-button"
             bindtap="closeAboutModal"
           >
-            知道了
+            {{aboutContent.buttonText}}
           </button>
         </view>
       </view>

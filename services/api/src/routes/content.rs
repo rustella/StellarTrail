@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use axum::{
-    Router,
+    Json, Router,
     extract::{Path, Query, State},
     http::HeaderMap,
     response::Response,
@@ -11,7 +11,12 @@ use axum::{
 };
 use serde::Serialize;
 
-use crate::{error::ApiError, state::AppState};
+use crate::{
+    dto::content_page::{ContentPageQuery, ContentPageResponse},
+    error::ApiError,
+    services::content_page_service,
+    state::AppState,
+};
 
 use super::localization::{localized_json, reject_query_locale, resolve_locale};
 
@@ -24,8 +29,20 @@ struct ListResponse<T> {
 /// Builds DB-backed public content routes that remain in scope for the initial MVP.
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/content-pages/:page_key", get(get_content_page))
         .route("/gear-templates", get(list_gear_templates))
         .route("/gear-templates/:id", get(get_gear_template))
+}
+
+/// Returns one DB-backed public content page for a client and locale.
+async fn get_content_page(
+    State(state): State<AppState>,
+    Path(page_key): Path<String>,
+    Query(query): Query<ContentPageQuery>,
+) -> Result<Json<ContentPageResponse>, ApiError> {
+    Ok(Json(
+        content_page_service::get_public(&state, page_key, query).await?,
+    ))
 }
 
 /// Lists active DB-backed gear templates.
