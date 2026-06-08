@@ -28,6 +28,10 @@ import {
   showOfflineWriteBlockedToast,
 } from "../../utils/network-state";
 import {
+  filterClientVersionsForCurrentVersion,
+  getCurrentWechatClientVersion,
+} from "../../utils/client-version";
+import {
   clearKnotOfflineCache,
   deleteCachedKnot,
   getKnotOfflineCacheInventory,
@@ -49,6 +53,7 @@ const FEEDBACK_SUCCESS_TICK_MS = 1_000;
 const FEEDBACK_SUCCESS_VISIBLE_SECONDS =
   FEEDBACK_SUCCESS_VISIBLE_MS / FEEDBACK_SUCCESS_TICK_MS;
 const PROFILE_ABOUT_CONTENT_PAGE_KEY = "profile_about";
+const CLIENT_VERSION_PAGE_LIMIT = 20;
 let feedbackSuccessTimer: ReturnType<typeof setTimeout> | null = null;
 
 const FEEDBACK_CATEGORY_OPTIONS: Array<{
@@ -687,10 +692,7 @@ Page({
 
   async refreshClientVersionSummary() {
     try {
-      const response = await listClientVersions("wechat_miniprogram", {
-        limit: 1,
-      });
-      const latest = response.items[0];
+      const [latest] = await loadVisibleClientVersions(1);
       if (latest) {
         this.setData({
           versionInfoDesc: `客户端版本 ${latest.version}`,
@@ -704,10 +706,9 @@ Page({
   async loadClientVersions() {
     this.setData({ versionLoading: true, versionError: "" });
     try {
-      const response = await listClientVersions("wechat_miniprogram", {
-        limit: 20,
-      });
-      const versions = response.items.map(versionToView);
+      const versions = (
+        await loadVisibleClientVersions(CLIENT_VERSION_PAGE_LIMIT)
+      ).map(versionToView);
       this.setData({
         clientVersions: versions,
         versionInfoDesc: versions[0]
@@ -793,6 +794,27 @@ function buildCachedKnotsInfo(inventory: KnotOfflineCacheInventory): {
     totalCountText: String(inventory.totalCount),
     uncachedCountText: String(inventory.uncachedCount),
   };
+}
+
+async function loadVisibleClientVersions(
+  limit: number,
+): Promise<ClientVersion[]> {
+  const versions: ClientVersion[] = [];
+  const currentVersion = getCurrentWechatClientVersion();
+  let cursor: string | undefined;
+
+  do {
+    const response = await listClientVersions("wechat_miniprogram", {
+      limit: CLIENT_VERSION_PAGE_LIMIT,
+      cursor,
+    });
+    versions.push(
+      ...filterClientVersionsForCurrentVersion(response.items, currentVersion),
+    );
+    cursor = response.next_cursor || undefined;
+  } while (cursor && versions.length < limit);
+
+  return versions.slice(0, limit);
 }
 
 function versionToView(version: ClientVersion): ClientVersionView {

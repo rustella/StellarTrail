@@ -1183,6 +1183,8 @@ ${ts}`;
   assert.doesNotMatch(pageSource, /saveNicknameValue/);
   assert.match(pageSource, /uploadWechatAvatar/);
   assert.match(pageSource, /listClientVersions\("wechat_miniprogram"/);
+  assert.match(pageSource, /filterClientVersionsForCurrentVersion/);
+  assert.match(pageSource, /getCurrentWechatClientVersion/);
   assert.match(pageSource, /refreshClientVersionSummary/);
   assert.match(pageSource, /openVersionInfoModal/);
   assert.match(pageSource, /loadClientVersions/);
