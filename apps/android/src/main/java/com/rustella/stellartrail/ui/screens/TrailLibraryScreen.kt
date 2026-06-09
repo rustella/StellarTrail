@@ -380,10 +380,16 @@ private fun TrailSummary.metricLine(): String =
 private fun TrailSummary.elevationLine(): String {
     val start = startElevationM?.formatMeters()
     val end = endElevationM?.formatMeters()
-    return if (start == null && end == null) {
-        "海拔暂无"
-    } else {
-        "起点海拔 ${start ?: "暂无"} · 终点海拔 ${end ?: "暂无"}"
+    if (start != null || end != null) {
+        return "起点海拔 ${start ?: "暂无"} · 终点海拔 ${end ?: "暂无"}"
+    }
+    val min = minElevationM?.formatMeters()
+    val max = maxElevationM?.formatMeters()
+    return when {
+        min != null && max != null -> "最低海拔 $min · 最高海拔 $max"
+        min != null -> "最低海拔 $min"
+        max != null -> "最高海拔 $max"
+        else -> "海拔暂无"
     }
 }
 
