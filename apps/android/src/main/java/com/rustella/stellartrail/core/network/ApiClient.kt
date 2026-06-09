@@ -2,6 +2,7 @@ package com.rustella.stellartrail.core.network
 
 import android.util.Log
 import com.rustella.stellartrail.core.config.AppConfig
+import com.rustella.stellartrail.core.config.AppCertificatePin
 import com.rustella.stellartrail.core.config.AppDomainCandidate
 import com.rustella.stellartrail.domain.auth.LoginResponse
 import com.rustella.stellartrail.domain.auth.RefreshTokenRequest
@@ -22,6 +23,7 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.URLBuilder
 import io.ktor.http.appendPathSegments
+import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.content.TextContent
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
@@ -40,9 +42,11 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
 import okhttp3.Call
+import okhttp3.CertificatePinner
 import okhttp3.EventListener
 import okhttp3.Handshake
 import okhttp3.Protocol
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -62,7 +66,7 @@ class ApiClient(
     @PublishedApi internal val sessionExpiredHandler: () -> Unit = {},
     @PublishedApi internal val offlineCacheStore: OfflineHttpCacheStore? = null,
     @PublishedApi internal val cacheScopeProvider: () -> String = { CACHE_SCOPE_GUEST },
-    @PublishedApi internal val httpClient: HttpClient = defaultHttpClient(),
+    @PublishedApi internal val httpClient: HttpClient = defaultHttpClient(configProvider().certificatePins),
     @PublishedApi internal val json: Json = defaultJson,
     private val domainProbeTimeoutMillis: Long? = API_DOMAIN_HEALTH_TIMEOUT_MS,
     @PublishedApi internal val nonceProvider: () -> String = { UUID.randomUUID().toString() },
@@ -160,6 +164,45 @@ class ApiClient(
         }
     }
 
+    suspend inline fun <reified Response> uploadFile(
+        path: String,
+        bytes: ByteArray,
+        filename: String,
+        contentType: String? = null,
+    ): Response {
+        val boundary = "StellarTrail-${nonceProvider()}"
+        val bodyBytes = multipartFileBody("file", filename, contentType, bytes, boundary)
+        val requestContentType = ContentType.parse("multipart/form-data; boundary=$boundary")
+        var requestUrl = buildUrl(path)
+        try {
+            var response = prepareBinaryRequest(HttpMethod.Post, path, bodyBytes, requestContentType).also {
+                requestUrl = it.url
+            }.request.execute()
+            if (response.status == HttpStatusCode.Unauthorized && canRefreshAfterUnauthorized(path)) {
+                val refreshed = refreshWithStoredToken()
+                if (refreshed) {
+                    response = prepareBinaryRequest(HttpMethod.Post, path, bodyBytes, requestContentType).also {
+                        requestUrl = it.url
+                    }.request.execute()
+                }
+            }
+            val text = response.bodyAsText()
+            if (!response.status.isSuccess()) {
+                throw ApiException.from(response.status, text, json, response.headers["Retry-After"])
+            }
+            return json.decodeFromString(text)
+        } catch (error: ApiException) {
+            throw error
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            logNetworkWarning(
+                "POST ${requestUrl.substringBefore('?')} failed: ${error::class.java.name}: ${error.message}",
+            )
+            throw error
+        }
+    }
+
+
     @PublishedApi
     internal suspend inline fun <reified Request : Any, reified Response> sendJson(
         method: HttpMethod,
@@ -236,6 +279,24 @@ class ApiClient(
         }
         return PreparedApiRequest(requestUrl, request)
     }
+
+    @PublishedApi
+    internal suspend fun prepareBinaryRequest(
+        method: HttpMethod,
+        path: String,
+        bodyBytes: ByteArray,
+        requestContentType: ContentType,
+    ): PreparedApiRequest {
+        val requestConfig = configForRequest(path)
+        val requestUrl = buildSignedUrl(requestConfig, method, path, bodyHashHex = sha256Hex(bodyBytes))
+        val request = httpClient.prepareRequest(requestUrl) {
+            this.method = method
+            attachAuthAndDefaults(locale = null)
+            setBody(ByteArrayContent(bodyBytes, requestContentType))
+        }
+        return PreparedApiRequest(requestUrl, request)
+    }
+
 
     @PublishedApi
     internal fun buildSignedUrl(
@@ -377,6 +438,7 @@ class ApiClient(
                         domainCandidates = latest.domainCandidates,
                         clientIdentity = latest.clientIdentity,
                         requestSignature = latest.requestSignature,
+                        certificatePins = latest.certificatePins,
                     )
                     domainProbeCompletedForBaseUrl = latest.baseUrl
                     return
@@ -389,6 +451,7 @@ class ApiClient(
                 domainCandidates = latest.domainCandidates,
                 clientIdentity = latest.clientIdentity,
                 requestSignature = latest.requestSignature,
+                certificatePins = latest.certificatePins,
             )
             domainProbeCompletedForBaseUrl = latest.baseUrl
         }
@@ -491,10 +554,16 @@ class ApiClient(
             encodeDefaults = false
         }
 
-        fun defaultHttpClient(): HttpClient = HttpClient(OkHttp) {
+        fun defaultHttpClient(certificatePins: List<AppCertificatePin> = emptyList()): HttpClient = HttpClient(OkHttp) {
             engine {
                 config {
                     eventListenerFactory { NetworkDiagnosticsEventListener() }
+                    if (certificatePins.isNotEmpty()) {
+                        val pinner = CertificatePinner.Builder().apply {
+                            certificatePins.forEach { add(it.hostname, it.pin) }
+                        }.build()
+                        certificatePinner(pinner)
+                    }
                 }
             }
             install(ContentNegotiation) {
@@ -639,6 +708,35 @@ private fun hmacSha256Hex(secret: String, message: String): String {
     mac.init(SecretKeySpec(secret.encodeToByteArray(), "HmacSHA256"))
     return mac.doFinal(message.encodeToByteArray()).toHexString()
 }
+
+@PublishedApi
+internal fun multipartFileBody(
+    fieldName: String,
+    filename: String,
+    contentType: String?,
+    bytes: ByteArray,
+    boundary: String,
+): ByteArray {
+    val safeFieldName = fieldName.filter { it.isLetterOrDigit() || it == '_' || it == '-' }.ifBlank { "file" }
+    val safeFilename = filename
+        .substringAfterLast('/')
+        .substringAfterLast('\\')
+        .replace('"', '_')
+        .ifBlank { "trail" }
+    val safeContentType = contentType?.trim()?.takeIf { it.isNotEmpty() } ?: "application/octet-stream"
+    return ByteArrayOutputStream().apply {
+        writeUtf8("--$boundary\r\n")
+        writeUtf8("Content-Disposition: form-data; name=\"$safeFieldName\"; filename=\"$safeFilename\"\r\n")
+        writeUtf8("Content-Type: $safeContentType\r\n\r\n")
+        write(bytes)
+        writeUtf8("\r\n--$boundary--\r\n")
+    }.toByteArray()
+}
+
+private fun ByteArrayOutputStream.writeUtf8(value: String) {
+    write(value.toByteArray(Charsets.UTF_8))
+}
+
 
 private fun ByteArray.toHexString(): String = joinToString(separator = "") { byte ->
     "%02x".format(byte.toInt() and 0xff)

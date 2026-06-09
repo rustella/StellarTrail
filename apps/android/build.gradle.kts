@@ -100,6 +100,11 @@ android {
             quotedBuildConfigString(clientConfigValue("app_secret", "example-android-client-secret")),
         )
         buildConfigField(
+            "String",
+            "DEFAULT_CERTIFICATE_PINS",
+            quotedBuildConfigString(clientConfigValue("stellartrail.certificatePins", "")),
+        )
+        buildConfigField(
             "int",
             "SMS_CODE_COOLDOWN_SECONDS",
             clientConfigIntValue("stellartrail.smsCodeCooldownSeconds", 60).toString(),
@@ -171,6 +176,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
+    implementation(libs.maptiler.sdk.kotlin)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

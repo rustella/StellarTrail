@@ -6,13 +6,20 @@ import com.rustella.stellartrail.domain.trip.CreateTripRequest
 import com.rustella.stellartrail.domain.trip.ImportTripPackingListRequest
 import com.rustella.stellartrail.domain.trip.ListTripsRequest
 import com.rustella.stellartrail.domain.trip.ListTripsResponse
+import com.rustella.stellartrail.domain.trip.MapAnnotation
+import com.rustella.stellartrail.domain.trip.MapAnnotationRequest
+import com.rustella.stellartrail.domain.trip.MapConfigResponse
+import com.rustella.stellartrail.domain.trip.MapTrailLink
 import com.rustella.stellartrail.domain.trip.OutdoorExperience
+import com.rustella.stellartrail.domain.trip.TripMapStateResponse
+import com.rustella.stellartrail.domain.trip.TripsMapOverviewResponse
 import com.rustella.stellartrail.domain.trip.TripDetail
 import com.rustella.stellartrail.domain.trip.TripHomeHighlightResponse
 import com.rustella.stellartrail.domain.trip.UpdateTripRequest
 import com.rustella.stellartrail.domain.trip.UpdateTripSectionsRequest
 import com.rustella.stellartrail.domain.trip.apiValue
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 
 class TripApi(private val apiClient: ApiClient) {
@@ -31,11 +38,35 @@ class TripApi(private val apiClient: ApiClient) {
         query = mapOf("today" to today),
     )
 
+    suspend fun mapConfig(): MapConfigResponse = apiClient.get("/me/map/config")
+
+    suspend fun tripsMapOverview(): TripsMapOverviewResponse = apiClient.get("/me/trips/map-overview")
+
     suspend fun create(request: CreateTripRequest): TripDetail = apiClient.post("/me/trips", request)
 
     suspend fun get(id: String): TripDetail = apiClient.get("/me/trips/$id")
 
     suspend fun update(id: String, request: UpdateTripRequest): TripDetail = apiClient.patch("/me/trips/$id", request)
+
+    suspend fun tripMap(id: String): TripMapStateResponse = apiClient.get("/me/trips/$id/map")
+
+    suspend fun uploadTripTrail(id: String, bytes: ByteArray, filename: String, contentType: String?): MapTrailLink =
+        apiClient.uploadFile("/me/trips/$id/trails", bytes, filename, contentType)
+
+    suspend fun linkTripTrail(id: String, trailId: String): MapTrailLink =
+        apiClient.post("/me/trips/$id/trail-links", buildJsonObject { put("trail_id", JsonPrimitive(trailId)) })
+
+    suspend fun unlinkTripTrail(id: String, trailId: String) {
+        apiClient.delete("/me/trips/$id/trail-links/$trailId")
+    }
+
+    suspend fun createMapAnnotation(id: String, request: MapAnnotationRequest): MapAnnotation =
+        apiClient.post("/me/trips/$id/map-annotations", request)
+
+    suspend fun updateMapAnnotation(id: String, annotationId: String, request: JsonObject): MapAnnotation =
+        apiClient.patch("/me/trips/$id/map-annotations/$annotationId", request)
+
+    suspend fun deleteMapAnnotation(id: String, annotationId: String) = apiClient.delete("/me/trips/$id/map-annotations/$annotationId")
 
     suspend fun delete(id: String) {
         apiClient.delete("/me/trips/$id")

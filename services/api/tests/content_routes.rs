@@ -37,6 +37,8 @@ async fn test_app() -> TestApp {
         wechat_app_secret: None,
         redis_cache: RedisCacheConfig::disabled(),
         upload: Default::default(),
+        trail: Default::default(),
+        map: Default::default(),
         minio: Default::default(),
         object_storage: Default::default(),
         avatar_storage: Default::default(),

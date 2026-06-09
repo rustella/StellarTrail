@@ -48,6 +48,8 @@ async fn test_app_with_request_signature(request_signature: RequestSignatureConf
         wechat_app_secret: None,
         redis_cache: RedisCacheConfig::disabled(),
         upload: Default::default(),
+        trail: Default::default(),
+        map: Default::default(),
         minio: Default::default(),
         object_storage: Default::default(),
         avatar_storage: Default::default(),

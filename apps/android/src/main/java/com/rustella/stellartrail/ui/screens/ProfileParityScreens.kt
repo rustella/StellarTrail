@@ -419,6 +419,7 @@ fun ProfileSettingsScreen(
     onLogin: () -> Unit,
     onOpenOutdoorProfile: () -> Unit,
     onOpenOutdoorExperiences: () -> Unit,
+    onOpenTrailLibrary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val session by viewModel.session.collectAsStateWithLifecycle()
@@ -479,6 +480,7 @@ fun ProfileSettingsScreen(
                 )
                 SettingsRow("户", "户外资料", "维护身高、血型、紧急联系人和饮食习惯。", onOpenOutdoorProfile)
                 SettingsRow("历", "户外经历", "记录历史行程和手动补充的户外经历。", onOpenOutdoorExperiences)
+                SettingsRow("迹", "我的轨迹库", "管理 GPX、KML、FIT 轨迹并复用到行程。", onOpenTrailLibrary)
                 actionState.accountError?.let { Text(it, color = currentTrailPalette().dangerText) }
             }
         }

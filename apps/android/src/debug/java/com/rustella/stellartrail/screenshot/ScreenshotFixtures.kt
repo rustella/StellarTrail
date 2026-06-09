@@ -5,6 +5,8 @@ import android.content.Intent
 import com.rustella.stellartrail.core.config.AppConfig
 import com.rustella.stellartrail.core.config.AppConfigStore
 import com.rustella.stellartrail.core.config.InMemoryAppConfigStore
+import com.rustella.stellartrail.core.map.InMemoryMapStylePreferenceRepository
+import com.rustella.stellartrail.core.map.MapStylePreferenceRepository
 import com.rustella.stellartrail.core.network.ApiClient
 import com.rustella.stellartrail.core.network.InMemoryOfflineHttpCacheStore
 import com.rustella.stellartrail.core.network.OfflineHttpCacheStore
@@ -13,6 +15,8 @@ import com.rustella.stellartrail.core.session.SessionStore
 import com.rustella.stellartrail.core.theme.InMemoryThemeRepository
 import com.rustella.stellartrail.core.theme.ThemeMode
 import com.rustella.stellartrail.core.theme.ThemeRepository
+import com.rustella.stellartrail.core.trail.InMemoryPendingTrailImportStore
+import com.rustella.stellartrail.core.trail.PendingTrailImportStore
 import com.rustella.stellartrail.data.atlas.GearAtlasRepositoryContract
 import com.rustella.stellartrail.data.auth.AuthRepositoryContract
 import com.rustella.stellartrail.data.gear.GearRepositoryContract
@@ -20,6 +24,7 @@ import com.rustella.stellartrail.data.packing.PackingRepositoryContract
 import com.rustella.stellartrail.data.profile.ProfileRepositoryContract
 import com.rustella.stellartrail.data.skills.KnotCacheStatus
 import com.rustella.stellartrail.data.skills.SkillRepositoryContract
+import com.rustella.stellartrail.data.trail.TrailRepositoryContract
 import com.rustella.stellartrail.data.trip.TripRepositoryContract
 import com.rustella.stellartrail.di.AppContainer
 import com.rustella.stellartrail.domain.atlas.CreateGearAtlasSubmissionRequest
@@ -89,8 +94,14 @@ import com.rustella.stellartrail.domain.skills.SkillLocale
 import com.rustella.stellartrail.domain.trip.CreateTripInvitationResponse
 import com.rustella.stellartrail.domain.trip.CreateTripRequest
 import com.rustella.stellartrail.domain.trip.ImportTripPackingListRequest
+import com.rustella.stellartrail.domain.trip.ListTrailsResponse
 import com.rustella.stellartrail.domain.trip.ListTripsRequest
 import com.rustella.stellartrail.domain.trip.ListTripsResponse
+import com.rustella.stellartrail.domain.trip.MapAnnotation
+import com.rustella.stellartrail.domain.trip.MapAnnotationRequest
+import com.rustella.stellartrail.domain.trip.MapConfigResponse
+import com.rustella.stellartrail.domain.trip.MapStyleOption
+import com.rustella.stellartrail.domain.trip.MapTrailLink
 import com.rustella.stellartrail.domain.trip.OutdoorExperience
 import com.rustella.stellartrail.domain.trip.TripBudgetItem
 import com.rustella.stellartrail.domain.trip.TripDetail
@@ -99,6 +110,11 @@ import com.rustella.stellartrail.domain.trip.TripGoalItem
 import com.rustella.stellartrail.domain.trip.TripHomeHighlightItem
 import com.rustella.stellartrail.domain.trip.TripHomeHighlightResponse
 import com.rustella.stellartrail.domain.trip.TripHomeHighlightStatus
+import com.rustella.stellartrail.domain.trip.Trail
+import com.rustella.stellartrail.domain.trip.TrailSourceFormat
+import com.rustella.stellartrail.domain.trip.TrailSummary
+import com.rustella.stellartrail.domain.trip.TripMapStateResponse
+import com.rustella.stellartrail.domain.trip.TripsMapOverviewResponse
 import com.rustella.stellartrail.domain.trip.TripItineraryDay
 import com.rustella.stellartrail.domain.trip.TripInvitation
 import com.rustella.stellartrail.domain.trip.TripMedicalItem
@@ -154,6 +170,8 @@ private class FixtureAppContainer(
         AppConfig(baseUrl = "https://fixture.stellartrail.local", assetsBaseUrl = "https://assets.stellartrail.local"),
     )
     override val themeRepository: ThemeRepository = InMemoryThemeRepository(ThemeMode.LIGHT)
+    override val mapStylePreferenceRepository: MapStylePreferenceRepository = InMemoryMapStylePreferenceRepository()
+    override val pendingTrailImportStore: PendingTrailImportStore = InMemoryPendingTrailImportStore()
     override val offlineHttpCacheStore: OfflineHttpCacheStore = InMemoryOfflineHttpCacheStore()
     override val apiClient: ApiClient = ApiClient(configProvider = { configStore.config.value })
     override val authRepository: AuthRepositoryContract = FixtureAuthRepository(sessionStore)
@@ -161,6 +179,7 @@ private class FixtureAppContainer(
     override val gearAtlasRepository: GearAtlasRepositoryContract = FixtureGearAtlasRepository()
     override val packingRepository: PackingRepositoryContract = FixturePackingRepository()
     override val skillRepository: SkillRepositoryContract = FixtureSkillRepository()
+    override val trailRepository: TrailRepositoryContract = FixtureTrailRepository()
     override val tripRepository: TripRepositoryContract = FixtureTripRepository()
     override val profileRepository: ProfileRepositoryContract = FixtureProfileRepository(sessionStore)
 }
@@ -520,6 +539,47 @@ private class FixtureSkillRepository : SkillRepositoryContract {
     override fun resolveMediaUrl(pathOrUrl: String): String = pathOrUrl
 }
 
+private class FixtureTrailRepository : TrailRepositoryContract {
+    private var trails = mutableListOf(fixtureTrail())
+
+    override suspend fun list(): ListTrailsResponse = ListTrailsResponse(trails.map(::trailSummaryFromFixture))
+
+    override suspend fun get(id: String): Trail = trails.firstOrNull { it.id == id } ?: fixtureTrail(id = id)
+
+    override suspend fun upload(bytes: ByteArray, filename: String, contentType: String?): Trail {
+        val trail = fixtureTrail(
+            id = "trail-${trails.size + 1}",
+            displayName = filename.substringBeforeLast('.').ifBlank { "导入轨迹" },
+            originalFilename = filename,
+            contentType = contentType ?: "application/octet-stream",
+            sizeBytes = bytes.size.toLong(),
+        )
+        trails.add(0, trail)
+        return trail
+    }
+
+    override suspend fun update(id: String, displayName: String?, description: String?): Trail {
+        trails = trails.map { trail ->
+            if (trail.id == id) {
+                trail.copy(
+                    displayName = displayName ?: trail.displayName,
+                    description = description ?: trail.description,
+                )
+            } else {
+                trail
+            }
+        }.toMutableList()
+        return trails.first { it.id == id }
+    }
+
+    override suspend fun delete(id: String) {
+        trails.removeAll { it.id == id }
+    }
+
+    override suspend fun linkOutdoorExperienceTrail(experienceId: String, trailId: String): MapTrailLink =
+        fixtureMapTrailLink(trailId)
+}
+
 private class FixtureTripRepository : TripRepositoryContract {
     private var detail = fixtureTripDetail()
 
@@ -533,6 +593,16 @@ private class FixtureTripRepository : TripRepositoryContract {
             daysUntilEnd = 9,
         ),
     )
+
+    override suspend fun mapConfig(): MapConfigResponse = fixtureMapConfig()
+    override suspend fun tripsMapOverview(): TripsMapOverviewResponse = TripsMapOverviewResponse(map = fixtureMapConfig())
+    override suspend fun tripMap(id: String): TripMapStateResponse = TripMapStateResponse(map = fixtureMapConfig())
+    override suspend fun uploadTripTrail(id: String, bytes: ByteArray, filename: String, contentType: String?): MapTrailLink = fixtureMapTrailLink()
+    override suspend fun linkTripTrail(id: String, trailId: String): MapTrailLink = fixtureMapTrailLink(trailId)
+    override suspend fun unlinkTripTrail(id: String, trailId: String) = Unit
+    override suspend fun createMapAnnotation(id: String, request: MapAnnotationRequest): MapAnnotation = fixtureMapAnnotation(request)
+    override suspend fun updateMapAnnotation(id: String, annotationId: String, request: JsonObject): MapAnnotation = fixtureMapAnnotation(id = annotationId)
+    override suspend fun deleteMapAnnotation(id: String, annotationId: String) = Unit
 
     override suspend fun create(request: CreateTripRequest): TripDetail {
         detail = fixtureTripDetail().copy(
@@ -593,6 +663,119 @@ private class FixtureTripRepository : TripRepositoryContract {
     override suspend fun bindSharedGearDemandMyGear(id: String, itemId: String, request: JsonObject): TripDetail = detail
     override suspend fun fillSharedGearDemandConcreteGear(id: String, itemId: String, request: JsonObject): TripDetail = detail
 }
+
+private fun fixtureMapConfig(): MapConfigResponse = MapConfigResponse(
+    provider = "maptiler",
+    styleUrl = "https://api.maptiler.com/maps/outdoor-v2/style.json",
+    enabled = false,
+    styles = listOf(
+        MapStyleOption("outdoor", "户外", "https://api.maptiler.com/maps/outdoor-v2/style.json"),
+        MapStyleOption("streets", "街道", "https://api.maptiler.com/maps/streets-v2/style.json"),
+        MapStyleOption("satellite", "卫星", "https://api.maptiler.com/maps/satellite/style.json"),
+    ),
+    defaultStyleId = "outdoor",
+)
+
+private fun fixtureTrail(
+    id: String = "trail-1",
+    displayName: String = "武功山轨迹",
+    originalFilename: String = "wugongshan.gpx",
+    contentType: String = "application/gpx+xml",
+    sizeBytes: Long = 128,
+): Trail = Trail(
+    id = id,
+    ownerUserId = "fixture-user",
+    displayName = displayName,
+    sourceFormat = TrailSourceFormat.GPX,
+    originalFilename = originalFilename,
+    contentType = contentType,
+    sizeBytes = sizeBytes,
+    sha256Hex = "fixture-$id",
+    bucket = "fixture",
+    objectKey = "trails/fixture/$id.gpx",
+    simplifiedGeojson = fixtureTrailGeoJson(),
+    distanceM = 12000.0,
+    ascentM = 900.0,
+    descentM = 850.0,
+    startElevationM = 320.0,
+    endElevationM = 1180.0,
+    pointCount = 120,
+    createdAt = "2026-05-01T00:00:00Z",
+    updatedAt = "2026-05-01T00:00:00Z",
+)
+
+private fun trailSummaryFromFixture(trail: Trail): TrailSummary = TrailSummary(
+    id = trail.id,
+    ownerUserId = trail.ownerUserId,
+    displayName = trail.displayName,
+    description = trail.description,
+    sourceFormat = trail.sourceFormat,
+    originalFilename = trail.originalFilename,
+    contentType = trail.contentType,
+    sizeBytes = trail.sizeBytes,
+    sha256Hex = trail.sha256Hex,
+    bounds = trail.bounds,
+    distanceM = trail.distanceM,
+    ascentM = trail.ascentM,
+    descentM = trail.descentM,
+    minElevationM = trail.minElevationM,
+    maxElevationM = trail.maxElevationM,
+    startElevationM = trail.startElevationM,
+    endElevationM = trail.endElevationM,
+    startTime = trail.startTime,
+    endTime = trail.endTime,
+    pointCount = trail.pointCount,
+    createdAt = trail.createdAt,
+    updatedAt = trail.updatedAt,
+)
+
+private fun fixtureMapTrailLink(id: String = "trail-1"): MapTrailLink = MapTrailLink(
+    trailId = id,
+    linkedByUserId = "fixture-user",
+    role = "route",
+    sortOrder = 0,
+    createdAt = "2026-05-01T00:00:00Z",
+    updatedAt = "2026-05-01T00:00:00Z",
+    trail = TrailSummary(
+        id = id,
+        ownerUserId = "fixture-user",
+        displayName = "武功山轨迹",
+        sourceFormat = TrailSourceFormat.GPX,
+        originalFilename = "wugongshan.gpx",
+        contentType = "application/gpx+xml",
+        sizeBytes = 128,
+        sha256Hex = "fixture",
+        distanceM = 12000.0,
+        ascentM = 900.0,
+        descentM = 850.0,
+        startElevationM = 320.0,
+        endElevationM = 1180.0,
+        pointCount = 120,
+        createdAt = "2026-05-01T00:00:00Z",
+        updatedAt = "2026-05-01T00:00:00Z",
+    ),
+    simplifiedGeojson = fixtureTrailGeoJson(),
+)
+
+private fun fixtureTrailGeoJson() = kotlinx.serialization.json.buildJsonObject {
+        put("type", kotlinx.serialization.json.JsonPrimitive("Feature"))
+        put("geometry", kotlinx.serialization.json.buildJsonObject {
+            put("type", kotlinx.serialization.json.JsonPrimitive("LineString"))
+            put("coordinates", kotlinx.serialization.json.JsonArray(emptyList()))
+        })
+    }
+
+private fun fixtureMapAnnotation(request: MapAnnotationRequest? = null, id: String = "annotation-1"): MapAnnotation = MapAnnotation(
+    id = id,
+    ownerUserId = "fixture-user",
+    lng = request?.lng ?: 114.17,
+    lat = request?.lat ?: 27.48,
+    annotationType = request?.annotationType ?: "note",
+    title = request?.title ?: "集合点",
+    note = request?.note ?: "截图 fixture 备注",
+    createdAt = "2026-05-01T00:00:00Z",
+    updatedAt = "2026-05-01T00:00:00Z",
+)
 
 private fun fixtureTemplates() = listOf(
     GearTemplate(

@@ -7,12 +7,15 @@ import com.rustella.stellartrail.data.trip.TripEditConflictException
 import com.rustella.stellartrail.data.trip.TripRepositoryContract
 import com.rustella.stellartrail.domain.trip.CreateTripRequest
 import com.rustella.stellartrail.domain.trip.ListTripsRequest
+import com.rustella.stellartrail.domain.trip.MapAnnotationRequest
 import com.rustella.stellartrail.domain.trip.TripConflictResponse
 import com.rustella.stellartrail.domain.trip.TripDetail
 import com.rustella.stellartrail.domain.trip.TripHomeHighlightItem
+import com.rustella.stellartrail.domain.trip.TripMapStateResponse
 import com.rustella.stellartrail.domain.trip.TripRecordKind
 import com.rustella.stellartrail.domain.trip.TripSectionKey
 import com.rustella.stellartrail.domain.trip.TripSummary
+import com.rustella.stellartrail.domain.trip.TripsMapOverviewResponse
 import com.rustella.stellartrail.domain.trip.TripTimeBucket
 import com.rustella.stellartrail.domain.trip.TripType
 import com.rustella.stellartrail.domain.trip.UpdateTripRequest
@@ -22,13 +25,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+
+data class TripsOverviewMapUiState(
+    val loading: Boolean = false,
+    val data: TripsMapOverviewResponse? = null,
+    val error: String? = null,
+)
 
 data class TripListUiState(
     val isLoggedIn: Boolean = false,
     val trips: List<TripSummary> = emptyList(),
     val highlight: TripHomeHighlightItem? = null,
+    val overviewMap: TripsOverviewMapUiState = TripsOverviewMapUiState(),
     val nextCursor: String? = null,
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
@@ -42,9 +54,18 @@ class TripListViewModel(private val repository: TripRepositoryContract) : ViewMo
 
     fun refresh(isLoggedIn: Boolean) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoggedIn = isLoggedIn, loading = true, error = null, trips = emptyList(), nextCursor = null) }
+            _state.update {
+                it.copy(
+                    isLoggedIn = isLoggedIn,
+                    loading = true,
+                    error = null,
+                    trips = emptyList(),
+                    nextCursor = null,
+                    overviewMap = TripsOverviewMapUiState(loading = isLoggedIn),
+                )
+            }
             if (!isLoggedIn) {
-                _state.update { it.copy(loading = false) }
+                _state.update { it.copy(loading = false, overviewMap = TripsOverviewMapUiState()) }
                 return@launch
             }
             try {
@@ -57,6 +78,18 @@ class TripListViewModel(private val repository: TripRepositoryContract) : ViewMo
             } finally {
                 _state.update { it.copy(loading = false) }
             }
+            refreshOverviewMap()
+        }
+    }
+
+    private suspend fun refreshOverviewMap() {
+        if (!_state.value.isLoggedIn) return
+        _state.update { it.copy(overviewMap = it.overviewMap.copy(loading = true, error = null)) }
+        try {
+            val overview = repository.tripsMapOverview()
+            _state.update { it.copy(overviewMap = TripsOverviewMapUiState(data = overview)) }
+        } catch (throwable: Throwable) {
+            _state.update { it.copy(overviewMap = TripsOverviewMapUiState(error = throwable.userMessage())) }
         }
     }
 
@@ -233,10 +266,18 @@ class TripJoinViewModel(private val repository: TripRepositoryContract) : ViewMo
         INVITATION_TOKEN_PATTERN.find(value)?.value ?: value.trim()
 }
 
+data class TripMapUiState(
+    val loading: Boolean = false,
+    val data: TripMapStateResponse? = null,
+    val error: String? = null,
+    val mutating: Boolean = false,
+)
+
 data class TripDetailUiState(
     val detail: TripDetail? = null,
     val selectedSection: TripSectionKey = TripSectionKey.MEMBERS,
     val invitationToken: String? = null,
+    val map: TripMapUiState = TripMapUiState(),
     val loading: Boolean = false,
     val mutating: Boolean = false,
     val error: String? = null,
@@ -253,7 +294,7 @@ class TripDetailViewModel(
 
     fun load() {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, conflict = null) }
+            _state.update { it.copy(loading = true, error = null, conflict = null, map = it.map.copy(error = null)) }
             try {
                 val detail = repository.get(tripId)
                 val selected = _state.value.selectedSection.takeIf { it in detail.visibleSections() }
@@ -264,6 +305,22 @@ class TripDetailViewModel(
             } finally {
                 _state.update { it.copy(loading = false) }
             }
+            refreshMapState()
+        }
+    }
+
+    fun refreshMap() {
+        viewModelScope.launch { refreshMapState() }
+    }
+
+    private suspend fun refreshMapState() {
+        if (_state.value.detail == null) return
+        _state.update { it.copy(map = it.map.copy(loading = true, error = null)) }
+        try {
+            val mapState = repository.tripMap(tripId)
+            _state.update { it.copy(map = TripMapUiState(data = mapState)) }
+        } catch (throwable: Throwable) {
+            _state.update { it.copy(map = TripMapUiState(error = throwable.userMessage())) }
         }
     }
 
@@ -310,6 +367,96 @@ class TripDetailViewModel(
             }
         }
     }
+
+    fun uploadTrailFile(filename: String, contentType: String?, bytes: ByteArray) {
+        if (bytes.isEmpty()) {
+            _state.update { it.copy(map = it.map.copy(error = "轨迹文件为空")) }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(map = it.map.copy(mutating = true, error = null)) }
+            try {
+                repository.uploadTripTrail(tripId, bytes, filename, contentType)
+                refreshMapState()
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(map = it.map.copy(error = throwable.userMessage())) }
+            } finally {
+                _state.update { it.copy(map = it.map.copy(mutating = false)) }
+            }
+        }
+    }
+
+    fun unlinkTrail(trailId: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(map = it.map.copy(mutating = true, error = null)) }
+            try {
+                repository.unlinkTripTrail(tripId, trailId)
+                refreshMapState()
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(map = it.map.copy(error = throwable.userMessage())) }
+            } finally {
+                _state.update { it.copy(map = it.map.copy(mutating = false)) }
+            }
+        }
+    }
+
+    fun createMapAnnotation(lng: Double, lat: Double, title: String, note: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(map = it.map.copy(mutating = true, error = null)) }
+            try {
+                repository.createMapAnnotation(
+                    tripId,
+                    MapAnnotationRequest(
+                        lng = lng,
+                        lat = lat,
+                        title = title.trim().takeIf { it.isNotEmpty() },
+                        note = note.trim().takeIf { it.isNotEmpty() },
+                    ),
+                )
+                refreshMapState()
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(map = it.map.copy(error = throwable.userMessage())) }
+            } finally {
+                _state.update { it.copy(map = it.map.copy(mutating = false)) }
+            }
+        }
+    }
+
+    fun updateMapAnnotation(annotationId: String, title: String, note: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(map = it.map.copy(mutating = true, error = null)) }
+            try {
+                repository.updateMapAnnotation(
+                    tripId,
+                    annotationId,
+                    buildJsonObject {
+                        put("title", title.trim().takeIf { it.isNotEmpty() })
+                        put("note", note.trim().takeIf { it.isNotEmpty() })
+                    },
+                )
+                refreshMapState()
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(map = it.map.copy(error = throwable.userMessage())) }
+            } finally {
+                _state.update { it.copy(map = it.map.copy(mutating = false)) }
+            }
+        }
+    }
+
+    fun deleteMapAnnotation(annotationId: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(map = it.map.copy(mutating = true, error = null)) }
+            try {
+                repository.deleteMapAnnotation(tripId, annotationId)
+                refreshMapState()
+            } catch (throwable: Throwable) {
+                _state.update { it.copy(map = it.map.copy(error = throwable.userMessage())) }
+            } finally {
+                _state.update { it.copy(map = it.map.copy(mutating = false)) }
+            }
+        }
+    }
+
 
     fun addRecord(kind: TripRecordKind) {
         val detail = _state.value.detail ?: return

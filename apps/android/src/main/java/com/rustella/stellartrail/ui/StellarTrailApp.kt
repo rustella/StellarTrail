@@ -15,6 +15,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +58,8 @@ import com.rustella.stellartrail.feature.trips.TripDetailViewModel
 import com.rustella.stellartrail.feature.trips.TripFormViewModel
 import com.rustella.stellartrail.feature.trips.TripJoinViewModel
 import com.rustella.stellartrail.feature.trips.TripListViewModel
+import com.rustella.stellartrail.feature.trails.TrailImportViewModel
+import com.rustella.stellartrail.feature.trails.TrailLibraryViewModel
 import com.rustella.stellartrail.ui.common.currentTrailPalette
 import com.rustella.stellartrail.ui.common.viewModelFactory
 import com.rustella.stellartrail.ui.navigation.AppRoutes
@@ -79,6 +84,8 @@ import com.rustella.stellartrail.ui.screens.RoadmapScreen
 import com.rustella.stellartrail.ui.screens.TripDetailScreen
 import com.rustella.stellartrail.ui.screens.TripFormScreen
 import com.rustella.stellartrail.ui.screens.TripJoinScreen
+import com.rustella.stellartrail.ui.screens.TrailImportScreen
+import com.rustella.stellartrail.ui.screens.TrailLibraryScreen
 import com.rustella.stellartrail.ui.screens.TripsScreen
 import com.rustella.stellartrail.ui.screens.ProfileScreen
 import com.rustella.stellartrail.ui.screens.SkillDetailScreen
@@ -90,6 +97,8 @@ fun StellarTrailApp(
     container: AppContainer,
     modifier: Modifier = Modifier,
     startDestination: String = AppRoutes.HOME,
+    pendingTrailImportRoute: String? = null,
+    onPendingTrailImportConsumed: () -> Unit = {},
 ) {
     val session by container.sessionStore.session.collectAsStateWithLifecycle()
     val navController = rememberNavController()
@@ -98,6 +107,8 @@ fun StellarTrailApp(
         isLoggedIn = session != null,
         navController = navController,
         startDestination = startDestination,
+        pendingTrailImportRoute = pendingTrailImportRoute,
+        onPendingTrailImportConsumed = onPendingTrailImportConsumed,
         modifier = modifier,
     )
 }
@@ -108,13 +119,25 @@ private fun AuthenticatedApp(
     isLoggedIn: Boolean,
     navController: NavHostController,
     startDestination: String,
+    pendingTrailImportRoute: String?,
+    onPendingTrailImportConsumed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
-    LaunchedEffect(isLoggedIn, currentRoute) {
+    var authReturnRoute by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(pendingTrailImportRoute) {
+        val route = pendingTrailImportRoute
+        if (route != null) {
+            navController.navigate(route) { launchSingleTop = true }
+            onPendingTrailImportConsumed()
+        }
+    }
+    LaunchedEffect(isLoggedIn, currentRoute, authReturnRoute) {
         if (isLoggedIn && currentRoute in listOf(AppRoutes.AUTH, AppRoutes.AUTH_REGISTER)) {
-            navController.navigate(AppRoutes.HOME) {
+            val target = authReturnRoute ?: AppRoutes.HOME
+            authReturnRoute = null
+            navController.navigate(target) {
                 popUpTo(AppRoutes.AUTH) { inclusive = true }
                 launchSingleTop = true
             }
@@ -344,6 +367,7 @@ private fun AuthenticatedApp(
                 })
                 TripsScreen(
                     viewModel = viewModel,
+                    mapStylePreferenceRepository = container.mapStylePreferenceRepository,
                     isLoggedIn = isLoggedIn,
                     onLogin = { navController.navigate(AppRoutes.AUTH) },
                     onCreateTrip = { type -> navController.navigate(AppRoutes.tripNew(type.name.lowercase())) },
@@ -352,6 +376,92 @@ private fun AuthenticatedApp(
                     },
                     onOpenTrip = { id ->
                         if (isLoggedIn) navController.navigate(AppRoutes.tripDetail(id)) else navController.navigate(AppRoutes.AUTH)
+                    },
+                    onOpenTrailLibrary = {
+                        if (isLoggedIn) navController.navigate(AppRoutes.TRAIL_LIBRARY) else navController.navigate(AppRoutes.AUTH)
+                    },
+                )
+            }
+            composable(AppRoutes.TRAIL_LIBRARY) {
+                val viewModel: TrailLibraryViewModel = viewModel(factory = viewModelFactory {
+                    TrailLibraryViewModel(container.trailRepository, container.tripRepository)
+                })
+                TrailLibraryScreen(
+                    viewModel = viewModel,
+                    mapStylePreferenceRepository = container.mapStylePreferenceRepository,
+                    isLoggedIn = isLoggedIn,
+                    selectingForTrip = false,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    onLinkedToTrip = {},
+                )
+            }
+            composable(
+                AppRoutes.TRAIL_LIBRARY_FOR_TRIP,
+                arguments = listOf(navArgument("trip_id") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val tripId = requireNotNull(backStackEntry.arguments?.getString("trip_id"))
+                val viewModel: TrailLibraryViewModel = viewModel(
+                    key = "trail-library-for-trip-$tripId",
+                    factory = viewModelFactory {
+                        TrailLibraryViewModel(container.trailRepository, container.tripRepository, tripIdForSelection = tripId)
+                    },
+                )
+                TrailLibraryScreen(
+                    viewModel = viewModel,
+                    mapStylePreferenceRepository = container.mapStylePreferenceRepository,
+                    isLoggedIn = isLoggedIn,
+                    selectingForTrip = true,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { navController.navigate(AppRoutes.AUTH) },
+                    onLinkedToTrip = {
+                        navController.navigate(AppRoutes.tripDetail(tripId)) {
+                            popUpTo(AppRoutes.TRIPS)
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
+            composable(
+                AppRoutes.TRAIL_IMPORT,
+                arguments = listOf(navArgument("import_id") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val importId = requireNotNull(backStackEntry.arguments?.getString("import_id"))
+                val viewModel: TrailImportViewModel = viewModel(
+                    key = "trail-import-$importId",
+                    factory = viewModelFactory {
+                        TrailImportViewModel(
+                            importId = importId,
+                            pendingStore = container.pendingTrailImportStore,
+                            trailRepository = container.trailRepository,
+                            tripRepository = container.tripRepository,
+                            profileRepository = container.profileRepository,
+                        )
+                    },
+                )
+                TrailImportScreen(
+                    viewModel = viewModel,
+                    isLoggedIn = isLoggedIn,
+                    onLogin = {
+                        authReturnRoute = AppRoutes.trailImport(importId)
+                        navController.navigate(AppRoutes.AUTH)
+                    },
+                    onBack = { navController.popBackStack() },
+                    onOpenTrailLibrary = {
+                        navController.navigate(AppRoutes.TRAIL_LIBRARY) {
+                            popUpTo(AppRoutes.TRAIL_LIBRARY)
+                            launchSingleTop = true
+                        }
+                    },
+                    onOpenTrip = { id ->
+                        navController.navigate(AppRoutes.tripDetail(id)) {
+                            popUpTo(AppRoutes.TRIPS)
+                        }
+                    },
+                    onOpenOutdoorExperiences = {
+                        navController.navigate(AppRoutes.PROFILE_OUTDOOR_EXPERIENCES) {
+                            popUpTo(AppRoutes.PROFILE)
+                        }
                     },
                 )
             }
@@ -443,8 +553,10 @@ private fun AuthenticatedApp(
                 )
                 TripDetailScreen(
                     viewModel = viewModel,
+                    mapStylePreferenceRepository = container.mapStylePreferenceRepository,
                     onBack = { navController.popBackStack() },
                     onEdit = { tripId -> navController.navigate(AppRoutes.tripEdit(tripId)) },
+                    onOpenTrailLibrary = { tripId -> navController.navigate(AppRoutes.trailLibraryForTrip(tripId)) },
                     onDeleted = {
                         navController.navigate(AppRoutes.TRIPS) {
                             popUpTo(AppRoutes.TRIPS)
@@ -537,6 +649,7 @@ private fun AuthenticatedApp(
                     onLogin = { navController.navigate(AppRoutes.AUTH) },
                     onOpenOutdoorProfile = { navController.navigate(AppRoutes.PROFILE_OUTDOOR) },
                     onOpenOutdoorExperiences = { navController.navigate(AppRoutes.PROFILE_OUTDOOR_EXPERIENCES) },
+                    onOpenTrailLibrary = { navController.navigate(AppRoutes.TRAIL_LIBRARY) },
                 )
             }
         }
