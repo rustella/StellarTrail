@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -427,29 +428,31 @@ private fun MapTilerTrailMap(
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        MTMapView(
-            referenceStyle = MTMapReferenceStyle.CUSTOM(URL(styleUrl)),
-            options = MTMapOptions(
-                center = SHENZHEN_MAP_CENTER,
-                zoom = SHENZHEN_MAP_ZOOM,
-                minZoom = 2.0,
-                maxZoom = 18.0,
-                isInteractionEnabled = true,
-                dragPanIsEnabled = true,
-                dragRotateIsEnabled = zoomGesturesEnabled,
-                doubleTapShouldZoom = zoomGesturesEnabled,
-                shouldPinchToRotateAndZoom = zoomGesturesEnabled,
-                navigationControlIsVisible = false,
-                geolocateControlIsVisible = false,
-                terrainControlIsVisible = false,
-                scaleControlIsVisible = false,
-                minimapIsVisible = false,
-                eventLevel = eventLevel,
-                highFrequencyEventThrottleMs = 250,
-            ),
-            controller = controllerDelegate.controller,
-            modifier = Modifier.fillMaxSize(),
-        )
+        key(styleUrl) {
+            MTMapView(
+                referenceStyle = MTMapReferenceStyle.CUSTOM(URL(styleUrl)),
+                options = MTMapOptions(
+                    center = SHENZHEN_MAP_CENTER,
+                    zoom = SHENZHEN_MAP_ZOOM,
+                    minZoom = 2.0,
+                    maxZoom = 18.0,
+                    isInteractionEnabled = true,
+                    dragPanIsEnabled = true,
+                    dragRotateIsEnabled = zoomGesturesEnabled,
+                    doubleTapShouldZoom = zoomGesturesEnabled,
+                    shouldPinchToRotateAndZoom = zoomGesturesEnabled,
+                    navigationControlIsVisible = false,
+                    geolocateControlIsVisible = false,
+                    terrainControlIsVisible = false,
+                    scaleControlIsVisible = false,
+                    minimapIsVisible = false,
+                    eventLevel = eventLevel,
+                    highFrequencyEventThrottleMs = 250,
+                ),
+                controller = controllerDelegate.controller,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         MapStyleSelector(
             styles = styleOptions,
             selectedStyleId = selectedStyle.id,
