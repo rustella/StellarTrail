@@ -24,13 +24,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,6 +86,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.coroutines.delay
 import java.net.URL
 import kotlin.math.hypot
 
@@ -114,9 +115,15 @@ fun TripsOverviewMapSection(
     val trails = data.trails
     val canRenderMap = data.map.enabled && data.map.publicKey?.isNotBlank() == true
     var expandedMap by remember { mutableStateOf(false) }
+    var compactStyleIdWhileExpanded by remember { mutableStateOf<String?>(null) }
     val featureCollection = rememberOverviewFeatureCollection(trails)
     val styleOptions = if (canRenderMap) resolveMapStyleOptions(data.map) else emptyList()
     val selectedStyle = if (canRenderMap) resolveSelectedMapStyle(data.map, selectedStyleId) else null
+    val compactSelectedStyle = if (canRenderMap) {
+        resolveSelectedMapStyle(data.map, compactStyleIdWhileExpanded ?: selectedStyleId)
+    } else {
+        null
+    }
     SurfaceCard(modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -131,11 +138,11 @@ fun TripsOverviewMapSection(
                 CompactPillAction("轨迹库", onOpenTrailLibrary)
             }
         }
-        if (canRenderMap && selectedStyle != null) {
+        if (canRenderMap && compactSelectedStyle != null) {
             MapTilerTrailMap(
                 map = data.map,
                 styleOptions = styleOptions,
-                selectedStyle = selectedStyle,
+                selectedStyle = compactSelectedStyle,
                 onSelectStyle = onSelectMapStyle,
                 bounds = data.bounds,
                 featureCollection = featureCollection,
@@ -143,7 +150,10 @@ fun TripsOverviewMapSection(
                 lineColor = USER_TRAIL_COLOR,
                 eventLevel = MTEventLevel.ESSENTIAL,
                 zoomGesturesEnabled = false,
-                onMapTap = { _, _ -> expandedMap = true },
+                onMapTap = { _, _ ->
+                    compactStyleIdWhileExpanded = compactSelectedStyle.id
+                    expandedMap = true
+                },
             )
         } else {
             CompactMapFallback(
@@ -164,7 +174,10 @@ fun TripsOverviewMapSection(
             featureCollection = featureCollection,
             lineColor = USER_TRAIL_COLOR,
             eventLevel = MTEventLevel.ESSENTIAL,
-            onDismiss = { expandedMap = false },
+            onDismiss = {
+                expandedMap = false
+                compactStyleIdWhileExpanded = null
+            },
         )
     }
 }
@@ -187,6 +200,7 @@ fun TripDetailMapSection(
     var pendingPoint by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var editingAnnotation by remember { mutableStateOf<MapAnnotation?>(null) }
     var expandedMap by remember { mutableStateOf(false) }
+    var compactStyleIdWhileExpanded by remember { mutableStateOf<String?>(null) }
     var showAddTrailDialog by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { readTrailUpload(context, it)?.let { upload -> onUploadTrail(upload.filename, upload.contentType, upload.bytes) } }
@@ -211,7 +225,7 @@ fun TripDetailMapSection(
             }
             if (canRenderMap) {
                 val styleOptions = resolveMapStyleOptions(data.map)
-                val selectedStyle = resolveSelectedMapStyle(data.map, selectedStyleId)
+                val selectedStyle = resolveSelectedMapStyle(data.map, compactStyleIdWhileExpanded ?: selectedStyleId)
                 val bounds = unionBounds(data.trails.mapNotNull { it.trail.bounds })
                 val featureCollection = rememberTripFeatureCollection(data.trails)
                 MapTilerTrailMap(
@@ -225,7 +239,10 @@ fun TripDetailMapSection(
                     lineColor = USER_TRAIL_COLOR,
                     eventLevel = MTEventLevel.ALL,
                     zoomGesturesEnabled = false,
-                    onMapTap = { _, _ -> expandedMap = true },
+                    onMapTap = { _, _ ->
+                        compactStyleIdWhileExpanded = selectedStyle.id
+                        expandedMap = true
+                    },
                     onMapLongPress = { lng, lat -> pendingPoint = lng to lat },
                 )
             } else {
@@ -273,9 +290,13 @@ fun TripDetailMapSection(
                 featureCollection = rememberTripFeatureCollection(data.trails),
                 lineColor = USER_TRAIL_COLOR,
                 eventLevel = MTEventLevel.ALL,
-                onDismiss = { expandedMap = false },
+                onDismiss = {
+                    expandedMap = false
+                    compactStyleIdWhileExpanded = null
+                },
                 onMapLongPress = { lng, lat ->
                     expandedMap = false
+                    compactStyleIdWhileExpanded = null
                     pendingPoint = lng to lat
                 },
             )
@@ -391,6 +412,13 @@ private fun MapTilerTrailMap(
     val publicKey = map.publicKey.orEmpty()
     val styleUrl = selectedStyle.styleUrl.withMapTilerKey(publicKey)
     var legendVisible by remember { mutableStateOf(false) }
+    var styleSwitchLocked by remember { mutableStateOf(false) }
+    LaunchedEffect(styleUrl) {
+        if (styleSwitchLocked) {
+            delay(MAP_STYLE_SWITCH_COOLDOWN_MILLIS)
+            styleSwitchLocked = false
+        }
+    }
     val currentOnMapTap by rememberUpdatedState<(Double, Double) -> Unit> { lng, lat ->
         if (legendVisible) {
             legendVisible = false
@@ -405,21 +433,12 @@ private fun MapTilerTrailMap(
             onMapLongPress(lng, lat)
         }
     }
-    val controllerDelegate = remember(styleUrl, featureCollection, bounds, lineColor, eventLevel, zoomGesturesEnabled) {
-        MTConfig.apiKey = publicKey
-        TrailMapDelegate(
-            context = context,
-            featureCollection = featureCollection,
-            bounds = bounds,
-            lineColor = lineColor.toArgb(),
-            eventLevel = eventLevel,
-            zoomGesturesEnabled = zoomGesturesEnabled,
-            onTap = { lng, lat -> currentOnMapTap(lng, lat) },
-            onLongPress = { lng, lat -> currentOnMapLongPress(lng, lat) },
-        )
-    }
-    DisposableEffect(controllerDelegate) {
-        onDispose { controllerDelegate.controller.destroy() }
+    val onSafeSelectStyle by rememberUpdatedState<(String) -> Unit> { styleId ->
+        if (!styleSwitchLocked && styleId != selectedStyle.id) {
+            legendVisible = false
+            styleSwitchLocked = true
+            onSelectStyle(styleId)
+        }
     }
     Box(
         modifier
@@ -429,6 +448,19 @@ private fun MapTilerTrailMap(
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
         key(styleUrl) {
+            val controllerDelegate = remember(featureCollection, bounds, lineColor, eventLevel, zoomGesturesEnabled) {
+                MTConfig.apiKey = publicKey
+                TrailMapDelegate(
+                    context = context,
+                    featureCollection = featureCollection,
+                    bounds = bounds,
+                    lineColor = lineColor.toArgb(),
+                    eventLevel = eventLevel,
+                    zoomGesturesEnabled = zoomGesturesEnabled,
+                    onTap = { lng, lat -> currentOnMapTap(lng, lat) },
+                    onLongPress = { lng, lat -> currentOnMapLongPress(lng, lat) },
+                )
+            }
             MTMapView(
                 referenceStyle = MTMapReferenceStyle.CUSTOM(URL(styleUrl)),
                 options = MTMapOptions(
@@ -452,21 +484,22 @@ private fun MapTilerTrailMap(
                 controller = controllerDelegate.controller,
                 modifier = Modifier.fillMaxSize(),
             )
+            MapZoomControls(
+                onZoomIn = { controllerDelegate.controller.zoomIn() },
+                onZoomOut = { controllerDelegate.controller.zoomOut() },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 8.dp, bottom = 12.dp),
+            )
         }
         MapStyleSelector(
             styles = styleOptions,
             selectedStyleId = selectedStyle.id,
-            onSelectStyle = onSelectStyle,
+            enabled = !styleSwitchLocked,
+            onSelectStyle = onSafeSelectStyle,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(8.dp),
-        )
-        MapZoomControls(
-            onZoomIn = { controllerDelegate.controller.zoomIn() },
-            onZoomOut = { controllerDelegate.controller.zoomOut() },
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 8.dp, bottom = 12.dp),
         )
         MapLegendHelpButton(
             expanded = legendVisible,
@@ -674,6 +707,7 @@ private fun ExpandedTrailMapDialog(
 private fun MapStyleSelector(
     styles: List<MapStyleOption>,
     selectedStyleId: String,
+    enabled: Boolean,
     onSelectStyle: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -693,7 +727,7 @@ private fun MapStyleSelector(
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
                     .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                    .clickable(enabled = !selected) { onSelectStyle(style.id) }
+                    .clickable(enabled = enabled && !selected) { onSelectStyle(style.id) }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelMedium,
@@ -1040,6 +1074,7 @@ private val SHENZHEN_MAP_CENTER = LngLat(114.0579, 22.5431)
 private const val SHENZHEN_MAP_ZOOM = 10.5
 private const val LONG_PRESS_MIN_MILLIS = 550L
 private const val LONG_PRESS_MOVE_TOLERANCE_PX = 18.0
+private const val MAP_STYLE_SWITCH_COOLDOWN_MILLIS = 700L
 private const val DETAIL_MAP_MAX_RENDERED_POINTS = 8000
 private const val DEFAULT_MAP_STYLE_ID = "outdoor"
 private const val TRAIL_SOURCE_ID = "stellartrail-trails"
