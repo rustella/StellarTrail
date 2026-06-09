@@ -72,6 +72,7 @@ class ApiClient(
     @PublishedApi internal val nonceProvider: () -> String = { UUID.randomUUID().toString() },
 ) {
     private val domainProbeMutex = Mutex()
+    private val tokenRefreshMutex = Mutex()
     @Volatile
     private var domainProbeCompletedForBaseUrl: String? = null
     @Volatile
@@ -119,15 +120,13 @@ class ApiClient(
         val cacheKey = cacheKeyForRequest(method, configProvider(), path, query, locale)
         var requestUrl = buildUrl(path, query)
         try {
-            var response = prepareQueryRequest(method, path, query, locale, configure).also {
-                requestUrl = it.url
-            }.request.execute()
+            var prepared = prepareQueryRequest(method, path, query, locale, configure).also { requestUrl = it.url }
+            var response = prepared.request.execute()
             if (response.status == HttpStatusCode.Unauthorized && canRefreshAfterUnauthorized(path)) {
-                val refreshed = refreshWithStoredToken()
+                val refreshed = refreshWithStoredToken(prepared.accessToken)
                 if (refreshed) {
-                    response = prepareQueryRequest(method, path, query, locale, configure).also {
-                        requestUrl = it.url
-                    }.request.execute()
+                    prepared = prepareQueryRequest(method, path, query, locale, configure).also { requestUrl = it.url }
+                    response = prepared.request.execute()
                 }
             }
             val text = response.bodyAsText()
@@ -175,15 +174,13 @@ class ApiClient(
         val requestContentType = ContentType.parse("multipart/form-data; boundary=$boundary")
         var requestUrl = buildUrl(path)
         try {
-            var response = prepareBinaryRequest(HttpMethod.Post, path, bodyBytes, requestContentType).also {
-                requestUrl = it.url
-            }.request.execute()
+            var prepared = prepareBinaryRequest(HttpMethod.Post, path, bodyBytes, requestContentType).also { requestUrl = it.url }
+            var response = prepared.request.execute()
             if (response.status == HttpStatusCode.Unauthorized && canRefreshAfterUnauthorized(path)) {
-                val refreshed = refreshWithStoredToken()
+                val refreshed = refreshWithStoredToken(prepared.accessToken)
                 if (refreshed) {
-                    response = prepareBinaryRequest(HttpMethod.Post, path, bodyBytes, requestContentType).also {
-                        requestUrl = it.url
-                    }.request.execute()
+                    prepared = prepareBinaryRequest(HttpMethod.Post, path, bodyBytes, requestContentType).also { requestUrl = it.url }
+                    response = prepared.request.execute()
                 }
             }
             val text = response.bodyAsText()
@@ -212,15 +209,13 @@ class ApiClient(
         val unsignedBody = json.encodeToJsonElement(request)
         var requestUrl = buildUrl(path)
         try {
-            var response = prepareJsonRequest(method, path, unsignedBody).also {
-                requestUrl = it.url
-            }.request.execute()
+            var prepared = prepareJsonRequest(method, path, unsignedBody).also { requestUrl = it.url }
+            var response = prepared.request.execute()
             if (response.status == HttpStatusCode.Unauthorized && canRefreshAfterUnauthorized(path)) {
-                val refreshed = refreshWithStoredToken()
+                val refreshed = refreshWithStoredToken(prepared.accessToken)
                 if (refreshed) {
-                    response = prepareJsonRequest(method, path, unsignedBody).also {
-                        requestUrl = it.url
-                    }.request.execute()
+                    prepared = prepareJsonRequest(method, path, unsignedBody).also { requestUrl = it.url }
+                    response = prepared.request.execute()
                 }
             }
             val text = response.bodyAsText()
@@ -253,12 +248,13 @@ class ApiClient(
     ): PreparedApiRequest {
         val requestConfig = configForRequest(path)
         val requestUrl = buildSignedUrl(requestConfig, method, path, query, EMPTY_BODY_SHA256_HEX)
+        val accessToken = tokenProvider()?.takeIf { it.isNotBlank() }
         val request = httpClient.prepareRequest(requestUrl) {
             this.method = method
-            attachAuthAndDefaults(locale)
+            attachAuthAndDefaults(locale, accessToken)
             configure()
         }
-        return PreparedApiRequest(requestUrl, request)
+        return PreparedApiRequest(requestUrl, request, accessToken)
     }
 
     @PublishedApi
@@ -271,13 +267,14 @@ class ApiClient(
         val requestUrl = buildUrl(requestConfig, path)
         val signedBody = signedJsonBody(requestConfig, method, path, requestUrl, unsignedBody)
         val bodyText = json.encodeToString(JsonElement.serializer(), signedBody)
+        val accessToken = tokenProvider()?.takeIf { it.isNotBlank() }
         val request = httpClient.prepareRequest(requestUrl) {
             this.method = method
-            attachAuthAndDefaults(locale = null)
+            attachAuthAndDefaults(locale = null, accessToken = accessToken)
             contentType(ContentType.Application.Json)
             setBody(TextContent(bodyText, ContentType.Application.Json))
         }
-        return PreparedApiRequest(requestUrl, request)
+        return PreparedApiRequest(requestUrl, request, accessToken)
     }
 
     @PublishedApi
@@ -289,12 +286,13 @@ class ApiClient(
     ): PreparedApiRequest {
         val requestConfig = configForRequest(path)
         val requestUrl = buildSignedUrl(requestConfig, method, path, bodyHashHex = sha256Hex(bodyBytes))
+        val accessToken = tokenProvider()?.takeIf { it.isNotBlank() }
         val request = httpClient.prepareRequest(requestUrl) {
             this.method = method
-            attachAuthAndDefaults(locale = null)
+            attachAuthAndDefaults(locale = null, accessToken = accessToken)
             setBody(ByteArrayContent(bodyBytes, requestContentType))
         }
-        return PreparedApiRequest(requestUrl, request)
+        return PreparedApiRequest(requestUrl, request, accessToken)
     }
 
 
@@ -489,10 +487,10 @@ class ApiClient(
     }
 
     @PublishedApi
-    internal fun HttpRequestBuilder.attachAuthAndDefaults(locale: SkillLocale?) {
+    internal fun HttpRequestBuilder.attachAuthAndDefaults(locale: SkillLocale?, accessToken: String? = tokenProvider()?.takeIf { it.isNotBlank() }) {
         accept(ContentType.Application.Json)
         header("X-StellarTrail-Client", activeConfig().clientIdentity)
-        tokenProvider()?.takeIf { it.isNotBlank() }?.let { bearerAuth(it) }
+        accessToken?.let { bearerAuth(it) }
         locale?.let { header("X-StellarTrail-Locale", it.headerValue) }
     }
 
@@ -527,9 +525,13 @@ class ApiClient(
     }
 
     @PublishedApi
-    internal suspend fun refreshWithStoredToken(): Boolean {
-        val refreshToken = refreshTokenProvider()?.takeIf { it.isNotBlank() } ?: return false
-        return try {
+    internal suspend fun refreshWithStoredToken(accessTokenUsed: String? = null): Boolean = tokenRefreshMutex.withLock {
+        val currentAccessToken = tokenProvider()?.takeIf { it.isNotBlank() }
+        if (accessTokenUsed != null && currentAccessToken != null && currentAccessToken != accessTokenUsed) {
+            return@withLock true
+        }
+        val refreshToken = refreshTokenProvider()?.takeIf { it.isNotBlank() } ?: return@withLock false
+        try {
             val response = post<RefreshTokenRequest, LoginResponse>(
                 "/auth/refresh",
                 RefreshTokenRequest(refreshToken),
@@ -598,6 +600,7 @@ internal val EMPTY_BODY_SHA256_HEX: String = sha256Hex(ByteArray(0))
 internal data class PreparedApiRequest(
     val url: String,
     val request: HttpStatement,
+    val accessToken: String?,
 )
 
 @PublishedApi

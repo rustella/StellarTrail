@@ -340,6 +340,46 @@ class ApiClientTest {
     }
 
     @Test
+    fun refreshSkipsNetworkCallWhenTokenWasAlreadyUpdated() = runTest {
+        val requests = mutableListOf<HttpRequestData>()
+        var accessToken = "expired-access-token"
+        var refreshToken = "old-refresh-token"
+        val engine = MockEngine { request ->
+            requests += request
+            when (request.url.encodedPath) {
+                "/api/v1/auth/refresh" -> respond(
+                    content = """{
+                        "access_token":"fresh-access-token",
+                        "expires_at":"2026-05-17T12:00:00Z",
+                        "refresh_token":"new-refresh-token",
+                        "refresh_expires_at":"2026-06-17T12:00:00Z",
+                        "user":{"id":"u1","username":"trail_alice"}
+                    }""".trimIndent(),
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+                else -> error("unexpected path ${request.url.encodedPath}")
+            }
+        }
+        val client = ApiClient(
+            configProvider = { AppConfig("https://api.example.test") },
+            tokenProvider = { accessToken },
+            refreshTokenProvider = { refreshToken },
+            sessionRefreshHandler = { response ->
+                accessToken = response.accessToken
+                refreshToken = response.refreshToken
+            },
+            httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ApiClient.defaultJson) } },
+        )
+
+        assertTrue(client.refreshWithStoredToken(accessTokenUsed = "expired-access-token"))
+        assertTrue(client.refreshWithStoredToken(accessTokenUsed = "expired-access-token"))
+
+        assertEquals(listOf("/api/v1/auth/refresh"), requests.map { it.url.encodedPath })
+        assertEquals("fresh-access-token", accessToken)
+        assertEquals("new-refresh-token", refreshToken)
+    }
+
+    @Test
     fun refreshNetworkFailureDoesNotExpireSession() = runTest {
         var expired = false
         val engine = MockEngine { request ->
