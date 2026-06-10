@@ -238,6 +238,7 @@ impl GearAtlasRepository {
             clauses.push("category = ?".to_owned());
             values.push(category.as_str().to_owned().into());
         }
+        apply_public_search_filter(&mut clauses, &mut values, options.q.as_deref());
         let sql = format!(
             "{} WHERE {} ORDER BY created_at DESC, id DESC",
             atlas_select_columns(),
@@ -245,9 +246,6 @@ impl GearAtlasRepository {
         );
         let mut items = self.query_items(sql, values).await?;
         self.localize_public_items(&mut items, locale).await?;
-        if let Some(query) = normalize_plain_query(options.q.as_deref()) {
-            items.retain(|item| public_item_matches_query(item, &query));
-        }
         sort_public_items(&mut items, options.sort);
         page_in_memory_items(items, limit, offset)
     }
@@ -836,6 +834,32 @@ fn apply_common_filters(
     }
 }
 
+fn apply_public_search_filter(clauses: &mut Vec<String>, values: &mut Vec<Value>, q: Option<&str>) {
+    let Some(q) = normalize_query(q) else {
+        return;
+    };
+    clauses.push(
+        "(LOWER(name) LIKE ? \
+          OR LOWER(COALESCE(description, '')) LIKE ? \
+          OR LOWER(COALESCE(brand, '')) LIKE ? \
+          OR LOWER(COALESCE(model, '')) LIKE ? \
+          OR EXISTS ( \
+              SELECT 1 FROM gear_atlas_item_localizations l \
+              WHERE l.atlas_item_id = gear_atlas_items.id \
+                AND (LOWER(l.name) LIKE ? OR LOWER(COALESCE(l.description, '')) LIKE ?) \
+          ) \
+          OR EXISTS ( \
+              SELECT 1 FROM gear_category_localizations c \
+              WHERE c.category = gear_atlas_items.category \
+                AND LOWER(c.label) LIKE ? \
+          ))"
+        .to_owned(),
+    );
+    for _ in 0..7 {
+        values.push(q.clone().into());
+    }
+}
+
 fn page_items(
     mut items: Vec<GearAtlasItem>,
     limit: u64,
@@ -891,30 +915,6 @@ fn normalize_query(q: Option<&str>) -> Option<String> {
     } else {
         Some(format!("%{}%", q.replace('%', "\\%").replace('_', "\\_")))
     }
-}
-
-fn normalize_plain_query(q: Option<&str>) -> Option<String> {
-    let q = q?.trim().to_lowercase();
-    if q.is_empty() { None } else { Some(q) }
-}
-
-fn public_item_matches_query(item: &GearAtlasItem, query: &str) -> bool {
-    item.name.to_lowercase().contains(query)
-        || item
-            .description
-            .as_deref()
-            .map(|value| value.to_lowercase().contains(query))
-            .unwrap_or(false)
-        || item
-            .brand
-            .as_deref()
-            .map(|value| value.to_lowercase().contains(query))
-            .unwrap_or(false)
-        || item
-            .model
-            .as_deref()
-            .map(|value| value.to_lowercase().contains(query))
-            .unwrap_or(false)
 }
 
 fn sort_public_items(items: &mut [GearAtlasItem], sort: GearAtlasSort) {

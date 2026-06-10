@@ -82,7 +82,7 @@ async fn list_public(
     let locale = resolve_locale(&headers)?;
     let cache_version = state.cache().public_gear_atlas_version().await;
     let normalized_input = json!({
-        "v": 2,
+        "v": 3,
         "cache_version": cache_version,
         "locale": locale.as_str(),
         "category": query.category.map(|category| category.as_str()),

@@ -10,11 +10,12 @@ import {
 import {
   formatGearPrice,
   formatGearWeight,
-  GEAR_CATEGORY_OPTIONS,
-  getGearCategoryLabel,
+  getGearCategoryLabelForLocale,
+  getGearCategoryOptionsForLocale,
   type GearAtlasPublicItem,
   type GearCategory,
 } from "../../utils/gear-display";
+import { loadAppLocale, type AppLocale } from "../../utils/locale";
 import {
   isOffline,
   showOfflineWriteBlockedToast,
@@ -36,18 +37,96 @@ interface AtlasCard {
   officialPriceText: string;
 }
 
-const CATEGORY_CHIPS: AtlasCategoryChip[] = [
-  { id: "all", label: "全部" },
-  ...GEAR_CATEGORY_OPTIONS.map((item) => ({
-    id: item.value,
-    label: item.label,
-  })),
-];
+interface AtlasListCopy {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  submit: string;
+  searchPlaceholder: string;
+  search: string;
+  clear: string;
+  allCategory: string;
+  unavailable: string;
+  loading: string;
+  emptyTitle: string;
+  emptySubtitle: string;
+  emptyAction: string;
+  status: string;
+  weight: string;
+  officialPrice: string;
+  loadingMore: string;
+  noMore: string;
+  brandModelUnset: string;
+  descriptionUnset: string;
+  unset: string;
+  loginTitle: string;
+  loginContent: string;
+  loginConfirm: string;
+}
+
+const ATLAS_LIST_COPY: Record<AppLocale, AtlasListCopy> = {
+  "zh-CN": {
+    eyebrow: "装备图鉴",
+    title: "装备图鉴",
+    subtitle: "浏览已审核收录的市面装备，也可以投稿补充新装备。",
+    submit: "投稿",
+    searchPlaceholder: "搜索装备名、品牌、型号",
+    search: "搜索",
+    clear: "清除",
+    allCategory: "全部",
+    unavailable: "装备图鉴服务正在更新，请稍后重试。",
+    loading: "正在加载装备图鉴...",
+    emptyTitle: "还没有收录装备",
+    emptySubtitle: "可以先提交一件装备，审核通过后会展示在这里。",
+    emptyAction: "投稿装备",
+    status: "已收录",
+    weight: "重量",
+    officialPrice: "官方价",
+    loadingMore: "继续加载...",
+    noMore: "没有更多装备了",
+    brandModelUnset: "未填写品牌型号",
+    descriptionUnset: "暂无描述",
+    unset: "未记录",
+    loginTitle: "登录后投稿",
+    loginContent: "投稿新装备需要登录。",
+    loginConfirm: "去登录",
+  },
+  en: {
+    eyebrow: "Gear Atlas",
+    title: "Gear Atlas",
+    subtitle: "Browse approved public gear entries and submit new gear.",
+    submit: "Submit",
+    searchPlaceholder: "Search name, brand, or model",
+    search: "Search",
+    clear: "Clear",
+    allCategory: "All",
+    unavailable: "Gear atlas is updating. Please try again later.",
+    loading: "Loading gear atlas...",
+    emptyTitle: "No gear entries yet",
+    emptySubtitle: "Submit a gear item and it will appear here after review.",
+    emptyAction: "Submit Gear",
+    status: "Listed",
+    weight: "Weight",
+    officialPrice: "Official Price",
+    loadingMore: "Loading more...",
+    noMore: "No more gear",
+    brandModelUnset: "Brand and model not set",
+    descriptionUnset: "No description yet",
+    unset: "Not recorded",
+    loginTitle: "Sign in to submit",
+    loginContent: "Sign in before submitting new gear.",
+    loginConfirm: "Sign in",
+  },
+};
+
 let atlasListRequestSeq = 0;
+const initialLocale = loadAppLocale();
 
 Page({
   data: {
-    categories: CATEGORY_CHIPS,
+    locale: initialLocale,
+    copy: ATLAS_LIST_COPY[initialLocale],
+    categories: buildCategoryChips(initialLocale),
     selectedCategory: "all" as "all" | GearCategory,
     q: "",
     items: [] as AtlasCard[],
@@ -67,7 +146,18 @@ Page({
 
   onShow() {
     syncPageTheme(this);
-    this.setData({ isLoggedIn: hasAccessToken() });
+    const previousLocale = this.data.locale;
+    const locale = loadAppLocale();
+    this.setData({
+      isLoggedIn: hasAccessToken(),
+      locale,
+      copy: ATLAS_LIST_COPY[locale],
+      categories: buildCategoryChips(locale),
+    });
+    if (locale !== previousLocale) {
+      this.setData({ nextCursor: null, items: [] });
+      this.refreshPage();
+    }
   },
 
   onPullDownRefresh() {
@@ -87,13 +177,18 @@ Page({
       errorIsUnavailable: false,
     });
     try {
-      const response = await listGearAtlas(this.buildRequest(null));
+      const response = await listGearAtlas(
+        this.buildRequest(null),
+        this.data.locale,
+      );
       if (requestSeq !== atlasListRequestSeq) {
         return;
       }
       const offlineNotice = consumeOfflineCacheNotice();
       this.setData({
-        items: response.items.map(mapAtlasCard),
+        items: response.items.map((item) =>
+          mapAtlasCard(item, this.data.locale, this.data.copy),
+        ),
         nextCursor: response.next_cursor ?? null,
         ...(offlineNotice ? { offlineNotice } : {}),
       });
@@ -126,12 +221,15 @@ Page({
     try {
       const response = await listGearAtlas(
         this.buildRequest(this.data.nextCursor),
+        this.data.locale,
       );
       if (requestSeq !== atlasListRequestSeq) {
         return;
       }
       const offlineNotice = consumeOfflineCacheNotice();
-      const cards = response.items.map(mapAtlasCard);
+      const cards = response.items.map((item) =>
+        mapAtlasCard(item, this.data.locale, this.data.copy),
+      );
       this.setData({
         ...indexedAppendData("items", this.data.items.length, cards),
         nextCursor: response.next_cursor ?? null,
@@ -194,9 +292,9 @@ Page({
     }
     if (!hasAccessToken()) {
       wx.showModal({
-        title: "登录后投稿",
-        content: "投稿新装备需要登录。",
-        confirmText: "去登录",
+        title: this.data.copy.loginTitle,
+        content: this.data.copy.loginContent,
+        confirmText: this.data.copy.loginConfirm,
         confirmColor: "#0f766e",
         success: (result) => {
           if (result.confirm) {
@@ -223,23 +321,43 @@ Page({
 
 function atlasErrorMessage(error: unknown): string {
   if (isNotFoundApiError(error)) {
-    return "装备图鉴服务正在更新，请稍后重试。";
+    return ATLAS_LIST_COPY[loadAppLocale()].unavailable;
   }
   return getErrorMessage(error);
 }
 
-function mapAtlasCard(item: GearAtlasPublicItem): AtlasCard {
+function mapAtlasCard(
+  item: GearAtlasPublicItem,
+  locale: AppLocale,
+  copy: AtlasListCopy,
+): AtlasCard {
   const brandModel = [item.brand, item.model].filter(Boolean).join(" · ");
   return {
     id: item.id,
-    categoryText: item.category_label || getGearCategoryLabel(item.category),
+    categoryText:
+      item.category_label ||
+      getGearCategoryLabelForLocale(item.category, locale),
     name: item.name,
-    brandModelText: brandModel || "未填写品牌型号",
-    descriptionText: item.description || "暂无描述",
-    weightText: formatGearWeight(item.weight_g),
-    officialPriceText: formatGearPrice(
-      item.official_price_cents,
-      item.official_price_currency,
+    brandModelText: brandModel || copy.brandModelUnset,
+    descriptionText: item.description || copy.descriptionUnset,
+    weightText: localizeUnset(formatGearWeight(item.weight_g), copy),
+    officialPriceText: localizeUnset(
+      formatGearPrice(item.official_price_cents, item.official_price_currency),
+      copy,
     ),
   };
+}
+
+function buildCategoryChips(locale: AppLocale): AtlasCategoryChip[] {
+  return [
+    { id: "all", label: ATLAS_LIST_COPY[locale].allCategory },
+    ...getGearCategoryOptionsForLocale(locale).map((item) => ({
+      id: item.value,
+      label: item.label,
+    })),
+  ];
+}
+
+function localizeUnset(value: string, copy: AtlasListCopy): string {
+  return value === ATLAS_LIST_COPY["zh-CN"].unset ? copy.unset : value;
 }

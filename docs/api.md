@@ -613,6 +613,8 @@ X-StellarTrail-Locale: en
 
 装备模板的模板标题、分类名、条目名存储在 `gear_template_*_localizations` 表中；默认系统模板同时 seed `zh-CN` 和 `en`。装备图鉴的公共 `name` 和 `description` 存储在 `gear_atlas_item_localizations` 表中，新用户投稿默认写入 `zh-CN` 原文行，不做自动机翻；公共 `category_label` 从 `gear_category_localizations` 表解析。`brand`、`model`、`specs`、价格和重量等事实字段不做翻译。
 
+装备图鉴列表的 `q` 会跨所有已保存 locale 匹配图鉴 `name`、`description` 和分类名，同时继续匹配 `brand`、`model` 以及主表兼容字段；响应仍只返回请求 locale 解析后的单语言字段，不暴露并列的 `zh/en` 字段。
+
 ### Gear atlas external source records
 
 已有外部装备来源记录会保留 `source_key`、`source_name`、`source_url`、`source_rating_score` 和 `source_rating_count` 等审核溯源字段。公开图鉴接口不暴露这些字段；只有管理员审核接口返回来源摘要。旧的 8264 POC 采集 CLI 已退役，仓库内不再提供新增 8264 来源记录的采集工具；后续如需恢复外部来源采集，应先重新设计采集、授权和审核流程。

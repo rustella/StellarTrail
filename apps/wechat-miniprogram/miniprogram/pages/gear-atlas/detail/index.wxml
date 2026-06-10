@@ -5,35 +5,35 @@
 
   <view wx:if="{{error}}" class="state-card error">
     <view>{{error}}</view>
-    <button bindtap="loadDetail">重试</button>
+    <button bindtap="loadDetail">{{copy.retry}}</button>
   </view>
 
   <view wx:elif="{{loading && !item}}" class="state-card"
-    >正在加载图鉴详情...</view
+    >{{copy.loading}}</view
   >
 
-  <view wx:elif="{{!item}}" class="state-card">暂无图鉴详情</view>
+  <view wx:elif="{{!item}}" class="state-card">{{copy.empty}}</view>
 
   <block wx:else>
     <view class="detail-hero">
       <view class="badge-row">
         <view class="category-badge">{{categoryText}}</view>
-        <view class="atlas-status">已收录</view>
+        <view class="atlas-status">{{copy.status}}</view>
       </view>
       <view class="detail-title">{{item.name}}</view>
       <view class="detail-subtitle">{{brandModelText}}</view>
       <view class="summary-grid">
         <view class="summary-item">
           <view class="summary-value">{{weightText}}</view>
-          <view class="summary-label">重量</view>
+          <view class="summary-label">{{copy.weight}}</view>
         </view>
         <view class="summary-item">
           <view class="summary-value">{{officialPriceText}}</view>
-          <view class="summary-label">官方价</view>
+          <view class="summary-label">{{copy.officialPrice}}</view>
         </view>
         <view class="summary-item">
           <view class="summary-value">{{approvedAtText}}</view>
-          <view class="summary-label">收录时间</view>
+          <view class="summary-label">{{copy.approvedAt}}</view>
         </view>
       </view>
     </view>

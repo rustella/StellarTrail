@@ -1,13 +1,11 @@
 <view class="atlas-page {{themeClass}}">
   <view class="hero-card">
     <view>
-      <view class="eyebrow">装备图鉴</view>
-      <view class="hero-title">装备图鉴</view>
-      <view class="hero-subtitle"
-        >浏览已审核收录的市面装备，也可以投稿补充新装备。</view
-      >
+      <view class="eyebrow">{{copy.eyebrow}}</view>
+      <view class="hero-title">{{copy.title}}</view>
+      <view class="hero-subtitle">{{copy.subtitle}}</view>
     </view>
-    <button class="primary-action" bindtap="goSubmit">投稿</button>
+    <button class="primary-action" bindtap="goSubmit">{{copy.submit}}</button>
   </view>
 
   <view wx:if="{{offlineNotice}}" class="offline-notice"
@@ -18,14 +16,16 @@
     <input
       class="search-input"
       value="{{q}}"
-      placeholder="搜索装备名、品牌、型号"
+      placeholder="{{copy.searchPlaceholder}}"
       confirm-type="search"
       bindinput="onSearchInput"
       bindconfirm="submitSearch"
     />
-    <button class="search-button" bindtap="submitSearch">搜索</button>
+    <button class="search-button" bindtap="submitSearch">
+      {{copy.search}}
+    </button>
     <button wx:if="{{q}}" class="clear-button" bindtap="clearSearch">
-      清除
+      {{copy.clear}}
     </button>
   </view>
 
@@ -50,20 +50,20 @@
   </view>
 
   <block wx:else>
-    <view wx:if="{{loading}}" class="state-card">正在加载装备图鉴...</view>
+    <view wx:if="{{loading}}" class="state-card">{{copy.loading}}</view>
     <view wx:elif="{{!items.length}}" class="empty-card">
-      <view class="empty-title">还没有收录装备</view>
-      <view class="empty-subtitle"
-        >可以先提交一件装备，审核通过后会展示在这里。</view
-      >
-      <button class="primary-action wide" bindtap="goSubmit">投稿装备</button>
+      <view class="empty-title">{{copy.emptyTitle}}</view>
+      <view class="empty-subtitle">{{copy.emptySubtitle}}</view>
+      <button class="primary-action wide" bindtap="goSubmit">
+        {{copy.emptyAction}}
+      </button>
     </view>
     <view wx:else class="atlas-list">
       <block wx:for="{{items}}" wx:key="id">
         <view class="atlas-card" data-id="{{item.id}}" bindtap="goDetail">
           <view class="card-topline">
             <view class="category-badge">{{item.categoryText}}</view>
-            <view class="atlas-status">已收录</view>
+            <view class="atlas-status">{{copy.status}}</view>
           </view>
           <view class="atlas-name">{{item.name}}</view>
           <view class="atlas-meta">{{item.brandModelText}}</view>
@@ -71,19 +71,19 @@
           <view class="metrics-row">
             <view class="metric">
               <view class="metric-value">{{item.weightText}}</view>
-              <view class="metric-label">重量</view>
+              <view class="metric-label">{{copy.weight}}</view>
             </view>
             <view class="metric">
               <view class="metric-value">{{item.officialPriceText}}</view>
-              <view class="metric-label">官方价</view>
+              <view class="metric-label">{{copy.officialPrice}}</view>
             </view>
           </view>
         </view>
       </block>
     </view>
-    <view wx:if="{{loadingMore}}" class="load-more">继续加载...</view>
+    <view wx:if="{{loadingMore}}" class="load-more">{{copy.loadingMore}}</view>
     <view wx:elif="{{items.length && !nextCursor}}" class="load-more muted"
-      >没有更多装备了</view
+      >{{copy.noMore}}</view
     >
   </block>
 </view>
