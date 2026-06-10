@@ -1,5 +1,6 @@
 package com.rustella.stellartrail.ui.screens
 
+import android.Manifest
 import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,13 +18,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -43,6 +48,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.maptiler.maptilersdk.MTConfig
 import com.maptiler.maptilersdk.events.MTEvent
 import com.maptiler.maptilersdk.map.LngLat
@@ -59,6 +67,13 @@ import com.maptiler.maptilersdk.map.style.layer.line.MTLineLayer
 import com.maptiler.maptilersdk.map.style.source.MTGeoJSONSource
 import com.maptiler.maptilersdk.map.types.MTBounds
 import com.maptiler.maptilersdk.map.types.MTData
+import com.rustella.stellartrail.core.location.AndroidForegroundLocationProvider
+import com.rustella.stellartrail.core.location.ForegroundLocation
+import com.rustella.stellartrail.core.location.ForegroundLocationPermission
+import com.rustella.stellartrail.core.location.ForegroundLocationTrackingState
+import com.rustella.stellartrail.core.location.ForegroundLocationTrackingStatus
+import com.rustella.stellartrail.core.location.foregroundLocationPermission
+import com.rustella.stellartrail.core.location.resolveForegroundLocationPermission
 import com.rustella.stellartrail.core.trail.readTrailUpload
 import com.rustella.stellartrail.core.trail.trailDocumentMimeTypes
 import com.rustella.stellartrail.domain.trip.MapAnnotation
@@ -150,6 +165,7 @@ fun TripsOverviewMapSection(
                 lineColor = USER_TRAIL_COLOR,
                 eventLevel = MTEventLevel.ESSENTIAL,
                 zoomGesturesEnabled = false,
+                locationTrackingEnabled = !expandedMap,
                 onMapTap = { _, _ ->
                     compactStyleIdWhileExpanded = compactSelectedStyle.id
                     expandedMap = true
@@ -239,6 +255,7 @@ fun TripDetailMapSection(
                     lineColor = USER_TRAIL_COLOR,
                     eventLevel = MTEventLevel.ALL,
                     zoomGesturesEnabled = false,
+                    locationTrackingEnabled = !expandedMap,
                     onMapTap = { _, _ ->
                         compactStyleIdWhileExpanded = selectedStyle.id
                         expandedMap = true
@@ -404,15 +421,26 @@ private fun MapTilerTrailMap(
     lineColor: Color,
     eventLevel: MTEventLevel,
     zoomGesturesEnabled: Boolean,
+    locationTrackingEnabled: Boolean = true,
     onMapTap: (Double, Double) -> Unit,
     onMapLongPress: (Double, Double) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val publicKey = map.publicKey.orEmpty()
     val styleUrl = selectedStyle.styleUrl.withMapTilerKey(publicKey)
+    val locationProvider = remember(context) { AndroidForegroundLocationProvider(context) }
     var legendVisible by remember { mutableStateOf(false) }
     var styleSwitchLocked by remember { mutableStateOf(false) }
+    var locationTrackingState by remember { mutableStateOf(ForegroundLocationTrackingState.Idle) }
+    var lastFollowLocation by remember { mutableStateOf<ForegroundLocation?>(null) }
+
+    fun stopLocationTracking() {
+        locationProvider.stopUpdates()
+        locationTrackingState = ForegroundLocationTrackingState.Idle
+    }
+
     LaunchedEffect(styleUrl) {
         if (styleSwitchLocked) {
             delay(MAP_STYLE_SWITCH_COOLDOWN_MILLIS)
@@ -440,6 +468,117 @@ private fun MapTilerTrailMap(
             onSelectStyle(styleId)
         }
     }
+    val currentOnUserGesture by rememberUpdatedState<() -> Unit> {
+        if (locationTrackingState.isActive) stopLocationTracking()
+    }
+    val controllerDelegate = remember(styleUrl, featureCollection, bounds, lineColor, eventLevel, zoomGesturesEnabled) {
+        MTConfig.apiKey = publicKey
+        TrailMapDelegate(
+            context = context,
+            featureCollection = featureCollection,
+            bounds = bounds,
+            lineColor = lineColor.toArgb(),
+            eventLevel = eventLevel,
+            zoomGesturesEnabled = zoomGesturesEnabled,
+            onTap = { lng, lat -> currentOnMapTap(lng, lat) },
+            onLongPress = { lng, lat -> currentOnMapLongPress(lng, lat) },
+            onUserGesture = { currentOnUserGesture() },
+        )
+    }
+    val currentControllerDelegate by rememberUpdatedState(controllerDelegate)
+
+    fun startLocationTracking(permission: ForegroundLocationPermission) {
+        if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+        if (permission == ForegroundLocationPermission.None) {
+            locationTrackingState = ForegroundLocationTrackingState.PermissionDenied
+            return
+        }
+        legendVisible = false
+        locationTrackingState = ForegroundLocationTrackingState.Starting
+        locationProvider.startUpdates(
+            permission = permission,
+            onLocation = { location ->
+                lastFollowLocation = location
+                currentControllerDelegate.centerOnLocation(location)
+                locationTrackingState = ForegroundLocationTrackingState.Following
+            },
+            onError = { error ->
+                locationProvider.stopUpdates()
+                locationTrackingState = ForegroundLocationTrackingState.unavailable(
+                    error.localizedMessage?.takeIf { it.isNotBlank() } ?: "暂时无法获取当前位置。",
+                )
+            },
+        )
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        val permission = resolveForegroundLocationPermission(
+            fineGranted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true,
+            coarseGranted = grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true,
+        )
+        startLocationTracking(permission)
+    }
+
+    fun toggleLocationTracking() {
+        if (!locationTrackingEnabled) return
+        if (locationTrackingState.isActive) {
+            stopLocationTracking()
+            return
+        }
+        when (val permission = context.foregroundLocationPermission()) {
+            ForegroundLocationPermission.None -> locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                ),
+            )
+            else -> startLocationTracking(permission)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, locationProvider) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) stopLocationTracking()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            stopLocationTracking()
+        }
+    }
+    LaunchedEffect(controllerDelegate, lastFollowLocation, locationTrackingState.status) {
+        if (locationTrackingState.status == ForegroundLocationTrackingStatus.Following) {
+            lastFollowLocation?.let { controllerDelegate.centerOnLocation(it) }
+        }
+    }
+    LaunchedEffect(locationTrackingState.status) {
+        if (locationTrackingState.status == ForegroundLocationTrackingStatus.Starting) {
+            delay(MAP_LOCATION_START_TIMEOUT_MILLIS)
+            if (locationTrackingState.status == ForegroundLocationTrackingStatus.Starting) {
+                locationProvider.stopUpdates()
+                locationTrackingState = ForegroundLocationTrackingState.unavailable()
+            }
+        }
+    }
+    LaunchedEffect(locationTrackingEnabled) {
+        if (!locationTrackingEnabled && locationTrackingState.isActive) {
+            stopLocationTracking()
+        }
+    }
+    LaunchedEffect(locationTrackingState) {
+        if (
+            locationTrackingState.status == ForegroundLocationTrackingStatus.PermissionDenied ||
+            locationTrackingState.status == ForegroundLocationTrackingStatus.Unavailable
+        ) {
+            val staleState = locationTrackingState
+            delay(MAP_LOCATION_MESSAGE_MILLIS)
+            if (locationTrackingState == staleState) {
+                locationTrackingState = ForegroundLocationTrackingState.Idle
+            }
+        }
+    }
     Box(
         modifier
             .fillMaxWidth()
@@ -448,19 +587,6 @@ private fun MapTilerTrailMap(
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
         key(styleUrl) {
-            val controllerDelegate = remember(featureCollection, bounds, lineColor, eventLevel, zoomGesturesEnabled) {
-                MTConfig.apiKey = publicKey
-                TrailMapDelegate(
-                    context = context,
-                    featureCollection = featureCollection,
-                    bounds = bounds,
-                    lineColor = lineColor.toArgb(),
-                    eventLevel = eventLevel,
-                    zoomGesturesEnabled = zoomGesturesEnabled,
-                    onTap = { lng, lat -> currentOnMapTap(lng, lat) },
-                    onLongPress = { lng, lat -> currentOnMapLongPress(lng, lat) },
-                )
-            }
             MTMapView(
                 referenceStyle = MTMapReferenceStyle.CUSTOM(URL(styleUrl)),
                 options = MTMapOptions(
@@ -484,12 +610,32 @@ private fun MapTilerTrailMap(
                 controller = controllerDelegate.controller,
                 modifier = Modifier.fillMaxSize(),
             )
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 8.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            MapLegendHelpButton(
+                expanded = legendVisible,
+                onToggle = { legendVisible = !legendVisible },
+            )
+            MapLocateButton(
+                state = locationTrackingState,
+                enabled = locationTrackingEnabled,
+                onClick = { toggleLocationTracking() },
+            )
             MapZoomControls(
-                onZoomIn = { controllerDelegate.controller.zoomIn() },
-                onZoomOut = { controllerDelegate.controller.zoomOut() },
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 8.dp, bottom = 12.dp),
+                onZoomIn = {
+                    currentOnUserGesture()
+                    controllerDelegate.controller.zoomIn()
+                },
+                onZoomOut = {
+                    currentOnUserGesture()
+                    controllerDelegate.controller.zoomOut()
+                },
             )
         }
         MapStyleSelector(
@@ -501,18 +647,19 @@ private fun MapTilerTrailMap(
                 .align(Alignment.TopEnd)
                 .padding(8.dp),
         )
-        MapLegendHelpButton(
-            expanded = legendVisible,
-            onToggle = { legendVisible = !legendVisible },
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 8.dp, bottom = 76.dp),
-        )
+        locationTrackingState.message?.takeIf { !legendVisible }?.let { message ->
+            MapLocationMessage(
+                message = message,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 46.dp, bottom = 76.dp),
+            )
+        }
         if (legendVisible) {
             MapLegendPopover(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = 46.dp, bottom = 76.dp),
+                    .padding(start = 46.dp, bottom = 112.dp),
             )
         }
     }
@@ -559,6 +706,71 @@ private fun MapZoomButton(symbol: String, onClick: () -> Unit) {
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun MapLocateButton(
+    state: ForegroundLocationTrackingState,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val active = state.status == ForegroundLocationTrackingStatus.Starting ||
+        state.status == ForegroundLocationTrackingStatus.Following
+    val hasError = state.status == ForegroundLocationTrackingStatus.PermissionDenied ||
+        state.status == ForegroundLocationTrackingStatus.Unavailable
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = when {
+            !enabled -> MaterialTheme.colorScheme.surface.copy(alpha = 0.68f)
+            active -> MaterialTheme.colorScheme.primary.copy(alpha = 0.94f)
+            hasError -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.94f)
+            else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+        },
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp,
+    ) {
+        Box(
+            Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(enabled = enabled, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.MyLocation,
+                contentDescription = if (active) "停止当前位置追踪" else "定位到当前位置",
+                modifier = Modifier.size(17.dp),
+                tint = when {
+                    !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
+                    active -> MaterialTheme.colorScheme.onPrimary
+                    hasError -> MaterialTheme.colorScheme.onErrorContainer
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun MapLocationMessage(message: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.clickable { },
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        tonalElevation = 1.dp,
+        shadowElevation = 1.dp,
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -747,6 +959,7 @@ private class TrailMapDelegate(
     private val zoomGesturesEnabled: Boolean,
     private val onTap: (Double, Double) -> Unit,
     private val onLongPress: (Double, Double) -> Unit,
+    private val onUserGesture: () -> Unit,
 ) : MTMapViewDelegate {
     val controller = MTMapViewController(context).apply { delegate = this@TrailMapDelegate }
     private var touchCandidate: LongPressCandidate? = null
@@ -786,6 +999,7 @@ private class TrailMapDelegate(
                 val candidate = touchCandidate
                 val point = data?.point
                 if (candidate != null && point != null && candidate.hasMovedPast(point.x, point.y)) {
+                    onUserGesture()
                     touchCandidate = null
                 }
             }
@@ -814,6 +1028,13 @@ private class TrailMapDelegate(
         val gestureService = controller.gestureService ?: return
         runCatching { gestureService.enablePinchRotateAndZoomGesture() }
             .onSuccess { pinchGestureEnabled = true }
+    }
+
+    fun centerOnLocation(location: ForegroundLocation) {
+        runCatching {
+            controller.setCenter(LngLat(location.longitude, location.latitude))
+            controller.setZoom(LOCATION_FOLLOW_ZOOM)
+        }
     }
 
     private fun renderTrailLayer() {
@@ -1072,9 +1293,12 @@ private val BASE_TRAIL_RED = Color(0xFFE9361F)
 private val BASE_TRAIL_PURPLE = Color(0xFFE63DCD)
 private val SHENZHEN_MAP_CENTER = LngLat(114.0579, 22.5431)
 private const val SHENZHEN_MAP_ZOOM = 10.5
+private const val LOCATION_FOLLOW_ZOOM = 15.0
 private const val LONG_PRESS_MIN_MILLIS = 550L
 private const val LONG_PRESS_MOVE_TOLERANCE_PX = 18.0
 private const val MAP_STYLE_SWITCH_COOLDOWN_MILLIS = 700L
+private const val MAP_LOCATION_START_TIMEOUT_MILLIS = 12_000L
+private const val MAP_LOCATION_MESSAGE_MILLIS = 3_000L
 private const val DETAIL_MAP_MAX_RENDERED_POINTS = 8000
 private const val DEFAULT_MAP_STYLE_ID = "outdoor"
 private const val TRAIL_SOURCE_ID = "stellartrail-trails"
