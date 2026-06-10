@@ -2,6 +2,9 @@ package com.rustella.stellartrail.ui.screens
 
 import android.Manifest
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -52,6 +55,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.maptiler.maptilersdk.MTConfig
+import com.maptiler.maptilersdk.annotations.MTAnchor
+import com.maptiler.maptilersdk.annotations.MTMarker
 import com.maptiler.maptilersdk.events.MTEvent
 import com.maptiler.maptilersdk.map.LngLat
 import com.maptiler.maptilersdk.map.MTMapOptions
@@ -438,6 +443,7 @@ private fun MapTilerTrailMap(
 
     fun stopLocationTracking() {
         locationProvider.stopUpdates()
+        lastFollowLocation = null
         locationTrackingState = ForegroundLocationTrackingState.Idle
     }
 
@@ -549,8 +555,10 @@ private fun MapTilerTrailMap(
         }
     }
     LaunchedEffect(controllerDelegate, lastFollowLocation, locationTrackingState.status) {
-        if (locationTrackingState.status == ForegroundLocationTrackingStatus.Following) {
+        if (shouldRenderCurrentLocationMarker(locationTrackingState, lastFollowLocation)) {
             lastFollowLocation?.let { controllerDelegate.centerOnLocation(it) }
+        } else {
+            controllerDelegate.hideCurrentLocationMarker()
         }
     }
     LaunchedEffect(locationTrackingState.status) {
@@ -965,9 +973,12 @@ private class TrailMapDelegate(
     private var touchCandidate: LongPressCandidate? = null
     private var suppressNextTap = false
     private var pinchGestureEnabled = false
+    private var currentLocationMarker: MTMarker? = null
+    private var currentLocationForMarker: ForegroundLocation? = null
 
     override fun onMapViewInitialized() {
         renderTrailLayer()
+        currentLocationForMarker?.let { showCurrentLocationMarker(it) }
         enablePinchGestureIfNeeded()
     }
 
@@ -1031,10 +1042,39 @@ private class TrailMapDelegate(
     }
 
     fun centerOnLocation(location: ForegroundLocation) {
+        showCurrentLocationMarker(location)
         runCatching {
             controller.setCenter(LngLat(location.longitude, location.latitude))
             controller.setZoom(LOCATION_FOLLOW_ZOOM)
         }
+    }
+
+    fun hideCurrentLocationMarker() {
+        currentLocationForMarker = null
+        currentLocationMarker?.let { marker ->
+            runCatching { controller.style?.removeMarker(marker) }
+        }
+        currentLocationMarker = null
+    }
+
+    private fun showCurrentLocationMarker(location: ForegroundLocation) {
+        currentLocationForMarker = location
+        val lngLat = LngLat(location.longitude, location.latitude)
+        val marker = currentLocationMarker
+        if (marker != null) {
+            runCatching { marker.setCoordinates(lngLat, controller) }
+            return
+        }
+        val style = controller.style ?: return
+        val nextMarker = MTMarker(lngLat, createCurrentLocationMarkerBitmap()).apply {
+            anchor = MTAnchor.CENTER
+            draggable = false
+            opacity = 1.0
+            opacityWhenCovered = 0.78
+            subpixelPositioning = true
+        }
+        runCatching { style.addMarker(nextMarker) }
+            .onSuccess { currentLocationMarker = nextMarker }
     }
 
     private fun renderTrailLayer() {
@@ -1284,6 +1324,48 @@ private fun fallbackMapStyleLabel(styleId: String): String = when (styleId) {
     "streets" -> "街道"
     "satellite" -> "卫星"
     else -> "户外"
+}
+
+internal data class CurrentLocationMarkerVisualSpec(
+    val sizePx: Int,
+    val outerRadiusPx: Float,
+    val strokeRadiusPx: Float,
+    val innerRadiusPx: Float,
+    val outerColor: Int,
+    val strokeColor: Int,
+    val innerColor: Int,
+)
+
+internal fun currentLocationMarkerVisualSpec() = CurrentLocationMarkerVisualSpec(
+    sizePx = 40,
+    outerRadiusPx = 18f,
+    strokeRadiusPx = 12f,
+    innerRadiusPx = 8f,
+    outerColor = 0x3A0B7CFF,
+    strokeColor = 0xFFFFFFFF.toInt(),
+    innerColor = 0xFF0B7CFF.toInt(),
+)
+
+internal fun shouldRenderCurrentLocationMarker(
+    state: ForegroundLocationTrackingState,
+    location: ForegroundLocation?,
+): Boolean = state.status == ForegroundLocationTrackingStatus.Following && location != null
+
+private fun createCurrentLocationMarkerBitmap(
+    spec: CurrentLocationMarkerVisualSpec = currentLocationMarkerVisualSpec(),
+): Bitmap {
+    val bitmap = Bitmap.createBitmap(spec.sizePx, spec.sizePx, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val center = spec.sizePx / 2f
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    paint.style = Paint.Style.FILL
+    paint.color = spec.outerColor
+    canvas.drawCircle(center, center, spec.outerRadiusPx, paint)
+    paint.color = spec.strokeColor
+    canvas.drawCircle(center, center, spec.strokeRadiusPx, paint)
+    paint.color = spec.innerColor
+    canvas.drawCircle(center, center, spec.innerRadiusPx, paint)
+    return bitmap
 }
 
 private val mapJson = Json { encodeDefaults = false }

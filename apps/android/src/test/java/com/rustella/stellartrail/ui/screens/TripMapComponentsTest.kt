@@ -1,6 +1,8 @@
 package com.rustella.stellartrail.ui.screens
 
 import com.rustella.stellartrail.core.map.InMemoryMapStylePreferenceRepository
+import com.rustella.stellartrail.core.location.ForegroundLocation
+import com.rustella.stellartrail.core.location.ForegroundLocationTrackingState
 import com.rustella.stellartrail.domain.trip.MapConfigResponse
 import com.rustella.stellartrail.domain.trip.MapStyleOption
 import kotlinx.serialization.json.Json
@@ -8,6 +10,8 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TripMapComponentsTest {
@@ -110,6 +114,27 @@ class TripMapComponentsTest {
         assertEquals("streets", repository.selectedStyleId.value)
         repository.selectStyle(" ")
         assertEquals("streets", repository.selectedStyleId.value)
+    }
+
+    @Test
+    fun currentLocationMarkerRendersOnlyWhileFollowingWithLocation() {
+        val location = ForegroundLocation(longitude = 114.0579, latitude = 22.5431, accuracyMeters = 5f)
+
+        assertFalse(shouldRenderCurrentLocationMarker(ForegroundLocationTrackingState.Idle, location))
+        assertFalse(shouldRenderCurrentLocationMarker(ForegroundLocationTrackingState.Starting, null))
+        assertFalse(shouldRenderCurrentLocationMarker(ForegroundLocationTrackingState.Following, null))
+        assertTrue(shouldRenderCurrentLocationMarker(ForegroundLocationTrackingState.Following, location))
+    }
+
+    @Test
+    fun currentLocationMarkerVisualSpecHasVisibleConcentricLayers() {
+        val spec = currentLocationMarkerVisualSpec()
+
+        assertEquals(40, spec.sizePx)
+        assertTrue(spec.outerRadiusPx > spec.strokeRadiusPx)
+        assertTrue(spec.strokeRadiusPx > spec.innerRadiusPx)
+        assertEquals(0xFFFFFFFF.toInt(), spec.strokeColor)
+        assertEquals(0xFF0B7CFF.toInt(), spec.innerColor)
     }
 
     private fun mapConfigWithStyles() = MapConfigResponse(
