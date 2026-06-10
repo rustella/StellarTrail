@@ -59,6 +59,7 @@ import type {
   ClientRequestSignatureConfig,
 } from "./client-config";
 import { loadClientConfig } from "./client-config";
+import { loadAppLocale, type AppLocale } from "./locale";
 import {
   clearUserOfflineCaches,
   makeOfflineCacheKey,
@@ -125,7 +126,7 @@ interface ApiRequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
   data?: unknown;
   auth?: boolean;
-  locale?: SkillLocale;
+  locale?: SkillLocale | AppLocale;
   cache?: boolean;
 }
 
@@ -1013,14 +1014,18 @@ export async function getGearTemplate(id: string): Promise<GearTemplate> {
 
 export async function listGearAtlas(
   request: ListGearAtlasRequest = {},
+  locale: AppLocale = loadAppLocale(),
 ): Promise<ListGearAtlasResponse> {
-  return requestJson(`/api/v1/gear-atlas${queryString(request)}`);
+  return requestJson(`/api/v1/gear-atlas${queryString(request)}`, { locale });
 }
 
 export async function getGearAtlasItem(
   id: string,
+  locale: AppLocale = loadAppLocale(),
 ): Promise<GearAtlasPublicItem> {
-  return requestJson(`/api/v1/gear-atlas/${encodeURIComponent(id)}`);
+  return requestJson(`/api/v1/gear-atlas/${encodeURIComponent(id)}`, {
+    locale,
+  });
 }
 
 export async function createGearAtlasSubmission(

@@ -1217,6 +1217,56 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
         "Electronics System"
     );
 
+    let (zh_search_en_status, zh_search_en) =
+        send_empty(&app.router, "GET", "/api/v1/gear-atlas?q=Public", None).await;
+    assert_eq!(zh_search_en_status, StatusCode::OK, "{zh_search_en}");
+    assert_eq!(zh_search_en["items"].as_array().unwrap().len(), 1);
+    assert_eq!(zh_search_en["items"][0]["id"], submission_id);
+    assert_eq!(zh_search_en["items"][0]["name"], "公共充电宝");
+
+    let (en_search_zh_status, _, en_search_zh) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        "/api/v1/gear-atlas?q=%E5%85%AC%E5%85%B1",
+        None,
+        &[("X-StellarTrail-Locale", "en")],
+    )
+    .await;
+    assert_eq!(en_search_zh_status, StatusCode::OK, "{en_search_zh}");
+    assert_eq!(en_search_zh["items"].as_array().unwrap().len(), 1);
+    assert_eq!(en_search_zh["items"][0]["id"], submission_id);
+    assert_eq!(en_search_zh["items"][0]["name"], "Public power bank");
+
+    let (zh_category_search_en_status, zh_category_search_en) =
+        send_empty(&app.router, "GET", "/api/v1/gear-atlas?q=Electronics", None).await;
+    assert_eq!(
+        zh_category_search_en_status,
+        StatusCode::OK,
+        "{zh_category_search_en}"
+    );
+    assert_eq!(
+        zh_category_search_en["items"][0]["category_label"],
+        "电子系统"
+    );
+
+    let (en_category_search_zh_status, _, en_category_search_zh) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        "/api/v1/gear-atlas?q=%E7%94%B5%E5%AD%90",
+        None,
+        &[("X-StellarTrail-Locale", "en")],
+    )
+    .await;
+    assert_eq!(
+        en_category_search_zh_status,
+        StatusCode::OK,
+        "{en_category_search_zh}"
+    );
+    assert_eq!(
+        en_category_search_zh["items"][0]["category_label"],
+        "Electronics System"
+    );
+
     let (detail_status, detail) = send_empty(
         &app.router,
         "GET",

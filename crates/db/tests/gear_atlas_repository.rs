@@ -1,3 +1,4 @@
+use sea_orm::{ConnectionTrait, Statement};
 use sea_orm_migration::prelude::MigratorTrait;
 use stellartrail_db::{
     DatabaseConfig, connect_database,
@@ -56,6 +57,117 @@ fn external_draft(
         source_rating_score: Some(8.6),
         source_rating_count: Some(7),
     }
+}
+
+#[tokio::test]
+async fn public_list_searches_all_localized_atlas_text_and_keeps_response_locale() {
+    let config = DatabaseConfig::new(temp_db_url("localized-search")).expect("db config");
+    let db = connect_database(&config).await.expect("connect");
+    Migrator::up(&db, None).await.expect("migrate");
+    let user = AuthRepository::new(db.clone())
+        .create_password_user("atlas_locale", "atlas-locale@example.test", "hash")
+        .await
+        .expect("create import user");
+    let repo = GearAtlasRepository::new(db.clone());
+
+    let mut draft = external_draft("locale:headlamp", "中文头灯", &user.id);
+    draft.category = GearCategory::LightingSystem;
+    draft.description = Some("适合夜间徒步的照明装备".to_owned());
+    draft.validate_and_normalize().expect("valid draft");
+    let imported = repo
+        .upsert_external_import(&draft)
+        .await
+        .expect("create import")
+        .item;
+    repo.approve(&imported.id, &user.id)
+        .await
+        .expect("approve")
+        .expect("approved item");
+
+    db.execute(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        "INSERT INTO gear_atlas_item_localizations(atlas_item_id, locale, name, description) \
+         VALUES (?, 'en', ?, ?)",
+        vec![
+            imported.id.clone().into(),
+            "Public headlamp".to_owned().into(),
+            "Lighting tool for night hiking".to_owned().into(),
+        ],
+    ))
+    .await
+    .expect("insert english localization");
+
+    let (zh_from_english, _) = repo
+        .list_public(
+            &ListGearAtlasOptions {
+                q: Some("headlamp".to_owned()),
+                ..Default::default()
+            },
+            Locale::ZhCn,
+        )
+        .await
+        .expect("list zh from english query");
+    assert_eq!(zh_from_english.len(), 1);
+    assert_eq!(zh_from_english[0].name, "中文头灯");
+
+    let (en_from_chinese, _) = repo
+        .list_public(
+            &ListGearAtlasOptions {
+                q: Some("头灯".to_owned()),
+                ..Default::default()
+            },
+            Locale::En,
+        )
+        .await
+        .expect("list en from chinese query");
+    assert_eq!(en_from_chinese.len(), 1);
+    assert_eq!(en_from_chinese[0].name, "Public headlamp");
+
+    let (zh_from_category_en, _) = repo
+        .list_public(
+            &ListGearAtlasOptions {
+                q: Some("Lighting".to_owned()),
+                ..Default::default()
+            },
+            Locale::ZhCn,
+        )
+        .await
+        .expect("list zh from english category");
+    assert_eq!(zh_from_category_en.len(), 1);
+    assert_eq!(zh_from_category_en[0].name, "中文头灯");
+
+    let (en_from_category_zh, _) = repo
+        .list_public(
+            &ListGearAtlasOptions {
+                q: Some("照明".to_owned()),
+                ..Default::default()
+            },
+            Locale::En,
+        )
+        .await
+        .expect("list en from chinese category");
+    assert_eq!(en_from_category_zh.len(), 1);
+    assert_eq!(en_from_category_zh[0].name, "Public headlamp");
+
+    db.execute(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        "DELETE FROM gear_atlas_item_localizations WHERE atlas_item_id = ? AND locale = 'en'",
+        vec![imported.id.clone().into()],
+    ))
+    .await
+    .expect("delete english localization");
+    let (fallback, _) = repo
+        .list_public(
+            &ListGearAtlasOptions {
+                q: Some("头灯".to_owned()),
+                ..Default::default()
+            },
+            Locale::En,
+        )
+        .await
+        .expect("list fallback");
+    assert_eq!(fallback.len(), 1);
+    assert_eq!(fallback[0].name, "中文头灯");
 }
 
 #[tokio::test]

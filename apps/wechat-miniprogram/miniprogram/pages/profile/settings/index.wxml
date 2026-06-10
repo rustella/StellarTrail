@@ -76,6 +76,44 @@
     >
   </view>
 
+  <view class="card settings-card">
+    <view class="settings-section-title">偏好设置</view>
+    <view class="settings-row" bindtap="openAppLocaleModal">
+      <view class="settings-icon">语</view>
+      <view class="settings-copy">
+        <view class="settings-title">图鉴语言</view>
+        <view class="settings-desc">{{appLocaleLabel}}</view>
+      </view>
+      <view class="settings-chevron">›</view>
+    </view>
+  </view>
+
+  <view wx:if="{{appLocaleModalVisible}}" class="settings-modal-mask">
+    <view class="settings-modal-card">
+      <view class="settings-modal-title">图鉴语言</view>
+      <view class="settings-modal-desc"
+        >影响装备图鉴列表、搜索结果和详情展示语言。</view
+      >
+      <view class="settings-locale-options">
+        <button
+          wx:for="{{appLocaleOptions}}"
+          wx:key="value"
+          class="settings-locale-option {{appLocale === item.value ? 'active' : ''}}"
+          data-locale="{{item.value}}"
+          bindtap="selectAppLocale"
+        >
+          <view class="settings-locale-label">{{item.label}}</view>
+          <view class="settings-locale-desc">{{item.description}}</view>
+        </button>
+      </view>
+      <view class="settings-modal-actions">
+        <button class="secondary-pill" bindtap="closeAppLocaleModal">
+          关闭
+        </button>
+      </view>
+    </view>
+  </view>
+
   <view wx:if="{{nicknameModalVisible}}" class="settings-modal-mask">
     <view class="settings-modal-card">
       <view class="settings-modal-title">修改名称</view>

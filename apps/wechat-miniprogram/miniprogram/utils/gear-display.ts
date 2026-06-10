@@ -7,6 +7,7 @@ import type {
   GearStatus,
   OptionItem,
 } from "./gear-utils";
+import type { AppLocale } from "./locale";
 
 export type {
   GearCategory,
@@ -32,6 +33,20 @@ export const GEAR_CATEGORY_OPTIONS: Array<OptionItem<GearCategory>> = [
   { value: "other_gear", label: "其他装备", hint: "杂项与个性化装备" },
   { value: "consumable", label: "消耗品", hint: "气罐、食品、一次性用品" },
 ];
+
+const GEAR_CATEGORY_EN_LABELS: Record<GearCategory, string> = {
+  backpack_system: "Backpack System",
+  sleep_system: "Sleep System",
+  kitchen_system: "Kitchen System",
+  walking_system: "Walking System",
+  clothing_system: "Clothing System",
+  lighting_system: "Lighting System",
+  first_aid_system: "First Aid System",
+  electronics_system: "Electronics System",
+  technical_gear: "Technical Gear",
+  other_gear: "Other Gear",
+  consumable: "Consumables",
+};
 
 export const GEAR_STATUS_OPTIONS: Array<OptionItem<GearStatus>> = [
   { value: "available", label: "可用" },
@@ -100,6 +115,27 @@ export function formatGearPrice(
 
 export function getGearCategoryLabel(value: GearCategory): string {
   return findLabel(GEAR_CATEGORY_OPTIONS, value);
+}
+
+export function getGearCategoryLabelForLocale(
+  value: GearCategory,
+  locale: AppLocale,
+): string {
+  return locale === "en"
+    ? GEAR_CATEGORY_EN_LABELS[value]
+    : getGearCategoryLabel(value);
+}
+
+export function getGearCategoryOptionsForLocale(
+  locale: AppLocale,
+): Array<OptionItem<GearCategory>> {
+  if (locale !== "en") {
+    return GEAR_CATEGORY_OPTIONS;
+  }
+  return GEAR_CATEGORY_OPTIONS.map((item) => ({
+    ...item,
+    label: GEAR_CATEGORY_EN_LABELS[item.value],
+  }));
 }
 
 export function getGearStatusLabel(value: GearStatus): string {

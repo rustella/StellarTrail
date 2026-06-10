@@ -1268,6 +1268,9 @@ ${ts}`;
   assert.match(wxml, /修改密码/);
   assert.match(wxml, /户外资料/);
   assert.match(wxml, /户外经历/);
+  assert.match(wxml, /图鉴语言/);
+  assert.match(wxml, /bindtap="openAppLocaleModal"/);
+  assert.match(wxml, /bindtap="selectAppLocale"/);
   assert.doesNotMatch(wxml, /open-type="chooseAvatar"/);
   assert.match(wxml, /type="nickname"/);
   assert.match(wxml, /点这里后，在下方选择“用微信昵称”/);
@@ -1291,6 +1294,8 @@ ${ts}`;
   assert.match(pageSource, /openEmailBindingModal/);
   assert.match(pageSource, /\/pages\/profile\/outdoor\/index/);
   assert.match(pageSource, /\/pages\/profile\/outdoor-experiences\/index/);
+  assert.match(pageSource, /APP_LOCALE_OPTIONS/);
+  assert.match(pageSource, /saveAppLocale\(locale\)/);
   assert.match(pageSource, /先绑定邮箱/);
   assert.match(pageSource, /buildAccountProfile/);
   assert.match(pageSource, /WechatNicknameSubmitEvent/);
@@ -1681,6 +1686,9 @@ test("gear atlas submission moved from gear form to detail and atlas pages", () 
   const detailWxml = read("pages/gears/detail/index.wxml");
   const detailTs = read("pages/gears/detail/index.ts");
   const atlasListWxml = read("pages/gear-atlas/index.wxml");
+  const atlasListTs = read("pages/gear-atlas/index.ts");
+  const atlasDetailWxml = read("pages/gear-atlas/detail/index.wxml");
+  const atlasDetailTs = read("pages/gear-atlas/detail/index.ts");
   const atlasSubmitWxml = read("pages/gear-atlas/submit/index.wxml");
   const appJson = read("app.json");
 
@@ -1694,7 +1702,15 @@ test("gear atlas submission moved from gear form to detail and atlas pages", () 
     detailTs,
     /只会复制分类、名称、品牌、型号、描述、重量、官方价和详细信息/,
   );
-  assert.match(atlasListWxml, /装备图鉴/);
+  assert.match(atlasListWxml, /copy\.title/);
+  assert.match(atlasListTs, /loadAppLocale/);
+  assert.match(atlasListTs, /listGearAtlas\([\s\S]*this\.data\.locale/);
+  assert.match(atlasDetailWxml, /copy\.status/);
+  assert.match(atlasDetailTs, /loadAppLocale/);
+  assert.match(
+    atlasDetailTs,
+    /getGearAtlasItem\(this\.data\.id, this\.data\.locale\)/,
+  );
   assert.match(atlasSubmitWxml, /提交审核/);
   assert.match(appJson, /pages\/gear-atlas\/index/);
 });

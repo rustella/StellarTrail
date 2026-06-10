@@ -3057,6 +3057,67 @@ test("cacheable GET responses are reused after network failure", async () => {
   assert.equal(consumeOfflineCacheNotice(), "当前离线，正在显示已缓存内容");
 });
 
+test("gear atlas requests use stored locale and isolate offline caches by locale", async () => {
+  let listCallCount = 0;
+  const storage = installWxMock((options) => {
+    const { path } = parseRequestUrl(options.url);
+    if (path === "/api/v1/gear-atlas") {
+      listCallCount += 1;
+      if (listCallCount === 1) {
+        assert.equal(options.header["X-StellarTrail-Locale"], "en");
+        options.success({
+          statusCode: 200,
+          data: {
+            items: [{ id: "atlas-1", name: "Public headlamp" }],
+            next_cursor: null,
+          },
+        });
+        return;
+      }
+      assert.equal(
+        options.header["X-StellarTrail-Locale"],
+        listCallCount === 2 ? "en" : "zh-CN",
+      );
+      options.fail({ errMsg: "request:fail" });
+      return;
+    }
+    if (path === "/api/v1/gear-atlas/atlas-1") {
+      assert.equal(options.header["X-StellarTrail-Locale"], "en");
+      options.success({
+        statusCode: 200,
+        data: { id: "atlas-1", name: "Public headlamp" },
+      });
+      return;
+    }
+    throw new Error(`unexpected request ${options.url}`);
+  });
+  storage.set("stellartrail.wechat.locale", "en");
+  const {
+    consumeOfflineCacheNotice,
+    getGearAtlasItem,
+    isOfflineCacheMissError,
+    listGearAtlas,
+  } = require("../.tmp-test/utils/api.js");
+  require("../.tmp-test/utils/network-state.js").initNetworkState();
+
+  const online = await listGearAtlas();
+  const detail = await getGearAtlasItem("atlas-1");
+  const offline = await listGearAtlas();
+
+  assert.equal(detail.name, "Public headlamp");
+  assert.deepEqual(offline, online);
+  assert.equal(consumeOfflineCacheNotice(), "当前离线，正在显示已缓存内容");
+
+  storage.set("stellartrail.wechat.locale", "zh-CN");
+  await assert.rejects(
+    () => listGearAtlas(),
+    (error) => {
+      assert.equal(isOfflineCacheMissError(error), true);
+      return true;
+    },
+  );
+});
+
 test("content page GET responses are reused after network failure", async () => {
   let callCount = 0;
   installWxMock((options) => {

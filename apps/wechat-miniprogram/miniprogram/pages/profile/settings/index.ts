@@ -19,9 +19,22 @@ import {
   showOfflineWriteBlockedToast,
 } from "../../../utils/network-state";
 import { markProfileShouldRefresh } from "../../../utils/profile-refresh";
+import {
+  APP_LOCALE_OPTIONS,
+  getAppLocaleLabel,
+  loadAppLocale,
+  saveAppLocale,
+  type AppLocale,
+} from "../../../utils/locale";
+
+const initialLocale = loadAppLocale();
 
 Page({
   data: {
+    appLocale: initialLocale,
+    appLocaleLabel: getAppLocaleLabel(initialLocale),
+    appLocaleOptions: APP_LOCALE_OPTIONS,
+    appLocaleModalVisible: false,
     loggedIn: hasAccessToken(),
     accountProfile: buildAccountProfile(hasAccessToken()),
     accountError: "",
@@ -48,6 +61,7 @@ Page({
 
   onShow() {
     syncPageTheme(this);
+    this.syncAppLocaleViewData();
     void this.refreshAccountState();
   },
 
@@ -321,6 +335,40 @@ Page({
       return;
     }
     wx.navigateTo({ url: "/pages/profile/outdoor-experiences/index" });
+  },
+
+  syncAppLocaleViewData() {
+    const locale = loadAppLocale();
+    this.setData({
+      appLocale: locale,
+      appLocaleLabel: getAppLocaleLabel(locale),
+    });
+  },
+
+  openAppLocaleModal() {
+    this.syncAppLocaleViewData();
+    this.setData({ appLocaleModalVisible: true });
+  },
+
+  closeAppLocaleModal() {
+    this.setData({ appLocaleModalVisible: false });
+  },
+
+  selectAppLocale(event: WechatMiniprogram.BaseEvent) {
+    const locale = event.currentTarget.dataset.locale as AppLocale | undefined;
+    if (locale !== "zh-CN" && locale !== "en") {
+      return;
+    }
+    saveAppLocale(locale);
+    this.setData({
+      appLocale: locale,
+      appLocaleLabel: getAppLocaleLabel(locale),
+      appLocaleModalVisible: false,
+    });
+    wx.showToast({
+      title: locale === "en" ? "Gear atlas: English" : "图鉴语言：中文",
+      icon: "none",
+    });
   },
 
   closePasswordModal() {
