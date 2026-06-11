@@ -99,6 +99,7 @@ impl MigratorTrait for Migrator {
             Box::new(ensure_user_gear_archive_fields::Migration),
             Box::new(create_app_content_pages::Migration),
             Box::new(update_profile_about_copy::Migration),
+            Box::new(compat_folded_migrations::ensure_gear_atlas_import_i18n::Migration),
         ]
     }
 }
@@ -158,6 +159,7 @@ mod tests {
             "m20260607_000001_ensure_user_gear_archive_fields",
             "m20260607_000002_create_app_content_pages",
             "m20260607_000003_update_profile_about_copy",
+            "m20260611_000001_ensure_gear_atlas_import_i18n",
         ]
         .into_iter()
         .map(str::to_owned)

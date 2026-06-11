@@ -73,3 +73,7 @@ folded_migration!(
     "m20260525_000001_add_knot_localization_aliases"
 );
 folded_migration!(create_team_trip_plans, "create_team_trip_plans");
+folded_migration!(
+    ensure_gear_atlas_import_i18n,
+    "m20260611_000001_ensure_gear_atlas_import_i18n"
+);

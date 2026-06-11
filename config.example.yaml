@@ -75,8 +75,12 @@ request_signature:
   enabled: false
   nonce_ttl_seconds: 300
   clients:
-    - app_id: example-client-id
-      app_secret: example-client-secret
+    - app_id: example-web-client-id
+      app_secret: example-web-client-secret
+    - app_id: example-wechat-client-id
+      app_secret: example-wechat-client-secret
+    - app_id: example-android-client-id
+      app_secret: example-android-client-secret
 
 mail:
   enabled: false

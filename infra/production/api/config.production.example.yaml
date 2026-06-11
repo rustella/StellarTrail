@@ -80,8 +80,12 @@ request_signature:
   enabled: true
   nonce_ttl_seconds: 300
   clients:
-    - app_id: example-client-id
-      app_secret: example-client-secret
+    - app_id: example-prod-web-client-id
+      app_secret: example-prod-web-client-secret
+    - app_id: example-prod-wechat-client-id
+      app_secret: example-prod-wechat-client-secret
+    - app_id: example-prod-android-client-id
+      app_secret: example-prod-android-client-secret
 
 public_api:
   rate_limit_enabled: true

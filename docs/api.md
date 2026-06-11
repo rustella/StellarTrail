@@ -98,11 +98,13 @@ request_signature:
   enabled: true
   nonce_ttl_seconds: 300
   clients:
-    - app_id: example-client-id
-      app_secret: example-client-secret
+    - app_id: example-web-client-id
+      app_secret: example-web-client-secret
 ```
 
 服务端不会读取 `REQUEST_SIGNATURE_*` 环境变量。`nonce_ttl_seconds` 默认为 300 秒；同一 `{app_id, nonce}` 在 TTL 内重复使用会返回 `401 invalid_request_signature`。Redis 可用时 nonce 记录写入 Redis；Redis 不可用时退回单进程内存记录。
+
+Web 端通过构建环境变量 `VITE_STELLARTRAIL_REQUEST_SIGNATURE_APP_ID` 和 `VITE_STELLARTRAIL_REQUEST_SIGNATURE_APP_SECRET` 注入同一组签名客户端。测试环境和生产环境应使用不同的 `app_id/app_secret`，并分别登记到对应后端 ignored YAML 配置的 `request_signature.clients` 中。浏览器包里的 `app_secret` 只能作为公开客户端签名凭据，用于统一请求校验和 replay 防护，不能当作真正保密的服务端密钥边界。
 
 参数位置：
 

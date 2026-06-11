@@ -159,5 +159,6 @@ export function createWebGearApi(): WebGearApi {
     baseUrl: config.apiBaseUrl,
     assetsBaseUrl: config.assetsBaseUrl,
     clientIdentity: config.clientIdentity,
+    requestSignature: config.requestSignature,
   });
 }
