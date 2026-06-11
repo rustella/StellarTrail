@@ -104,10 +104,21 @@ export interface ApiClientOptions {
   accessToken?: string;
   refreshToken?: string;
   onSessionRefresh?: (response: WechatLoginResponse) => void;
+  requestSignature?: ClientRequestSignatureConfig;
+  nonceProvider?: () => string;
 }
 
 const API_PREFIX = "/api/v1";
 const HEALTH_PATH = "/healthz";
+const SIGNATURE_ALGORITHM = "STELLARTRAIL-HMAC-SHA256";
+const SIGNING_FIELD_APP_ID = "app_id";
+const SIGNING_FIELD_NONCE = "nonce";
+const SIGNING_FIELD_SIGNATURE = "signature";
+
+export interface ClientRequestSignatureConfig {
+  app_id: string;
+  app_secret: string;
+}
 
 export class StellarTrailApiError extends Error {
   readonly status: number;
@@ -140,6 +151,8 @@ export class StellarTrailApiClient {
   private readonly assetsBaseUrl: string;
   private readonly clientIdentity: string;
   private readonly fetcher: typeof fetch;
+  private readonly requestSignature?: ClientRequestSignatureConfig;
+  private readonly nonceProvider: () => string;
   private accessToken?: string;
   private refreshToken?: string;
   private refreshPromise?: Promise<WechatLoginResponse>;
@@ -153,6 +166,8 @@ export class StellarTrailApiClient {
     );
     this.clientIdentity = options.clientIdentity.trim();
     this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
+    this.requestSignature = normalizeRequestSignature(options.requestSignature);
+    this.nonceProvider = options.nonceProvider ?? createSignatureNonce;
     this.accessToken = options.accessToken;
     this.refreshToken = options.refreshToken;
     this.onSessionRefresh = options.onSessionRefresh;
@@ -394,16 +409,33 @@ export class StellarTrailApiClient {
   async uploadKnotMedia(
     input: AdminKnotMediaUploadInput,
   ): Promise<KnotMediaUploadResponse> {
-    const form = new FormData();
-    form.set("media_type", input.mediaType ?? input.assetId);
-    form.set("file", input.file, input.filename ?? input.assetId);
-    if (input.attribution) form.set("attribution", input.attribution);
-    if (input.licenseNote) form.set("license_note", input.licenseNote);
-    if (input.sourceName) form.set("source_name", input.sourceName);
-    if (input.sourcePath) form.set("source_path", input.sourcePath);
+    const multipart = await buildMultipartBody({
+      fields: [
+        { name: "media_type", value: input.mediaType ?? input.assetId },
+        ...(input.attribution
+          ? [{ name: "attribution", value: input.attribution }]
+          : []),
+        ...(input.licenseNote
+          ? [{ name: "license_note", value: input.licenseNote }]
+          : []),
+        ...(input.sourceName
+          ? [{ name: "source_name", value: input.sourceName }]
+          : []),
+        ...(input.sourcePath
+          ? [{ name: "source_path", value: input.sourcePath }]
+          : []),
+      ],
+      file: input.file,
+      filename: input.filename ?? input.assetId,
+      contentType: knotMediaAssetContentType(input.assetId),
+    });
     const response = await this.request(
       `/admin/skills/knots/${encodeURIComponent(input.knotId)}/media/${encodeURIComponent(input.assetId)}`,
-      { method: "PUT", body: form },
+      {
+        method: "PUT",
+        body: multipart.body,
+        headers: { "content-type": multipart.contentType },
+      },
       true,
     );
     return response.json() as Promise<KnotMediaUploadResponse>;
@@ -665,11 +697,18 @@ export class StellarTrailApiClient {
     file: Blob,
     filename = "avatar.png",
   ): Promise<ProfileUserResponse> {
-    const form = new FormData();
-    form.set("file", file, filename);
+    const multipart = await buildMultipartBody({
+      fields: [],
+      file,
+      filename,
+    });
     const response = await this.request(
       "/me/profile/avatar",
-      { method: "PUT", body: form },
+      {
+        method: "PUT",
+        body: multipart.body,
+        headers: { "content-type": multipart.contentType },
+      },
       true,
     );
     return response.json() as Promise<ProfileUserResponse>;
@@ -1487,10 +1526,98 @@ export class StellarTrailApiClient {
       }
       headers.set("authorization", `Bearer ${this.accessToken}`);
     }
-    return this.fetcher(`${this.baseUrl}${versionedApiPath(path)}`, {
+    const method = (init.method ?? "GET").toUpperCase();
+    const request = await this.signRequestIfConfigured(
+      method,
+      versionedApiPath(path),
+      init.body,
+      headers,
+    );
+    return this.fetcher(`${this.baseUrl}${request.path}`, {
       ...init,
+      body: request.body,
       headers,
     });
+  }
+
+  private async signRequestIfConfigured(
+    method: string,
+    path: string,
+    body: BodyInit | null | undefined,
+    headers: Headers,
+  ): Promise<{ path: string; body: BodyInit | null | undefined }> {
+    if (!this.requestSignature || !shouldSignRequest(method, path)) {
+      return { path, body };
+    }
+    const parsed = parseRequestPath(path);
+    if (isJsonRequest(headers) && body !== undefined && body !== null) {
+      if (typeof body !== "string") {
+        throw new Error("Signed JSON API requests must use a string body.");
+      }
+      const unsignedJson = parseSignedJsonBody(body);
+      const nonce = this.nonceProvider().trim();
+      const bodyHash = await sha256Hex(
+        utf8Bytes(canonicalJsonWithoutSigningFields(unsignedJson)),
+      );
+      const signature = await hmacSha256Hex(
+        this.requestSignature.app_secret,
+        canonicalRequest(
+          method,
+          parsed.path,
+          canonicalQuery(parsed.query),
+          bodyHash,
+          this.requestSignature.app_id,
+          nonce,
+        ),
+      );
+      return {
+        path,
+        body: JSON.stringify({
+          ...unsignedJson,
+          [SIGNING_FIELD_APP_ID]: this.requestSignature.app_id,
+          [SIGNING_FIELD_NONCE]: nonce,
+          [SIGNING_FIELD_SIGNATURE]: signature,
+        }),
+      };
+    }
+
+    const bodyHash = await sha256Hex(await requestBodyBytes(body));
+    return {
+      path: await this.signedQueryPath(method, parsed, bodyHash),
+      body,
+    };
+  }
+
+  private async signedQueryPath(
+    method: string,
+    parsed: ParsedRequestPath,
+    bodyHash: string,
+  ): Promise<string> {
+    if (!this.requestSignature) {
+      return buildRequestPath(parsed.path, parsed.query);
+    }
+    const nonce = this.nonceProvider().trim();
+    const queryWithFields = queryWithSigningFields(parsed.query, {
+      [SIGNING_FIELD_APP_ID]: this.requestSignature.app_id,
+      [SIGNING_FIELD_NONCE]: nonce,
+    });
+    const signature = await hmacSha256Hex(
+      this.requestSignature.app_secret,
+      canonicalRequest(
+        method,
+        parsed.path,
+        canonicalQuery(queryWithFields),
+        bodyHash,
+        this.requestSignature.app_id,
+        nonce,
+      ),
+    );
+    return buildRequestPath(
+      parsed.path,
+      queryWithSigningFields(queryWithFields, {
+        [SIGNING_FIELD_SIGNATURE]: signature,
+      }),
+    );
   }
 
   private async refreshWithStoredToken(): Promise<void> {
@@ -1551,6 +1678,21 @@ function queryString(params: object): string {
   return value ? `?${value}` : "";
 }
 
+interface ParsedRequestPath {
+  path: string;
+  query: string;
+}
+
+interface MultipartTextField {
+  name: string;
+  value: string;
+}
+
+interface MultipartBody {
+  body: ArrayBuffer;
+  contentType: string;
+}
+
 function versionedApiPath(path: string): string {
   if (path === HEALTH_PATH || path.startsWith(`${API_PREFIX}/`)) {
     return path;
@@ -1561,4 +1703,459 @@ function versionedApiPath(path: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function normalizeRequestSignature(
+  config: ClientRequestSignatureConfig | undefined,
+): ClientRequestSignatureConfig | undefined {
+  const app_id = config?.app_id?.trim();
+  const app_secret = config?.app_secret?.trim();
+  if (!app_id || !app_secret) {
+    return undefined;
+  }
+  return { app_id, app_secret };
+}
+
+function shouldSignRequest(method: string, requestPath: string): boolean {
+  if (method === "OPTIONS") {
+    return false;
+  }
+  const path = parseRequestPath(requestPath).path;
+  return (
+    (path === API_PREFIX || path.startsWith(`${API_PREFIX}/`)) &&
+    path !== `${API_PREFIX}/ping` &&
+    path !== `${API_PREFIX}/echo` &&
+    path !== HEALTH_PATH &&
+    path !== "/ping" &&
+    path !== "/echo"
+  );
+}
+
+function parseRequestPath(requestPath: string): ParsedRequestPath {
+  const [path, query = ""] = requestPath.split("?", 2);
+  return { path, query };
+}
+
+function buildRequestPath(path: string, query: string): string {
+  return query ? `${path}?${query}` : path;
+}
+
+function isJsonRequest(headers: Headers): boolean {
+  const mediaType = headers
+    .get("content-type")
+    ?.split(";")[0]
+    ?.trim()
+    .toLowerCase();
+  return (
+    mediaType === "application/json" || Boolean(mediaType?.endsWith("+json"))
+  );
+}
+
+function parseSignedJsonBody(body: string): Record<string, unknown> {
+  const value = JSON.parse(body) as unknown;
+  if (!isRecord(value) || Array.isArray(value)) {
+    throw new Error("Signed JSON API requests must use an object body.");
+  }
+  return value;
+}
+
+function canonicalJsonWithoutSigningFields(
+  value: Record<string, unknown>,
+): string {
+  const copy: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (!isSigningField(key)) {
+      copy[key] = item;
+    }
+  }
+  return canonicalJson(copy);
+}
+
+function canonicalJson(value: unknown, inArray = false): string {
+  if (value === null || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    return JSON.stringify(Number.isFinite(value) ? value : null);
+  }
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (
+    value === undefined ||
+    typeof value === "function" ||
+    typeof value === "symbol"
+  ) {
+    return inArray ? "null" : "";
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item, true)).join(",")}]`;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const entries = Object.keys(record)
+      .sort()
+      .map((key) => {
+        const item = canonicalJson(record[key]);
+        return item ? `${JSON.stringify(key)}:${item}` : "";
+      })
+      .filter(Boolean);
+    return `{${entries.join(",")}}`;
+  }
+  return "null";
+}
+
+function queryWithSigningFields(
+  query: string,
+  fields: Partial<Record<string, string>>,
+): string {
+  const keysToReplace = new Set<string>();
+  if (fields[SIGNING_FIELD_APP_ID]) {
+    keysToReplace.add(SIGNING_FIELD_APP_ID);
+    keysToReplace.add(SIGNING_FIELD_SIGNATURE);
+  }
+  if (fields[SIGNING_FIELD_NONCE]) {
+    keysToReplace.add(SIGNING_FIELD_NONCE);
+    keysToReplace.add(SIGNING_FIELD_SIGNATURE);
+  }
+  if (fields[SIGNING_FIELD_SIGNATURE]) {
+    keysToReplace.add(SIGNING_FIELD_SIGNATURE);
+  }
+  const pairs = splitQueryPairs(query).filter(
+    ([key]) => !keysToReplace.has(key),
+  );
+  for (const key of [
+    SIGNING_FIELD_APP_ID,
+    SIGNING_FIELD_NONCE,
+    SIGNING_FIELD_SIGNATURE,
+  ]) {
+    const value = fields[key];
+    if (value) {
+      pairs.push([key, encodeURIComponent(value)]);
+    }
+  }
+  return pairs.map(([key, value]) => `${key}=${value}`).join("&");
+}
+
+function canonicalQuery(query: string): string {
+  return splitQueryPairs(query)
+    .filter(([key]) => key !== SIGNING_FIELD_SIGNATURE)
+    .sort(
+      ([leftKey, leftValue], [rightKey, rightValue]) =>
+        compareCanonicalText(leftKey, rightKey) ||
+        compareCanonicalText(leftValue, rightValue),
+    )
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+}
+
+function splitQueryPairs(query: string): Array<[string, string]> {
+  if (!query) {
+    return [];
+  }
+  return query
+    .split("&")
+    .filter(Boolean)
+    .map((pair) => {
+      const [key, value = ""] = pair.split("=", 2);
+      return [key, value];
+    });
+}
+
+function compareCanonicalText(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
+function canonicalRequest(
+  method: string,
+  path: string,
+  canonicalQueryString: string,
+  bodyHash: string,
+  appId: string,
+  nonce: string,
+): string {
+  return [
+    SIGNATURE_ALGORITHM,
+    method,
+    path,
+    canonicalQueryString,
+    bodyHash,
+    appId,
+    nonce,
+  ].join("\n");
+}
+
+async function hmacSha256Hex(secret: string, message: string): Promise<string> {
+  const crypto = requireWebCrypto();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    bufferSourceFromBytes(utf8Bytes(secret)),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    bufferSourceFromBytes(utf8Bytes(message)),
+  );
+  return bytesToHex(new Uint8Array(signature));
+}
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await requireWebCrypto().subtle.digest(
+    "SHA-256",
+    bufferSourceFromBytes(bytes),
+  );
+  return bytesToHex(new Uint8Array(digest));
+}
+
+function requireWebCrypto(): Crypto {
+  const crypto = globalThis.crypto;
+  if (!crypto?.subtle) {
+    throw new Error("StellarTrail request signing requires Web Crypto.");
+  }
+  return crypto;
+}
+
+async function requestBodyBytes(
+  body: BodyInit | null | undefined,
+): Promise<Uint8Array> {
+  if (body === undefined || body === null) {
+    return new Uint8Array();
+  }
+  if (typeof body === "string") {
+    return utf8Bytes(body);
+  }
+  if (body instanceof URLSearchParams) {
+    return utf8Bytes(body.toString());
+  }
+  if (body instanceof Blob) {
+    return new Uint8Array(await body.arrayBuffer());
+  }
+  if (body instanceof ArrayBuffer) {
+    return new Uint8Array(body);
+  }
+  if (ArrayBuffer.isView(body)) {
+    return new Uint8Array(
+      new Uint8Array(body.buffer, body.byteOffset, body.byteLength),
+    );
+  }
+  if (body instanceof FormData) {
+    throw new Error("Signed multipart API requests must use a prepared body.");
+  }
+  throw new Error("Unsupported signed API request body.");
+}
+
+async function buildMultipartBody(input: {
+  fields: MultipartTextField[];
+  file: Blob;
+  filename: string;
+  contentType?: string;
+}): Promise<MultipartBody> {
+  const boundary = `StellarTrailBoundary${createSignatureNonce().replace(/-/g, "")}`;
+  const contentType = multipartFileContentType(input);
+  const chunks: Uint8Array[] = [];
+  for (const field of input.fields) {
+    chunks.push(
+      utf8Bytes(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${escapeMultipartName(
+          field.name,
+        )}"\r\n\r\n${field.value}\r\n`,
+      ),
+    );
+  }
+  chunks.push(
+    utf8Bytes(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${escapeMultipartName(
+        input.filename,
+      )}"\r\nContent-Type: ${contentType}\r\n\r\n`,
+    ),
+    new Uint8Array(await input.file.arrayBuffer()),
+    utf8Bytes(`\r\n--${boundary}--\r\n`),
+  );
+  return {
+    body: arrayBufferFromBytes(concatBytes(chunks)),
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  };
+}
+
+function multipartFileContentType(input: {
+  file: Blob;
+  filename: string;
+  contentType?: string;
+}): string {
+  const explicit = input.contentType?.trim().toLowerCase();
+  if (explicit && isSafeMultipartContentType(explicit)) {
+    return explicit;
+  }
+  const blobType = input.file.type.trim().toLowerCase();
+  if (blobType && isSafeMultipartContentType(blobType)) {
+    return blobType;
+  }
+  return contentTypeFromFilename(input.filename) ?? "application/octet-stream";
+}
+
+function knotMediaAssetContentType(assetId: KnotMediaAssetId): string {
+  switch (assetId) {
+    case "thumbnail":
+    case "preview":
+      return "image/webp";
+    case "draw_gif":
+    case "turntable_gif":
+      return "image/gif";
+    case "draw_mp4":
+    case "turntable_mp4":
+      return "video/mp4";
+  }
+}
+
+function contentTypeFromFilename(filename: string): string | undefined {
+  const extension = filename.split(".").pop()?.toLowerCase();
+  switch (extension) {
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    case "gif":
+      return "image/gif";
+    case "mp4":
+      return "video/mp4";
+    default:
+      return undefined;
+  }
+}
+
+function isSafeMultipartContentType(value: string): boolean {
+  return /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(value);
+}
+
+function escapeMultipartName(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function concatBytes(chunks: Uint8Array[]): Uint8Array {
+  const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const output = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    for (const byte of chunk) {
+      output[offset] = byte;
+      offset += 1;
+    }
+  }
+  return output;
+}
+
+function arrayBufferFromBytes(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
+}
+
+function bufferSourceFromBytes(bytes: Uint8Array): BufferSource {
+  return new Uint8Array(bytes) as unknown as BufferSource;
+}
+
+function utf8Bytes(value: string): Uint8Array {
+  return new TextEncoder().encode(value);
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
+}
+
+let signatureNonceCounter = 0;
+
+function createSignatureNonce(): string {
+  const timestamp = Date.now();
+  signatureNonceCounter = (signatureNonceCounter + 1) >>> 0;
+  return `${timestamp.toString(36)}-${randomHex(
+    16,
+    timestamp,
+    signatureNonceCounter,
+  )}`;
+}
+
+function randomHex(
+  byteLength: number,
+  timestamp: number,
+  counter: number,
+): string {
+  const bytes = new Uint8Array(byteLength);
+  if (!fillRandomBytes(bytes)) {
+    fillPseudoRandomBytes(bytes);
+  }
+  mixNonceEntropy(bytes, timestamp, counter);
+  return bytesToHex(bytes);
+}
+
+function fillRandomBytes(bytes: Uint8Array): boolean {
+  const crypto = globalThis.crypto;
+  if (typeof crypto?.getRandomValues !== "function") {
+    return false;
+  }
+  try {
+    const randomBytes = new Uint8Array(new ArrayBuffer(bytes.length));
+    crypto.getRandomValues(randomBytes);
+    for (let index = 0; index < randomBytes.length; index += 1) {
+      bytes[index] = randomBytes[index];
+    }
+    return !isAllZeroBytes(randomBytes);
+  } catch {
+    return false;
+  }
+}
+
+function fillPseudoRandomBytes(bytes: Uint8Array): void {
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Math.floor(Math.random() * 256);
+  }
+}
+
+function mixNonceEntropy(
+  bytes: Uint8Array,
+  timestamp: number,
+  counter: number,
+): void {
+  let timestampValue = Math.max(0, Math.floor(timestamp));
+  for (let index = 0; index < Math.min(8, bytes.length); index += 1) {
+    bytes[index] ^= timestampValue & 0xff;
+    timestampValue = Math.floor(timestampValue / 256);
+  }
+
+  let counterValue = counter >>> 0;
+  for (let index = 0; index < Math.min(4, bytes.length); index += 1) {
+    const targetIndex = bytes.length - 1 - index;
+    bytes[targetIndex] ^= counterValue & 0xff;
+    counterValue >>>= 8;
+  }
+
+  if (isAllZeroBytes(bytes) && bytes.length > 0) {
+    bytes[0] = 1;
+  }
+}
+
+function isAllZeroBytes(bytes: Uint8Array): boolean {
+  return bytes.every((byte) => byte === 0);
+}
+
+function isSigningField(key: string): boolean {
+  return (
+    key === SIGNING_FIELD_APP_ID ||
+    key === SIGNING_FIELD_NONCE ||
+    key === SIGNING_FIELD_SIGNATURE
+  );
 }
