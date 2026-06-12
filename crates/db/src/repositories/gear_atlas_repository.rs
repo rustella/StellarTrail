@@ -27,6 +27,15 @@ use uuid::Uuid;
 
 use super::statement;
 
+struct ImportSourceUpsert<'a> {
+    atlas_item_id: &'a str,
+    draft: &'a GearAtlasExternalImportDraft,
+    canonical_key: &'a str,
+    detail_score: i32,
+    action: &'a str,
+    now: &'a str,
+}
+
 /// Public list options for approved gear atlas entries.
 #[derive(Clone, Debug)]
 pub struct ListGearAtlasOptions {
@@ -184,35 +193,35 @@ impl GearAtlasRepository {
         let canonical_key = canonical_key_for_import(draft);
         let incoming_detail_score = detail_score_for_import(draft);
 
-        if let Some(source) = self.find_import_source(&draft.source_key).await? {
-            if let Some(existing) = self.get_any(&source.atlas_item_id).await? {
-                if existing.status == GearAtlasStatus::Approved && !existing.is_deleted {
-                    self.record_import_source(
-                        &existing.id,
-                        draft,
-                        &canonical_key,
-                        GearAtlasExternalImportAction::SkippedApproved.as_str(),
-                    )
-                    .await?;
-                    return Ok(GearAtlasExternalImportResult {
-                        action: GearAtlasExternalImportAction::SkippedApproved,
-                        item: existing,
-                    });
-                }
-                let item = self
-                    .refresh_external_import(
-                        &existing.id,
-                        draft,
-                        &canonical_key,
-                        incoming_detail_score,
-                        GearAtlasExternalImportAction::Updated.as_str(),
-                    )
-                    .await?;
+        if let Some(source) = self.find_import_source(&draft.source_key).await?
+            && let Some(existing) = self.get_any(&source.atlas_item_id).await?
+        {
+            if existing.status == GearAtlasStatus::Approved && !existing.is_deleted {
+                self.record_import_source(
+                    &existing.id,
+                    draft,
+                    &canonical_key,
+                    GearAtlasExternalImportAction::SkippedApproved.as_str(),
+                )
+                .await?;
                 return Ok(GearAtlasExternalImportResult {
-                    action: GearAtlasExternalImportAction::Updated,
-                    item,
+                    action: GearAtlasExternalImportAction::SkippedApproved,
+                    item: existing,
                 });
             }
+            let item = self
+                .refresh_external_import(
+                    &existing.id,
+                    draft,
+                    &canonical_key,
+                    incoming_detail_score,
+                    GearAtlasExternalImportAction::Updated.as_str(),
+                )
+                .await?;
+            return Ok(GearAtlasExternalImportResult {
+                action: GearAtlasExternalImportAction::Updated,
+                item,
+            });
         }
 
         if let Some(existing) = self.find_by_source_key(&draft.source_key).await? {
@@ -320,12 +329,14 @@ impl GearAtlasRepository {
         upsert_import_source(
             &tx,
             self.db.get_database_backend(),
-            &id,
-            draft,
-            &canonical_key,
-            incoming_detail_score,
-            GearAtlasExternalImportAction::Created.as_str(),
-            &now,
+            ImportSourceUpsert {
+                atlas_item_id: &id,
+                draft,
+                canonical_key: &canonical_key,
+                detail_score: incoming_detail_score,
+                action: GearAtlasExternalImportAction::Created.as_str(),
+                now: &now,
+            },
         )
         .await?;
         tx.commit().await?;
@@ -903,12 +914,14 @@ impl GearAtlasRepository {
         upsert_import_source(
             &tx,
             self.db.get_database_backend(),
-            id,
-            draft,
-            canonical_key,
-            detail_score,
-            action,
-            &now,
+            ImportSourceUpsert {
+                atlas_item_id: id,
+                draft,
+                canonical_key,
+                detail_score,
+                action,
+                now: &now,
+            },
         )
         .await?;
         tx.commit().await?;
@@ -970,12 +983,14 @@ impl GearAtlasRepository {
         upsert_import_source(
             &self.db,
             self.db.get_database_backend(),
-            atlas_item_id,
-            draft,
-            canonical_key,
-            detail_score_for_import(draft),
-            action,
-            &now,
+            ImportSourceUpsert {
+                atlas_item_id,
+                draft,
+                canonical_key,
+                detail_score: detail_score_for_import(draft),
+                action,
+                now: &now,
+            },
         )
         .await
     }
@@ -1199,14 +1214,14 @@ fn localization_from_row(row: QueryResult) -> Result<GearAtlasLocalizationDraft,
         variants: variants_json
             .as_deref()
             .filter(|value| !value.trim().is_empty())
-            .map(|value| serde_json::from_str::<GearVariants>(value))
+            .map(serde_json::from_str::<GearVariants>)
             .transpose()
             .map_err(|error| DbErr::Custom(format!("invalid variants_json: {error}")))?
             .unwrap_or_default(),
         specs: specs_json
             .as_deref()
             .filter(|value| !value.trim().is_empty())
-            .map(|value| serde_json::from_str::<GearSpecs>(value))
+            .map(serde_json::from_str::<GearSpecs>)
             .transpose()
             .map_err(|error| DbErr::Custom(format!("invalid specs_json: {error}")))?
             .unwrap_or_default(),
@@ -1279,13 +1294,16 @@ fn localization_review_status(
 async fn upsert_import_source(
     db: &impl ConnectionTrait,
     backend: DatabaseBackend,
-    atlas_item_id: &str,
-    draft: &GearAtlasExternalImportDraft,
-    canonical_key: &str,
-    detail_score: i32,
-    action: &str,
-    now: &str,
+    record: ImportSourceUpsert<'_>,
 ) -> Result<(), DbErr> {
+    let ImportSourceUpsert {
+        atlas_item_id,
+        draft,
+        canonical_key,
+        detail_score,
+        action,
+        now,
+    } = record;
     let source_locale = draft.source_locale.unwrap_or(Locale::ZhCn);
     db.execute(statement(
         backend,

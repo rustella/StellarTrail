@@ -35,8 +35,37 @@ upload:
   max_total_images_per_user: 100
   max_total_bytes_per_user: 200000000
 
+trail:
+  upload_max_bytes: 25000000
+  upload_max_points: 50000
+  max_simplified_points: 2000
+  max_trails_per_trip: 20
+  max_annotations_per_context: 500
+  overview_max_trips: 100
+  overview_max_trails: 200
+  overview_max_points: 5000
+  overview_max_points_per_trail: 160
+
+map:
+  provider: maptiler
+  # The public key is returned to clients and should be constrained by MapTiler
+  # allowed origins, quota monitoring, and rotation. Do not put service tokens here.
+  style_url: https://api.maptiler.com/maps/outdoor-v2/style.json
+  default_style_id: outdoor
+  styles:
+    - id: outdoor
+      label: 户外
+      style_url: https://api.maptiler.com/maps/outdoor-v2/style.json
+    - id: streets
+      label: 街道
+      style_url: https://api.maptiler.com/maps/streets-v2/style.json
+    - id: satellite
+      label: 卫星
+      style_url: https://api.maptiler.com/maps/satellite/style.json
+  public_key: null
+
 # Shared MinIO/S3-compatible connection used by private feedback uploads and
-# public Knots3D media buckets.
+# public Knots3D media buckets. Trail source files use the private upload bucket.
 minio:
   endpoint: http://127.0.0.1:19000
   region: us-east-1
@@ -75,8 +104,12 @@ request_signature:
   enabled: false
   nonce_ttl_seconds: 300
   clients:
-    - app_id: example-client-id
-      app_secret: example-client-secret
+    - app_id: example-web-client-id
+      app_secret: example-web-client-secret
+    - app_id: example-wechat-client-id
+      app_secret: example-wechat-client-secret
+    - app_id: example-android-client-id
+      app_secret: example-android-client-secret
 
 mail:
   enabled: false

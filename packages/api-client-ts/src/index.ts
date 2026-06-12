@@ -65,6 +65,12 @@ import type {
   ListGearsResponse,
   ListTripsRequest,
   ListTripsResponse,
+  ListTrailsResponse,
+  MapAnnotation,
+  MapAnnotationRequest,
+  MapTrailLink,
+  MapConfigResponse,
+  OutdoorExperienceMapStateResponse,
   TripHomeHighlightResponse,
   MetaResponse,
   PasswordLoginRequest,
@@ -83,16 +89,22 @@ import type {
   RoadmapItemRequest,
   SkillCategoriesResponse,
   SkillLocale,
+  Trail,
+  TrailLinkRequest,
+  TripsMapOverviewResponse,
+  TripMapStateResponse,
   TripRecordCreateRequest,
   TripRecordPatchRequest,
   TripDetail,
   UpdateGearAtlasLocalizationRequest,
+  UpdateMapAnnotationRequest,
   UpdateGearAtlasSubmissionRequest,
   UpdateGearPackingItemRequest,
   UpdateGearPackingListRequest,
   UpdateGearRequest,
   UpdateOutdoorProfileRequest,
   UpdateTripSectionsRequest,
+  UpdateTrailRequest,
   UpdateTripRequest,
   WechatLoginRequest,
   WechatLoginResponse,
@@ -411,16 +423,33 @@ export class StellarTrailApiClient {
   async uploadKnotMedia(
     input: AdminKnotMediaUploadInput,
   ): Promise<KnotMediaUploadResponse> {
-    const form = new FormData();
-    form.set("media_type", input.mediaType ?? input.assetId);
-    form.set("file", input.file, input.filename ?? input.assetId);
-    if (input.attribution) form.set("attribution", input.attribution);
-    if (input.licenseNote) form.set("license_note", input.licenseNote);
-    if (input.sourceName) form.set("source_name", input.sourceName);
-    if (input.sourcePath) form.set("source_path", input.sourcePath);
+    const multipart = await buildMultipartBody({
+      fields: [
+        { name: "media_type", value: input.mediaType ?? input.assetId },
+        ...(input.attribution
+          ? [{ name: "attribution", value: input.attribution }]
+          : []),
+        ...(input.licenseNote
+          ? [{ name: "license_note", value: input.licenseNote }]
+          : []),
+        ...(input.sourceName
+          ? [{ name: "source_name", value: input.sourceName }]
+          : []),
+        ...(input.sourcePath
+          ? [{ name: "source_path", value: input.sourcePath }]
+          : []),
+      ],
+      file: input.file,
+      filename: input.filename ?? input.assetId,
+      contentType: knotMediaAssetContentType(input.assetId),
+    });
     const response = await this.request(
       `/admin/skills/knots/${encodeURIComponent(input.knotId)}/media/${encodeURIComponent(input.assetId)}`,
-      { method: "PUT", body: form },
+      {
+        method: "PUT",
+        body: multipart.body,
+        headers: { "content-type": multipart.contentType },
+      },
       true,
     );
     return response.json() as Promise<KnotMediaUploadResponse>;
@@ -726,15 +755,220 @@ export class StellarTrailApiClient {
     );
   }
 
+  async getMapConfig(): Promise<MapConfigResponse> {
+    return this.get<MapConfigResponse>("/me/map/config", true);
+  }
+
+  async listTrails(): Promise<ListTrailsResponse> {
+    return this.get<ListTrailsResponse>("/me/trails", true);
+  }
+
+  async uploadTrail(file: Blob, filename: string): Promise<Trail> {
+    return this.uploadTrailForm<Trail>("/me/trails", file, filename);
+  }
+
+  async getTrail(id: string): Promise<Trail> {
+    return this.get<Trail>(`/me/trails/${encodeURIComponent(id)}`, true);
+  }
+
+  async updateTrail(id: string, request: UpdateTrailRequest): Promise<Trail> {
+    return this.patch<Trail>(
+      `/me/trails/${encodeURIComponent(id)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTrail(id: string): Promise<void> {
+    await this.request(
+      `/me/trails/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async downloadTrailFile(id: string): Promise<Blob> {
+    const response = await this.request(
+      `/me/trails/${encodeURIComponent(id)}/file`,
+      {},
+      true,
+    );
+    return response.blob();
+  }
+
+  async getTripMap(id: string): Promise<TripMapStateResponse> {
+    return this.get<TripMapStateResponse>(
+      `/me/trips/${encodeURIComponent(id)}/map`,
+      true,
+    );
+  }
+
+  async getTripsMapOverview(): Promise<TripsMapOverviewResponse> {
+    return this.get<TripsMapOverviewResponse>("/me/trips/map-overview", true);
+  }
+
+  async uploadTripTrail(
+    id: string,
+    file: Blob,
+    filename: string,
+  ): Promise<MapTrailLink> {
+    return this.uploadTrailForm<MapTrailLink>(
+      `/me/trips/${encodeURIComponent(id)}/trails`,
+      file,
+      filename,
+    );
+  }
+
+  async linkTripTrail(
+    id: string,
+    request: TrailLinkRequest,
+  ): Promise<MapTrailLink> {
+    return this.post<MapTrailLink>(
+      `/me/trips/${encodeURIComponent(id)}/trail-links`,
+      request,
+      true,
+    );
+  }
+
+  async unlinkTripTrail(id: string, trailId: string): Promise<void> {
+    await this.request(
+      `/me/trips/${encodeURIComponent(id)}/trail-links/${encodeURIComponent(trailId)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async listTripMapAnnotations(id: string): Promise<MapAnnotation[]> {
+    return this.get<MapAnnotation[]>(
+      `/me/trips/${encodeURIComponent(id)}/map-annotations`,
+      true,
+    );
+  }
+
+  async createTripMapAnnotation(
+    id: string,
+    request: MapAnnotationRequest,
+  ): Promise<MapAnnotation> {
+    return this.post<MapAnnotation>(
+      `/me/trips/${encodeURIComponent(id)}/map-annotations`,
+      request,
+      true,
+    );
+  }
+
+  async updateTripMapAnnotation(
+    id: string,
+    annotationId: string,
+    request: UpdateMapAnnotationRequest,
+  ): Promise<MapAnnotation> {
+    return this.patch<MapAnnotation>(
+      `/me/trips/${encodeURIComponent(id)}/map-annotations/${encodeURIComponent(annotationId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTripMapAnnotation(
+    id: string,
+    annotationId: string,
+  ): Promise<void> {
+    await this.request(
+      `/me/trips/${encodeURIComponent(id)}/map-annotations/${encodeURIComponent(annotationId)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async getOutdoorExperienceMap(
+    id: string,
+  ): Promise<OutdoorExperienceMapStateResponse> {
+    return this.get<OutdoorExperienceMapStateResponse>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/map`,
+      true,
+    );
+  }
+
+  async linkOutdoorExperienceTrail(
+    id: string,
+    request: TrailLinkRequest,
+  ): Promise<MapTrailLink> {
+    return this.post<MapTrailLink>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/trail-links`,
+      request,
+      true,
+    );
+  }
+
+  async unlinkOutdoorExperienceTrail(
+    id: string,
+    trailId: string,
+  ): Promise<void> {
+    await this.request(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/trail-links/${encodeURIComponent(trailId)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async listOutdoorExperienceMapAnnotations(
+    id: string,
+  ): Promise<MapAnnotation[]> {
+    return this.get<MapAnnotation[]>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/map-annotations`,
+      true,
+    );
+  }
+
+  async createOutdoorExperienceMapAnnotation(
+    id: string,
+    request: MapAnnotationRequest,
+  ): Promise<MapAnnotation> {
+    return this.post<MapAnnotation>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/map-annotations`,
+      request,
+      true,
+    );
+  }
+
+  async updateOutdoorExperienceMapAnnotation(
+    id: string,
+    annotationId: string,
+    request: UpdateMapAnnotationRequest,
+  ): Promise<MapAnnotation> {
+    return this.patch<MapAnnotation>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/map-annotations/${encodeURIComponent(annotationId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteOutdoorExperienceMapAnnotation(
+    id: string,
+    annotationId: string,
+  ): Promise<void> {
+    await this.request(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/map-annotations/${encodeURIComponent(annotationId)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
   async uploadProfileAvatar(
     file: Blob,
     filename = "avatar.png",
   ): Promise<ProfileUserResponse> {
-    const form = new FormData();
-    form.set("file", file, filename);
+    const multipart = await buildMultipartBody({
+      fields: [],
+      file,
+      filename,
+    });
     const response = await this.request(
       "/me/profile/avatar",
-      { method: "PUT", body: form },
+      {
+        method: "PUT",
+        body: multipart.body,
+        headers: { "content-type": multipart.contentType },
+      },
       true,
     );
     return response.json() as Promise<ProfileUserResponse>;
@@ -1481,6 +1715,21 @@ export class StellarTrailApiClient {
     return response.json() as Promise<T>;
   }
 
+  private async uploadTrailForm<T>(
+    path: string,
+    file: Blob,
+    filename: string,
+  ): Promise<T> {
+    const form = new FormData();
+    form.set("file", file, filename);
+    const response = await this.request(
+      path,
+      { method: "POST", body: form },
+      true,
+    );
+    return response.json() as Promise<T>;
+  }
+
   private async post<T>(
     path: string,
     body?: unknown,
@@ -1503,25 +1752,6 @@ export class StellarTrailApiClient {
     return response.json() as Promise<T>;
   }
 
-  private async patch<T>(
-    path: string,
-    body: unknown,
-    auth = false,
-    locale?: AppLocale,
-  ): Promise<T> {
-    const response = await this.request(
-      path,
-      {
-        method: "PATCH",
-        body: JSON.stringify(body),
-        headers: { "content-type": "application/json" },
-      },
-      auth,
-      locale,
-    );
-    return response.json() as Promise<T>;
-  }
-
   private async put<T>(
     path: string,
     body: unknown,
@@ -1532,6 +1762,25 @@ export class StellarTrailApiClient {
       path,
       {
         method: "PUT",
+        body: JSON.stringify(body),
+        headers: { "content-type": "application/json" },
+      },
+      auth,
+      locale,
+    );
+    return response.json() as Promise<T>;
+  }
+
+  private async patch<T>(
+    path: string,
+    body: unknown,
+    auth = false,
+    locale?: AppLocale,
+  ): Promise<T> {
+    const response = await this.request(
+      path,
+      {
+        method: "PATCH",
         body: JSON.stringify(body),
         headers: { "content-type": "application/json" },
       },
@@ -1727,6 +1976,21 @@ function queryString(params: object): string {
   return value ? `?${value}` : "";
 }
 
+interface ParsedRequestPath {
+  path: string;
+  query: string;
+}
+
+interface MultipartTextField {
+  name: string;
+  value: string;
+}
+
+interface MultipartBody {
+  body: ArrayBuffer;
+  contentType: string;
+}
+
 function versionedApiPath(path: string): string {
   if (path === HEALTH_PATH || path.startsWith(`${API_PREFIX}/`)) {
     return path;
@@ -1737,11 +2001,6 @@ function versionedApiPath(path: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-interface ParsedRequestPath {
-  path: string;
-  query: string;
 }
 
 function normalizeRequestSignature(
@@ -1990,6 +2249,116 @@ async function requestBodyBytes(
     throw new Error("Signed multipart API requests must use a prepared body.");
   }
   throw new Error("Unsupported signed API request body.");
+}
+
+async function buildMultipartBody(input: {
+  fields: MultipartTextField[];
+  file: Blob;
+  filename: string;
+  contentType?: string;
+}): Promise<MultipartBody> {
+  const boundary = `StellarTrailBoundary${createSignatureNonce().replace(/-/g, "")}`;
+  const contentType = multipartFileContentType(input);
+  const chunks: Uint8Array[] = [];
+  for (const field of input.fields) {
+    chunks.push(
+      utf8Bytes(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${escapeMultipartName(
+          field.name,
+        )}"\r\n\r\n${field.value}\r\n`,
+      ),
+    );
+  }
+  chunks.push(
+    utf8Bytes(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${escapeMultipartName(
+        input.filename,
+      )}"\r\nContent-Type: ${contentType}\r\n\r\n`,
+    ),
+    new Uint8Array(await input.file.arrayBuffer()),
+    utf8Bytes(`\r\n--${boundary}--\r\n`),
+  );
+  return {
+    body: arrayBufferFromBytes(concatBytes(chunks)),
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  };
+}
+
+function multipartFileContentType(input: {
+  file: Blob;
+  filename: string;
+  contentType?: string;
+}): string {
+  const explicit = input.contentType?.trim().toLowerCase();
+  if (explicit && isSafeMultipartContentType(explicit)) {
+    return explicit;
+  }
+  const blobType = input.file.type.trim().toLowerCase();
+  if (blobType && isSafeMultipartContentType(blobType)) {
+    return blobType;
+  }
+  return contentTypeFromFilename(input.filename) ?? "application/octet-stream";
+}
+
+function knotMediaAssetContentType(assetId: KnotMediaAssetId): string {
+  switch (assetId) {
+    case "thumbnail":
+    case "preview":
+      return "image/webp";
+    case "draw_gif":
+    case "turntable_gif":
+      return "image/gif";
+    case "draw_mp4":
+    case "turntable_mp4":
+      return "video/mp4";
+  }
+}
+
+function contentTypeFromFilename(filename: string): string | undefined {
+  const extension = filename.split(".").pop()?.toLowerCase();
+  switch (extension) {
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    case "gif":
+      return "image/gif";
+    case "mp4":
+      return "video/mp4";
+    default:
+      return undefined;
+  }
+}
+
+function isSafeMultipartContentType(value: string): boolean {
+  return /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(value);
+}
+
+function escapeMultipartName(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function concatBytes(chunks: Uint8Array[]): Uint8Array {
+  const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const output = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    for (const byte of chunk) {
+      output[offset] = byte;
+      offset += 1;
+    }
+  }
+  return output;
+}
+
+function arrayBufferFromBytes(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
 }
 
 function bufferSourceFromBytes(bytes: Uint8Array): BufferSource {

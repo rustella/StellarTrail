@@ -32,7 +32,6 @@ mod create_user_gear_items;
 mod create_user_knot_favorites;
 mod create_user_outdoor_profiles;
 mod create_users_sessions;
-mod ensure_gear_atlas_import_i18n;
 mod ensure_sms_verification_challenges;
 mod ensure_user_gear_archive_fields;
 mod ensure_users_phone_fields;
@@ -100,7 +99,7 @@ impl MigratorTrait for Migrator {
             Box::new(ensure_user_gear_archive_fields::Migration),
             Box::new(create_app_content_pages::Migration),
             Box::new(update_profile_about_copy::Migration),
-            Box::new(ensure_gear_atlas_import_i18n::Migration),
+            Box::new(compat_folded_migrations::ensure_gear_atlas_import_i18n::Migration),
         ]
     }
 }

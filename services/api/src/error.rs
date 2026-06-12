@@ -334,3 +334,17 @@ impl From<stellartrail_db::repositories::TripRepositoryError> for ApiError {
         }
     }
 }
+
+impl From<stellartrail_db::repositories::TrailRepositoryError> for ApiError {
+    /// Converts trail persistence and permission failures into the shared API error envelope.
+    fn from(value: stellartrail_db::repositories::TrailRepositoryError) -> Self {
+        match value {
+            stellartrail_db::repositories::TrailRepositoryError::Db(error) => error.into(),
+            stellartrail_db::repositories::TrailRepositoryError::Validation(error) => error.into(),
+            stellartrail_db::repositories::TrailRepositoryError::Conflict(conflicts) => {
+                Self::EditConflict(conflicts)
+            }
+            stellartrail_db::repositories::TrailRepositoryError::Forbidden => Self::Forbidden,
+        }
+    }
+}

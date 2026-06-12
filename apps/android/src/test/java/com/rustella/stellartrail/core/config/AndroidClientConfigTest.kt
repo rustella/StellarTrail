@@ -3,7 +3,6 @@ package com.rustella.stellartrail.core.config
 import com.rustella.stellartrail.BuildConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,7 +23,12 @@ class AndroidClientConfigTest {
     fun requestSignatureConfigUsesAndroidClientFieldNamesAndIgnoresPlaceholders() {
         assertTrue(BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_ID.isNotBlank())
         assertTrue(BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_SECRET.isNotBlank())
-        assertNull(AppConfig().requestSignature)
+        val defaultCredentials = requestSignatureCredentials(
+            appId = BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_ID,
+            appSecret = BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_SECRET,
+        )
+
+        assertEquals(defaultCredentials, AppConfig().requestSignature)
 
         val credentials = requestSignatureCredentials(
             appId = "android-client",

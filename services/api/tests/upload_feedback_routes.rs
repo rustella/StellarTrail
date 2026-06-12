@@ -68,6 +68,8 @@ async fn test_app_with_upload_config(upload: UploadConfig) -> TestApp {
         wechat_app_secret: None,
         redis_cache: RedisCacheConfig::disabled(),
         upload,
+        trail: Default::default(),
+        map: Default::default(),
         minio: Default::default(),
         object_storage: ObjectStorageConfig {
             bucket: "test-uploads".to_owned(),

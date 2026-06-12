@@ -98,11 +98,13 @@ request_signature:
   enabled: true
   nonce_ttl_seconds: 300
   clients:
-    - app_id: example-client-id
-      app_secret: example-client-secret
+    - app_id: example-web-client-id
+      app_secret: example-web-client-secret
 ```
 
 服务端不会读取 `REQUEST_SIGNATURE_*` 环境变量。`nonce_ttl_seconds` 默认为 300 秒；同一 `{app_id, nonce}` 在 TTL 内重复使用会返回 `401 invalid_request_signature`。Redis 可用时 nonce 记录写入 Redis；Redis 不可用时退回单进程内存记录。
+
+Web 端通过构建环境变量 `VITE_STELLARTRAIL_REQUEST_SIGNATURE_APP_ID` 和 `VITE_STELLARTRAIL_REQUEST_SIGNATURE_APP_SECRET` 注入同一组签名客户端。测试环境和生产环境应使用不同的 `app_id/app_secret`，并分别登记到对应后端 ignored YAML 配置的 `request_signature.clients` 中。浏览器包里的 `app_secret` 只能作为公开客户端签名凭据，用于统一请求校验和 replay 防护，不能当作真正保密的服务端密钥边界。
 
 参数位置：
 
@@ -1184,6 +1186,85 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
   ]
 }
 ```
+
+## Trail Library And Map State
+
+Trail 是用户拥有的独立轨迹资产，不作为 trip 或个人户外经历的子资源存储。同一份 trail 可以通过关联表挂到多个 trip 或 outdoor experience。v1 支持 GPX、KML、FIT 上传，同步解析为 WGS84 点列，保存原始文件到私有对象存储，并返回用于地图预览的简化 GeoJSON。KML v1 只支持 `.kml`，`.kmz` 会返回 `unsupported_media_type`。
+
+同一用户重复上传内容完全相同的 active 轨迹文件时，服务端会按 `sha256_hex` 复用已有 trail，不重复写入对象存储或创建新的轨迹资产；重复把同一 trail 关联到同一 trip/outdoor experience 时返回已有关联。
+
+`Trail` 和 `TrailSummary` 都返回 `distance_m`、`ascent_m`、`descent_m`、`min_elevation_m`、`max_elevation_m`，并从首尾标准化点派生 `start_elevation_m`、`end_elevation_m`。如果源文件没有海拔信息，海拔字段为 `null`。列表响应不返回 `normalized_points`。
+
+默认上传限制：`TRAIL_UPLOAD_MAX_BYTES=25000000`、`TRAIL_UPLOAD_MAX_POINTS=50000`、`TRAIL_MAX_SIMPLIFIED_POINTS=2000`、`TRAIL_MAX_TRAILS_PER_TRIP=20`、`TRAIL_MAX_ANNOTATIONS_PER_CONTEXT=500`。Trips overview 地图默认限制：`TRAIL_OVERVIEW_MAX_TRIPS=100`、`TRAIL_OVERVIEW_MAX_TRAILS=200`、`TRAIL_OVERVIEW_MAX_POINTS=5000`、`TRAIL_OVERVIEW_MAX_POINTS_PER_TRAIL=160`。
+
+已有 PostgreSQL 数据库上线前执行一次性 DDL 清单：[`docs/trail-map-one-time-ddl.md`](trail-map-one-time-ddl.md)。
+
+个人 trail 库：
+
+- `GET /api/v1/me/trails`
+- `POST /api/v1/me/trails`，multipart 字段 `file`
+- `GET /api/v1/me/trails/:trail_id`
+- `PATCH /api/v1/me/trails/:trail_id`
+- `DELETE /api/v1/me/trails/:trail_id`
+- `GET /api/v1/me/trails/:trail_id/file`
+
+Trip map：
+
+- `GET /api/v1/me/trips/:id/map`
+- `GET /api/v1/me/trips/map-overview`，一次返回当前用户可见 active trips 的只读 overview 轨迹，服务端会二次简化和截断
+- `POST /api/v1/me/trips/:id/trails`，上传并自动关联到 trip
+- `POST /api/v1/me/trips/:id/trail-links`，请求体 `{ "trail_id": "..." }`
+- `DELETE /api/v1/me/trips/:id/trail-links/:trail_id`
+- `GET/POST /api/v1/me/trips/:id/map-annotations`
+- `PATCH/DELETE /api/v1/me/trips/:id/map-annotations/:annotation_id`
+
+Outdoor experience map：
+
+- `GET /api/v1/me/outdoor-experiences/:id/map`
+- `POST /api/v1/me/outdoor-experiences/:id/trail-links`
+- `DELETE /api/v1/me/outdoor-experiences/:id/trail-links/:trail_id`
+- `GET/POST /api/v1/me/outdoor-experiences/:id/map-annotations`
+- `PATCH/DELETE /api/v1/me/outdoor-experiences/:id/map-annotations/:annotation_id`
+
+权限规则：trail owner 始终可见；trail 关联到 trip 后，trip 成员可在 trip map 中看到；trail 关联到 outdoor experience 后，只有该 experience owner 可见。trip 成员上传 trail 时，trail owner 是上传者；trip 成员可以在 trip map 看到它，但不能改 owner 的 trail 元数据。trip owner 或 trail owner 可以取消 trip 关联。个人经历只能关联当前用户自己拥有的 trail。trip 转个人经历时，只会自动带入当前用户拥有且挂在该 trip 上的 trails。
+
+地图配置：
+
+```http
+GET /api/v1/me/map/config
+```
+
+响应只包含客户端可见配置：
+
+```json
+{
+  "provider": "maptiler",
+  "style_url": "https://api.maptiler.com/maps/outdoor-v2/style.json",
+  "public_key": "maptiler-public-key",
+  "coordinate_system": "WGS84",
+  "enabled": true,
+  "styles": [
+    {
+      "id": "outdoor",
+      "label": "户外",
+      "style_url": "https://api.maptiler.com/maps/outdoor-v2/style.json"
+    },
+    {
+      "id": "streets",
+      "label": "街道",
+      "style_url": "https://api.maptiler.com/maps/streets-v2/style.json"
+    },
+    {
+      "id": "satellite",
+      "label": "卫星",
+      "style_url": "https://api.maptiler.com/maps/satellite/style.json"
+    }
+  ],
+  "default_style_id": "outdoor"
+}
+```
+
+`style_url` 是默认底图 URL，用于旧客户端兼容；新客户端应只在 `styles` 允许列表内切换底图。服务端不会返回 MapTiler service token，也不代理 MapTiler Cloud 瓦片。客户端 public key 应配合 MapTiler allowed origins、配额监控和 key rotation 使用。
 
 ## Enums
 

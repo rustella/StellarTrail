@@ -16,6 +16,7 @@ mod meta;
 mod profile;
 mod roadmap;
 mod skills;
+mod trails;
 mod trips;
 mod uploads;
 
@@ -64,6 +65,7 @@ pub fn build_router(state: AppState) -> Router {
         .config()
         .upload
         .max_image_bytes
+        .max(state.config().trail.upload_max_bytes)
         .max(state.config().avatar_storage.max_image_bytes)
         .max(state.config().knots_media_storage.max_video_bytes)
         .saturating_add(1_000_000) as usize;
@@ -93,6 +95,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(gears::routes())
         .merge(profile::routes())
         .merge(roadmap::routes())
+        .merge(trails::routes())
         .merge(trips::routes())
         .merge(uploads::routes())
         .merge(feedback::routes());

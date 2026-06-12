@@ -19,6 +19,7 @@ data class AppConfig(
         appId = BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_ID,
         appSecret = BuildConfig.DEFAULT_REQUEST_SIGNATURE_APP_SECRET,
     ),
+    val certificatePins: List<AppCertificatePin> = parseCertificatePins(BuildConfig.DEFAULT_CERTIFICATE_PINS),
 )
 
 data class AppDomainCandidate(
@@ -30,6 +31,11 @@ data class AppDomainCandidate(
 data class RequestSignatureCredentials(
     val appId: String,
     val appSecret: String,
+)
+
+data class AppCertificatePin(
+    val hostname: String,
+    val pin: String,
 )
 
 interface AppConfigStore {
@@ -97,6 +103,18 @@ fun parseDomainCandidates(value: String): List<AppDomainCandidate> =
             val assetsBaseUrl = sanitizeBaseUrl(parts[2])
             if (id.isEmpty() || apiBaseUrl.isEmpty() || assetsBaseUrl.isEmpty()) return@mapNotNull null
             AppDomainCandidate(id = id, apiBaseUrl = apiBaseUrl, assetsBaseUrl = assetsBaseUrl)
+        }
+
+fun parseCertificatePins(value: String): List<AppCertificatePin> =
+    value.split(';')
+        .mapNotNull { rawPin ->
+            val parts = rawPin.split('|')
+            if (parts.size != 2) return@mapNotNull null
+            val hostname = parts[0].trim().lowercase()
+            val pin = parts[1].trim()
+            if (hostname.isEmpty() || pin.isEmpty()) return@mapNotNull null
+            if (!pin.startsWith("sha256/")) return@mapNotNull null
+            AppCertificatePin(hostname = hostname, pin = pin)
         }
 
 fun requestSignatureCredentials(appId: String, appSecret: String): RequestSignatureCredentials? {

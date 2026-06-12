@@ -6,10 +6,16 @@ import com.rustella.stellartrail.domain.trip.CreateTripRequest
 import com.rustella.stellartrail.domain.trip.ImportTripPackingListRequest
 import com.rustella.stellartrail.domain.trip.ListTripsRequest
 import com.rustella.stellartrail.domain.trip.ListTripsResponse
+import com.rustella.stellartrail.domain.trip.MapAnnotation
+import com.rustella.stellartrail.domain.trip.MapAnnotationRequest
+import com.rustella.stellartrail.domain.trip.MapConfigResponse
+import com.rustella.stellartrail.domain.trip.MapTrailLink
 import com.rustella.stellartrail.domain.trip.OutdoorExperience
 import com.rustella.stellartrail.domain.trip.TripConflictResponse
 import com.rustella.stellartrail.domain.trip.TripDetail
 import com.rustella.stellartrail.domain.trip.TripHomeHighlightResponse
+import com.rustella.stellartrail.domain.trip.TripMapStateResponse
+import com.rustella.stellartrail.domain.trip.TripsMapOverviewResponse
 import com.rustella.stellartrail.domain.trip.UpdateTripRequest
 import com.rustella.stellartrail.domain.trip.UpdateTripSectionsRequest
 import kotlinx.serialization.json.Json
@@ -23,10 +29,19 @@ class TripEditConflictException(
 interface TripRepositoryContract {
     suspend fun list(request: ListTripsRequest = ListTripsRequest()): ListTripsResponse
     suspend fun homeHighlight(today: String): TripHomeHighlightResponse
+    suspend fun mapConfig(): MapConfigResponse
+    suspend fun tripsMapOverview(): TripsMapOverviewResponse
     suspend fun create(request: CreateTripRequest): TripDetail
     suspend fun get(id: String): TripDetail
     suspend fun update(id: String, request: UpdateTripRequest): TripDetail
     suspend fun delete(id: String)
+    suspend fun tripMap(id: String): TripMapStateResponse
+    suspend fun uploadTripTrail(id: String, bytes: ByteArray, filename: String, contentType: String? = null): MapTrailLink
+    suspend fun linkTripTrail(id: String, trailId: String): MapTrailLink
+    suspend fun unlinkTripTrail(id: String, trailId: String)
+    suspend fun createMapAnnotation(id: String, request: MapAnnotationRequest): MapAnnotation
+    suspend fun updateMapAnnotation(id: String, annotationId: String, request: JsonObject): MapAnnotation
+    suspend fun deleteMapAnnotation(id: String, annotationId: String)
     suspend fun updateSections(id: String, request: UpdateTripSectionsRequest): TripDetail
     suspend fun createInvitation(id: String): CreateTripInvitationResponse
     suspend fun acceptInvitation(token: String): TripDetail
@@ -51,10 +66,19 @@ class TripRepository(
 ) : TripRepositoryContract {
     override suspend fun list(request: ListTripsRequest): ListTripsResponse = protectConflicts { api.list(request) }
     override suspend fun homeHighlight(today: String): TripHomeHighlightResponse = protectConflicts { api.homeHighlight(today) }
+    override suspend fun mapConfig(): MapConfigResponse = protectConflicts { api.mapConfig() }
+    override suspend fun tripsMapOverview(): TripsMapOverviewResponse = protectConflicts { api.tripsMapOverview() }
     override suspend fun create(request: CreateTripRequest): TripDetail = protectConflicts { api.create(request) }
     override suspend fun get(id: String): TripDetail = protectConflicts { api.get(id) }
     override suspend fun update(id: String, request: UpdateTripRequest): TripDetail = protectConflicts { api.update(id, request) }
     override suspend fun delete(id: String) = protectConflicts { api.delete(id) }
+    override suspend fun tripMap(id: String): TripMapStateResponse = protectConflicts { api.tripMap(id) }
+    override suspend fun uploadTripTrail(id: String, bytes: ByteArray, filename: String, contentType: String?): MapTrailLink = protectConflicts { api.uploadTripTrail(id, bytes, filename, contentType) }
+    override suspend fun linkTripTrail(id: String, trailId: String): MapTrailLink = protectConflicts { api.linkTripTrail(id, trailId) }
+    override suspend fun unlinkTripTrail(id: String, trailId: String) = protectConflicts { api.unlinkTripTrail(id, trailId) }
+    override suspend fun createMapAnnotation(id: String, request: MapAnnotationRequest): MapAnnotation = protectConflicts { api.createMapAnnotation(id, request) }
+    override suspend fun updateMapAnnotation(id: String, annotationId: String, request: JsonObject): MapAnnotation = protectConflicts { api.updateMapAnnotation(id, annotationId, request) }
+    override suspend fun deleteMapAnnotation(id: String, annotationId: String) = protectConflicts { api.deleteMapAnnotation(id, annotationId) }
     override suspend fun updateSections(id: String, request: UpdateTripSectionsRequest): TripDetail =
         protectConflicts { api.updateSections(id, request) }
     override suspend fun createInvitation(id: String): CreateTripInvitationResponse = protectConflicts { api.createInvitation(id) }

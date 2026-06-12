@@ -26,6 +26,8 @@ struct FileConfig {
     wechat: FileWechatConfig,
     redis: FileRedisCacheConfig,
     upload: FileUploadConfig,
+    trail: FileTrailConfig,
+    map: FileMapConfig,
     minio: FileMinioConfig,
     object_storage: FileObjectStorageConfig,
     avatar_storage: FileAvatarStorageConfig,
@@ -77,6 +79,38 @@ struct FileUploadConfig {
     max_images_per_window: Option<u64>,
     max_total_images_per_user: Option<u64>,
     max_total_bytes_per_user: Option<u64>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct FileTrailConfig {
+    upload_max_bytes: Option<u64>,
+    upload_max_points: Option<u64>,
+    max_simplified_points: Option<u64>,
+    max_trails_per_trip: Option<u64>,
+    max_annotations_per_context: Option<u64>,
+    overview_max_trips: Option<u64>,
+    overview_max_trails: Option<u64>,
+    overview_max_points: Option<u64>,
+    overview_max_points_per_trail: Option<u64>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct FileMapConfig {
+    provider: Option<String>,
+    style_url: Option<String>,
+    public_key: Option<String>,
+    styles: Option<Vec<FileMapStyleConfig>>,
+    default_style_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct FileMapStyleConfig {
+    id: Option<String>,
+    label: Option<String>,
+    style_url: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -379,6 +413,87 @@ impl Default for UploadConfig {
     }
 }
 
+/// Trail upload parsing and map-context limits.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TrailConfig {
+    pub upload_max_bytes: u64,
+    pub upload_max_points: u64,
+    pub max_simplified_points: u64,
+    pub max_trails_per_trip: u64,
+    pub max_annotations_per_context: u64,
+    pub overview_max_trips: u64,
+    pub overview_max_trails: u64,
+    pub overview_max_points: u64,
+    pub overview_max_points_per_trail: u64,
+}
+
+impl Default for TrailConfig {
+    fn default() -> Self {
+        Self {
+            upload_max_bytes: 25_000_000,
+            upload_max_points: 50_000,
+            max_simplified_points: 2_000,
+            max_trails_per_trip: 20,
+            max_annotations_per_context: 500,
+            overview_max_trips: 100,
+            overview_max_trails: 200,
+            overview_max_points: 5_000,
+            overview_max_points_per_trail: 160,
+        }
+    }
+}
+
+/// Client-visible map provider configuration. Service tokens are intentionally excluded.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MapStyleConfig {
+    pub id: String,
+    pub label: String,
+    pub style_url: String,
+}
+
+/// Client-visible map provider configuration. Service tokens are intentionally excluded.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MapConfig {
+    pub provider: String,
+    pub style_url: String,
+    pub public_key: Option<String>,
+    pub styles: Vec<MapStyleConfig>,
+    pub default_style_id: String,
+}
+
+impl Default for MapConfig {
+    fn default() -> Self {
+        let styles = default_map_styles();
+        Self {
+            provider: "maptiler".to_owned(),
+            style_url: "https://api.maptiler.com/maps/outdoor-v2/style.json".to_owned(),
+            public_key: None,
+            styles,
+            default_style_id: "outdoor".to_owned(),
+        }
+    }
+}
+
+fn default_map_styles() -> Vec<MapStyleConfig> {
+    vec![
+        MapStyleConfig {
+            id: "outdoor".to_owned(),
+            label: "户外".to_owned(),
+            style_url: "https://api.maptiler.com/maps/outdoor-v2/style.json".to_owned(),
+        },
+        MapStyleConfig {
+            id: "streets".to_owned(),
+            label: "街道".to_owned(),
+            style_url: "https://api.maptiler.com/maps/streets-v2/style.json".to_owned(),
+        },
+        MapStyleConfig {
+            id: "satellite".to_owned(),
+            label: "卫星".to_owned(),
+            style_url: "https://api.maptiler.com/maps/satellite/style.json".to_owned(),
+        },
+    ]
+}
+
 /// Shared S3-compatible MinIO connection configuration.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MinioConfig {
@@ -622,6 +737,8 @@ pub struct ApiConfig {
     pub wechat_app_secret: Option<String>,
     pub redis_cache: RedisCacheConfig,
     pub upload: UploadConfig,
+    pub trail: TrailConfig,
+    pub map: MapConfig,
     pub minio: MinioConfig,
     pub object_storage: ObjectStorageConfig,
     pub avatar_storage: AvatarStorageConfig,
@@ -646,6 +763,8 @@ impl ApiConfig {
             wechat,
             redis,
             upload: file_upload,
+            trail: file_trail,
+            map: file_map,
             minio: file_minio,
             object_storage: file_object_storage,
             avatar_storage: file_avatar_storage,
@@ -722,6 +841,78 @@ impl ApiConfig {
         if upload.max_total_bytes_per_user == 0 {
             anyhow::bail!("UPLOAD_MAX_TOTAL_BYTES_PER_USER must be greater than 0");
         }
+        let default_trail = TrailConfig::default();
+        let trail = TrailConfig {
+            upload_max_bytes: config_u64_env(
+                "TRAIL_UPLOAD_MAX_BYTES",
+                file_trail.upload_max_bytes,
+                default_trail.upload_max_bytes,
+            )?,
+            upload_max_points: config_u64_env(
+                "TRAIL_UPLOAD_MAX_POINTS",
+                file_trail.upload_max_points,
+                default_trail.upload_max_points,
+            )?,
+            max_simplified_points: config_u64_env(
+                "TRAIL_MAX_SIMPLIFIED_POINTS",
+                file_trail.max_simplified_points,
+                default_trail.max_simplified_points,
+            )?,
+            max_trails_per_trip: config_u64_env(
+                "TRAIL_MAX_TRAILS_PER_TRIP",
+                file_trail.max_trails_per_trip,
+                default_trail.max_trails_per_trip,
+            )?,
+            max_annotations_per_context: config_u64_env(
+                "TRAIL_MAX_ANNOTATIONS_PER_CONTEXT",
+                file_trail.max_annotations_per_context,
+                default_trail.max_annotations_per_context,
+            )?,
+            overview_max_trips: config_u64_env(
+                "TRAIL_OVERVIEW_MAX_TRIPS",
+                file_trail.overview_max_trips,
+                default_trail.overview_max_trips,
+            )?,
+            overview_max_trails: config_u64_env(
+                "TRAIL_OVERVIEW_MAX_TRAILS",
+                file_trail.overview_max_trails,
+                default_trail.overview_max_trails,
+            )?,
+            overview_max_points: config_u64_env(
+                "TRAIL_OVERVIEW_MAX_POINTS",
+                file_trail.overview_max_points,
+                default_trail.overview_max_points,
+            )?,
+            overview_max_points_per_trail: config_u64_env(
+                "TRAIL_OVERVIEW_MAX_POINTS_PER_TRAIL",
+                file_trail.overview_max_points_per_trail,
+                default_trail.overview_max_points_per_trail,
+            )?,
+        };
+        validate_trail_config(&trail)?;
+
+        let default_map = MapConfig::default();
+        let legacy_style_url = optional_env_alias("MAP_STYLE_URL", &["MAPTILER_STYLE_URL"])
+            .or_else(|| normalize_file_string(file_map.style_url))
+            .unwrap_or_else(|| default_map.style_url.clone());
+        let styles = map_styles_from_file(file_map.styles, &default_map.styles, &legacy_style_url);
+        let default_style_id = normalize_file_string(file_map.default_style_id)
+            .unwrap_or_else(|| default_map.default_style_id.clone());
+        let style_url = styles
+            .iter()
+            .find(|style| style.id == default_style_id)
+            .map(|style| style.style_url.clone())
+            .unwrap_or_else(|| legacy_style_url.clone());
+        let map = MapConfig {
+            provider: config_string_env("MAP_PROVIDER", file_map.provider, &default_map.provider),
+            style_url,
+            public_key: optional_env_alias("MAP_PUBLIC_KEY", &["MAPTILER_PUBLIC_KEY"])
+                .or_else(|| normalize_file_string(file_map.public_key)),
+            styles,
+            default_style_id,
+        };
+        validate_map_config(&map)?;
+
         let default_minio = MinioConfig::default();
         let minio = MinioConfig {
             endpoint: config_string_env_alias(
@@ -1030,6 +1221,8 @@ impl ApiConfig {
             wechat_app_secret,
             redis_cache,
             upload,
+            trail,
+            map,
             minio,
             object_storage,
             avatar_storage,
@@ -1067,6 +1260,33 @@ fn normalize_file_string(value: Option<String>) -> Option<String> {
     value
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
+}
+
+fn map_styles_from_file(
+    file_styles: Option<Vec<FileMapStyleConfig>>,
+    default_styles: &[MapStyleConfig],
+    legacy_style_url: &str,
+) -> Vec<MapStyleConfig> {
+    match file_styles {
+        Some(styles) => styles
+            .into_iter()
+            .map(|style| MapStyleConfig {
+                id: normalize_file_string(style.id).unwrap_or_default(),
+                label: normalize_file_string(style.label).unwrap_or_default(),
+                style_url: normalize_file_string(style.style_url).unwrap_or_default(),
+            })
+            .collect(),
+        None => default_styles
+            .iter()
+            .cloned()
+            .map(|mut style| {
+                if style.id == "outdoor" {
+                    style.style_url = legacy_style_url.to_owned();
+                }
+                style
+            })
+            .collect(),
+    }
 }
 
 fn config_file_string(file_value: Option<String>, default: &str) -> String {
@@ -1198,6 +1418,99 @@ fn validate_minio_config(config: &MinioConfig) -> anyhow::Result<()> {
 fn validate_object_storage_config(config: &ObjectStorageConfig) -> anyhow::Result<()> {
     if config.bucket.trim().is_empty() {
         anyhow::bail!("OBJECT_STORAGE_BUCKET must not be empty");
+    }
+    Ok(())
+}
+
+fn validate_trail_config(config: &TrailConfig) -> anyhow::Result<()> {
+    if config.upload_max_bytes == 0 {
+        anyhow::bail!("TRAIL_UPLOAD_MAX_BYTES must be greater than 0");
+    }
+    if config.upload_max_points == 0 {
+        anyhow::bail!("TRAIL_UPLOAD_MAX_POINTS must be greater than 0");
+    }
+    if config.max_simplified_points == 0 {
+        anyhow::bail!("TRAIL_MAX_SIMPLIFIED_POINTS must be greater than 0");
+    }
+    if config.max_simplified_points > config.upload_max_points {
+        anyhow::bail!("TRAIL_MAX_SIMPLIFIED_POINTS must not exceed TRAIL_UPLOAD_MAX_POINTS");
+    }
+    if config.max_trails_per_trip == 0 {
+        anyhow::bail!("TRAIL_MAX_TRAILS_PER_TRIP must be greater than 0");
+    }
+    if config.max_annotations_per_context == 0 {
+        anyhow::bail!("TRAIL_MAX_ANNOTATIONS_PER_CONTEXT must be greater than 0");
+    }
+    if config.overview_max_trips == 0 {
+        anyhow::bail!("TRAIL_OVERVIEW_MAX_TRIPS must be greater than 0");
+    }
+    if config.overview_max_trails == 0 {
+        anyhow::bail!("TRAIL_OVERVIEW_MAX_TRAILS must be greater than 0");
+    }
+    if config.overview_max_points < 2 {
+        anyhow::bail!("TRAIL_OVERVIEW_MAX_POINTS must be at least 2");
+    }
+    if config.overview_max_points_per_trail < 2 {
+        anyhow::bail!("TRAIL_OVERVIEW_MAX_POINTS_PER_TRAIL must be at least 2");
+    }
+    if config.overview_max_points_per_trail > config.overview_max_points {
+        anyhow::bail!(
+            "TRAIL_OVERVIEW_MAX_POINTS_PER_TRAIL must not exceed TRAIL_OVERVIEW_MAX_POINTS"
+        );
+    }
+    Ok(())
+}
+
+fn validate_map_config(config: &MapConfig) -> anyhow::Result<()> {
+    if config.provider.trim().is_empty() {
+        anyhow::bail!("MAP_PROVIDER must not be empty");
+    }
+    if config.provider.trim() != config.provider {
+        anyhow::bail!("MAP_PROVIDER must not be padded");
+    }
+    if config.style_url.trim().is_empty() {
+        anyhow::bail!("MAP_STYLE_URL must not be empty");
+    }
+    if config.style_url.trim() != config.style_url {
+        anyhow::bail!("MAP_STYLE_URL must not be padded");
+    }
+    if config.styles.is_empty() {
+        anyhow::bail!("MAP_STYLES must not be empty");
+    }
+    if config.default_style_id.trim().is_empty() {
+        anyhow::bail!("MAP_DEFAULT_STYLE_ID must not be empty");
+    }
+    if config.default_style_id.trim() != config.default_style_id {
+        anyhow::bail!("MAP_DEFAULT_STYLE_ID must not be padded");
+    }
+    let mut style_ids = HashSet::new();
+    let mut has_default_style = false;
+    for style in &config.styles {
+        if style.id.trim().is_empty() {
+            anyhow::bail!("MAP_STYLE_ID must not be empty");
+        }
+        if style.id.trim() != style.id {
+            anyhow::bail!("MAP_STYLE_ID must not be padded");
+        }
+        if !style_ids.insert(style.id.as_str()) {
+            anyhow::bail!("MAP_STYLE_ID must be unique");
+        }
+        if style.label.trim().is_empty() {
+            anyhow::bail!("MAP_STYLE_LABEL must not be empty");
+        }
+        if style.label.trim() != style.label {
+            anyhow::bail!("MAP_STYLE_LABEL must not be padded");
+        }
+        if style.style_url.trim().is_empty() {
+            anyhow::bail!("MAP_STYLE_URL must not be empty");
+        }
+        if style.style_url.trim() != style.style_url {
+            anyhow::bail!("MAP_STYLE_URL must not be padded");
+        }
+        has_default_style |= style.id == config.default_style_id;
+    }
+    if !has_default_style {
+        anyhow::bail!("MAP_DEFAULT_STYLE_ID must match one configured style");
     }
     Ok(())
 }
@@ -1587,6 +1900,31 @@ upload:
   max_images_per_window: 8
   max_total_images_per_user: 88
   max_total_bytes_per_user: 999999
+trail:
+  upload_max_bytes: 2222222
+  upload_max_points: 1234
+  max_simplified_points: 123
+  max_trails_per_trip: 9
+  max_annotations_per_context: 321
+  overview_max_trips: 7
+  overview_max_trails: 8
+  overview_max_points: 456
+  overview_max_points_per_trail: 45
+map:
+  provider: maptiler
+  style_url: https://maps.example.invalid/style.json
+  public_key: yaml-public-key
+  default_style_id: streets
+  styles:
+    - id: outdoor
+      label: 户外
+      style_url: https://maps.example.invalid/outdoor.json
+    - id: streets
+      label: 街道
+      style_url: https://maps.example.invalid/streets.json
+    - id: satellite
+      label: 卫星
+      style_url: https://maps.example.invalid/satellite.json
 minio:
   endpoint: http://minio.example.invalid
   region: us-east-1
@@ -1666,6 +2004,29 @@ mail:
         assert_eq!(config.upload.max_image_bytes, 111111);
         assert_eq!(config.upload.max_total_images_per_user, 88);
         assert_eq!(config.upload.max_total_bytes_per_user, 999999);
+        assert_eq!(config.trail.upload_max_bytes, 2222222);
+        assert_eq!(config.trail.upload_max_points, 1234);
+        assert_eq!(config.trail.max_simplified_points, 123);
+        assert_eq!(config.trail.max_trails_per_trip, 9);
+        assert_eq!(config.trail.max_annotations_per_context, 321);
+        assert_eq!(config.trail.overview_max_trips, 7);
+        assert_eq!(config.trail.overview_max_trails, 8);
+        assert_eq!(config.trail.overview_max_points, 456);
+        assert_eq!(config.trail.overview_max_points_per_trail, 45);
+        assert_eq!(config.map.provider, "maptiler");
+        assert_eq!(
+            config.map.style_url,
+            "https://maps.example.invalid/streets.json"
+        );
+        assert_eq!(config.map.public_key.as_deref(), Some("yaml-public-key"));
+        assert_eq!(config.map.default_style_id, "streets");
+        assert_eq!(config.map.styles.len(), 3);
+        assert_eq!(config.map.styles[0].id, "outdoor");
+        assert_eq!(
+            config.map.styles[0].style_url,
+            "https://maps.example.invalid/outdoor.json"
+        );
+        assert_eq!(config.map.styles[1].label, "街道");
         assert_eq!(config.minio.endpoint, "http://minio.example.invalid");
         assert_eq!(config.object_storage.bucket, "yaml-uploads");
         assert_eq!(config.avatar_storage.bucket, "yaml-avatars");
@@ -1783,6 +2144,18 @@ public_api:
             env::set_var("UPLOAD_MAX_IMAGES_PER_WINDOW", "7");
             env::set_var("UPLOAD_MAX_TOTAL_IMAGES_PER_USER", "11");
             env::set_var("UPLOAD_MAX_TOTAL_BYTES_PER_USER", "654321");
+            env::set_var("TRAIL_UPLOAD_MAX_BYTES", "3333333");
+            env::set_var("TRAIL_UPLOAD_MAX_POINTS", "3333");
+            env::set_var("TRAIL_MAX_SIMPLIFIED_POINTS", "333");
+            env::set_var("TRAIL_MAX_TRAILS_PER_TRIP", "13");
+            env::set_var("TRAIL_MAX_ANNOTATIONS_PER_CONTEXT", "444");
+            env::set_var("TRAIL_OVERVIEW_MAX_TRIPS", "77");
+            env::set_var("TRAIL_OVERVIEW_MAX_TRAILS", "88");
+            env::set_var("TRAIL_OVERVIEW_MAX_POINTS", "999");
+            env::set_var("TRAIL_OVERVIEW_MAX_POINTS_PER_TRAIL", "99");
+            env::set_var("MAP_PROVIDER", "maptiler");
+            env::set_var("MAP_STYLE_URL", " https://maps.example.test/outdoor.json ");
+            env::set_var("MAP_PUBLIC_KEY", " public-map-key ");
             env::set_var("MINIO_ENDPOINT", " http://minio:9000 ");
             env::set_var("MINIO_REGION", " us-east-1 ");
             env::set_var("MINIO_ACCESS_KEY_ID", " local-key ");
@@ -1814,6 +2187,28 @@ public_api:
         assert_eq!(config.minio.secret_access_key, "local-secret");
         assert!(config.minio.force_path_style);
         assert_eq!(config.object_storage.bucket, "stellartrail-test");
+        assert_eq!(config.trail.upload_max_bytes, 3333333);
+        assert_eq!(config.trail.upload_max_points, 3333);
+        assert_eq!(config.trail.max_simplified_points, 333);
+        assert_eq!(config.trail.max_trails_per_trip, 13);
+        assert_eq!(config.trail.max_annotations_per_context, 444);
+        assert_eq!(config.trail.overview_max_trips, 77);
+        assert_eq!(config.trail.overview_max_trails, 88);
+        assert_eq!(config.trail.overview_max_points, 999);
+        assert_eq!(config.trail.overview_max_points_per_trail, 99);
+        assert_eq!(config.map.provider, "maptiler");
+        assert_eq!(
+            config.map.style_url,
+            "https://maps.example.test/outdoor.json"
+        );
+        assert_eq!(config.map.public_key.as_deref(), Some("public-map-key"));
+        assert_eq!(config.map.default_style_id, "outdoor");
+        assert_eq!(
+            config.map.styles[0].style_url,
+            "https://maps.example.test/outdoor.json"
+        );
+        assert_eq!(config.map.styles[1].id, "streets");
+        assert_eq!(config.map.styles[2].id, "satellite");
         assert_eq!(config.avatar_storage.bucket, "stellartrail-avatar-test");
         assert_eq!(
             config.avatar_storage.public_base_url,
@@ -2266,6 +2661,20 @@ sms:
         "UPLOAD_MAX_IMAGES_PER_WINDOW",
         "UPLOAD_MAX_TOTAL_IMAGES_PER_USER",
         "UPLOAD_MAX_TOTAL_BYTES_PER_USER",
+        "TRAIL_UPLOAD_MAX_BYTES",
+        "TRAIL_UPLOAD_MAX_POINTS",
+        "TRAIL_MAX_SIMPLIFIED_POINTS",
+        "TRAIL_MAX_TRAILS_PER_TRIP",
+        "TRAIL_MAX_ANNOTATIONS_PER_CONTEXT",
+        "TRAIL_OVERVIEW_MAX_TRIPS",
+        "TRAIL_OVERVIEW_MAX_TRAILS",
+        "TRAIL_OVERVIEW_MAX_POINTS",
+        "TRAIL_OVERVIEW_MAX_POINTS_PER_TRAIL",
+        "MAP_PROVIDER",
+        "MAP_STYLE_URL",
+        "MAP_PUBLIC_KEY",
+        "MAPTILER_STYLE_URL",
+        "MAPTILER_PUBLIC_KEY",
         "MINIO_ENDPOINT",
         "MINIO_REGION",
         "MINIO_ACCESS_KEY_ID",
