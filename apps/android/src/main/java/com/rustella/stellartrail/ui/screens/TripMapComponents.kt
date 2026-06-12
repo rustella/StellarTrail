@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -107,6 +108,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.net.URL
 import kotlin.math.hypot
 
@@ -137,8 +139,19 @@ fun TripsOverviewMapSection(
     var expandedMap by remember { mutableStateOf(false) }
     var compactStyleIdWhileExpanded by remember { mutableStateOf<String?>(null) }
     val featureCollection = rememberOverviewFeatureCollection(trails)
+    var compactCameraSnapshot by remember(featureCollection, data.bounds) { mutableStateOf<MapCameraSnapshot?>(null) }
+    var expandedInitialCameraSnapshot by remember(featureCollection, data.bounds) { mutableStateOf<MapCameraSnapshot?>(null) }
+    var compactLocationTrackingHandoff by remember { mutableStateOf(LocationTrackingHandoff()) }
+    var expandedInitialLocationTrackingHandoff by remember { mutableStateOf(LocationTrackingHandoff()) }
+    var expandedLocationTrackingHandoff by remember { mutableStateOf(LocationTrackingHandoff()) }
+    var compactAutoStartLocationTrackingKey by remember { mutableStateOf(0) }
+    var expandedAutoStartLocationTrackingKey by remember { mutableStateOf(0) }
     val styleOptions = if (canRenderMap) resolveMapStyleOptions(data.map) else emptyList()
-    val selectedStyle = if (canRenderMap) resolveSelectedMapStyle(data.map, selectedStyleId) else null
+    val expandedSelectedStyle = if (canRenderMap) {
+        resolveSelectedMapStyle(data.map, compactStyleIdWhileExpanded ?: selectedStyleId)
+    } else {
+        null
+    }
     val compactSelectedStyle = if (canRenderMap) {
         resolveSelectedMapStyle(data.map, compactStyleIdWhileExpanded ?: selectedStyleId)
     } else {
@@ -171,8 +184,30 @@ fun TripsOverviewMapSection(
                 eventLevel = MTEventLevel.ESSENTIAL,
                 zoomGesturesEnabled = false,
                 locationTrackingEnabled = !expandedMap,
+                initialCameraSnapshot = compactCameraSnapshot,
+                initialLocation = compactLocationTrackingHandoff.lastLocation,
+                autoStartLocationTrackingKey = compactAutoStartLocationTrackingKey,
+                onCameraSnapshotChanged = { compactCameraSnapshot = it },
+                onLocationChanged = { location ->
+                    if (!expandedMap) {
+                        compactLocationTrackingHandoff = compactLocationTrackingHandoff.withLocation(location)
+                    }
+                },
+                onLocationTrackingActiveChanged = { active ->
+                    if (!expandedMap) {
+                        compactLocationTrackingHandoff = compactLocationTrackingHandoff.withActive(active)
+                    }
+                },
                 onMapTap = { _, _ ->
+                    val locationHandoff = compactLocationTrackingHandoff
                     compactStyleIdWhileExpanded = compactSelectedStyle.id
+                    expandedInitialCameraSnapshot = compactCameraSnapshot
+                    expandedInitialLocationTrackingHandoff = locationHandoff
+                    expandedLocationTrackingHandoff = locationHandoff
+                    expandedAutoStartLocationTrackingKey = nextLocationTrackingAutoStartKey(
+                        currentKey = expandedAutoStartLocationTrackingKey,
+                        shouldAutoStart = locationHandoff.active,
+                    )
                     expandedMap = true
                 },
             )
@@ -184,20 +219,41 @@ fun TripsOverviewMapSection(
             )
         }
     }
-    if (expandedMap && canRenderMap && selectedStyle != null) {
+    if (expandedMap && canRenderMap && expandedSelectedStyle != null) {
         ExpandedTrailMapDialog(
             title = "行程轨迹总览",
             map = data.map,
             styleOptions = styleOptions,
-            selectedStyle = selectedStyle,
+            selectedStyle = expandedSelectedStyle,
             onSelectStyle = onSelectMapStyle,
             bounds = data.bounds,
             featureCollection = featureCollection,
+            initialCameraSnapshot = expandedInitialCameraSnapshot,
+            initialLocation = expandedInitialLocationTrackingHandoff.lastLocation,
+            autoStartLocationTrackingKey = expandedAutoStartLocationTrackingKey,
             lineColor = USER_TRAIL_COLOR,
             eventLevel = MTEventLevel.ESSENTIAL,
+            onLocationChanged = { location ->
+                expandedLocationTrackingHandoff = expandedLocationTrackingHandoff.withLocation(location)
+            },
+            onLocationTrackingActiveChanged = { active ->
+                expandedLocationTrackingHandoff = expandedLocationTrackingHandoff.withActive(active)
+            },
             onDismiss = {
+                val resumeHandoff = expandedLocationTrackingHandoff.withFallbackLocation(
+                    expandedInitialLocationTrackingHandoff.lastLocation,
+                )
+                compactLocationTrackingHandoff = resumeHandoff
                 expandedMap = false
                 compactStyleIdWhileExpanded = null
+                expandedInitialCameraSnapshot = null
+                expandedInitialLocationTrackingHandoff = LocationTrackingHandoff()
+                expandedLocationTrackingHandoff = LocationTrackingHandoff()
+                expandedAutoStartLocationTrackingKey = 0
+                compactAutoStartLocationTrackingKey = nextLocationTrackingAutoStartKey(
+                    currentKey = compactAutoStartLocationTrackingKey,
+                    shouldAutoStart = resumeHandoff.active,
+                )
             },
         )
     }
@@ -222,6 +278,13 @@ fun TripDetailMapSection(
     var editingAnnotation by remember { mutableStateOf<MapAnnotation?>(null) }
     var expandedMap by remember { mutableStateOf(false) }
     var compactStyleIdWhileExpanded by remember { mutableStateOf<String?>(null) }
+    var compactCameraSnapshot by remember { mutableStateOf<MapCameraSnapshot?>(null) }
+    var expandedInitialCameraSnapshot by remember { mutableStateOf<MapCameraSnapshot?>(null) }
+    var compactLocationTrackingHandoff by remember { mutableStateOf(LocationTrackingHandoff()) }
+    var expandedInitialLocationTrackingHandoff by remember { mutableStateOf(LocationTrackingHandoff()) }
+    var expandedLocationTrackingHandoff by remember { mutableStateOf(LocationTrackingHandoff()) }
+    var compactAutoStartLocationTrackingKey by remember { mutableStateOf(0) }
+    var expandedAutoStartLocationTrackingKey by remember { mutableStateOf(0) }
     var showAddTrailDialog by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { readTrailUpload(context, it)?.let { upload -> onUploadTrail(upload.filename, upload.contentType, upload.bytes) } }
@@ -249,6 +312,15 @@ fun TripDetailMapSection(
                 val selectedStyle = resolveSelectedMapStyle(data.map, compactStyleIdWhileExpanded ?: selectedStyleId)
                 val bounds = unionBounds(data.trails.mapNotNull { it.trail.bounds })
                 val featureCollection = rememberTripFeatureCollection(data.trails)
+                LaunchedEffect(featureCollection, bounds) {
+                    compactCameraSnapshot = null
+                    expandedInitialCameraSnapshot = null
+                    compactLocationTrackingHandoff = LocationTrackingHandoff()
+                    expandedInitialLocationTrackingHandoff = LocationTrackingHandoff()
+                    expandedLocationTrackingHandoff = LocationTrackingHandoff()
+                    compactAutoStartLocationTrackingKey = 0
+                    expandedAutoStartLocationTrackingKey = 0
+                }
                 MapTilerTrailMap(
                     map = data.map,
                     styleOptions = styleOptions,
@@ -261,8 +333,30 @@ fun TripDetailMapSection(
                     eventLevel = MTEventLevel.ALL,
                     zoomGesturesEnabled = false,
                     locationTrackingEnabled = !expandedMap,
+                    initialCameraSnapshot = compactCameraSnapshot,
+                    initialLocation = compactLocationTrackingHandoff.lastLocation,
+                    autoStartLocationTrackingKey = compactAutoStartLocationTrackingKey,
+                    onCameraSnapshotChanged = { compactCameraSnapshot = it },
+                    onLocationChanged = { location ->
+                        if (!expandedMap) {
+                            compactLocationTrackingHandoff = compactLocationTrackingHandoff.withLocation(location)
+                        }
+                    },
+                    onLocationTrackingActiveChanged = { active ->
+                        if (!expandedMap) {
+                            compactLocationTrackingHandoff = compactLocationTrackingHandoff.withActive(active)
+                        }
+                    },
                     onMapTap = { _, _ ->
+                        val locationHandoff = compactLocationTrackingHandoff
                         compactStyleIdWhileExpanded = selectedStyle.id
+                        expandedInitialCameraSnapshot = compactCameraSnapshot
+                        expandedInitialLocationTrackingHandoff = locationHandoff
+                        expandedLocationTrackingHandoff = locationHandoff
+                        expandedAutoStartLocationTrackingKey = nextLocationTrackingAutoStartKey(
+                            currentKey = expandedAutoStartLocationTrackingKey,
+                            shouldAutoStart = locationHandoff.active,
+                        )
                         expandedMap = true
                     },
                     onMapLongPress = { lng, lat -> pendingPoint = lng to lat },
@@ -301,7 +395,7 @@ fun TripDetailMapSection(
         val canRenderMap = data.map.enabled && data.map.publicKey?.isNotBlank() == true
         if (expandedMap && canRenderMap) {
             val styleOptions = resolveMapStyleOptions(data.map)
-            val selectedStyle = resolveSelectedMapStyle(data.map, selectedStyleId)
+            val selectedStyle = resolveSelectedMapStyle(data.map, compactStyleIdWhileExpanded ?: selectedStyleId)
             ExpandedTrailMapDialog(
                 title = "轨迹地图",
                 map = data.map,
@@ -310,15 +404,48 @@ fun TripDetailMapSection(
                 onSelectStyle = onSelectMapStyle,
                 bounds = unionBounds(data.trails.mapNotNull { it.trail.bounds }),
                 featureCollection = rememberTripFeatureCollection(data.trails),
+                initialCameraSnapshot = expandedInitialCameraSnapshot,
+                initialLocation = expandedInitialLocationTrackingHandoff.lastLocation,
+                autoStartLocationTrackingKey = expandedAutoStartLocationTrackingKey,
                 lineColor = USER_TRAIL_COLOR,
                 eventLevel = MTEventLevel.ALL,
+                onLocationChanged = { location ->
+                    expandedLocationTrackingHandoff = expandedLocationTrackingHandoff.withLocation(location)
+                },
+                onLocationTrackingActiveChanged = { active ->
+                    expandedLocationTrackingHandoff = expandedLocationTrackingHandoff.withActive(active)
+                },
                 onDismiss = {
+                    val resumeHandoff = expandedLocationTrackingHandoff.withFallbackLocation(
+                        expandedInitialLocationTrackingHandoff.lastLocation,
+                    )
+                    compactLocationTrackingHandoff = resumeHandoff
                     expandedMap = false
                     compactStyleIdWhileExpanded = null
+                    expandedInitialCameraSnapshot = null
+                    expandedInitialLocationTrackingHandoff = LocationTrackingHandoff()
+                    expandedLocationTrackingHandoff = LocationTrackingHandoff()
+                    expandedAutoStartLocationTrackingKey = 0
+                    compactAutoStartLocationTrackingKey = nextLocationTrackingAutoStartKey(
+                        currentKey = compactAutoStartLocationTrackingKey,
+                        shouldAutoStart = resumeHandoff.active,
+                    )
                 },
                 onMapLongPress = { lng, lat ->
+                    val resumeHandoff = expandedLocationTrackingHandoff.withFallbackLocation(
+                        expandedInitialLocationTrackingHandoff.lastLocation,
+                    )
+                    compactLocationTrackingHandoff = resumeHandoff
                     expandedMap = false
                     compactStyleIdWhileExpanded = null
+                    expandedInitialCameraSnapshot = null
+                    expandedInitialLocationTrackingHandoff = LocationTrackingHandoff()
+                    expandedLocationTrackingHandoff = LocationTrackingHandoff()
+                    expandedAutoStartLocationTrackingKey = 0
+                    compactAutoStartLocationTrackingKey = nextLocationTrackingAutoStartKey(
+                        currentKey = compactAutoStartLocationTrackingKey,
+                        shouldAutoStart = resumeHandoff.active,
+                    )
                     pendingPoint = lng to lat
                 },
             )
@@ -427,21 +554,29 @@ private fun MapTilerTrailMap(
     eventLevel: MTEventLevel,
     zoomGesturesEnabled: Boolean,
     locationTrackingEnabled: Boolean = true,
+    initialCameraSnapshot: MapCameraSnapshot? = null,
+    initialLocation: ForegroundLocation? = null,
+    autoStartLocationTrackingKey: Int = 0,
+    onCameraSnapshotChanged: (MapCameraSnapshot) -> Unit = {},
+    onLocationChanged: (ForegroundLocation?) -> Unit = {},
+    onLocationTrackingActiveChanged: (Boolean) -> Unit = {},
     onMapTap: (Double, Double) -> Unit,
     onMapLongPress: (Double, Double) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val coroutineScope = rememberCoroutineScope()
     val publicKey = map.publicKey.orEmpty()
     val styleUrl = selectedStyle.styleUrl.withMapTilerKey(publicKey)
     val locationProvider = remember(context) { AndroidForegroundLocationProvider(context) }
     var legendVisible by remember { mutableStateOf(false) }
     var styleSwitchLocked by remember { mutableStateOf(false) }
     var locationTrackingState by remember { mutableStateOf(ForegroundLocationTrackingState.Idle) }
-    var lastFollowLocation by remember { mutableStateOf<ForegroundLocation?>(null) }
+    var lastFollowLocation by remember { mutableStateOf(initialLocation) }
 
-    fun stopLocationTracking() {
+    fun stopLocationTracking(reason: LocationTrackingStopReason) {
+        if (!shouldStopLocationTracking(reason)) return
         locationProvider.stopUpdates()
         lastFollowLocation = null
         locationTrackingState = ForegroundLocationTrackingState.Idle
@@ -474,26 +609,33 @@ private fun MapTilerTrailMap(
             onSelectStyle(styleId)
         }
     }
-    val currentOnUserGesture by rememberUpdatedState<() -> Unit> {
-        if (locationTrackingState.isActive) stopLocationTracking()
-    }
+    val currentOnCameraSnapshotChanged by rememberUpdatedState(onCameraSnapshotChanged)
+    val currentOnLocationChanged by rememberUpdatedState(onLocationChanged)
+    val currentOnLocationTrackingActiveChanged by rememberUpdatedState(onLocationTrackingActiveChanged)
     val controllerDelegate = remember(styleUrl, featureCollection, bounds, lineColor, eventLevel, zoomGesturesEnabled) {
         MTConfig.apiKey = publicKey
         TrailMapDelegate(
             context = context,
+            coroutineScope = coroutineScope,
             featureCollection = featureCollection,
             bounds = bounds,
+            initialCameraSnapshot = initialCameraSnapshot,
+            initialLocation = lastFollowLocation,
             lineColor = lineColor.toArgb(),
             eventLevel = eventLevel,
             zoomGesturesEnabled = zoomGesturesEnabled,
             onTap = { lng, lat -> currentOnMapTap(lng, lat) },
             onLongPress = { lng, lat -> currentOnMapLongPress(lng, lat) },
-            onUserGesture = { currentOnUserGesture() },
+            onCameraSnapshotChanged = { snapshot -> currentOnCameraSnapshotChanged(snapshot) },
         )
     }
     val currentControllerDelegate by rememberUpdatedState(controllerDelegate)
 
-    fun startLocationTracking(permission: ForegroundLocationPermission) {
+    fun startLocationTracking(
+        permission: ForegroundLocationPermission,
+        firstLocationCameraMode: LocationCameraMode = LocationCameraMode.InitialLocate,
+        transferredLocation: ForegroundLocation? = null,
+    ) {
         if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
         if (permission == ForegroundLocationPermission.None) {
             locationTrackingState = ForegroundLocationTrackingState.PermissionDenied
@@ -501,11 +643,18 @@ private fun MapTilerTrailMap(
         }
         legendVisible = false
         locationTrackingState = ForegroundLocationTrackingState.Starting
+        transferredLocation?.let { location ->
+            lastFollowLocation = location
+            currentOnLocationChanged(location)
+            currentControllerDelegate.applyLocation(location, LocationCameraMode.TransferredTracking)
+        }
         locationProvider.startUpdates(
             permission = permission,
             onLocation = { location ->
+                val focusMode = locationCameraModeForTrackingState(locationTrackingState, firstLocationCameraMode)
                 lastFollowLocation = location
-                currentControllerDelegate.centerOnLocation(location)
+                currentOnLocationChanged(location)
+                currentControllerDelegate.applyLocation(location, focusMode)
                 locationTrackingState = ForegroundLocationTrackingState.Following
             },
             onError = { error ->
@@ -524,13 +673,13 @@ private fun MapTilerTrailMap(
             fineGranted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true,
             coarseGranted = grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true,
         )
-        startLocationTracking(permission)
+        startLocationTracking(permission, firstLocationCameraMode = LocationCameraMode.InitialLocate)
     }
 
     fun toggleLocationTracking() {
         if (!locationTrackingEnabled) return
         if (locationTrackingState.isActive) {
-            stopLocationTracking()
+            stopLocationTracking(LocationTrackingStopReason.UserButton)
             return
         }
         when (val permission = context.foregroundLocationPermission()) {
@@ -540,25 +689,56 @@ private fun MapTilerTrailMap(
                     Manifest.permission.ACCESS_COARSE_LOCATION,
                 ),
             )
-            else -> startLocationTracking(permission)
+            else -> startLocationTracking(permission, firstLocationCameraMode = LocationCameraMode.InitialLocate)
         }
     }
 
     DisposableEffect(lifecycleOwner, locationProvider) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) stopLocationTracking()
+            if (event == Lifecycle.Event.ON_STOP) stopLocationTracking(LocationTrackingStopReason.AppBackgrounded)
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            stopLocationTracking()
+            stopLocationTracking(LocationTrackingStopReason.MapNotVisible)
         }
     }
-    LaunchedEffect(controllerDelegate, lastFollowLocation, locationTrackingState.status) {
-        if (shouldRenderCurrentLocationMarker(locationTrackingState, lastFollowLocation)) {
-            lastFollowLocation?.let { controllerDelegate.centerOnLocation(it) }
+    LaunchedEffect(
+        controllerDelegate,
+        lastFollowLocation,
+        locationTrackingState.status,
+        autoStartLocationTrackingKey,
+        locationTrackingEnabled,
+    ) {
+        if (
+            shouldRenderCurrentLocationMarker(locationTrackingState, lastFollowLocation) ||
+            shouldKeepTransferredLocationMarker(
+                autoStartKey = autoStartLocationTrackingKey,
+                locationTrackingEnabled = locationTrackingEnabled,
+                state = locationTrackingState,
+                location = lastFollowLocation,
+            )
+        ) {
+            lastFollowLocation?.let { controllerDelegate.applyLocation(it, LocationCameraMode.MarkerOnlyUpdate) }
         } else {
             controllerDelegate.hideCurrentLocationMarker()
+        }
+    }
+    LaunchedEffect(locationTrackingState.isActive) {
+        currentOnLocationTrackingActiveChanged(locationTrackingState.isActive)
+    }
+    LaunchedEffect(autoStartLocationTrackingKey, locationTrackingEnabled) {
+        if (shouldAutoStartLocationTracking(autoStartLocationTrackingKey, locationTrackingEnabled, locationTrackingState)) {
+            when (val permission = context.foregroundLocationPermission()) {
+                ForegroundLocationPermission.None -> Unit
+                else -> {
+                    startLocationTracking(
+                        permission = permission,
+                        firstLocationCameraMode = LocationCameraMode.TransferredTracking,
+                        transferredLocation = initialLocation,
+                    )
+                }
+            }
         }
     }
     LaunchedEffect(locationTrackingState.status) {
@@ -572,7 +752,7 @@ private fun MapTilerTrailMap(
     }
     LaunchedEffect(locationTrackingEnabled) {
         if (!locationTrackingEnabled && locationTrackingState.isActive) {
-            stopLocationTracking()
+            stopLocationTracking(LocationTrackingStopReason.MapNotVisible)
         }
     }
     LaunchedEffect(locationTrackingState) {
@@ -637,12 +817,12 @@ private fun MapTilerTrailMap(
             )
             MapZoomControls(
                 onZoomIn = {
-                    currentOnUserGesture()
                     controllerDelegate.controller.zoomIn()
+                    controllerDelegate.requestCameraSnapshot(MAP_CAMERA_SNAPSHOT_AFTER_CONTROL_DELAY_MILLIS)
                 },
                 onZoomOut = {
-                    currentOnUserGesture()
                     controllerDelegate.controller.zoomOut()
+                    controllerDelegate.requestCameraSnapshot(MAP_CAMERA_SNAPSHOT_AFTER_CONTROL_DELAY_MILLIS)
                 },
             )
         }
@@ -878,8 +1058,13 @@ private fun ExpandedTrailMapDialog(
     onSelectStyle: (String) -> Unit,
     bounds: TrailBounds?,
     featureCollection: String,
+    initialCameraSnapshot: MapCameraSnapshot?,
+    initialLocation: ForegroundLocation?,
+    autoStartLocationTrackingKey: Int,
     lineColor: Color,
     eventLevel: MTEventLevel,
+    onLocationChanged: (ForegroundLocation?) -> Unit = {},
+    onLocationTrackingActiveChanged: (Boolean) -> Unit = {},
     onDismiss: () -> Unit,
     onMapLongPress: (Double, Double) -> Unit = { _, _ -> },
 ) {
@@ -915,6 +1100,11 @@ private fun ExpandedTrailMapDialog(
                     lineColor = lineColor,
                     eventLevel = eventLevel,
                     zoomGesturesEnabled = true,
+                    initialCameraSnapshot = initialCameraSnapshot,
+                    initialLocation = initialLocation,
+                    autoStartLocationTrackingKey = autoStartLocationTrackingKey,
+                    onLocationChanged = onLocationChanged,
+                    onLocationTrackingActiveChanged = onLocationTrackingActiveChanged,
                     onMapTap = { _, _ -> },
                     onMapLongPress = onMapLongPress,
                 )
@@ -960,25 +1150,28 @@ private fun MapStyleSelector(
 
 private class TrailMapDelegate(
     context: Context,
+    private val coroutineScope: kotlinx.coroutines.CoroutineScope,
     private val featureCollection: String,
     private val bounds: TrailBounds?,
+    private val initialCameraSnapshot: MapCameraSnapshot?,
+    initialLocation: ForegroundLocation?,
     private val lineColor: Int,
     private val eventLevel: MTEventLevel,
     private val zoomGesturesEnabled: Boolean,
     private val onTap: (Double, Double) -> Unit,
     private val onLongPress: (Double, Double) -> Unit,
-    private val onUserGesture: () -> Unit,
+    private val onCameraSnapshotChanged: (MapCameraSnapshot) -> Unit,
 ) : MTMapViewDelegate {
     val controller = MTMapViewController(context).apply { delegate = this@TrailMapDelegate }
     private var touchCandidate: LongPressCandidate? = null
     private var suppressNextTap = false
     private var pinchGestureEnabled = false
     private var currentLocationMarker: MTMarker? = null
-    private var currentLocationForMarker: ForegroundLocation? = null
+    private var currentLocationForMarker: ForegroundLocation? = initialLocation
 
     override fun onMapViewInitialized() {
         renderTrailLayer()
-        currentLocationForMarker?.let { showCurrentLocationMarker(it) }
+        restoreCurrentLocationMarker()
         enablePinchGestureIfNeeded()
     }
 
@@ -986,13 +1179,22 @@ private class TrailMapDelegate(
         when (event) {
             MTEvent.ON_READY, MTEvent.ON_LOAD -> {
                 enablePinchGestureIfNeeded()
+                restoreCurrentLocationMarker()
+            }
+            MTEvent.ON_IDLE, MTEvent.ON_MOVE_END, MTEvent.ON_ZOOM_END, MTEvent.ON_DRAG_END -> {
+                requestCameraSnapshot()
             }
             MTEvent.ON_TAP -> {
                 if (suppressNextTap) {
                     suppressNextTap = false
                     return
                 }
-                data?.coordinate?.let { onTap(it.lng, it.lat) }
+                data?.coordinate?.let { coordinate ->
+                    coroutineScope.launch {
+                        captureAndPublishCameraSnapshot()
+                        onTap(coordinate.lng, coordinate.lat)
+                    }
+                }
             }
             MTEvent.ON_TOUCH_START -> {
                 touchCandidate = data?.coordinate?.let { coordinate ->
@@ -1010,7 +1212,6 @@ private class TrailMapDelegate(
                 val candidate = touchCandidate
                 val point = data?.point
                 if (candidate != null && point != null && candidate.hasMovedPast(point.x, point.y)) {
-                    onUserGesture()
                     touchCandidate = null
                 }
             }
@@ -1041,11 +1242,22 @@ private class TrailMapDelegate(
             .onSuccess { pinchGestureEnabled = true }
     }
 
-    fun centerOnLocation(location: ForegroundLocation) {
+    fun applyLocation(location: ForegroundLocation, mode: LocationCameraMode) {
         showCurrentLocationMarker(location)
-        runCatching {
-            controller.setCenter(LngLat(location.longitude, location.latitude))
-            controller.setZoom(LOCATION_FOLLOW_ZOOM)
+        if (shouldMoveLocationCamera(mode)) {
+            runCatching {
+                controller.setCenter(LngLat(location.longitude, location.latitude))
+                if (shouldResetLocationZoom(mode)) {
+                    controller.setZoom(LOCATION_FOLLOW_ZOOM)
+                }
+            }
+        }
+    }
+
+    fun requestCameraSnapshot(delayMillis: Long = 0L) {
+        coroutineScope.launch {
+            if (delayMillis > 0) delay(delayMillis)
+            captureAndPublishCameraSnapshot()
         }
     }
 
@@ -1055,6 +1267,15 @@ private class TrailMapDelegate(
             runCatching { controller.style?.removeMarker(marker) }
         }
         currentLocationMarker = null
+    }
+
+    private fun restoreCurrentLocationMarker() {
+        val location = currentLocationForMarker ?: return
+        currentLocationMarker?.let { marker ->
+            runCatching { controller.style?.removeMarker(marker) }
+        }
+        currentLocationMarker = null
+        showCurrentLocationMarker(location)
     }
 
     private fun showCurrentLocationMarker(location: ForegroundLocation) {
@@ -1100,6 +1321,11 @@ private class TrailMapDelegate(
                 },
             )
         }.onFailure { if (it !is MTStyleError.LayerAlreadyExists) throw it }
+        val snapshot = initialCameraSnapshot
+        if (initialMapCameraSource(snapshot) == InitialMapCameraSource.Snapshot && snapshot != null) {
+            restoreCameraSnapshot(snapshot)
+            return
+        }
         bounds?.let {
             controller.fitBounds(
                 MTBounds(it.minLng, it.minLat, it.maxLng, it.maxLat),
@@ -1109,6 +1335,19 @@ private class TrailMapDelegate(
                     duration = 0.0,
                 ),
             )
+        }
+    }
+
+    private suspend fun captureAndPublishCameraSnapshot() {
+        val center = runCatching { controller.getCenter() }.getOrNull() ?: return
+        val zoom = runCatching { controller.getZoom() }.getOrNull() ?: return
+        mapCameraSnapshotOrNull(center.lng, center.lat, zoom)?.let(onCameraSnapshotChanged)
+    }
+
+    private fun restoreCameraSnapshot(snapshot: MapCameraSnapshot) {
+        runCatching {
+            controller.setCenter(LngLat(snapshot.centerLng, snapshot.centerLat))
+            controller.setZoom(snapshot.zoom)
         }
     }
 }
@@ -1346,10 +1585,119 @@ internal fun currentLocationMarkerVisualSpec() = CurrentLocationMarkerVisualSpec
     innerColor = 0xFF0B7CFF.toInt(),
 )
 
+internal data class LocationTrackingHandoff(
+    val active: Boolean = false,
+    val lastLocation: ForegroundLocation? = null,
+)
+
+internal fun LocationTrackingHandoff.withActive(active: Boolean): LocationTrackingHandoff =
+    if (active) {
+        copy(active = true)
+    } else {
+        LocationTrackingHandoff()
+    }
+
+internal fun LocationTrackingHandoff.withLocation(location: ForegroundLocation?): LocationTrackingHandoff =
+    if (location == null) {
+        copy(lastLocation = null)
+    } else {
+        copy(active = true, lastLocation = location)
+    }
+
+internal fun LocationTrackingHandoff.withFallbackLocation(fallbackLocation: ForegroundLocation?): LocationTrackingHandoff =
+    if (active) copy(lastLocation = lastLocation ?: fallbackLocation) else LocationTrackingHandoff()
+
 internal fun shouldRenderCurrentLocationMarker(
     state: ForegroundLocationTrackingState,
     location: ForegroundLocation?,
-): Boolean = state.status == ForegroundLocationTrackingStatus.Following && location != null
+): Boolean = state.isActive && location != null
+
+internal fun shouldAutoStartLocationTracking(
+    autoStartKey: Int,
+    locationTrackingEnabled: Boolean,
+    state: ForegroundLocationTrackingState,
+): Boolean = autoStartKey > 0 && locationTrackingEnabled && !state.isActive
+
+internal fun shouldKeepTransferredLocationMarker(
+    autoStartKey: Int,
+    locationTrackingEnabled: Boolean,
+    state: ForegroundLocationTrackingState,
+    location: ForegroundLocation?,
+): Boolean = autoStartKey > 0 &&
+    locationTrackingEnabled &&
+    state.status == ForegroundLocationTrackingStatus.Idle &&
+    location != null
+
+internal fun nextLocationTrackingAutoStartKey(currentKey: Int, shouldAutoStart: Boolean): Int =
+    if (shouldAutoStart) currentKey + 1 else 0
+
+internal enum class LocationCameraMode {
+    InitialLocate,
+    MarkerOnlyUpdate,
+    TransferredTracking,
+}
+
+internal fun locationCameraModeForTrackingState(
+    state: ForegroundLocationTrackingState,
+    firstLocationMode: LocationCameraMode,
+): LocationCameraMode = if (state.status == ForegroundLocationTrackingStatus.Starting) {
+    firstLocationMode
+} else {
+    LocationCameraMode.MarkerOnlyUpdate
+}
+
+internal fun shouldMoveLocationCamera(mode: LocationCameraMode): Boolean = mode == LocationCameraMode.InitialLocate
+
+internal fun shouldResetLocationZoom(mode: LocationCameraMode): Boolean = mode == LocationCameraMode.InitialLocate
+
+internal data class MapCameraSnapshot(
+    val centerLng: Double,
+    val centerLat: Double,
+    val zoom: Double,
+)
+
+internal enum class InitialMapCameraSource {
+    Snapshot,
+    BoundsOrDefault,
+}
+
+internal fun mapCameraSnapshotOrNull(
+    centerLng: Double,
+    centerLat: Double,
+    zoom: Double,
+): MapCameraSnapshot? {
+    val validCoordinate = centerLng.isFinite() &&
+        centerLat.isFinite() &&
+        centerLng in -180.0..180.0 &&
+        centerLat in -90.0..90.0
+    val validZoom = zoom.isFinite() && zoom in MAP_CAMERA_MIN_ZOOM..MAP_CAMERA_MAX_ZOOM_FOR_SNAPSHOT
+    return if (validCoordinate && validZoom) {
+        MapCameraSnapshot(centerLng = centerLng, centerLat = centerLat, zoom = zoom)
+    } else {
+        null
+    }
+}
+
+internal fun initialMapCameraSource(snapshot: MapCameraSnapshot?): InitialMapCameraSource =
+    if (snapshot != null) InitialMapCameraSource.Snapshot else InitialMapCameraSource.BoundsOrDefault
+
+internal enum class LocationTrackingStopReason {
+    UserButton,
+    AppBackgrounded,
+    MapNotVisible,
+    MapControlZoom,
+    MapCanvasGesture,
+    StyleSwitch,
+}
+
+internal fun shouldStopLocationTracking(reason: LocationTrackingStopReason): Boolean = when (reason) {
+    LocationTrackingStopReason.UserButton,
+    LocationTrackingStopReason.AppBackgrounded,
+    LocationTrackingStopReason.MapNotVisible -> true
+    LocationTrackingStopReason.MapControlZoom,
+    LocationTrackingStopReason.MapCanvasGesture,
+    LocationTrackingStopReason.StyleSwitch -> false
+}
 
 private fun createCurrentLocationMarkerBitmap(
     spec: CurrentLocationMarkerVisualSpec = currentLocationMarkerVisualSpec(),
@@ -1376,6 +1724,9 @@ private val BASE_TRAIL_PURPLE = Color(0xFFE63DCD)
 private val SHENZHEN_MAP_CENTER = LngLat(114.0579, 22.5431)
 private const val SHENZHEN_MAP_ZOOM = 10.5
 private const val LOCATION_FOLLOW_ZOOM = 15.0
+private const val MAP_CAMERA_MIN_ZOOM = 0.0
+private const val MAP_CAMERA_MAX_ZOOM_FOR_SNAPSHOT = 24.0
+private const val MAP_CAMERA_SNAPSHOT_AFTER_CONTROL_DELAY_MILLIS = 220L
 private const val LONG_PRESS_MIN_MILLIS = 550L
 private const val LONG_PRESS_MOVE_TOLERANCE_PX = 18.0
 private const val MAP_STYLE_SWITCH_COOLDOWN_MILLIS = 700L

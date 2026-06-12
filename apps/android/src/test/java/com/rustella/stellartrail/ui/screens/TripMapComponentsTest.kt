@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -121,9 +122,88 @@ class TripMapComponentsTest {
         val location = ForegroundLocation(longitude = 114.0579, latitude = 22.5431, accuracyMeters = 5f)
 
         assertFalse(shouldRenderCurrentLocationMarker(ForegroundLocationTrackingState.Idle, location))
+        assertTrue(shouldRenderCurrentLocationMarker(ForegroundLocationTrackingState.Starting, location))
         assertFalse(shouldRenderCurrentLocationMarker(ForegroundLocationTrackingState.Starting, null))
         assertFalse(shouldRenderCurrentLocationMarker(ForegroundLocationTrackingState.Following, null))
         assertTrue(shouldRenderCurrentLocationMarker(ForegroundLocationTrackingState.Following, location))
+    }
+
+    @Test
+    fun locationTrackingHandoffKeepsActiveStateAndLastLocationTogether() {
+        val location = ForegroundLocation(longitude = 114.0579, latitude = 22.5431, accuracyMeters = 5f)
+
+        val handoff = LocationTrackingHandoff()
+            .withActive(true)
+            .withLocation(location)
+
+        assertTrue(handoff.active)
+        assertEquals(location, handoff.lastLocation)
+        assertEquals(LocationTrackingHandoff(), handoff.withActive(false))
+    }
+
+    @Test
+    fun locationTrackingHandoffFallsBackToInitialLocationOnResume() {
+        val initialLocation = ForegroundLocation(longitude = 114.0579, latitude = 22.5431, accuracyMeters = 5f)
+        val activeWithoutFreshFix = LocationTrackingHandoff(active = true)
+
+        val resumed = activeWithoutFreshFix.withFallbackLocation(initialLocation)
+
+        assertTrue(resumed.active)
+        assertEquals(initialLocation, resumed.lastLocation)
+        assertEquals(LocationTrackingHandoff(), LocationTrackingHandoff().withFallbackLocation(initialLocation))
+    }
+
+    @Test
+    fun locationTrackingAutoStartRequiresTokenEnabledMapAndInactiveState() {
+        assertTrue(shouldAutoStartLocationTracking(1, locationTrackingEnabled = true, ForegroundLocationTrackingState.Idle))
+        assertFalse(shouldAutoStartLocationTracking(0, locationTrackingEnabled = true, ForegroundLocationTrackingState.Idle))
+        assertFalse(shouldAutoStartLocationTracking(1, locationTrackingEnabled = false, ForegroundLocationTrackingState.Idle))
+        assertFalse(shouldAutoStartLocationTracking(1, locationTrackingEnabled = true, ForegroundLocationTrackingState.Starting))
+        assertFalse(shouldAutoStartLocationTracking(1, locationTrackingEnabled = true, ForegroundLocationTrackingState.Following))
+    }
+
+    @Test
+    fun transferredLocationMarkerIsKeptUntilAutoStartBecomesActive() {
+        val location = ForegroundLocation(longitude = 114.0579, latitude = 22.5431, accuracyMeters = 5f)
+
+        assertTrue(
+            shouldKeepTransferredLocationMarker(
+                autoStartKey = 1,
+                locationTrackingEnabled = true,
+                state = ForegroundLocationTrackingState.Idle,
+                location = location,
+            ),
+        )
+        assertFalse(
+            shouldKeepTransferredLocationMarker(
+                autoStartKey = 0,
+                locationTrackingEnabled = true,
+                state = ForegroundLocationTrackingState.Idle,
+                location = location,
+            ),
+        )
+        assertFalse(
+            shouldKeepTransferredLocationMarker(
+                autoStartKey = 1,
+                locationTrackingEnabled = true,
+                state = ForegroundLocationTrackingState.Following,
+                location = location,
+            ),
+        )
+        assertFalse(
+            shouldKeepTransferredLocationMarker(
+                autoStartKey = 1,
+                locationTrackingEnabled = true,
+                state = ForegroundLocationTrackingState.Idle,
+                location = null,
+            ),
+        )
+    }
+
+    @Test
+    fun locationTrackingAutoStartKeyOnlyAdvancesWhenTransferIsNeeded() {
+        assertEquals(3, nextLocationTrackingAutoStartKey(currentKey = 2, shouldAutoStart = true))
+        assertEquals(0, nextLocationTrackingAutoStartKey(currentKey = 2, shouldAutoStart = false))
     }
 
     @Test
@@ -135,6 +215,65 @@ class TripMapComponentsTest {
         assertTrue(spec.strokeRadiusPx > spec.innerRadiusPx)
         assertEquals(0xFFFFFFFF.toInt(), spec.strokeColor)
         assertEquals(0xFF0B7CFF.toInt(), spec.innerColor)
+    }
+
+    @Test
+    fun mapInteractionsDoNotStopLocationTracking() {
+        assertTrue(shouldStopLocationTracking(LocationTrackingStopReason.UserButton))
+        assertTrue(shouldStopLocationTracking(LocationTrackingStopReason.AppBackgrounded))
+        assertTrue(shouldStopLocationTracking(LocationTrackingStopReason.MapNotVisible))
+        assertFalse(shouldStopLocationTracking(LocationTrackingStopReason.MapControlZoom))
+        assertFalse(shouldStopLocationTracking(LocationTrackingStopReason.MapCanvasGesture))
+        assertFalse(shouldStopLocationTracking(LocationTrackingStopReason.StyleSwitch))
+    }
+
+    @Test
+    fun locationCameraMovesOnlyForInitialLocate() {
+        assertEquals(
+            LocationCameraMode.InitialLocate,
+            locationCameraModeForTrackingState(
+                ForegroundLocationTrackingState.Starting,
+                firstLocationMode = LocationCameraMode.InitialLocate,
+            ),
+        )
+        assertEquals(
+            LocationCameraMode.TransferredTracking,
+            locationCameraModeForTrackingState(
+                ForegroundLocationTrackingState.Starting,
+                firstLocationMode = LocationCameraMode.TransferredTracking,
+            ),
+        )
+        assertEquals(
+            LocationCameraMode.MarkerOnlyUpdate,
+            locationCameraModeForTrackingState(
+                ForegroundLocationTrackingState.Following,
+                firstLocationMode = LocationCameraMode.InitialLocate,
+            ),
+        )
+        assertTrue(shouldMoveLocationCamera(LocationCameraMode.InitialLocate))
+        assertFalse(shouldMoveLocationCamera(LocationCameraMode.MarkerOnlyUpdate))
+        assertFalse(shouldMoveLocationCamera(LocationCameraMode.TransferredTracking))
+        assertTrue(shouldResetLocationZoom(LocationCameraMode.InitialLocate))
+        assertFalse(shouldResetLocationZoom(LocationCameraMode.MarkerOnlyUpdate))
+        assertFalse(shouldResetLocationZoom(LocationCameraMode.TransferredTracking))
+    }
+
+    @Test
+    fun mapCameraSnapshotAcceptsValidCameraAndRejectsInvalidValues() {
+        val snapshot = mapCameraSnapshotOrNull(centerLng = 114.0579, centerLat = 22.5431, zoom = 12.5)
+
+        assertEquals(MapCameraSnapshot(centerLng = 114.0579, centerLat = 22.5431, zoom = 12.5), snapshot)
+        assertNull(mapCameraSnapshotOrNull(centerLng = 181.0, centerLat = 22.5431, zoom = 12.5))
+        assertNull(mapCameraSnapshotOrNull(centerLng = 114.0579, centerLat = -91.0, zoom = 12.5))
+        assertNull(mapCameraSnapshotOrNull(centerLng = 114.0579, centerLat = 22.5431, zoom = Double.NaN))
+    }
+
+    @Test
+    fun initialMapCameraSourcePrefersSnapshotWhenAvailable() {
+        val snapshot = MapCameraSnapshot(centerLng = 114.0579, centerLat = 22.5431, zoom = 12.5)
+
+        assertEquals(InitialMapCameraSource.Snapshot, initialMapCameraSource(snapshot))
+        assertEquals(InitialMapCameraSource.BoundsOrDefault, initialMapCameraSource(null))
     }
 
     private fun mapConfigWithStyles() = MapConfigResponse(
