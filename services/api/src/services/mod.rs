@@ -14,5 +14,6 @@ pub mod rate_limit_service;
 pub mod request_signature_service;
 pub mod roadmap_service;
 pub mod sms;
+pub mod trail_service;
 pub mod upload_service;
 pub mod wechat;

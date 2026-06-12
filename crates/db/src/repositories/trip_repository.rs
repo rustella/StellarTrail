@@ -1122,7 +1122,28 @@ impl TripRepository {
                         "notes",
                     ]))?.into(),
                     now.clone().into(),
-                    now.into(),
+                    now.clone().into(),
+                ],
+            ))
+            .await?;
+        self.db
+            .execute(statement(
+                self.db.get_database_backend(),
+                "INSERT INTO outdoor_experience_trails \
+                 (outdoor_experience_id, trail_id, linked_by_user_id, role, sort_order, notes, \
+                  is_deleted, created_at, updated_at) \
+                 SELECT ?, tt.trail_id, ?, tt.role, tt.sort_order, tt.notes, FALSE, ?, ? \
+                 FROM trip_trails tt \
+                 JOIN trails t ON t.id = tt.trail_id \
+                 WHERE tt.trip_id = ? AND tt.is_deleted = FALSE \
+                    AND t.owner_user_id = ? AND t.is_deleted = FALSE",
+                vec![
+                    id.clone().into(),
+                    user_id.to_owned().into(),
+                    now.clone().into(),
+                    now.clone().into(),
+                    trip_id.to_owned().into(),
+                    user_id.to_owned().into(),
                 ],
             ))
             .await?;

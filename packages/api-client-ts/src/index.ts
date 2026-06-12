@@ -64,6 +64,12 @@ import type {
   ListGearsResponse,
   ListTripsRequest,
   ListTripsResponse,
+  ListTrailsResponse,
+  MapAnnotation,
+  MapAnnotationRequest,
+  MapTrailLink,
+  MapConfigResponse,
+  OutdoorExperienceMapStateResponse,
   TripHomeHighlightResponse,
   MetaResponse,
   PasswordLoginRequest,
@@ -82,15 +88,21 @@ import type {
   RoadmapItemRequest,
   SkillCategoriesResponse,
   SkillLocale,
+  Trail,
+  TrailLinkRequest,
+  TripsMapOverviewResponse,
+  TripMapStateResponse,
   TripRecordCreateRequest,
   TripRecordPatchRequest,
   TripDetail,
+  UpdateMapAnnotationRequest,
   UpdateGearAtlasSubmissionRequest,
   UpdateGearPackingItemRequest,
   UpdateGearPackingListRequest,
   UpdateGearRequest,
   UpdateOutdoorProfileRequest,
   UpdateTripSectionsRequest,
+  UpdateTrailRequest,
   UpdateTripRequest,
   WechatLoginRequest,
   WechatLoginResponse,
@@ -688,6 +700,204 @@ export class StellarTrailApiClient {
   async deleteOutdoorExperience(id: string): Promise<void> {
     await this.request(
       `/me/outdoor-experiences/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async getMapConfig(): Promise<MapConfigResponse> {
+    return this.get<MapConfigResponse>("/me/map/config", true);
+  }
+
+  async listTrails(): Promise<ListTrailsResponse> {
+    return this.get<ListTrailsResponse>("/me/trails", true);
+  }
+
+  async uploadTrail(file: Blob, filename: string): Promise<Trail> {
+    return this.uploadTrailForm<Trail>("/me/trails", file, filename);
+  }
+
+  async getTrail(id: string): Promise<Trail> {
+    return this.get<Trail>(`/me/trails/${encodeURIComponent(id)}`, true);
+  }
+
+  async updateTrail(id: string, request: UpdateTrailRequest): Promise<Trail> {
+    return this.patch<Trail>(
+      `/me/trails/${encodeURIComponent(id)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTrail(id: string): Promise<void> {
+    await this.request(
+      `/me/trails/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async downloadTrailFile(id: string): Promise<Blob> {
+    const response = await this.request(
+      `/me/trails/${encodeURIComponent(id)}/file`,
+      {},
+      true,
+    );
+    return response.blob();
+  }
+
+  async getTripMap(id: string): Promise<TripMapStateResponse> {
+    return this.get<TripMapStateResponse>(
+      `/me/trips/${encodeURIComponent(id)}/map`,
+      true,
+    );
+  }
+
+  async getTripsMapOverview(): Promise<TripsMapOverviewResponse> {
+    return this.get<TripsMapOverviewResponse>("/me/trips/map-overview", true);
+  }
+
+  async uploadTripTrail(
+    id: string,
+    file: Blob,
+    filename: string,
+  ): Promise<MapTrailLink> {
+    return this.uploadTrailForm<MapTrailLink>(
+      `/me/trips/${encodeURIComponent(id)}/trails`,
+      file,
+      filename,
+    );
+  }
+
+  async linkTripTrail(
+    id: string,
+    request: TrailLinkRequest,
+  ): Promise<MapTrailLink> {
+    return this.post<MapTrailLink>(
+      `/me/trips/${encodeURIComponent(id)}/trail-links`,
+      request,
+      true,
+    );
+  }
+
+  async unlinkTripTrail(id: string, trailId: string): Promise<void> {
+    await this.request(
+      `/me/trips/${encodeURIComponent(id)}/trail-links/${encodeURIComponent(trailId)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async listTripMapAnnotations(id: string): Promise<MapAnnotation[]> {
+    return this.get<MapAnnotation[]>(
+      `/me/trips/${encodeURIComponent(id)}/map-annotations`,
+      true,
+    );
+  }
+
+  async createTripMapAnnotation(
+    id: string,
+    request: MapAnnotationRequest,
+  ): Promise<MapAnnotation> {
+    return this.post<MapAnnotation>(
+      `/me/trips/${encodeURIComponent(id)}/map-annotations`,
+      request,
+      true,
+    );
+  }
+
+  async updateTripMapAnnotation(
+    id: string,
+    annotationId: string,
+    request: UpdateMapAnnotationRequest,
+  ): Promise<MapAnnotation> {
+    return this.patch<MapAnnotation>(
+      `/me/trips/${encodeURIComponent(id)}/map-annotations/${encodeURIComponent(annotationId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteTripMapAnnotation(
+    id: string,
+    annotationId: string,
+  ): Promise<void> {
+    await this.request(
+      `/me/trips/${encodeURIComponent(id)}/map-annotations/${encodeURIComponent(annotationId)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async getOutdoorExperienceMap(
+    id: string,
+  ): Promise<OutdoorExperienceMapStateResponse> {
+    return this.get<OutdoorExperienceMapStateResponse>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/map`,
+      true,
+    );
+  }
+
+  async linkOutdoorExperienceTrail(
+    id: string,
+    request: TrailLinkRequest,
+  ): Promise<MapTrailLink> {
+    return this.post<MapTrailLink>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/trail-links`,
+      request,
+      true,
+    );
+  }
+
+  async unlinkOutdoorExperienceTrail(
+    id: string,
+    trailId: string,
+  ): Promise<void> {
+    await this.request(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/trail-links/${encodeURIComponent(trailId)}`,
+      { method: "DELETE" },
+      true,
+    );
+  }
+
+  async listOutdoorExperienceMapAnnotations(
+    id: string,
+  ): Promise<MapAnnotation[]> {
+    return this.get<MapAnnotation[]>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/map-annotations`,
+      true,
+    );
+  }
+
+  async createOutdoorExperienceMapAnnotation(
+    id: string,
+    request: MapAnnotationRequest,
+  ): Promise<MapAnnotation> {
+    return this.post<MapAnnotation>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/map-annotations`,
+      request,
+      true,
+    );
+  }
+
+  async updateOutdoorExperienceMapAnnotation(
+    id: string,
+    annotationId: string,
+    request: UpdateMapAnnotationRequest,
+  ): Promise<MapAnnotation> {
+    return this.patch<MapAnnotation>(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/map-annotations/${encodeURIComponent(annotationId)}`,
+      request,
+      true,
+    );
+  }
+
+  async deleteOutdoorExperienceMapAnnotation(
+    id: string,
+    annotationId: string,
+  ): Promise<void> {
+    await this.request(
+      `/me/outdoor-experiences/${encodeURIComponent(id)}/map-annotations/${encodeURIComponent(annotationId)}`,
       { method: "DELETE" },
       true,
     );
@@ -1452,6 +1662,21 @@ export class StellarTrailApiClient {
     locale?: AppLocale,
   ): Promise<T> {
     const response = await this.request(path, {}, auth, locale);
+    return response.json() as Promise<T>;
+  }
+
+  private async uploadTrailForm<T>(
+    path: string,
+    file: Blob,
+    filename: string,
+  ): Promise<T> {
+    const form = new FormData();
+    form.set("file", file, filename);
+    const response = await this.request(
+      path,
+      { method: "POST", body: form },
+      true,
+    );
     return response.json() as Promise<T>;
   }
 

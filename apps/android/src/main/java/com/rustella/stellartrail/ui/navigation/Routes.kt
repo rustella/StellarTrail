@@ -23,6 +23,9 @@ object AppRoutes {
     const val GEAR_NEW = "gear/new"
     const val GEAR_EDIT = "gear/{id}/edit"
     const val TRIPS = "trips"
+    const val TRAIL_LIBRARY = "trails"
+    const val TRAIL_LIBRARY_FOR_TRIP = "trips/{trip_id}/trail-library"
+    const val TRAIL_IMPORT = "trail/import/{import_id}"
     const val TRIP_NEW = "trips/new/{type}"
     const val TRIP_EDIT = "trips/{id}/edit"
     const val TRIP_DETAIL = "trips/{id}"
@@ -43,6 +46,8 @@ object AppRoutes {
     fun tripNew(type: String): String = "trips/new/$type"
     fun tripEdit(id: String): String = "trips/$id/edit"
     fun tripDetail(id: String): String = "trips/$id"
+    fun trailLibraryForTrip(id: String): String = "trips/$id/trail-library"
+    fun trailImport(id: String): String = "trail/import/$id"
     fun skillDetail(id: String): String = "skills/$id"
 }
 

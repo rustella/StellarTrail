@@ -1,0 +1,630 @@
+use std::sync::Arc;
+
+use axum::{
+    Router,
+    body::{Body, to_bytes},
+    http::{Request, StatusCode, header},
+};
+use serde_json::{Value, json};
+use stellartrail_api::{
+    cache::Cache,
+    config::{ApiConfig, CorsConfig, MapConfig, ObjectStorageConfig, RedisCacheConfig},
+    migrate_database,
+    object_store::InMemoryObjectStore,
+    routes::build_router,
+    state::AppState,
+};
+use stellartrail_db::{DatabaseConfig, connect_database};
+use tempfile::TempDir;
+use tower::ServiceExt;
+
+const GPX: &[u8] = br#"<?xml version="1.0"?>
+<gpx version="1.1" creator="stellartrail-test">
+  <trk><trkseg>
+    <trkpt lat="30.0" lon="120.0"><ele>10</ele><time>2026-01-01T00:00:00Z</time></trkpt>
+    <trkpt lat="30.001" lon="120.001"><ele>25</ele><time>2026-01-01T00:10:00Z</time></trkpt>
+  </trkseg></trk>
+</gpx>"#;
+const TEST_CLIENT_IDENTITY: &str = "web/test";
+
+struct TestApp {
+    router: Router,
+    object_store: InMemoryObjectStore,
+    _temp_dir: TempDir,
+}
+
+async fn test_app(map_public_key: Option<&str>) -> TestApp {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+    let database = DatabaseConfig::new(format!("sqlite://{}?mode=rwc", db_path.display())).unwrap();
+    let db = connect_database(&database).await.unwrap();
+    migrate_database(&db).await.unwrap();
+    let object_store = InMemoryObjectStore::default();
+    let config = ApiConfig {
+        app_env: "local".to_owned(),
+        host: "127.0.0.1".to_owned(),
+        port: 0,
+        commit_hash: None,
+        database,
+        wechat_mock_login: true,
+        wechat_app_id: None,
+        wechat_app_secret: None,
+        redis_cache: RedisCacheConfig::disabled(),
+        upload: Default::default(),
+        trail: Default::default(),
+        map: MapConfig {
+            provider: "maptiler".to_owned(),
+            style_url: "https://api.maptiler.com/maps/outdoor-v2/style.json".to_owned(),
+            public_key: map_public_key.map(ToOwned::to_owned),
+            ..MapConfig::default()
+        },
+        minio: Default::default(),
+        object_storage: ObjectStorageConfig {
+            bucket: "test-trails".to_owned(),
+        },
+        avatar_storage: Default::default(),
+        knots_media_storage: Default::default(),
+        public_api: Default::default(),
+        rate_limit: Default::default(),
+        cors: CorsConfig::default(),
+        mail: Default::default(),
+        sms: Default::default(),
+        request_signature: Default::default(),
+    };
+    let state = AppState::new_with_cache_and_object_store(
+        config,
+        db,
+        Cache::disabled(),
+        Arc::new(object_store.clone()),
+    );
+    TestApp {
+        router: build_router(state),
+        object_store,
+        _temp_dir: temp_dir,
+    }
+}
+
+async fn send_json(
+    app: &Router,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+    body: Value,
+) -> (StatusCode, Value) {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("X-StellarTrail-Client", TEST_CLIENT_IDENTITY)
+        .header(header::CONTENT_TYPE, "application/json");
+    if let Some(token) = token {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(builder.body(Body::from(body.to_string())).unwrap())
+        .await
+        .unwrap();
+    response_value(response).await
+}
+
+async fn send_empty_json(
+    app: &Router,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+) -> (StatusCode, Value) {
+    let (status, bytes) = send_empty_bytes(app, method, path, token).await;
+    let value = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into_owned()))
+    };
+    (status, value)
+}
+
+async fn send_empty_bytes(
+    app: &Router,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+) -> (StatusCode, Vec<u8>) {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("X-StellarTrail-Client", TEST_CLIENT_IDENTITY);
+    if let Some(token) = token {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(builder.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    (status, bytes.to_vec())
+}
+
+async fn response_value(response: axum::response::Response) -> (StatusCode, Value) {
+    let status = response.status();
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let value = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into_owned()))
+    };
+    (status, value)
+}
+
+async fn login(app: &Router, code: &str, nickname: &str) -> String {
+    let (status, value) = send_json(
+        app,
+        "POST",
+        "/api/v1/auth/wechat-login",
+        None,
+        json!({"code": code, "profile": {"nickname": nickname, "avatar_url": null}}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{value}");
+    value["access_token"].as_str().unwrap().to_owned()
+}
+
+async fn create_trip(
+    app: &Router,
+    token: &str,
+    title: &str,
+    start_date: Option<&str>,
+    end_date: Option<&str>,
+) -> Value {
+    let (status, value) = send_json(
+        app,
+        "POST",
+        "/api/v1/me/trips",
+        Some(token),
+        json!({
+            "trip_type": "team",
+            "title": title,
+            "start_date": start_date,
+            "end_date": end_date,
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{value}");
+    value
+}
+
+async fn invite_member(app: &Router, owner_token: &str, member_token: &str, trip_id: &str) {
+    let (invite_status, invite) = send_empty_json(
+        app,
+        "POST",
+        &format!("/api/v1/me/trips/{trip_id}/invitations"),
+        Some(owner_token),
+    )
+    .await;
+    assert_eq!(invite_status, StatusCode::CREATED, "{invite}");
+    let invitation_token = invite["invitation"]["token"].as_str().unwrap();
+    let (accept_status, accepted) = send_empty_json(
+        app,
+        "POST",
+        &format!("/api/v1/me/trip-invitations/{invitation_token}/accept"),
+        Some(member_token),
+    )
+    .await;
+    assert_eq!(accept_status, StatusCode::OK, "{accepted}");
+}
+
+async fn upload_trail(
+    app: &Router,
+    token: &str,
+    path: &str,
+    filename: &str,
+    content_type: &str,
+    bytes: &[u8],
+) -> (StatusCode, Value) {
+    let boundary = "stellartrail-trail-test-boundary";
+    let mut body = Vec::new();
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(
+        format!(
+            "Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(bytes);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(path)
+                .header("X-StellarTrail-Client", TEST_CLIENT_IDENTITY)
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .header(
+                    header::CONTENT_TYPE,
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    response_value(response).await
+}
+
+#[tokio::test]
+async fn trail_library_upload_list_detail_and_file_download_work() {
+    let app = test_app(Some("pk.visible")).await;
+    let token = login(&app.router, "trail-library-owner", "山友").await;
+
+    let (config_status, config) =
+        send_empty_json(&app.router, "GET", "/api/v1/me/map/config", Some(&token)).await;
+    assert_eq!(config_status, StatusCode::OK, "{config}");
+    assert_eq!(config["provider"], "maptiler");
+    assert_eq!(config["public_key"], "pk.visible");
+    assert_eq!(config["coordinate_system"], "WGS84");
+    assert_eq!(config["enabled"], true);
+    assert_eq!(config["default_style_id"], "outdoor");
+    assert_eq!(config["styles"][0]["id"], "outdoor");
+    assert_eq!(config["styles"][1]["id"], "streets");
+    assert_eq!(config["styles"][2]["id"], "satellite");
+    assert!(config.get("service_token").is_none());
+
+    let (upload_status, trail) = upload_trail(
+        &app.router,
+        &token,
+        "/api/v1/me/trails",
+        "morning-loop.gpx",
+        "application/gpx+xml",
+        GPX,
+    )
+    .await;
+    assert_eq!(upload_status, StatusCode::CREATED, "{trail}");
+    let trail_id = trail["id"].as_str().unwrap();
+    assert_eq!(trail["display_name"], "morning-loop");
+    assert_eq!(trail["source_format"], "gpx");
+    assert_eq!(trail["point_count"], 2);
+    assert_eq!(trail["start_elevation_m"], 10.0);
+    assert_eq!(trail["end_elevation_m"], 25.0);
+    assert_eq!(trail["normalized_points"].as_array().unwrap().len(), 2);
+    assert_eq!(app.object_store.object_count(), 1);
+    let stored = app.object_store.only_object().unwrap();
+    assert_eq!(stored.content_type, "application/gpx+xml");
+    assert_eq!(stored.bytes, GPX);
+
+    let (duplicate_status, duplicate) = upload_trail(
+        &app.router,
+        &token,
+        "/api/v1/me/trails",
+        "same-morning-loop.gpx",
+        "application/gpx+xml",
+        GPX,
+    )
+    .await;
+    assert_eq!(duplicate_status, StatusCode::CREATED, "{duplicate}");
+    assert_eq!(duplicate["id"], trail_id);
+    assert_eq!(app.object_store.object_count(), 1);
+
+    let (list_status, list) =
+        send_empty_json(&app.router, "GET", "/api/v1/me/trails", Some(&token)).await;
+    assert_eq!(list_status, StatusCode::OK, "{list}");
+    assert_eq!(list["items"].as_array().unwrap().len(), 1);
+    assert_eq!(list["items"][0]["start_elevation_m"], 10.0);
+    assert_eq!(list["items"][0]["end_elevation_m"], 25.0);
+    assert!(list["items"][0].get("normalized_points").is_none());
+
+    let (detail_status, detail) = send_empty_json(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/trails/{trail_id}"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(detail_status, StatusCode::OK, "{detail}");
+    assert_eq!(
+        detail["simplified_geojson"]["geometry"]["type"],
+        "LineString"
+    );
+    assert_eq!(detail["start_elevation_m"], 10.0);
+    assert_eq!(detail["end_elevation_m"], 25.0);
+
+    let (file_status, file_bytes) = send_empty_bytes(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/trails/{trail_id}/file"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(file_status, StatusCode::OK);
+    assert_eq!(file_bytes, GPX);
+
+    let (invalid_status, invalid) = upload_trail(
+        &app.router,
+        &token,
+        "/api/v1/me/trails",
+        "bad.kmz",
+        "application/zip",
+        b"PK",
+    )
+    .await;
+    assert_eq!(
+        invalid_status,
+        StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        "{invalid}"
+    );
+    assert_eq!(app.object_store.object_count(), 1);
+}
+
+#[tokio::test]
+async fn trip_map_permissions_links_and_annotations_are_context_scoped() {
+    let app = test_app(None).await;
+    let owner_token = login(&app.router, "trail-trip-owner", "队长").await;
+    let member_token = login(&app.router, "trail-trip-member", "队员").await;
+    let outsider_token = login(&app.router, "trail-trip-outsider", "路人").await;
+    let trip = create_trip(&app.router, &owner_token, "周末路线", None, None).await;
+    let trip_id = trip["trip"]["id"].as_str().unwrap();
+    invite_member(&app.router, &owner_token, &member_token, trip_id).await;
+
+    let (upload_status, link) = upload_trail(
+        &app.router,
+        &owner_token,
+        &format!("/api/v1/me/trips/{trip_id}/trails"),
+        "ridge.gpx",
+        "application/gpx+xml",
+        GPX,
+    )
+    .await;
+    assert_eq!(upload_status, StatusCode::CREATED, "{link}");
+    let trail_id = link["trail_id"].as_str().unwrap();
+
+    let (duplicate_link_status, duplicate_link) = send_json(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/trips/{trip_id}/trail-links"),
+        Some(&owner_token),
+        json!({"trail_id": trail_id}),
+    )
+    .await;
+    assert_eq!(
+        duplicate_link_status,
+        StatusCode::CREATED,
+        "{duplicate_link}"
+    );
+    assert_eq!(duplicate_link["trail_id"], trail_id);
+
+    let (member_map_status, member_map) = send_empty_json(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/trips/{trip_id}/map"),
+        Some(&member_token),
+    )
+    .await;
+    assert_eq!(member_map_status, StatusCode::OK, "{member_map}");
+    assert_eq!(member_map["map"]["enabled"], false);
+    assert_eq!(member_map["map"]["default_style_id"], "outdoor");
+    assert_eq!(member_map["map"]["styles"][0]["id"], "outdoor");
+    assert_eq!(member_map["trails"].as_array().unwrap().len(), 1);
+    assert!(member_map["trails"][0].get("simplified_geojson").is_some());
+    assert!(
+        member_map["trails"][0]["trail"]
+            .get("normalized_points")
+            .is_none()
+    );
+    assert!(member_map["trails"][0]["trail"].get("bucket").is_none());
+    assert!(member_map["trails"][0]["trail"].get("object_key").is_none());
+
+    let (overview_status, overview) = send_empty_json(
+        &app.router,
+        "GET",
+        "/api/v1/me/trips/map-overview",
+        Some(&owner_token),
+    )
+    .await;
+    assert_eq!(overview_status, StatusCode::OK, "{overview}");
+    assert_eq!(overview["trails"].as_array().unwrap().len(), 1);
+    assert_eq!(overview["stats"]["trip_count"], 1);
+    assert_eq!(overview["stats"]["trail_count"], 1);
+    assert_eq!(overview["truncated"], false);
+    assert!(overview["trails"][0].get("simplified_geojson").is_some());
+
+    let (outsider_status, outsider_body) = send_empty_json(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/trips/{trip_id}/map"),
+        Some(&outsider_token),
+    )
+    .await;
+    assert_eq!(outsider_status, StatusCode::NOT_FOUND, "{outsider_body}");
+
+    let (forbidden_status, forbidden) = send_empty_json(
+        &app.router,
+        "DELETE",
+        &format!("/api/v1/me/trips/{trip_id}/trail-links/{trail_id}"),
+        Some(&member_token),
+    )
+    .await;
+    assert_eq!(forbidden_status, StatusCode::FORBIDDEN, "{forbidden}");
+
+    let (trip_annotation_status, trip_annotation) = send_json(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/trips/{trip_id}/map-annotations"),
+        Some(&owner_token),
+        json!({
+            "trail_id": trail_id,
+            "lng": 120.0,
+            "lat": 30.0,
+            "trail_point_index": 0,
+            "annotation_type": "note",
+            "title": "起点",
+            "note": "集合点"
+        }),
+    )
+    .await;
+    assert_eq!(
+        trip_annotation_status,
+        StatusCode::CREATED,
+        "{trip_annotation}"
+    );
+
+    let (experience_status, experience) = send_json(
+        &app.router,
+        "POST",
+        "/api/v1/me/outdoor-experiences",
+        Some(&owner_token),
+        json!({"title": "同一条线的个人记录"}),
+    )
+    .await;
+    assert_eq!(experience_status, StatusCode::CREATED, "{experience}");
+    let experience_id = experience["id"].as_str().unwrap();
+    let (link_experience_status, link_experience) = send_json(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/outdoor-experiences/{experience_id}/trail-links"),
+        Some(&owner_token),
+        json!({"trail_id": trail_id}),
+    )
+    .await;
+    assert_eq!(
+        link_experience_status,
+        StatusCode::CREATED,
+        "{link_experience}"
+    );
+    let (experience_map_status, experience_map) = send_empty_json(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/outdoor-experiences/{experience_id}/map"),
+        Some(&owner_token),
+    )
+    .await;
+    assert_eq!(experience_map_status, StatusCode::OK, "{experience_map}");
+    assert_eq!(experience_map["trails"].as_array().unwrap().len(), 1);
+    assert!(experience_map["annotations"].as_array().unwrap().is_empty());
+
+    let (experience_annotation_status, experience_annotation) = send_json(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/outdoor-experiences/{experience_id}/map-annotations"),
+        Some(&owner_token),
+        json!({
+            "trail_id": trail_id,
+            "lng": 120.001,
+            "lat": 30.001,
+            "annotation_type": "note",
+            "title": "照片点"
+        }),
+    )
+    .await;
+    assert_eq!(
+        experience_annotation_status,
+        StatusCode::CREATED,
+        "{experience_annotation}"
+    );
+
+    let (trip_map_status, trip_map) = send_empty_json(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/trips/{trip_id}/map"),
+        Some(&owner_token),
+    )
+    .await;
+    assert_eq!(trip_map_status, StatusCode::OK, "{trip_map}");
+    assert_eq!(trip_map["annotations"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn trip_conversion_copies_only_current_users_owned_linked_trails() {
+    let app = test_app(None).await;
+    let owner_token = login(&app.router, "trail-convert-owner", "队长").await;
+    let member_token = login(&app.router, "trail-convert-member", "队员").await;
+    let trip = create_trip(
+        &app.router,
+        &owner_token,
+        "春节徒步",
+        Some("2026-01-01"),
+        Some("2026-01-02"),
+    )
+    .await;
+    let trip_id = trip["trip"]["id"].as_str().unwrap();
+    invite_member(&app.router, &owner_token, &member_token, trip_id).await;
+
+    let (_, owner_link) = upload_trail(
+        &app.router,
+        &owner_token,
+        &format!("/api/v1/me/trips/{trip_id}/trails"),
+        "owner.gpx",
+        "application/gpx+xml",
+        GPX,
+    )
+    .await;
+    let owner_trail_id = owner_link["trail_id"].as_str().unwrap();
+    let (_, member_link) = upload_trail(
+        &app.router,
+        &member_token,
+        &format!("/api/v1/me/trips/{trip_id}/trails"),
+        "member.gpx",
+        "application/gpx+xml",
+        GPX,
+    )
+    .await;
+    let member_trail_id = member_link["trail_id"].as_str().unwrap();
+    assert_ne!(owner_trail_id, member_trail_id);
+
+    let (trip_map_status, trip_map) = send_empty_json(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/trips/{trip_id}/map"),
+        Some(&owner_token),
+    )
+    .await;
+    assert_eq!(trip_map_status, StatusCode::OK, "{trip_map}");
+    assert_eq!(trip_map["trails"].as_array().unwrap().len(), 2);
+
+    let (convert_status, experience) = send_empty_json(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/trips/{trip_id}/convert-to-outdoor-experience"),
+        Some(&owner_token),
+    )
+    .await;
+    assert_eq!(convert_status, StatusCode::CREATED, "{experience}");
+    let experience_id = experience["id"].as_str().unwrap();
+
+    let (experience_map_status, experience_map) = send_empty_json(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/outdoor-experiences/{experience_id}/map"),
+        Some(&owner_token),
+    )
+    .await;
+    assert_eq!(experience_map_status, StatusCode::OK, "{experience_map}");
+    let copied_trails = experience_map["trails"].as_array().unwrap();
+    assert_eq!(copied_trails.len(), 1);
+    assert_eq!(copied_trails[0]["trail_id"], owner_trail_id);
+
+    let (other_link_status, other_link) = send_json(
+        &app.router,
+        "POST",
+        &format!("/api/v1/me/outdoor-experiences/{experience_id}/trail-links"),
+        Some(&owner_token),
+        json!({"trail_id": member_trail_id}),
+    )
+    .await;
+    assert_eq!(other_link_status, StatusCode::NOT_FOUND, "{other_link}");
+
+    let (member_experience_status, member_experience) = send_empty_json(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/outdoor-experiences/{experience_id}/map"),
+        Some(&member_token),
+    )
+    .await;
+    assert_eq!(
+        member_experience_status,
+        StatusCode::NOT_FOUND,
+        "{member_experience}"
+    );
+}

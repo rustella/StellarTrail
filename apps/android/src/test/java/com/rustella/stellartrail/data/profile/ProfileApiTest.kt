@@ -40,6 +40,7 @@ class ProfileApiTest {
                         AppDomainCandidate("primary", "https://api.example.invalid", "https://assets.example.invalid"),
                         AppDomainCandidate("backup", "https://api-alt.example.invalid", "https://assets-alt.example.invalid"),
                     ),
+                    requestSignature = null,
                 ),
             ) { request ->
                 requests += request
@@ -149,7 +150,7 @@ class ProfileApiTest {
     }
 
     private fun testClient(
-        config: AppConfig = AppConfig("https://api.example.test"),
+        config: AppConfig = AppConfig(baseUrl = "https://api.example.test", requestSignature = null),
         handler: MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): ApiClient {
         val engine = MockEngine { request -> handler(request) }

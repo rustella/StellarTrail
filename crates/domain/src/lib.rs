@@ -12,6 +12,7 @@ pub mod outdoor_profile;
 pub mod pagination;
 pub mod roadmap;
 pub mod skill;
+pub mod trail;
 pub mod trip;
 pub mod upload;
 pub mod user;

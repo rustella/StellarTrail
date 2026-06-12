@@ -16,6 +16,7 @@ pub mod media_resource_repository;
 pub mod outdoor_profile_repository;
 pub mod roadmap_repository;
 pub mod skill_favorite_repository;
+pub mod trail_repository;
 pub mod trip_repository;
 pub mod upload_image_repository;
 
@@ -57,6 +58,7 @@ pub use roadmap_repository::{
 pub use skill_favorite_repository::{
     KnotFavoriteListEntry, KnotFavoriteStatus, SkillFavoriteCounts, SkillFavoriteRepository,
 };
+pub use trail_repository::{TrailRepository, TrailRepositoryError};
 pub use trip_repository::{
     KIND_BUDGET_ITEM, KIND_FOOD_ITEM, KIND_FOOD_MEAL, KIND_FOOD_SUPPLY, KIND_GOAL_ITEM,
     KIND_ITINERARY_DAY, KIND_MEDICAL_ITEM, KIND_PERSONAL_GEAR, KIND_RESCUE_CONTACT,

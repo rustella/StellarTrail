@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rustella.stellartrail.core.map.MapStylePreferenceRepository
 import com.rustella.stellartrail.domain.trip.TripBudgetItem
 import com.rustella.stellartrail.domain.trip.TripDetail
 import com.rustella.stellartrail.domain.trip.TripGoalItem
@@ -73,14 +74,17 @@ import com.rustella.stellartrail.ui.common.SurfaceCard
 @Composable
 fun TripsScreen(
     viewModel: TripListViewModel,
+    mapStylePreferenceRepository: MapStylePreferenceRepository,
     isLoggedIn: Boolean,
     onLogin: () -> Unit,
     onCreateTrip: (TripType) -> Unit,
     onJoinTrip: () -> Unit,
     onOpenTrip: (String) -> Unit,
+    onOpenTrailLibrary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedMapStyleId by mapStylePreferenceRepository.selectedStyleId.collectAsStateWithLifecycle()
     var showCreateSheet by remember { mutableStateOf(false) }
     LaunchedEffect(isLoggedIn) { viewModel.refresh(isLoggedIn) }
     LazyColumn(
@@ -99,6 +103,16 @@ fun TripsScreen(
                     HeroButton("制作行程", { showCreateSheet = true }, Modifier.weight(1f))
                 },
             )
+        }
+        if (isLoggedIn) {
+            item(key = "trips-map-overview") {
+                TripsOverviewMapSection(
+                    state = state.overviewMap,
+                    selectedStyleId = selectedMapStyleId,
+                    onSelectMapStyle = mapStylePreferenceRepository::selectStyle,
+                    onOpenTrailLibrary = onOpenTrailLibrary,
+                )
+            }
         }
         state.highlight?.let { item { TripHighlightCard(it, onOpenTrip) } }
         if (!isLoggedIn) {
@@ -315,12 +329,15 @@ fun TripJoinScreen(
 @Composable
 fun TripDetailScreen(
     viewModel: TripDetailViewModel,
+    mapStylePreferenceRepository: MapStylePreferenceRepository,
     onBack: () -> Unit,
     onEdit: (String) -> Unit,
+    onOpenTrailLibrary: (String) -> Unit,
     onDeleted: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedMapStyleId by mapStylePreferenceRepository.selectedStyleId.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.load() }
     LazyColumn(
         modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
@@ -345,6 +362,20 @@ fun TripDetailScreen(
                     TripSectionKey.BUDGET -> BudgetSection(detail, viewModel)
                     TripSectionKey.GOALS -> GoalsSection(detail, viewModel)
                 }
+            }
+            item(key = "trip-map") {
+                TripDetailMapSection(
+                    state = state.map,
+                    selectedStyleId = selectedMapStyleId,
+                    onSelectMapStyle = mapStylePreferenceRepository::selectStyle,
+                    onUploadTrail = viewModel::uploadTrailFile,
+                    onRemoveTrail = viewModel::unlinkTrail,
+                    onCreateAnnotation = viewModel::createMapAnnotation,
+                    onUpdateAnnotation = viewModel::updateMapAnnotation,
+                    onDeleteAnnotation = viewModel::deleteMapAnnotation,
+                    onOpenTrailLibrary = { onOpenTrailLibrary(detail.trip.id) },
+                    onRefresh = viewModel::refreshMap,
+                )
             }
         }
     }

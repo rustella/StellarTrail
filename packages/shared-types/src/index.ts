@@ -1105,6 +1105,171 @@ export type TripRecordCreateRequest = Record<string, unknown> & {
 
 export type TripRecordPatchRequest = Record<string, unknown> & TripPatchMeta;
 
+export type TrailSourceFormat = "gpx" | "kml" | "fit";
+
+export interface TrailPoint {
+  lng: number;
+  lat: number;
+  elevation_m?: number | null;
+  time?: string | null;
+}
+
+export interface TrailBounds {
+  min_lng: number;
+  min_lat: number;
+  max_lng: number;
+  max_lat: number;
+}
+
+export interface TrailSummary {
+  id: string;
+  owner_user_id: string;
+  display_name: string;
+  description?: string | null;
+  source_format: TrailSourceFormat;
+  original_filename: string;
+  content_type: string;
+  size_bytes: number;
+  sha256_hex: string;
+  bounds?: TrailBounds | null;
+  distance_m: number;
+  ascent_m: number;
+  descent_m: number;
+  min_elevation_m?: number | null;
+  max_elevation_m?: number | null;
+  start_elevation_m?: number | null;
+  end_elevation_m?: number | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  point_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Trail extends TrailSummary {
+  bucket: string;
+  object_key: string;
+  normalized_points: TrailPoint[];
+  simplified_geojson: unknown;
+  is_deleted: boolean;
+}
+
+export interface ListTrailsResponse {
+  items: TrailSummary[];
+}
+
+export interface UpdateTrailRequest {
+  display_name?: string;
+  description?: string | null;
+}
+
+export interface TrailLink {
+  trail_id: string;
+  linked_by_user_id: string;
+  role: "route" | string;
+  sort_order: number;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  trail: TrailSummary;
+}
+
+export interface MapTrailLink extends TrailLink {
+  simplified_geojson: unknown;
+}
+
+export interface TripOverviewMapTrail extends MapTrailLink {
+  trip_id: string;
+  trip_title: string;
+  trip_start_date?: string | null;
+  trip_end_date?: string | null;
+}
+
+export interface TripsMapOverviewStats {
+  trip_count: number;
+  trail_count: number;
+  rendered_point_count: number;
+  total_distance_m: number;
+  total_ascent_m: number;
+  total_descent_m: number;
+}
+
+export interface TripsMapOverviewResponse {
+  map: MapConfigResponse;
+  trails: TripOverviewMapTrail[];
+  bounds?: TrailBounds | null;
+  stats: TripsMapOverviewStats;
+  truncated: boolean;
+}
+
+export interface TrailLinkRequest {
+  trail_id: string;
+}
+
+export interface MapAnnotation {
+  id: string;
+  owner_user_id: string;
+  trail_id?: string | null;
+  lng: number;
+  lat: number;
+  elevation_m?: number | null;
+  trail_point_index?: number | null;
+  annotation_type: string;
+  title?: string | null;
+  note?: string | null;
+  field_versions: FieldVersions;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MapAnnotationRequest {
+  trail_id?: string | null;
+  lng: number;
+  lat: number;
+  elevation_m?: number | null;
+  trail_point_index?: number | null;
+  annotation_type: string;
+  title?: string | null;
+  note?: string | null;
+}
+
+export type UpdateMapAnnotationRequest = Partial<
+  Pick<
+    MapAnnotationRequest,
+    "annotation_type" | "title" | "note" | "elevation_m"
+  >
+> &
+  TripPatchMeta;
+
+export interface MapStyleOption {
+  id: "outdoor" | "streets" | "satellite" | string;
+  label: string;
+  style_url: string;
+}
+
+export interface MapConfigResponse {
+  provider: "maptiler" | string;
+  style_url: string;
+  public_key?: string | null;
+  coordinate_system: "WGS84";
+  enabled: boolean;
+  styles?: MapStyleOption[];
+  default_style_id?: string;
+}
+
+export interface TripMapStateResponse {
+  map: MapConfigResponse;
+  trails: MapTrailLink[];
+  annotations: MapAnnotation[];
+}
+
+export interface OutdoorExperienceMapStateResponse {
+  map: MapConfigResponse;
+  trails: MapTrailLink[];
+  annotations: MapAnnotation[];
+}
+
 export type GearAtlasStatus = "pending" | "approved" | "rejected";
 
 export type GearAtlasSourceType = "manual" | "user_gear" | "external_import";
