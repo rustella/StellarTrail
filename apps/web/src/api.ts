@@ -17,6 +17,7 @@ import type {
   GearCategoriesResponse,
   GearAtlasPublicItem,
   GearAtlasSubmission,
+  GenerateGearAtlasLocalizationDraftRequest,
   GearItem,
   GearStatsResponse,
   ImportGearsRequest,
@@ -43,6 +44,7 @@ import type {
   RejectGearAtlasSubmissionRequest,
   SkillCategoriesResponse,
   SkillLocale,
+  UpdateGearAtlasLocalizationRequest,
   UpdateGearAtlasSubmissionRequest,
   UpdateGearRequest,
   WechatLoginRequest,
@@ -138,18 +140,42 @@ export interface WebGearApi {
   ): Promise<ClientVersion>;
   listAdminGearAtlasSubmissions(
     request?: ListGearAtlasSubmissionsRequest,
+    locale?: AppLocale,
   ): Promise<ListGearAtlasSubmissionsResponse>;
-  getAdminGearAtlasSubmission(id: string): Promise<GearAtlasSubmission>;
+  getAdminGearAtlasSubmission(
+    id: string,
+    locale?: AppLocale,
+  ): Promise<GearAtlasSubmission>;
   updateAdminGearAtlasSubmission(
     id: string,
     request: UpdateGearAtlasSubmissionRequest,
+    locale?: AppLocale,
   ): Promise<GearAtlasSubmission>;
-  approveGearAtlasSubmission(id: string): Promise<GearAtlasSubmission>;
-  deleteAdminGearAtlasSubmission(id: string): Promise<void>;
-  restoreAdminGearAtlasSubmission(id: string): Promise<GearAtlasSubmission>;
+  updateAdminGearAtlasLocalization(
+    id: string,
+    localization: AppLocale,
+    request: UpdateGearAtlasLocalizationRequest,
+    locale?: AppLocale,
+  ): Promise<GearAtlasSubmission>;
+  generateAdminGearAtlasLocalizationDraft(
+    id: string,
+    localization: AppLocale,
+    request?: GenerateGearAtlasLocalizationDraftRequest,
+    locale?: AppLocale,
+  ): Promise<GearAtlasSubmission>;
+  approveGearAtlasSubmission(
+    id: string,
+    locale?: AppLocale,
+  ): Promise<GearAtlasSubmission>;
+  deleteAdminGearAtlasSubmission(id: string, locale?: AppLocale): Promise<void>;
+  restoreAdminGearAtlasSubmission(
+    id: string,
+    locale?: AppLocale,
+  ): Promise<GearAtlasSubmission>;
   rejectGearAtlasSubmission(
     id: string,
     request: RejectGearAtlasSubmissionRequest,
+    locale?: AppLocale,
   ): Promise<GearAtlasSubmission>;
 }
 

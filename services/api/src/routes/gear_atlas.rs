@@ -11,21 +11,31 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::Response,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use serde_json::json;
 use stellartrail_db::repositories::{
     GearAtlasRepository, GearRepository, ListGearAtlasAdminOptions, ListGearAtlasOptions,
 };
-use stellartrail_domain::{gear_atlas::draft_from_personal_gear, validation::FieldViolation};
+use stellartrail_domain::{
+    gear_atlas::{
+        GEAR_ATLAS_LOCALIZATION_STATUS_DRAFT, GEAR_ATLAS_LOCALIZATION_STATUS_NEEDS_REVIEW,
+        GEAR_ATLAS_LOCALIZATION_STATUS_REVIEWED, GearAtlasItem, GearAtlasLocalizationDraft,
+        GearAtlasLocalizationReviewState, GearAtlasLocalizationReviewStatus,
+        GearAtlasLocalizationTranslator, draft_from_personal_gear, now_atlas_rfc3339,
+    },
+    locale::Locale,
+    validation::FieldViolation,
+};
 
 use crate::{
     dto::gear_atlas::{
         CreateGearAtlasSubmissionRequest, GearAtlasAdminSubmissionResponse,
-        GearAtlasPublicItemResponse, GearAtlasSubmissionResponse,
-        ListAdminGearAtlasSubmissionsQuery, ListAdminGearAtlasSubmissionsResponse,
-        ListGearAtlasQuery, ListGearAtlasResponse, ListGearAtlasSubmissionsResponse,
-        ListMyGearAtlasSubmissionsQuery, RejectGearAtlasSubmissionRequest,
+        GearAtlasLocalizationResponse, GearAtlasPublicItemResponse, GearAtlasSubmissionResponse,
+        GenerateGearAtlasLocalizationDraftRequest, ListAdminGearAtlasSubmissionsQuery,
+        ListAdminGearAtlasSubmissionsResponse, ListGearAtlasQuery, ListGearAtlasResponse,
+        ListGearAtlasSubmissionsResponse, ListMyGearAtlasSubmissionsQuery,
+        RejectGearAtlasSubmissionRequest, UpdateGearAtlasLocalizationRequest,
         UpdateGearAtlasSubmissionRequest,
     },
     error::ApiError,
@@ -60,6 +70,14 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/admin/gear-atlas-submissions/:id/restore",
             post(restore_admin_submission),
+        )
+        .route(
+            "/admin/gear-atlas-submissions/:id/localizations/:locale",
+            put(update_admin_localization),
+        )
+        .route(
+            "/admin/gear-atlas-submissions/:id/localizations/:locale/generate-draft",
+            post(generate_admin_localization_draft),
         )
         .route(
             "/admin/gear-atlas-submissions/:id/approve",
@@ -231,11 +249,14 @@ async fn list_my_submissions(
 
 async fn list_admin_submissions(
     State(state): State<AppState>,
+    headers: HeaderMap,
     AuthenticatedUser(user): AuthenticatedUser,
     Query(query): Query<ListAdminGearAtlasSubmissionsQuery>,
 ) -> Result<Json<ListAdminGearAtlasSubmissionsResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
-    let (items, next_cursor) = GearAtlasRepository::new(state.db().clone())
+    let locale = resolve_locale(&headers)?;
+    let repo = GearAtlasRepository::new(state.db().clone());
+    let (items, next_cursor) = repo
         .list_admin(&ListGearAtlasAdminOptions {
             status: query.status,
             category: query.category,
@@ -245,11 +266,12 @@ async fn list_admin_submissions(
             cursor: query.cursor,
         })
         .await?;
+    let mut response_items = Vec::with_capacity(items.len());
+    for item in &items {
+        response_items.push(admin_submission_response(&repo, item, locale, false).await?);
+    }
     Ok(Json(ListAdminGearAtlasSubmissionsResponse {
-        items: items
-            .iter()
-            .map(GearAtlasAdminSubmissionResponse::from)
-            .collect(),
+        items: response_items,
         next_cursor,
     }))
 }
@@ -273,38 +295,44 @@ async fn delete_admin_submission(
 
 async fn restore_admin_submission(
     State(state): State<AppState>,
+    headers: HeaderMap,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
 ) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
-    let item = GearAtlasRepository::new(state.db().clone())
-        .restore_deleted(&id)
-        .await?
-        .ok_or(ApiError::NotFound)?;
+    let locale = resolve_locale(&headers)?;
+    let repo = GearAtlasRepository::new(state.db().clone());
+    let item = repo.restore_deleted(&id).await?.ok_or(ApiError::NotFound)?;
     invalidate_gear_atlas_public_responses(&state).await;
-    Ok(Json(GearAtlasAdminSubmissionResponse::from(&item)))
+    Ok(Json(
+        admin_submission_response(&repo, &item, locale, true).await?,
+    ))
 }
 
 async fn get_admin_submission(
     State(state): State<AppState>,
+    headers: HeaderMap,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
 ) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
-    let item = GearAtlasRepository::new(state.db().clone())
-        .get_any(&id)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-    Ok(Json(GearAtlasAdminSubmissionResponse::from(&item)))
+    let locale = resolve_locale(&headers)?;
+    let repo = GearAtlasRepository::new(state.db().clone());
+    let item = repo.get_any(&id).await?.ok_or(ApiError::NotFound)?;
+    Ok(Json(
+        admin_submission_response(&repo, &item, locale, true).await?,
+    ))
 }
 
 async fn update_admin_submission(
     State(state): State<AppState>,
+    headers: HeaderMap,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
     Json(payload): Json<UpdateGearAtlasSubmissionRequest>,
 ) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
+    let locale = resolve_locale(&headers)?;
     let repo = GearAtlasRepository::new(state.db().clone());
     let existing = repo.get_any(&id).await?.ok_or(ApiError::NotFound)?;
     let mut draft = payload.into_draft(&existing.submitted_by_user_id);
@@ -318,37 +346,185 @@ async fn update_admin_submission(
         .await?
         .ok_or(ApiError::NotFound)?;
     invalidate_gear_atlas_public_responses(&state).await;
-    Ok(Json(GearAtlasAdminSubmissionResponse::from(&item)))
+    Ok(Json(
+        admin_submission_response(&repo, &item, locale, true).await?,
+    ))
+}
+
+async fn update_admin_localization(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path((id, locale_value)): Path<(String, String)>,
+    Json(payload): Json<UpdateGearAtlasLocalizationRequest>,
+) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
+    admin_service::ensure_admin(&state, &user).await?;
+    let review_locale = resolve_locale(&headers)?;
+    let locale = parse_admin_locale_path(&locale_value)?;
+    let repo = GearAtlasRepository::new(state.db().clone());
+    let item = repo.get_any(&id).await?.ok_or(ApiError::NotFound)?;
+    let provider = normalize_translation_provider(payload.translation_provider)?;
+    let mut localization = GearAtlasLocalizationDraft {
+        locale,
+        name: payload.name,
+        description: payload.description,
+        variants: payload.variants,
+        specs: payload.specs,
+        translation_status: Some(
+            if payload.mark_reviewed {
+                GEAR_ATLAS_LOCALIZATION_STATUS_REVIEWED
+            } else {
+                GEAR_ATLAS_LOCALIZATION_STATUS_DRAFT
+            }
+            .to_owned(),
+        ),
+        translation_provider: Some(provider),
+        translated_at: Some(now_atlas_rfc3339()),
+    };
+    localization
+        .validate_and_normalize_for_category(item.category)
+        .map_err(|error| ApiError::Validation(error.fields))?;
+    repo.upsert_item_localization(&id, &localization).await?;
+    let item = repo.get_any(&id).await?.ok_or(ApiError::NotFound)?;
+    invalidate_gear_atlas_public_responses(&state).await;
+    Ok(Json(
+        admin_submission_response(&repo, &item, review_locale, true).await?,
+    ))
+}
+
+async fn generate_admin_localization_draft(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path((id, locale_value)): Path<(String, String)>,
+    Json(payload): Json<GenerateGearAtlasLocalizationDraftRequest>,
+) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
+    admin_service::ensure_admin(&state, &user).await?;
+    let review_locale = resolve_locale(&headers)?;
+    let locale = parse_admin_locale_path(&locale_value)?;
+    let repo = GearAtlasRepository::new(state.db().clone());
+    let item = repo.get_any(&id).await?.ok_or(ApiError::NotFound)?;
+    if let Some(existing) = repo.get_item_localization(&id, locale).await?
+        && existing.translation_status.as_deref() == Some(GEAR_ATLAS_LOCALIZATION_STATUS_REVIEWED)
+        && !payload.overwrite_reviewed
+    {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "overwrite_reviewed",
+            "is required to refresh reviewed localized content",
+        )]));
+    }
+
+    let source_locale = opposite_locale(locale);
+    let source = repo.get_item_localization(&id, source_locale).await?;
+    let source_name = source
+        .as_ref()
+        .map(|localization| localization.name.as_str())
+        .unwrap_or(item.name.as_str());
+    let source_variants = source
+        .as_ref()
+        .map(|localization| &localization.variants)
+        .unwrap_or(&item.variants);
+    let source_specs = source
+        .as_ref()
+        .map(|localization| &localization.specs)
+        .unwrap_or(&item.specs);
+    let provider = normalize_translation_provider(
+        payload
+            .translation_provider
+            .or_else(|| Some("admin-deterministic".to_owned())),
+    )?;
+    let translator = GearAtlasLocalizationTranslator::new(provider).ok_or_else(|| {
+        ApiError::Validation(vec![FieldViolation::new(
+            "translation_provider",
+            "is required",
+        )])
+    })?;
+    let mut localization =
+        translator.translate_localization(source_name, source_variants, source_specs, locale);
+    localization.translation_status = Some(GEAR_ATLAS_LOCALIZATION_STATUS_NEEDS_REVIEW.to_owned());
+    localization
+        .validate_and_normalize_for_category(item.category)
+        .map_err(|error| ApiError::Validation(error.fields))?;
+    repo.upsert_item_localization(&id, &localization).await?;
+    let item = repo.get_any(&id).await?.ok_or(ApiError::NotFound)?;
+    invalidate_gear_atlas_public_responses(&state).await;
+    Ok(Json(
+        admin_submission_response(&repo, &item, review_locale, true).await?,
+    ))
 }
 
 async fn approve_submission(
     State(state): State<AppState>,
+    headers: HeaderMap,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
 ) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
-    let item = GearAtlasRepository::new(state.db().clone())
+    let locale = resolve_locale(&headers)?;
+    let repo = GearAtlasRepository::new(state.db().clone());
+    let existing = repo.get_any(&id).await?.ok_or(ApiError::NotFound)?;
+    let localization_statuses = repo.localization_review_statuses(&existing).await?;
+    let violations = localization_approval_violations(&localization_statuses);
+    if !violations.is_empty() {
+        return Err(ApiError::Validation(violations));
+    }
+    let item = repo
         .approve(&id, &user.id)
         .await?
         .ok_or(ApiError::NotFound)?;
     invalidate_gear_atlas_public_responses(&state).await;
-    Ok(Json(GearAtlasAdminSubmissionResponse::from(&item)))
+    Ok(Json(
+        admin_submission_response(&repo, &item, locale, true).await?,
+    ))
 }
 
 async fn reject_submission(
     State(state): State<AppState>,
+    headers: HeaderMap,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
     Json(payload): Json<RejectGearAtlasSubmissionRequest>,
 ) -> Result<Json<GearAtlasAdminSubmissionResponse>, ApiError> {
     admin_service::ensure_admin(&state, &user).await?;
+    let locale = resolve_locale(&headers)?;
     let reason = normalize_rejection_reason(payload.reason)?;
-    let item = GearAtlasRepository::new(state.db().clone())
+    let repo = GearAtlasRepository::new(state.db().clone());
+    let item = repo
         .reject(&id, &user.id, reason)
         .await?
         .ok_or(ApiError::NotFound)?;
     invalidate_gear_atlas_public_responses(&state).await;
-    Ok(Json(GearAtlasAdminSubmissionResponse::from(&item)))
+    Ok(Json(
+        admin_submission_response(&repo, &item, locale, true).await?,
+    ))
+}
+
+async fn admin_submission_response(
+    repo: &GearAtlasRepository,
+    item: &GearAtlasItem,
+    locale: Locale,
+    include_localizations: bool,
+) -> Result<GearAtlasAdminSubmissionResponse, ApiError> {
+    let display_item = repo.localized_display_item(item, locale).await?;
+    let display_category_label = repo.category_label(item.category, locale).await?;
+    let localization_statuses = repo.localization_review_statuses(item).await?;
+    let localizations = if include_localizations {
+        repo.list_item_localizations(&item.id)
+            .await?
+            .iter()
+            .map(GearAtlasLocalizationResponse::from)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    Ok(GearAtlasAdminSubmissionResponse::from_item_and_display(
+        item,
+        &display_item,
+        display_category_label,
+        locale,
+        localization_statuses,
+        localizations,
+    ))
 }
 
 fn normalize_rejection_reason(value: Option<String>) -> Result<String, ApiError> {
@@ -372,4 +548,54 @@ fn normalize_rejection_reason(value: Option<String>) -> Result<String, ApiError>
         )]));
     }
     Ok(trimmed.to_owned())
+}
+
+fn parse_admin_locale_path(value: &str) -> Result<Locale, ApiError> {
+    Locale::parse(value).ok_or_else(|| {
+        ApiError::invalid_query_parameter("locale", "must be one of zh-CN or en".to_owned())
+    })
+}
+
+fn normalize_translation_provider(value: Option<String>) -> Result<String, ApiError> {
+    let provider = value
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("admin-manual");
+    if provider.chars().count() > 80 {
+        return Err(ApiError::Validation(vec![FieldViolation::new(
+            "translation_provider",
+            "must be at most 80 characters",
+        )]));
+    }
+    Ok(provider.to_owned())
+}
+
+fn opposite_locale(locale: Locale) -> Locale {
+    match locale {
+        Locale::ZhCn => Locale::En,
+        Locale::En => Locale::ZhCn,
+    }
+}
+
+fn localization_approval_violations(
+    statuses: &[GearAtlasLocalizationReviewStatus],
+) -> Vec<FieldViolation> {
+    let mut violations = Vec::new();
+    for status in statuses {
+        let locale = status.locale.as_str();
+        for field in &status.missing_fields {
+            violations.push(FieldViolation::new(
+                format!("localizations.{locale}.{field}"),
+                "is required before approval",
+            ));
+        }
+        if status.state != GearAtlasLocalizationReviewState::Reviewed {
+            violations.push(FieldViolation::new(
+                format!("localizations.{locale}.translation_status"),
+                "must be reviewed before approval",
+            ));
+        }
+    }
+    violations
 }

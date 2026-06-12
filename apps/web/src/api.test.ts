@@ -25,7 +25,11 @@ describe("createWebGearApi", () => {
       if (this !== globalThis) {
         throw new TypeError("Illegal invocation");
       }
-      expect(input).toBe("/api/v1/meta");
+      const url = new URL(String(input), "https://example.test");
+      expect(url.pathname).toBe("/api/v1/meta");
+      expect(url.searchParams.get("app_id")).toBeTruthy();
+      expect(url.searchParams.get("nonce")).toBeTruthy();
+      expect(url.searchParams.get("signature")).toBeTruthy();
       expect(init).toBeDefined();
       expect(new Headers(init?.headers).get("X-StellarTrail-Client")).toBe(
         "web/0.1.0",
@@ -190,7 +194,7 @@ describe("StellarTrailApiClient request signing", () => {
           url: String(input),
           headers: new Headers(init?.headers),
         });
-        return new Response(JSON.stringify({ items: [], page: null }), {
+        return new Response(JSON.stringify({ items: [], next_cursor: null }), {
           status: 200,
           headers: { "content-type": "application/json" },
         });
@@ -198,10 +202,14 @@ describe("StellarTrailApiClient request signing", () => {
     );
     const client = signedClient(fetcher as typeof fetch, ["nonce-get"]);
 
-    await client.listAdminGearAtlasSubmissions({
-      status: "pending",
-      limit: 20,
-    });
+    await client.listAdminGearAtlasSubmissions(
+      {
+        status: "pending",
+        deleted: "active",
+        limit: 20,
+      },
+      "zh-CN",
+    );
 
     expect(requests).toHaveLength(1);
     expect(requests[0].headers.get("authorization")).toBe(
@@ -210,7 +218,9 @@ describe("StellarTrailApiClient request signing", () => {
     const url = new URL(`https://example.test${requests[0].url}`);
     expect(url.pathname).toBe("/api/v1/admin/gear-atlas-submissions");
     expect(url.searchParams.get("status")).toBe("pending");
+    expect(url.searchParams.get("deleted")).toBe("active");
     expect(url.searchParams.get("limit")).toBe("20");
+    expect(requests[0].headers.get("X-StellarTrail-Locale")).toBe("zh-CN");
     await expectValidSignature({
       url,
       method: "GET",

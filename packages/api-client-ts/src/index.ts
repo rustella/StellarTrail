@@ -29,6 +29,7 @@ import type {
   GearAtlasPublicItem,
   GearAtlasSubmission,
   GearCategory,
+  GenerateGearAtlasLocalizationDraftRequest,
   GearOverviewRequest,
   GearOverviewResponse,
   GearPackingListDetail,
@@ -95,6 +96,7 @@ import type {
   TripRecordCreateRequest,
   TripRecordPatchRequest,
   TripDetail,
+  UpdateGearAtlasLocalizationRequest,
   UpdateMapAnnotationRequest,
   UpdateGearAtlasSubmissionRequest,
   UpdateGearPackingItemRequest,
@@ -508,65 +510,113 @@ export class StellarTrailApiClient {
 
   async listAdminGearAtlasSubmissions(
     request: ListGearAtlasSubmissionsRequest = {},
+    locale?: AppLocale,
   ): Promise<ListGearAtlasSubmissionsResponse> {
     return this.get(
       `/admin/gear-atlas-submissions${queryString(request)}`,
       true,
+      locale,
     );
   }
 
-  async getAdminGearAtlasSubmission(id: string): Promise<GearAtlasSubmission> {
+  async getAdminGearAtlasSubmission(
+    id: string,
+    locale?: AppLocale,
+  ): Promise<GearAtlasSubmission> {
     return this.get(
       `/admin/gear-atlas-submissions/${encodeURIComponent(id)}`,
       true,
+      locale,
     );
   }
 
   async updateAdminGearAtlasSubmission(
     id: string,
     request: UpdateGearAtlasSubmissionRequest,
+    locale?: AppLocale,
   ): Promise<GearAtlasSubmission> {
     return this.patch(
       `/admin/gear-atlas-submissions/${encodeURIComponent(id)}`,
       request,
       true,
+      locale,
     );
   }
 
-  async approveGearAtlasSubmission(id: string): Promise<GearAtlasSubmission> {
+  async updateAdminGearAtlasLocalization(
+    id: string,
+    localization: AppLocale,
+    request: UpdateGearAtlasLocalizationRequest,
+    locale?: AppLocale,
+  ): Promise<GearAtlasSubmission> {
+    return this.put(
+      `/admin/gear-atlas-submissions/${encodeURIComponent(id)}/localizations/${encodeURIComponent(localization)}`,
+      request,
+      true,
+      locale,
+    );
+  }
+
+  async generateAdminGearAtlasLocalizationDraft(
+    id: string,
+    localization: AppLocale,
+    request: GenerateGearAtlasLocalizationDraftRequest = {},
+    locale?: AppLocale,
+  ): Promise<GearAtlasSubmission> {
+    return this.post(
+      `/admin/gear-atlas-submissions/${encodeURIComponent(id)}/localizations/${encodeURIComponent(localization)}/generate-draft`,
+      request,
+      true,
+      locale,
+    );
+  }
+
+  async approveGearAtlasSubmission(
+    id: string,
+    locale?: AppLocale,
+  ): Promise<GearAtlasSubmission> {
     return this.post(
       `/admin/gear-atlas-submissions/${encodeURIComponent(id)}/approve`,
       undefined,
       true,
+      locale,
     );
   }
 
-  async deleteAdminGearAtlasSubmission(id: string): Promise<void> {
+  async deleteAdminGearAtlasSubmission(
+    id: string,
+    locale?: AppLocale,
+  ): Promise<void> {
     await this.request(
       `/admin/gear-atlas-submissions/${encodeURIComponent(id)}`,
       { method: "DELETE" },
       true,
+      locale,
     );
   }
 
   async restoreAdminGearAtlasSubmission(
     id: string,
+    locale?: AppLocale,
   ): Promise<GearAtlasSubmission> {
     return this.post(
       `/admin/gear-atlas-submissions/${encodeURIComponent(id)}/restore`,
       undefined,
       true,
+      locale,
     );
   }
 
   async rejectGearAtlasSubmission(
     id: string,
     request: RejectGearAtlasSubmissionRequest,
+    locale?: AppLocale,
   ): Promise<GearAtlasSubmission> {
     return this.post(
       `/admin/gear-atlas-submissions/${encodeURIComponent(id)}/reject`,
       request,
       true,
+      locale,
     );
   }
 
@@ -1684,6 +1734,7 @@ export class StellarTrailApiClient {
     path: string,
     body?: unknown,
     auth = false,
+    locale?: AppLocale,
   ): Promise<T> {
     const response = await this.request(
       path,
@@ -1696,6 +1747,26 @@ export class StellarTrailApiClient {
             : { "content-type": "application/json" },
       },
       auth,
+      locale,
+    );
+    return response.json() as Promise<T>;
+  }
+
+  private async put<T>(
+    path: string,
+    body: unknown,
+    auth = false,
+    locale?: AppLocale,
+  ): Promise<T> {
+    const response = await this.request(
+      path,
+      {
+        method: "PUT",
+        body: JSON.stringify(body),
+        headers: { "content-type": "application/json" },
+      },
+      auth,
+      locale,
     );
     return response.json() as Promise<T>;
   }
@@ -1704,6 +1775,7 @@ export class StellarTrailApiClient {
     path: string,
     body: unknown,
     auth = false,
+    locale?: AppLocale,
   ): Promise<T> {
     const response = await this.request(
       path,
@@ -1713,6 +1785,7 @@ export class StellarTrailApiClient {
         headers: { "content-type": "application/json" },
       },
       auth,
+      locale,
     );
     return response.json() as Promise<T>;
   }

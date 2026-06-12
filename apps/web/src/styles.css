@@ -1162,6 +1162,95 @@ dd {
   color: var(--muted-color);
 }
 
+.atlas-locale-toggle,
+.atlas-localization-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.toolbar-select-shell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.toolbar-select-shell::after {
+  position: absolute;
+  right: 16px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  color: var(--soft-control-text);
+  content: "";
+  pointer-events: none;
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.toolbar-select {
+  min-width: 104px;
+  height: 48px;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  padding: 0 42px 0 18px;
+  appearance: none;
+  color: var(--text-color);
+  background:
+    linear-gradient(var(--control-bg), var(--control-bg)) padding-box,
+    linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--brand-color), transparent 70%),
+        color-mix(in srgb, var(--control-border), transparent 10%)
+      )
+      border-box;
+  box-shadow:
+    0 10px 26px rgba(15, 23, 42, 0.06),
+    inset 0 0 0 1px color-mix(in srgb, var(--control-border), transparent 40%);
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.toolbar-select:hover {
+  color: var(--brand-color);
+  box-shadow:
+    0 14px 30px rgba(15, 23, 42, 0.08),
+    inset 0 0 0 1px color-mix(in srgb, var(--brand-color), transparent 45%);
+  transform: translateY(-1px);
+}
+
+.toolbar-select:focus-visible {
+  outline-offset: 3px;
+}
+
+.atlas-localization-badges {
+  margin-top: 4px;
+}
+
+.status-locale-reviewed {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.status-locale-draft {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.status-locale-needs-review,
+.status-locale-needs_review,
+.status-locale-missing {
+  color: #9f1239;
+  background: #ffe4e6;
+}
+
 .atlas-load-more {
   width: 100%;
   margin-top: 4px;
@@ -1239,6 +1328,10 @@ dd {
 .atlas-reject-reason textarea {
   min-height: 84px;
   resize: vertical;
+}
+
+.atlas-localization-fieldset {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .atlas-readonly-fields {

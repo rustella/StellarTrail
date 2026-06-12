@@ -4072,6 +4072,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "stellartrail-importer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "hex",
+ "sea-orm-migration",
+ "serde",
+ "serde_json",
+ "sha2",
+ "stellartrail-db",
+ "stellartrail-domain",
+ "stellartrail-migration",
+ "tempfile",
+ "time",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "stellartrail-migration"
 version = "0.1.0"
 dependencies = [
@@ -4550,6 +4570,7 @@ dependencies = [
  "idna",
  "percent-encoding",
  "serde",
+ "serde_derive",
 ]
 
 [[package]]

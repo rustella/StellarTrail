@@ -14,6 +14,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import type { WebGearApi } from "./api";
+import { detectPreferredAppLocale } from "./locale";
+
+const TEST_APP_LOCALE = detectPreferredAppLocale();
 
 const sampleKnotSummary = {
   id: "adjustable-grip-hitch-knot",
@@ -67,6 +70,48 @@ function buildAtlasSubmission(
     approved_at: null,
     source_type: "external_import",
     source_user_gear_id: null,
+    review_locale: "zh-CN",
+    display_name: "测试装备",
+    display_description: "公开字段",
+    display_variants: [],
+    display_specs: { battery_capacity: "20000 mAh" },
+    display_category_label: "电子系统",
+    localization_statuses: [
+      {
+        locale: "zh-CN",
+        state: "reviewed",
+        missing_fields: [],
+        translation_status: "reviewed",
+      },
+      {
+        locale: "en",
+        state: "reviewed",
+        missing_fields: [],
+        translation_status: "reviewed",
+      },
+    ],
+    localizations: [
+      {
+        locale: "zh-CN",
+        name: "测试装备",
+        description: "公开字段",
+        variants: [],
+        specs: { battery_capacity: "20000 mAh" },
+        translation_status: "reviewed",
+        translation_provider: "test",
+        translated_at: null,
+      },
+      {
+        locale: "en",
+        name: "Test Gear",
+        description: "Public fields",
+        variants: [],
+        specs: { battery_capacity: "20000 mAh" },
+        translation_status: "reviewed",
+        translation_provider: "test",
+        translated_at: null,
+      },
+    ],
     status: "pending",
     rejection_reason: null,
     review_changes: [],
@@ -449,7 +494,7 @@ function buildClient(): WebGearApi {
     listAdminGearAtlasSubmissions: vi.fn().mockResolvedValue({
       next_cursor: null,
       items: [
-        {
+        buildAtlasSubmission({
           id: "atlas-1",
           category: "electronics_system",
           category_label: "电子系统",
@@ -457,11 +502,36 @@ function buildClient(): WebGearApi {
           brand: "NITECORE",
           model: "SUMMIT 20000",
           description: "冬季徒步备用电源",
+          display_name: "SUMMIT 20000 超薄充电宝",
+          display_description: "冬季徒步备用电源",
+          display_specs: { battery_capacity: "20000 mAh" },
           weight_g: 315,
           official_price_cents: 69900,
           official_price_currency: "CNY",
           variants: [],
           specs: { battery_capacity: "20000 mAh" },
+          localizations: [
+            {
+              locale: "zh-CN",
+              name: "SUMMIT 20000 超薄充电宝",
+              description: "冬季徒步备用电源",
+              variants: [],
+              specs: { battery_capacity: "20000 mAh" },
+              translation_status: "reviewed",
+              translation_provider: "test",
+              translated_at: null,
+            },
+            {
+              locale: "en",
+              name: "SUMMIT 20000 ultra-thin power bank",
+              description: "Backup power source for winter hiking.",
+              variants: [],
+              specs: { battery_capacity: "20000 mAh" },
+              translation_status: "reviewed",
+              translation_provider: "test",
+              translated_at: null,
+            },
+          ],
           approved_at: null,
           source_type: "user_gear",
           source_user_gear_id: "gear-1",
@@ -469,42 +539,57 @@ function buildClient(): WebGearApi {
           source_url: "https://example.test/gear",
           source_rating_score: 4.8,
           source_rating_count: 12,
-          status: "pending",
-          rejection_reason: null,
-          reviewed_at: null,
-          is_deleted: false,
-          created_at: "2026-01-23T00:00:00Z",
-          updated_at: "2026-01-23T00:00:00Z",
-        },
+        }),
       ],
     }),
-    getAdminGearAtlasSubmission: vi.fn().mockResolvedValue({
-      id: "atlas-1",
-      category: "electronics_system",
-      category_label: "电子系统",
-      name: "SUMMIT 20000 超薄充电宝",
-      brand: "NITECORE",
-      model: "SUMMIT 20000",
-      description: "冬季徒步备用电源",
-      weight_g: 315,
-      official_price_cents: 69900,
-      official_price_currency: "CNY",
-      variants: [],
-      specs: { battery_capacity: "20000 mAh" },
-      approved_at: null,
-      source_type: "user_gear",
-      source_user_gear_id: "gear-1",
-      source_name: "8264",
-      source_url: "https://example.test/gear",
-      source_rating_score: 4.8,
-      source_rating_count: 12,
-      status: "pending",
-      rejection_reason: null,
-      reviewed_at: null,
-      is_deleted: false,
-      created_at: "2026-01-23T00:00:00Z",
-      updated_at: "2026-01-23T00:00:00Z",
-    }),
+    getAdminGearAtlasSubmission: vi.fn().mockResolvedValue(
+      buildAtlasSubmission({
+        id: "atlas-1",
+        category: "electronics_system",
+        category_label: "电子系统",
+        name: "SUMMIT 20000 超薄充电宝",
+        brand: "NITECORE",
+        model: "SUMMIT 20000",
+        description: "冬季徒步备用电源",
+        display_name: "SUMMIT 20000 超薄充电宝",
+        display_description: "冬季徒步备用电源",
+        display_specs: { battery_capacity: "20000 mAh" },
+        weight_g: 315,
+        official_price_cents: 69900,
+        official_price_currency: "CNY",
+        variants: [],
+        specs: { battery_capacity: "20000 mAh" },
+        localizations: [
+          {
+            locale: "zh-CN",
+            name: "SUMMIT 20000 超薄充电宝",
+            description: "冬季徒步备用电源",
+            variants: [],
+            specs: { battery_capacity: "20000 mAh" },
+            translation_status: "reviewed",
+            translation_provider: "test",
+            translated_at: null,
+          },
+          {
+            locale: "en",
+            name: "SUMMIT 20000 ultra-thin power bank",
+            description: "Backup power source for winter hiking.",
+            variants: [],
+            specs: { battery_capacity: "20000 mAh" },
+            translation_status: "reviewed",
+            translation_provider: "test",
+            translated_at: null,
+          },
+        ],
+        approved_at: null,
+        source_type: "user_gear",
+        source_user_gear_id: "gear-1",
+        source_name: "8264",
+        source_url: "https://example.test/gear",
+        source_rating_score: 4.8,
+        source_rating_count: 12,
+      }),
+    ),
     updateAdminGearAtlasSubmission: vi.fn().mockImplementation((_, request) =>
       Promise.resolve(
         buildAtlasSubmission({
@@ -513,6 +598,45 @@ function buildClient(): WebGearApi {
         }),
       ),
     ),
+    updateAdminGearAtlasLocalization: vi
+      .fn()
+      .mockImplementation((_, locale, request) =>
+        Promise.resolve(
+          buildAtlasSubmission({
+            id: "atlas-1",
+            review_locale: locale,
+            display_name: request.name,
+            display_description: request.description,
+            display_variants: request.variants ?? [],
+            display_specs: request.specs ?? {},
+            localizations: [
+              {
+                locale,
+                name: request.name,
+                description: request.description,
+                variants: request.variants ?? [],
+                specs: request.specs ?? {},
+                translation_status: request.mark_reviewed
+                  ? "reviewed"
+                  : "draft",
+                translation_provider: "test",
+                translated_at: null,
+              },
+            ],
+          }),
+        ),
+      ),
+    generateAdminGearAtlasLocalizationDraft: vi
+      .fn()
+      .mockImplementation((_, locale) =>
+        Promise.resolve(
+          buildAtlasSubmission({
+            id: "atlas-1",
+            review_locale: locale,
+            display_name: locale === "zh-CN" ? "测试装备" : "Test Gear",
+          }),
+        ),
+      ),
     approveGearAtlasSubmission: vi.fn().mockResolvedValue({
       id: "atlas-1",
       category: "electronics_system",
@@ -734,7 +858,7 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(client.listGearAtlas).toHaveBeenCalledWith(
       { sort: "approved_at_desc", limit: 20 },
-      "zh-CN",
+      TEST_APP_LOCALE,
     );
   });
 
@@ -755,7 +879,7 @@ describe("App", () => {
     expect(window.location.pathname).toBe("/gear-atlas");
     expect(client.listGearAtlas).toHaveBeenCalledWith(
       { sort: "approved_at_desc", limit: 20 },
-      "zh-CN",
+      TEST_APP_LOCALE,
     );
   });
 
@@ -793,10 +917,97 @@ describe("App", () => {
       await screen.findByText("8264 · 4.8 分 / 12 条"),
     ).toBeInTheDocument();
     expect(screen.getByText("https://example.test/gear")).toBeInTheDocument();
-    expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
-      status: "pending",
-      deleted: "active",
-      limit: 20,
+    expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith(
+      {
+        status: "pending",
+        deleted: "active",
+        limit: 20,
+      },
+      TEST_APP_LOCALE,
+    );
+  });
+
+  it("switches atlas review locale and saves localized content", async () => {
+    const client = buildClient();
+    const nextLocale = TEST_APP_LOCALE === "zh-CN" ? "en" : "zh-CN";
+    vi.mocked(client.listAdminGearAtlasSubmissions)
+      .mockResolvedValueOnce({
+        next_cursor: null,
+        items: [
+          buildAtlasSubmission({
+            id: "atlas-i18n",
+            display_name:
+              TEST_APP_LOCALE === "zh-CN" ? "中文展示" : "English Display",
+            review_locale: TEST_APP_LOCALE,
+          }),
+        ],
+      })
+      .mockResolvedValueOnce({
+        next_cursor: null,
+        items: [
+          buildAtlasSubmission({
+            id: "atlas-i18n",
+            display_name:
+              nextLocale === "zh-CN" ? "中文展示" : "English Display",
+            review_locale: nextLocale,
+          }),
+        ],
+      });
+    render(<App client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "进入装备库" }));
+    expect(
+      await screen.findByRole("heading", { name: "装备管理" }),
+    ).toBeInTheDocument();
+
+    const adminNavigation = screen.getByRole("navigation", {
+      name: "管理员导航",
+    });
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "管理员后台" }),
+    );
+    fireEvent.click(
+      within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
+    );
+
+    await screen.findByRole("heading", { name: "装备图鉴审核" });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: nextLocale === "zh-CN" ? "中文" : "English",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(client.listAdminGearAtlasSubmissions).toHaveBeenLastCalledWith(
+        {
+          status: "pending",
+          deleted: "active",
+          limit: 20,
+        },
+        nextLocale,
+      );
+    });
+    await screen.findByText(
+      `当前语言内容 · ${nextLocale === "zh-CN" ? "中文" : "English"}`,
+    );
+
+    fireEvent.change(screen.getByLabelText("展示名称"), {
+      target: { value: "Reviewed localized name" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "保存并标记本语言已审核" }),
+    );
+
+    await waitFor(() => {
+      expect(client.updateAdminGearAtlasLocalization).toHaveBeenCalledWith(
+        "atlas-i18n",
+        nextLocale,
+        expect.objectContaining({
+          name: "Reviewed localized name",
+          mark_reviewed: true,
+        }),
+        nextLocale,
+      );
     });
   });
 
@@ -837,12 +1048,14 @@ describe("App", () => {
       within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
     );
 
-    expect(await screen.findByText("填充重量")).toBeInTheDocument();
-    expect(screen.getByText("填充物")).toBeInTheDocument();
-    expect(screen.getByText("材质")).toBeInTheDocument();
+    expect((await screen.findAllByText("填充重量")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("填充物").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("材质").length).toBeGreaterThan(0);
     expect(screen.getByText("可选尺寸")).toBeInTheDocument();
-    expect(await screen.findByDisplayValue("M 75*195")).toBeInTheDocument();
-    expect(screen.getByText("温标/R 值")).toBeInTheDocument();
+    expect(
+      (await screen.findAllByDisplayValue("M 75*195")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("温标/R 值").length).toBeGreaterThan(0);
     expect(screen.queryByText("fill_weight")).not.toBeInTheDocument();
     expect(screen.queryByText("filling")).not.toBeInTheDocument();
     expect(screen.queryByText("material")).not.toBeInTheDocument();
@@ -851,7 +1064,8 @@ describe("App", () => {
       screen.queryByText("temperature_or_r_value"),
     ).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByDisplayValue("M 75*195"), {
+    const variantInputs = screen.getAllByDisplayValue("M 75*195");
+    fireEvent.change(variantInputs[variantInputs.length - 1], {
       target: { value: "M 75*196" },
     });
     fireEvent.click(screen.getByRole("button", { name: "保存字段" }));
@@ -863,6 +1077,7 @@ describe("App", () => {
             expect.objectContaining({ key: "m-75-196", label: "M 75*196" }),
           ]),
         }),
+        TEST_APP_LOCALE,
       );
     });
   });
@@ -905,9 +1120,13 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "拒绝" }));
 
     await waitFor(() => {
-      expect(client.rejectGearAtlasSubmission).toHaveBeenCalledWith("atlas-1", {
-        reason: "品牌型号不完整",
-      });
+      expect(client.rejectGearAtlasSubmission).toHaveBeenCalledWith(
+        "atlas-1",
+        {
+          reason: "品牌型号不完整",
+        },
+        TEST_APP_LOCALE,
+      );
     });
   });
 
@@ -933,12 +1152,9 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "装备图鉴审核" }),
     ).toBeInTheDocument();
-    fireEvent.change(
-      await screen.findByDisplayValue("SUMMIT 20000 超薄充电宝"),
-      {
-        target: { value: "SUMMIT 20000 超薄充电宝 修订版" },
-      },
-    );
+    fireEvent.change(await screen.findByLabelText("名称"), {
+      target: { value: "SUMMIT 20000 超薄充电宝 修订版" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "保存并通过" }));
 
     await waitFor(() => {
@@ -947,8 +1163,12 @@ describe("App", () => {
         expect.objectContaining({
           name: "SUMMIT 20000 超薄充电宝 修订版",
         }),
+        TEST_APP_LOCALE,
       );
-      expect(client.approveGearAtlasSubmission).toHaveBeenCalledWith("atlas-1");
+      expect(client.approveGearAtlasSubmission).toHaveBeenCalledWith(
+        "atlas-1",
+        TEST_APP_LOCALE,
+      );
     });
     expect(
       vi.mocked(client.updateAdminGearAtlasSubmission).mock
@@ -967,6 +1187,19 @@ describe("App", () => {
           buildAtlasSubmission({
             id: "atlas-page-1",
             name: "第一页审核装备",
+            display_name: "第一页审核装备",
+            localizations: [
+              {
+                locale: TEST_APP_LOCALE,
+                name: "第一页审核装备",
+                description: "第一页描述",
+                variants: [],
+                specs: { battery_capacity: "20000 mAh" },
+                translation_status: "reviewed",
+                translation_provider: "test",
+                translated_at: null,
+              },
+            ],
           }),
         ],
       })
@@ -976,6 +1209,7 @@ describe("App", () => {
           buildAtlasSubmission({
             id: "atlas-page-2",
             name: "第二页审核装备",
+            display_name: "第二页审核装备",
           }),
         ],
       });
@@ -996,7 +1230,9 @@ describe("App", () => {
       within(adminNavigation).getByRole("button", { name: "装备图鉴审核" }),
     );
 
-    expect(await screen.findAllByText("第一页审核装备")).toHaveLength(2);
+    expect(
+      (await screen.findAllByText("第一页审核装备")).length,
+    ).toBeGreaterThan(0);
     const reviewList = screen.getByLabelText("图鉴审核投稿列表");
     Object.defineProperty(reviewList, "scrollHeight", {
       configurable: true,
@@ -1014,12 +1250,15 @@ describe("App", () => {
     fireEvent.scroll(reviewList);
 
     expect(await screen.findByText("第二页审核装备")).toBeInTheDocument();
-    expect(client.listAdminGearAtlasSubmissions).toHaveBeenLastCalledWith({
-      status: "pending",
-      deleted: "active",
-      limit: 20,
-      cursor: "20",
-    });
+    expect(client.listAdminGearAtlasSubmissions).toHaveBeenLastCalledWith(
+      {
+        status: "pending",
+        deleted: "active",
+        limit: 20,
+        cursor: "20",
+      },
+      TEST_APP_LOCALE,
+    );
   });
 
   it("opens the admin feedback page from the collapsed administrator group", async () => {
@@ -1157,11 +1396,14 @@ describe("App", () => {
       within(adminNavigation).getByRole("button", { name: "版本信息" }),
     ).toBeInTheDocument();
     await waitFor(() => {
-      expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith({
-        status: "pending",
-        deleted: "active",
-        limit: 20,
-      });
+      expect(client.listAdminGearAtlasSubmissions).toHaveBeenCalledWith(
+        {
+          status: "pending",
+          deleted: "active",
+          limit: 20,
+        },
+        TEST_APP_LOCALE,
+      );
     });
   });
 
@@ -1517,7 +1759,7 @@ describe("App", () => {
     expect(await screen.findByLabelText("装备详情")).toBeInTheDocument();
     expect(client.getGearAtlasItem).toHaveBeenCalledWith(
       "atlas-public-1",
-      "zh-CN",
+      TEST_APP_LOCALE,
     );
     expect(screen.getByText("我的尺寸")).toBeInTheDocument();
     expect(screen.getAllByText("M 75*195").length).toBeGreaterThan(0);

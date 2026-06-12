@@ -30,10 +30,11 @@ import {
   variantSummary,
 } from "./gear-atlas-utils";
 import { CATEGORY_OPTIONS, categoryLabel } from "./gear-options";
+import { detectPreferredAppLocale } from "./locale";
 import { formatDate, formatWeight, joinGearName } from "./formatters";
 import type { WebSession } from "./session";
 
-const ATLAS_LOCALE: AppLocale = "zh-CN";
+const ATLAS_LOCALE: AppLocale = detectPreferredAppLocale();
 const ATLAS_PAGE_SIZE = 20;
 
 const ATLAS_SORT_OPTIONS: Array<{ value: GearAtlasSort; label: string }> = [
@@ -257,7 +258,7 @@ export default function GearAtlasPage({
 
     let cancelled = false;
     api
-      .listAdminGearAtlasSubmissions({ limit: 1 })
+      .listAdminGearAtlasSubmissions({ limit: 1 }, ATLAS_LOCALE)
       .then(() => {
         if (!cancelled) {
           setCanAdminEdit(true);
@@ -361,7 +362,10 @@ export default function GearAtlasPage({
     setIsAdminEditOpen(true);
     setAdminEditing(true);
     try {
-      const adminItem = await api.getAdminGearAtlasSubmission(item.id);
+      const adminItem = await api.getAdminGearAtlasSubmission(
+        item.id,
+        ATLAS_LOCALE,
+      );
       setAdminEditItem(adminItem);
       setAdminEditForm(atlasFormFromItem(adminItem));
     } catch (err) {
@@ -391,6 +395,7 @@ export default function GearAtlasPage({
       const updated = await api.updateAdminGearAtlasSubmission(
         adminEditItem.id,
         payload,
+        ATLAS_LOCALE,
       );
       setItems((current) => replaceAtlasItem(current, updated));
       setDetail((current) =>

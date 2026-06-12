@@ -4,24 +4,37 @@
 //! public queries can only select the atlas table's limited public snapshot
 //! columns.
 
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::HashMap};
 
 use sea_orm::{
-    ConnectionTrait, DatabaseBackend, DatabaseConnection, DbErr, TransactionTrait, Value,
+    ConnectionTrait, DatabaseBackend, DatabaseConnection, DbErr, QueryResult, TransactionTrait,
+    Value,
 };
+use sha2::{Digest, Sha256};
 use stellartrail_domain::{
     deletion::DeletedFilter,
     gear::{GearCategory, GearSpecs, GearVariants},
     gear_atlas::{
-        GearAtlasDraft, GearAtlasExternalImportDraft, GearAtlasItem, GearAtlasPublicSnapshot,
-        GearAtlasReviewChanges, GearAtlasSort, GearAtlasSourceType, GearAtlasStatus,
-        now_atlas_rfc3339, review_changes_between,
+        GEAR_ATLAS_LOCALIZATION_STATUS_DRAFT, GEAR_ATLAS_LOCALIZATION_STATUS_REVIEWED,
+        GearAtlasDraft, GearAtlasExternalImportDraft, GearAtlasItem, GearAtlasLocalizationDraft,
+        GearAtlasLocalizationReviewState, GearAtlasLocalizationReviewStatus,
+        GearAtlasPublicSnapshot, GearAtlasReviewChanges, GearAtlasSort, GearAtlasSourceType,
+        GearAtlasStatus, now_atlas_rfc3339, review_changes_between,
     },
     locale::Locale,
 };
 use uuid::Uuid;
 
 use super::statement;
+
+struct ImportSourceUpsert<'a> {
+    atlas_item_id: &'a str,
+    draft: &'a GearAtlasExternalImportDraft,
+    canonical_key: &'a str,
+    detail_score: i32,
+    action: &'a str,
+    now: &'a str,
+}
 
 /// Public list options for approved gear atlas entries.
 #[derive(Clone, Debug)]
@@ -75,6 +88,7 @@ pub enum GearAtlasExternalImportAction {
     Created,
     Updated,
     SkippedApproved,
+    SkippedLessDetailed,
 }
 
 impl GearAtlasExternalImportAction {
@@ -83,6 +97,7 @@ impl GearAtlasExternalImportAction {
             Self::Created => "created",
             Self::Updated => "updated",
             Self::SkippedApproved => "skipped_approved",
+            Self::SkippedLessDetailed => "skipped_less_detailed",
         }
     }
 }
@@ -92,6 +107,17 @@ impl GearAtlasExternalImportAction {
 pub struct GearAtlasExternalImportResult {
     pub action: GearAtlasExternalImportAction,
     pub item: GearAtlasItem,
+}
+
+#[derive(Clone, Debug)]
+struct ImportSourceLookup {
+    atlas_item_id: String,
+}
+
+#[derive(Clone, Debug)]
+struct CanonicalImportMatch {
+    atlas_item_id: String,
+    detail_score: i32,
 }
 
 /// Gear atlas persistence object for public reads, user submissions, and admin review.
@@ -133,17 +159,21 @@ impl GearAtlasRepository {
             ),
         ))
         .await?;
-        tx.execute(statement(
+        upsert_localization(
+            &tx,
             self.db.get_database_backend(),
-            "INSERT INTO gear_atlas_item_localizations(atlas_item_id, locale, name, description) \
-             VALUES (?, ?, ?, ?) ON CONFLICT(atlas_item_id, locale) DO UPDATE SET name = excluded.name, description = excluded.description",
-            vec![
-                id.clone().into(),
-                Locale::ZhCn.as_str().to_owned().into(),
-                draft.name.clone().into(),
-                draft.description.clone().into(),
-            ],
-        ))
+            &id,
+            &GearAtlasLocalizationDraft {
+                locale: Locale::ZhCn,
+                name: draft.name.clone(),
+                description: draft.description.clone(),
+                variants: draft.variants.clone(),
+                specs: draft.specs.clone(),
+                translation_status: None,
+                translation_provider: None,
+                translated_at: None,
+            },
+        )
         .await?;
         tx.commit().await?;
         self.get_any(&id)
@@ -160,14 +190,107 @@ impl GearAtlasRepository {
         &self,
         draft: &GearAtlasExternalImportDraft,
     ) -> Result<GearAtlasExternalImportResult, DbErr> {
-        if let Some(existing) = self.find_by_source_key(&draft.source_key).await? {
+        let canonical_key = canonical_key_for_import(draft);
+        let incoming_detail_score = detail_score_for_import(draft);
+
+        if let Some(source) = self.find_import_source(&draft.source_key).await?
+            && let Some(existing) = self.get_any(&source.atlas_item_id).await?
+        {
             if existing.status == GearAtlasStatus::Approved && !existing.is_deleted {
+                self.record_import_source(
+                    &existing.id,
+                    draft,
+                    &canonical_key,
+                    GearAtlasExternalImportAction::SkippedApproved.as_str(),
+                )
+                .await?;
                 return Ok(GearAtlasExternalImportResult {
                     action: GearAtlasExternalImportAction::SkippedApproved,
                     item: existing,
                 });
             }
-            let item = self.refresh_external_import(&existing.id, draft).await?;
+            let item = self
+                .refresh_external_import(
+                    &existing.id,
+                    draft,
+                    &canonical_key,
+                    incoming_detail_score,
+                    GearAtlasExternalImportAction::Updated.as_str(),
+                )
+                .await?;
+            return Ok(GearAtlasExternalImportResult {
+                action: GearAtlasExternalImportAction::Updated,
+                item,
+            });
+        }
+
+        if let Some(existing) = self.find_by_source_key(&draft.source_key).await? {
+            if existing.status == GearAtlasStatus::Approved && !existing.is_deleted {
+                self.record_import_source(
+                    &existing.id,
+                    draft,
+                    &canonical_key,
+                    GearAtlasExternalImportAction::SkippedApproved.as_str(),
+                )
+                .await?;
+                return Ok(GearAtlasExternalImportResult {
+                    action: GearAtlasExternalImportAction::SkippedApproved,
+                    item: existing,
+                });
+            }
+            let item = self
+                .refresh_external_import(
+                    &existing.id,
+                    draft,
+                    &canonical_key,
+                    incoming_detail_score,
+                    GearAtlasExternalImportAction::Updated.as_str(),
+                )
+                .await?;
+            return Ok(GearAtlasExternalImportResult {
+                action: GearAtlasExternalImportAction::Updated,
+                item,
+            });
+        }
+
+        if let Some(candidate) = self.find_best_import_source(&canonical_key).await?
+            && let Some(existing) = self.get_any(&candidate.atlas_item_id).await?
+        {
+            if existing.status == GearAtlasStatus::Approved && !existing.is_deleted {
+                self.record_import_source(
+                    &existing.id,
+                    draft,
+                    &canonical_key,
+                    GearAtlasExternalImportAction::SkippedApproved.as_str(),
+                )
+                .await?;
+                return Ok(GearAtlasExternalImportResult {
+                    action: GearAtlasExternalImportAction::SkippedApproved,
+                    item: existing,
+                });
+            }
+            if incoming_detail_score < candidate.detail_score {
+                self.record_import_source(
+                    &existing.id,
+                    draft,
+                    &canonical_key,
+                    GearAtlasExternalImportAction::SkippedLessDetailed.as_str(),
+                )
+                .await?;
+                return Ok(GearAtlasExternalImportResult {
+                    action: GearAtlasExternalImportAction::SkippedLessDetailed,
+                    item: existing,
+                });
+            }
+            let item = self
+                .refresh_external_import(
+                    &existing.id,
+                    draft,
+                    &canonical_key,
+                    incoming_detail_score,
+                    GearAtlasExternalImportAction::Updated.as_str(),
+                )
+                .await?;
             return Ok(GearAtlasExternalImportResult {
                 action: GearAtlasExternalImportAction::Updated,
                 item,
@@ -202,12 +325,18 @@ impl GearAtlasRepository {
             ),
         ))
         .await?;
-        upsert_zh_localization(
+        upsert_external_localizations(&tx, self.db.get_database_backend(), &id, draft).await?;
+        upsert_import_source(
             &tx,
             self.db.get_database_backend(),
-            &id,
-            &draft.name,
-            draft.description.clone(),
+            ImportSourceUpsert {
+                atlas_item_id: &id,
+                draft,
+                canonical_key: &canonical_key,
+                detail_score: incoming_detail_score,
+                action: GearAtlasExternalImportAction::Created.as_str(),
+                now: &now,
+            },
         )
         .await?;
         tx.commit().await?;
@@ -300,6 +429,133 @@ impl GearAtlasRepository {
         Ok(category.label().to_owned())
     }
 
+    /// Builds a locale-resolved display copy without changing canonical fields.
+    ///
+    /// Administrator review endpoints need both the original editable fields and
+    /// the locale overlay used by public atlas clients. Returning a copy keeps
+    /// the caller from accidentally persisting translated display text back over
+    /// the source row.
+    pub async fn localized_display_item(
+        &self,
+        item: &GearAtlasItem,
+        locale: Locale,
+    ) -> Result<GearAtlasItem, DbErr> {
+        let mut display = item.clone();
+        self.localize_public_item(&mut display, locale).await?;
+        Ok(display)
+    }
+
+    /// Lists pending external-import items that need a target-locale display row.
+    ///
+    /// This is intentionally scoped to localization backfills: it does not expose
+    /// source keys and does not mutate the canonical atlas row.
+    pub async fn list_external_import_localization_backfill_candidates(
+        &self,
+        source_locale: Locale,
+        target_locale: Locale,
+        limit: u64,
+    ) -> Result<Vec<GearAtlasItem>, DbErr> {
+        let limit = limit.clamp(1, 1_000);
+        let sql = format!(
+            "{} WHERE status = 'pending' AND is_deleted = FALSE \
+             AND EXISTS ( \
+                 SELECT 1 FROM gear_atlas_import_sources s \
+                 WHERE s.atlas_item_id = gear_atlas_items.id AND s.source_locale = ? \
+             ) \
+             AND ( \
+                 NOT EXISTS ( \
+                     SELECT 1 FROM gear_atlas_item_localizations l \
+                     WHERE l.atlas_item_id = gear_atlas_items.id AND l.locale = ? \
+                 ) \
+                 OR EXISTS ( \
+                     SELECT 1 FROM gear_atlas_item_localizations l \
+                     WHERE l.atlas_item_id = gear_atlas_items.id \
+                       AND l.locale = ? \
+                       AND l.name = gear_atlas_items.name \
+                       AND COALESCE(l.translation_status, '') <> 'needs_review' \
+                 ) \
+             ) \
+             ORDER BY created_at DESC, id DESC LIMIT ?",
+            atlas_select_columns()
+        );
+        self.query_items(
+            sql,
+            vec![
+                source_locale.as_str().to_owned().into(),
+                target_locale.as_str().to_owned().into(),
+                target_locale.as_str().to_owned().into(),
+                (limit as i64).into(),
+            ],
+        )
+        .await
+    }
+
+    /// Upserts a single display localization without touching canonical item fields.
+    pub async fn upsert_item_localization(
+        &self,
+        id: &str,
+        localization: &GearAtlasLocalizationDraft,
+    ) -> Result<(), DbErr> {
+        upsert_localization(&self.db, self.db.get_database_backend(), id, localization).await
+    }
+
+    /// Reads every stored display localization for one atlas item.
+    pub async fn list_item_localizations(
+        &self,
+        id: &str,
+    ) -> Result<Vec<GearAtlasLocalizationDraft>, DbErr> {
+        let rows = self
+            .db
+            .query_all(statement(
+                self.db.get_database_backend(),
+                "SELECT locale, name, description, variants_json, specs_json,
+                        translation_status, translation_provider, translated_at
+                   FROM gear_atlas_item_localizations
+                  WHERE atlas_item_id = ?
+                  ORDER BY CASE locale WHEN 'zh-CN' THEN 0 WHEN 'en' THEN 1 ELSE 2 END",
+                vec![id.to_owned().into()],
+            ))
+            .await?;
+        rows.into_iter().map(localization_from_row).collect()
+    }
+
+    /// Reads one stored display localization for an atlas item and locale.
+    pub async fn get_item_localization(
+        &self,
+        id: &str,
+        locale: Locale,
+    ) -> Result<Option<GearAtlasLocalizationDraft>, DbErr> {
+        let row = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                "SELECT locale, name, description, variants_json, specs_json,
+                        translation_status, translation_provider, translated_at
+                   FROM gear_atlas_item_localizations
+                  WHERE atlas_item_id = ? AND locale = ?
+                  LIMIT 1",
+                vec![id.to_owned().into(), locale.as_str().to_owned().into()],
+            ))
+            .await?;
+        row.map(localization_from_row).transpose()
+    }
+
+    /// Computes the bilingual review status used by admin approval.
+    pub async fn localization_review_statuses(
+        &self,
+        item: &GearAtlasItem,
+    ) -> Result<Vec<GearAtlasLocalizationReviewStatus>, DbErr> {
+        let localizations = self.list_item_localizations(&item.id).await?;
+        let by_locale = localizations
+            .iter()
+            .map(|localization| (localization.locale, localization))
+            .collect::<HashMap<_, _>>();
+        Ok([Locale::ZhCn, Locale::En]
+            .into_iter()
+            .map(|locale| localization_review_status(item, locale, by_locale.get(&locale).copied()))
+            .collect())
+    }
+
     async fn localize_public_items(
         &self,
         items: &mut [GearAtlasItem],
@@ -321,16 +577,28 @@ impl GearAtlasRepository {
                 .db
                 .query_one(statement(
                     self.db.get_database_backend(),
-                    "SELECT name, description FROM gear_atlas_item_localizations WHERE atlas_item_id = ? AND locale = ?",
-                    vec![
-                        item.id.clone().into(),
-                        candidate.as_str().to_owned().into(),
-                    ],
+                    "SELECT name, description, variants_json, specs_json \
+                     FROM gear_atlas_item_localizations WHERE atlas_item_id = ? AND locale = ?",
+                    vec![item.id.clone().into(), candidate.as_str().to_owned().into()],
                 ))
                 .await?;
             if let Some(row) = row {
                 item.name = row.try_get("", "name")?;
                 item.description = row.try_get("", "description")?;
+                let variants_json: Option<String> = row.try_get("", "variants_json")?;
+                if let Some(variants) = variants_json
+                    .as_deref()
+                    .and_then(|value| serde_json::from_str::<GearVariants>(value).ok())
+                {
+                    item.variants = variants;
+                }
+                let specs_json: Option<String> = row.try_get("", "specs_json")?;
+                if let Some(specs) = specs_json
+                    .as_deref()
+                    .and_then(|value| serde_json::from_str::<GearSpecs>(value).ok())
+                {
+                    item.specs = specs;
+                }
                 return Ok(());
             }
         }
@@ -469,12 +737,20 @@ impl GearAtlasRepository {
             tx.rollback().await?;
             return Ok(None);
         }
-        upsert_zh_localization(
+        upsert_localization(
             &tx,
             self.db.get_database_backend(),
             id,
-            &draft.name,
-            draft.description.clone(),
+            &GearAtlasLocalizationDraft {
+                locale: Locale::ZhCn,
+                name: draft.name.clone(),
+                description: draft.description.clone(),
+                variants: draft.variants.clone(),
+                specs: draft.specs.clone(),
+                translation_status: None,
+                translation_provider: None,
+                translated_at: None,
+            },
         )
         .await?;
         tx.commit().await?;
@@ -581,6 +857,9 @@ impl GearAtlasRepository {
         &self,
         id: &str,
         draft: &GearAtlasExternalImportDraft,
+        canonical_key: &str,
+        detail_score: i32,
+        action: &str,
     ) -> Result<GearAtlasItem, DbErr> {
         let now = now_atlas_rfc3339();
         let specs_json = json_string(&draft.specs)?;
@@ -626,23 +905,94 @@ impl GearAtlasRepository {
                 now.clone().into(),
                 draft.source_rating_score.into(),
                 draft.source_rating_count.into(),
-                now.into(),
+                now.clone().into(),
                 id.to_owned().into(),
             ],
         ))
         .await?;
-        upsert_zh_localization(
+        upsert_external_localizations(&tx, self.db.get_database_backend(), id, draft).await?;
+        upsert_import_source(
             &tx,
             self.db.get_database_backend(),
-            id,
-            &draft.name,
-            draft.description.clone(),
+            ImportSourceUpsert {
+                atlas_item_id: id,
+                draft,
+                canonical_key,
+                detail_score,
+                action,
+                now: &now,
+            },
         )
         .await?;
         tx.commit().await?;
         self.get_any(id)
             .await?
             .ok_or_else(|| DbErr::Custom("updated gear atlas import not found".to_owned()))
+    }
+
+    async fn find_import_source(
+        &self,
+        source_key: &str,
+    ) -> Result<Option<ImportSourceLookup>, DbErr> {
+        let row = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                "SELECT atlas_item_id FROM gear_atlas_import_sources WHERE source_key = ? LIMIT 1",
+                vec![source_key.to_owned().into()],
+            ))
+            .await?;
+        row.map(|row| {
+            Ok(ImportSourceLookup {
+                atlas_item_id: row.try_get("", "atlas_item_id")?,
+            })
+        })
+        .transpose()
+    }
+
+    async fn find_best_import_source(
+        &self,
+        canonical_key: &str,
+    ) -> Result<Option<CanonicalImportMatch>, DbErr> {
+        let row = self
+            .db
+            .query_one(statement(
+                self.db.get_database_backend(),
+                "SELECT atlas_item_id, detail_score FROM gear_atlas_import_sources \
+                 WHERE canonical_key = ? ORDER BY detail_score DESC, updated_at DESC LIMIT 1",
+                vec![canonical_key.to_owned().into()],
+            ))
+            .await?;
+        row.map(|row| {
+            Ok(CanonicalImportMatch {
+                atlas_item_id: row.try_get("", "atlas_item_id")?,
+                detail_score: row.try_get("", "detail_score")?,
+            })
+        })
+        .transpose()
+    }
+
+    async fn record_import_source(
+        &self,
+        atlas_item_id: &str,
+        draft: &GearAtlasExternalImportDraft,
+        canonical_key: &str,
+        action: &str,
+    ) -> Result<(), DbErr> {
+        let now = now_atlas_rfc3339();
+        upsert_import_source(
+            &self.db,
+            self.db.get_database_backend(),
+            ImportSourceUpsert {
+                atlas_item_id,
+                draft,
+                canonical_key,
+                detail_score: detail_score_for_import(draft),
+                action,
+                now: &now,
+            },
+        )
+        .await
     }
 
     /// Soft-deletes a submission or public atlas record.
@@ -784,26 +1134,277 @@ fn atlas_select_columns() -> &'static str {
        FROM gear_atlas_items"#
 }
 
-async fn upsert_zh_localization(
+async fn upsert_external_localizations(
     db: &impl ConnectionTrait,
     backend: DatabaseBackend,
     id: &str,
-    name: &str,
-    description: Option<String>,
+    draft: &GearAtlasExternalImportDraft,
 ) -> Result<(), DbErr> {
+    if draft.localizations.is_empty() {
+        let localization = GearAtlasLocalizationDraft {
+            locale: Locale::ZhCn,
+            name: draft.name.clone(),
+            description: draft.description.clone(),
+            variants: draft.variants.clone(),
+            specs: draft.specs.clone(),
+            translation_status: None,
+            translation_provider: None,
+            translated_at: None,
+        };
+        return upsert_localization(db, backend, id, &localization).await;
+    }
+
+    for localization in &draft.localizations {
+        upsert_localization(db, backend, id, localization).await?;
+    }
+    Ok(())
+}
+
+async fn upsert_localization(
+    db: &impl ConnectionTrait,
+    backend: DatabaseBackend,
+    id: &str,
+    localization: &GearAtlasLocalizationDraft,
+) -> Result<(), DbErr> {
+    let variants_json = variants_json(&localization.variants)?;
+    let specs_json = json_string(&localization.specs)?;
     db.execute(statement(
         backend,
-        "INSERT INTO gear_atlas_item_localizations(atlas_item_id, locale, name, description) \
-         VALUES (?, ?, ?, ?) ON CONFLICT(atlas_item_id, locale) DO UPDATE SET name = excluded.name, description = excluded.description",
+        "INSERT INTO gear_atlas_item_localizations(
+             atlas_item_id, locale, name, description, variants_json, specs_json,
+             translation_status, translation_provider, translated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(atlas_item_id, locale) DO UPDATE SET
+             name = excluded.name,
+             description = excluded.description,
+             variants_json = excluded.variants_json,
+             specs_json = excluded.specs_json,
+             translation_status = excluded.translation_status,
+             translation_provider = excluded.translation_provider,
+             translated_at = excluded.translated_at",
         vec![
             id.to_owned().into(),
-            Locale::ZhCn.as_str().to_owned().into(),
-            name.to_owned().into(),
-            description.into(),
+            localization.locale.as_str().to_owned().into(),
+            localization.name.clone().into(),
+            localization.description.clone().into(),
+            variants_json.into(),
+            specs_json.into(),
+            localization.translation_status.clone().into(),
+            localization.translation_provider.clone().into(),
+            localization.translated_at.clone().into(),
         ],
     ))
     .await?;
     Ok(())
+}
+
+fn localization_from_row(row: QueryResult) -> Result<GearAtlasLocalizationDraft, DbErr> {
+    let locale_value: String = row.try_get("", "locale")?;
+    let Some(locale) = Locale::parse(&locale_value) else {
+        return Err(DbErr::Custom(format!(
+            "unsupported gear atlas localization locale: {locale_value}"
+        )));
+    };
+    let variants_json: Option<String> = row.try_get("", "variants_json")?;
+    let specs_json: Option<String> = row.try_get("", "specs_json")?;
+    Ok(GearAtlasLocalizationDraft {
+        locale,
+        name: row.try_get("", "name")?,
+        description: row.try_get("", "description")?,
+        variants: variants_json
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .map(serde_json::from_str::<GearVariants>)
+            .transpose()
+            .map_err(|error| DbErr::Custom(format!("invalid variants_json: {error}")))?
+            .unwrap_or_default(),
+        specs: specs_json
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .map(serde_json::from_str::<GearSpecs>)
+            .transpose()
+            .map_err(|error| DbErr::Custom(format!("invalid specs_json: {error}")))?
+            .unwrap_or_default(),
+        translation_status: row.try_get("", "translation_status")?,
+        translation_provider: row.try_get("", "translation_provider")?,
+        translated_at: row.try_get("", "translated_at")?,
+    })
+}
+
+fn localization_review_status(
+    item: &GearAtlasItem,
+    locale: Locale,
+    localization: Option<&GearAtlasLocalizationDraft>,
+) -> GearAtlasLocalizationReviewStatus {
+    let Some(localization) = localization else {
+        let mut missing_fields = vec!["name".to_owned(), "description".to_owned()];
+        if !item.variants.is_empty() {
+            missing_fields.push("variants".to_owned());
+        }
+        if !item.specs.is_empty() {
+            missing_fields.push("specs".to_owned());
+        }
+        return GearAtlasLocalizationReviewStatus {
+            locale,
+            state: GearAtlasLocalizationReviewState::Missing,
+            missing_fields,
+            translation_status: None,
+        };
+    };
+
+    let mut missing_fields = Vec::new();
+    if localization.name.trim().is_empty() {
+        missing_fields.push("name".to_owned());
+    }
+    if localization
+        .description
+        .as_deref()
+        .is_none_or(|value| value.trim().is_empty())
+    {
+        missing_fields.push("description".to_owned());
+    }
+    if !item.variants.is_empty() && localization.variants.is_empty() {
+        missing_fields.push("variants".to_owned());
+    }
+    if !item.specs.is_empty() && localization.specs.is_empty() {
+        missing_fields.push("specs".to_owned());
+    }
+
+    let state = if missing_fields.is_empty()
+        && localization.translation_status.as_deref()
+            == Some(GEAR_ATLAS_LOCALIZATION_STATUS_REVIEWED)
+    {
+        GearAtlasLocalizationReviewState::Reviewed
+    } else if localization.translation_status.as_deref()
+        == Some(GEAR_ATLAS_LOCALIZATION_STATUS_DRAFT)
+    {
+        GearAtlasLocalizationReviewState::Draft
+    } else {
+        GearAtlasLocalizationReviewState::NeedsReview
+    };
+
+    GearAtlasLocalizationReviewStatus {
+        locale,
+        state,
+        missing_fields,
+        translation_status: localization.translation_status.clone(),
+    }
+}
+
+async fn upsert_import_source(
+    db: &impl ConnectionTrait,
+    backend: DatabaseBackend,
+    record: ImportSourceUpsert<'_>,
+) -> Result<(), DbErr> {
+    let ImportSourceUpsert {
+        atlas_item_id,
+        draft,
+        canonical_key,
+        detail_score,
+        action,
+        now,
+    } = record;
+    let source_locale = draft.source_locale.unwrap_or(Locale::ZhCn);
+    db.execute(statement(
+        backend,
+        "INSERT INTO gear_atlas_import_sources(
+             source_key, canonical_key, atlas_item_id, source_name, source_url, source_locale,
+             detail_score, last_seen_batch_id, last_seen_at, last_action, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(source_key) DO UPDATE SET
+             canonical_key = excluded.canonical_key,
+             atlas_item_id = excluded.atlas_item_id,
+             source_name = excluded.source_name,
+             source_url = excluded.source_url,
+             source_locale = excluded.source_locale,
+             detail_score = excluded.detail_score,
+             last_seen_batch_id = excluded.last_seen_batch_id,
+             last_seen_at = excluded.last_seen_at,
+             last_action = excluded.last_action,
+             updated_at = excluded.updated_at",
+        vec![
+            draft.source_key.clone().into(),
+            canonical_key.to_owned().into(),
+            atlas_item_id.to_owned().into(),
+            draft.source_name.clone().into(),
+            draft.source_url.clone().into(),
+            source_locale.as_str().to_owned().into(),
+            detail_score.into(),
+            draft.import_batch_id.clone().into(),
+            now.to_owned().into(),
+            action.to_owned().into(),
+            now.to_owned().into(),
+            now.to_owned().into(),
+        ],
+    ))
+    .await?;
+    Ok(())
+}
+
+fn canonical_key_for_import(draft: &GearAtlasExternalImportDraft) -> String {
+    if let Some(key) = draft.canonical_key.as_deref() {
+        return key.to_owned();
+    }
+    let mut input = format!(
+        "{}|{}|{}|{}|{}",
+        draft.category.as_str(),
+        canonical_part(draft.brand.as_deref()),
+        canonical_part(draft.model.as_deref()),
+        canonical_part(Some(&draft.name)),
+        draft.weight_g.unwrap_or_default(),
+    );
+    for key in ["capacity", "people_count", "temperature_or_r_value", "type"] {
+        if let Some(value) = draft.specs.get(key) {
+            input.push('|');
+            input.push_str(key);
+            input.push('=');
+            input.push_str(&canonical_part(Some(value)));
+        }
+    }
+    let digest = Sha256::digest(input.as_bytes());
+    format!("external-gear:v1:{}", hex::encode(&digest[..16]))
+}
+
+fn canonical_part(value: Option<&str>) -> String {
+    value
+        .unwrap_or_default()
+        .chars()
+        .filter(|ch| !ch.is_whitespace() && *ch != '-' && *ch != '_')
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn detail_score_for_import(draft: &GearAtlasExternalImportDraft) -> i32 {
+    if let Some(score) = draft.detail_score {
+        return score;
+    }
+    let mut score = 0;
+    score += 10;
+    if draft.brand.is_some() {
+        score += 8;
+    }
+    if draft.model.is_some() {
+        score += 8;
+    }
+    if draft.description.is_some() {
+        score += 3;
+    }
+    if draft.weight_g.is_some() {
+        score += 10;
+    }
+    if draft.official_price_cents.is_some() {
+        score += 6;
+    }
+    if draft.source_rating_score.is_some() {
+        score += 4;
+    }
+    if draft.source_rating_count.is_some() {
+        score += 4;
+    }
+    score += (draft.specs.len() as i32) * 5;
+    score += (draft.variants.len() as i32) * 3;
+    score += (draft.localizations.len() as i32) * 5;
+    score
 }
 
 fn apply_deleted_filter(clauses: &mut Vec<String>, deleted: DeletedFilter) {
