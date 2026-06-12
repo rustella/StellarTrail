@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StellarTrailApiError } from "@stellartrail/api-client";
 import type {
   AdminFeedbackItem,
+  AppLocale,
   ClientKey,
   ClientVersion,
   ClientVersionReleaseNoteSection,
@@ -10,6 +11,8 @@ import type {
   CreateGearRequest,
   DeletedFilter,
   GearAtlasPublicItem,
+  GearAtlasLocalization,
+  GearAtlasLocalizationReviewStatus,
   GearCategory,
   GearCategoryFilter,
   GearCurrency,
@@ -23,6 +26,7 @@ import type {
   GearSummary,
   GearTab,
   GearVariant,
+  UpdateGearAtlasLocalizationRequest,
   UpdateGearAtlasSubmissionRequest,
   WechatLoginResponse,
 } from "@stellartrail/shared-types";
@@ -54,6 +58,7 @@ import {
   joinGearName,
   toPriceCents,
 } from "./formatters";
+import { detectPreferredAppLocale } from "./locale";
 import {
   clearSession,
   loadSession,
@@ -165,6 +170,13 @@ interface AtlasReviewFormState {
   specs: GearSpecs;
 }
 
+interface AtlasLocalizationFormState {
+  name: string;
+  description: string;
+  variants: GearVariant[];
+  specs: GearSpecs;
+}
+
 const EMPTY_STATS: GearStatsResponse = {
   current_count: 0,
   archived_count: 0,
@@ -207,6 +219,7 @@ const emptyForm: GearFormState = {
 
 const THEME_STORAGE_KEY = "stellartrail.web.theme";
 const ATLAS_REVIEW_PAGE_SIZE = 20;
+const WEB_APP_LOCALE: AppLocale = detectPreferredAppLocale();
 
 const CLIENT_VERSION_CLIENT_OPTIONS: Array<{ id: ClientKey; label: string }> = [
   { id: "wechat_miniprogram", label: "微信小程序" },
@@ -316,6 +329,8 @@ export default function App({ client }: AppProps) {
     "pending",
   );
   const [atlasDeleted, setAtlasDeleted] = useState<DeletedFilter>("active");
+  const [atlasReviewLocale, setAtlasReviewLocale] =
+    useState<AppLocale>(WEB_APP_LOCALE);
   const [atlasSubmissions, setAtlasSubmissions] = useState<
     GearAtlasSubmission[]
   >([]);
@@ -463,12 +478,15 @@ export default function App({ client }: AppProps) {
       const requestId = atlasRequestRef.current;
       setAtlasError(null);
       try {
-        const response = await api.listAdminGearAtlasSubmissions({
-          status: atlasStatus || undefined,
-          deleted: atlasDeleted,
-          limit: ATLAS_REVIEW_PAGE_SIZE,
-          cursor: options.cursor || undefined,
-        });
+        const response = await api.listAdminGearAtlasSubmissions(
+          {
+            status: atlasStatus || undefined,
+            deleted: atlasDeleted,
+            limit: ATLAS_REVIEW_PAGE_SIZE,
+            cursor: options.cursor || undefined,
+          },
+          atlasReviewLocale,
+        );
         if (requestId !== atlasRequestRef.current) {
           return;
         }
@@ -512,7 +530,7 @@ export default function App({ client }: AppProps) {
         }
       }
     },
-    [activePage, api, atlasDeleted, atlasStatus, session],
+    [activePage, api, atlasDeleted, atlasReviewLocale, atlasStatus, session],
   );
 
   useEffect(() => {
@@ -875,7 +893,7 @@ export default function App({ client }: AppProps) {
       if (item.atlas_item_id) {
         try {
           setFormAtlasItem(
-            await api.getGearAtlasItem(item.atlas_item_id, "zh-CN"),
+            await api.getGearAtlasItem(item.atlas_item_id, WEB_APP_LOCALE),
           );
         } catch {
           setFormAtlasItem(null);
@@ -945,7 +963,7 @@ export default function App({ client }: AppProps) {
       if (item.atlas_item_id) {
         try {
           setDetailAtlasItem(
-            await api.getGearAtlasItem(item.atlas_item_id, "zh-CN"),
+            await api.getGearAtlasItem(item.atlas_item_id, WEB_APP_LOCALE),
           );
         } catch {
           setDetailAtlasItem(null);
@@ -1078,7 +1096,9 @@ export default function App({ client }: AppProps) {
     setSubmitting(true);
     setAtlasError(null);
     try {
-      setAtlasDetail(await api.getAdminGearAtlasSubmission(id));
+      setAtlasDetail(
+        await api.getAdminGearAtlasSubmission(id, atlasReviewLocale),
+      );
     } catch (err) {
       setAtlasError(errorMessage(err));
     } finally {
@@ -1090,7 +1110,10 @@ export default function App({ client }: AppProps) {
     setSubmitting(true);
     setAtlasError(null);
     try {
-      const updated = await api.approveGearAtlasSubmission(id);
+      const updated = await api.approveGearAtlasSubmission(
+        id,
+        atlasReviewLocale,
+      );
       setAtlasDetail(updated);
       await loadAtlasSubmissions();
     } catch (err) {
@@ -1107,7 +1130,55 @@ export default function App({ client }: AppProps) {
     setSubmitting(true);
     setAtlasError(null);
     try {
-      const updated = await api.updateAdminGearAtlasSubmission(id, request);
+      const updated = await api.updateAdminGearAtlasSubmission(
+        id,
+        request,
+        atlasReviewLocale,
+      );
+      setAtlasDetail(updated);
+      await loadAtlasSubmissions();
+    } catch (err) {
+      setAtlasError(errorMessage(err));
+      throw err;
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function updateAtlasLocalization(
+    id: string,
+    locale: AppLocale,
+    request: UpdateGearAtlasLocalizationRequest,
+  ) {
+    setSubmitting(true);
+    setAtlasError(null);
+    try {
+      const updated = await api.updateAdminGearAtlasLocalization(
+        id,
+        locale,
+        request,
+        atlasReviewLocale,
+      );
+      setAtlasDetail(updated);
+      await loadAtlasSubmissions();
+    } catch (err) {
+      setAtlasError(errorMessage(err));
+      throw err;
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function generateAtlasLocalizationDraft(id: string, locale: AppLocale) {
+    setSubmitting(true);
+    setAtlasError(null);
+    try {
+      const updated = await api.generateAdminGearAtlasLocalizationDraft(
+        id,
+        locale,
+        {},
+        atlasReviewLocale,
+      );
       setAtlasDetail(updated);
       await loadAtlasSubmissions();
     } catch (err) {
@@ -1122,9 +1193,13 @@ export default function App({ client }: AppProps) {
     setSubmitting(true);
     setAtlasError(null);
     try {
-      const updated = await api.rejectGearAtlasSubmission(id, {
-        reason: reason.trim(),
-      });
+      const updated = await api.rejectGearAtlasSubmission(
+        id,
+        {
+          reason: reason.trim(),
+        },
+        atlasReviewLocale,
+      );
       setAtlasDetail(updated);
       await loadAtlasSubmissions();
     } catch (err) {
@@ -1141,7 +1216,7 @@ export default function App({ client }: AppProps) {
     setSubmitting(true);
     setAtlasError(null);
     try {
-      await api.deleteAdminGearAtlasSubmission(id);
+      await api.deleteAdminGearAtlasSubmission(id, atlasReviewLocale);
       setAtlasDetail(null);
       await loadAtlasSubmissions();
     } catch (err) {
@@ -1155,7 +1230,10 @@ export default function App({ client }: AppProps) {
     setSubmitting(true);
     setAtlasError(null);
     try {
-      const restored = await api.restoreAdminGearAtlasSubmission(id);
+      const restored = await api.restoreAdminGearAtlasSubmission(
+        id,
+        atlasReviewLocale,
+      );
       setAtlasDetail(restored);
       await loadAtlasSubmissions();
     } catch (err) {
@@ -1957,6 +2035,7 @@ export default function App({ client }: AppProps) {
             selected={atlasDetail}
             status={atlasStatus}
             deleted={atlasDeleted}
+            reviewLocale={atlasReviewLocale}
             loading={atlasLoading}
             loadingMore={atlasLoadingMore}
             submitting={submitting}
@@ -1980,6 +2059,15 @@ export default function App({ client }: AppProps) {
               setAtlasNextCursor(null);
               setAtlasLoadingMore(false);
             }}
+            onReviewLocaleChange={(nextLocale) => {
+              atlasRequestRef.current += 1;
+              atlasLoadMoreInFlightRef.current = false;
+              setAtlasReviewLocale(nextLocale);
+              setAtlasSubmissions([]);
+              setAtlasDetail(null);
+              setAtlasNextCursor(null);
+              setAtlasLoadingMore(false);
+            }}
             onRefresh={() => void loadAtlasSubmissions()}
             onLoadMore={() => {
               if (!atlasNextCursor) {
@@ -1992,6 +2080,8 @@ export default function App({ client }: AppProps) {
             }}
             onOpen={openAtlasSubmission}
             onUpdate={updateAtlasSubmission}
+            onUpdateLocalization={updateAtlasLocalization}
+            onGenerateLocalizationDraft={generateAtlasLocalizationDraft}
             onApprove={approveAtlasSubmission}
             onDelete={deleteAtlasSubmission}
             onRestore={restoreAtlasSubmission}
@@ -2082,6 +2172,7 @@ function AtlasReviewPage({
   selected,
   status,
   deleted,
+  reviewLocale,
   loading,
   loadingMore,
   submitting,
@@ -2089,10 +2180,13 @@ function AtlasReviewPage({
   hasMore,
   onStatusChange,
   onDeletedChange,
+  onReviewLocaleChange,
   onRefresh,
   onLoadMore,
   onOpen,
   onUpdate,
+  onUpdateLocalization,
+  onGenerateLocalizationDraft,
   onApprove,
   onDelete,
   onRestore,
@@ -2102,6 +2196,7 @@ function AtlasReviewPage({
   selected: GearAtlasSubmission | null;
   status: "" | GearAtlasStatus;
   deleted: DeletedFilter;
+  reviewLocale: AppLocale;
   loading: boolean;
   loadingMore: boolean;
   submitting: boolean;
@@ -2109,6 +2204,7 @@ function AtlasReviewPage({
   hasMore: boolean;
   onStatusChange(status: "" | GearAtlasStatus): void;
   onDeletedChange(deleted: DeletedFilter): void;
+  onReviewLocaleChange(locale: AppLocale): void;
   onRefresh(): void;
   onLoadMore(): void;
   onOpen(id: string): Promise<void> | void;
@@ -2116,12 +2212,23 @@ function AtlasReviewPage({
     id: string,
     request: UpdateGearAtlasSubmissionRequest,
   ): Promise<void> | void;
+  onUpdateLocalization(
+    id: string,
+    locale: AppLocale,
+    request: UpdateGearAtlasLocalizationRequest,
+  ): Promise<void> | void;
+  onGenerateLocalizationDraft(
+    id: string,
+    locale: AppLocale,
+  ): Promise<void> | void;
   onApprove(id: string): Promise<void> | void;
   onDelete(id: string): Promise<void> | void;
   onRestore(id: string): Promise<void> | void;
   onReject(id: string, reason: string): Promise<void> | void;
 }) {
   const [form, setForm] = useState<AtlasReviewFormState | null>(null);
+  const [localizationForm, setLocalizationForm] =
+    useState<AtlasLocalizationFormState | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectError, setRejectError] = useState<string | null>(null);
@@ -2129,14 +2236,26 @@ function AtlasReviewPage({
 
   useEffect(() => {
     setForm(selected ? atlasReviewFormFromSubmission(selected) : null);
+    setLocalizationForm(
+      selected
+        ? atlasLocalizationFormFromSubmission(selected, reviewLocale)
+        : null,
+    );
     setFormError(null);
     setRejectReason("");
     setRejectError(null);
-  }, [selected]);
+  }, [reviewLocale, selected]);
 
   const specFields = useMemo(
     () => (form ? getGearAtlasSpecFieldViews(form.category, form.specs) : []),
     [form],
+  );
+  const localizationSpecFields = useMemo(
+    () =>
+      selected && localizationForm
+        ? getGearAtlasSpecFieldViews(selected.category, localizationForm.specs)
+        : [],
+    [localizationForm, selected],
   );
 
   const isDirty = useMemo(
@@ -2151,6 +2270,30 @@ function AtlasReviewPage({
       ),
     [form, selected],
   );
+  const isLocalizationDirty = useMemo(
+    () =>
+      Boolean(
+        selected &&
+        localizationForm &&
+        !atlasLocalizationPayloadsEqual(
+          atlasLocalizationPayloadFromSubmission(selected, reviewLocale),
+          atlasLocalizationPayloadFromForm(
+            localizationForm,
+            false,
+            selected.category,
+          ),
+        ),
+      ),
+    [localizationForm, reviewLocale, selected],
+  );
+  const localizationStatuses = selected?.localization_statuses ?? [];
+  const approvalBlockers = selected
+    ? atlasLocalizationApprovalBlockers(selected, isLocalizationDirty)
+    : [];
+  const otherLocale: AppLocale = reviewLocale === "zh-CN" ? "en" : "zh-CN";
+  const otherLocalization = selected
+    ? findAtlasLocalization(selected, otherLocale)
+    : null;
 
   const handleListScroll = useCallback(
     (event: React.UIEvent<HTMLElement>) => {
@@ -2219,6 +2362,115 @@ function AtlasReviewPage({
         : current,
     );
   };
+  const updateLocalizationVariant = (
+    index: number,
+    patch: Partial<GearVariant>,
+  ) => {
+    setLocalizationForm((current) =>
+      current
+        ? {
+            ...current,
+            variants: current.variants.map((variant, currentIndex) =>
+              currentIndex === index ? { ...variant, ...patch } : variant,
+            ),
+          }
+        : current,
+    );
+  };
+  const addLocalizationVariant = () => {
+    setLocalizationForm((current) =>
+      current
+        ? {
+            ...current,
+            variants: [
+              ...current.variants,
+              {
+                key: "",
+                label: "",
+                official_price_cents: null,
+                official_price_currency: form?.officialPriceCurrency ?? "CNY",
+                weight_g: null,
+              },
+            ],
+          }
+        : current,
+    );
+  };
+  const removeLocalizationVariant = (index: number) => {
+    setLocalizationForm((current) =>
+      current
+        ? {
+            ...current,
+            variants: current.variants.filter(
+              (_, currentIndex) => currentIndex !== index,
+            ),
+          }
+        : current,
+    );
+  };
+  const updateLocalizationSpecValue = (
+    key: string,
+    value: string,
+    unit?: string,
+  ) => {
+    setLocalizationForm((current) =>
+      current
+        ? {
+            ...current,
+            specs: {
+              ...current.specs,
+              [key]: combineSpecValue(value, unit),
+            },
+          }
+        : current,
+    );
+  };
+  const saveLocalization = async (markReviewed: boolean) => {
+    if (!selected || !localizationForm) return;
+    try {
+      setFormError(null);
+      await onUpdateLocalization(
+        selected.id,
+        reviewLocale,
+        atlasLocalizationPayloadFromForm(
+          localizationForm,
+          markReviewed,
+          selected.category,
+        ),
+      );
+    } catch (err) {
+      setFormError(errorMessage(err));
+    }
+  };
+  const generateLocalizationDraft = async () => {
+    if (!selected) return;
+    if (
+      isLocalizationDirty &&
+      !window.confirm(
+        "当前语言内容尚未保存，生成草稿会覆盖未保存修改。继续吗？",
+      )
+    ) {
+      return;
+    }
+    try {
+      setFormError(null);
+      await onGenerateLocalizationDraft(selected.id, reviewLocale);
+    } catch (err) {
+      setFormError(errorMessage(err));
+    }
+  };
+  const changeReviewLocale = (nextLocale: AppLocale) => {
+    if (nextLocale === reviewLocale) {
+      return;
+    }
+    if (
+      isLocalizationDirty &&
+      !window.confirm("当前语言内容尚未保存，确定切换审核语言吗？")
+    ) {
+      return;
+    }
+    onReviewLocaleChange(nextLocale);
+  };
   const saveSelected = async () => {
     if (!selected || !form) return;
     try {
@@ -2232,6 +2484,14 @@ function AtlasReviewPage({
     if (!selected || !form) return;
     try {
       setFormError(null);
+      if (isLocalizationDirty) {
+        setFormError("请先保存当前语言内容，再通过审核。");
+        return;
+      }
+      if (approvalBlockers.length) {
+        setFormError(`双语审核未完成：${approvalBlockers.join("；")}`);
+        return;
+      }
       if (isDirty) {
         await onUpdate(selected.id, atlasReviewPayloadFromForm(form));
       }
@@ -2266,29 +2526,55 @@ function AtlasReviewPage({
           </p>
         </div>
         <div className="toolbar">
-          <select
-            aria-label="图鉴投稿状态"
-            value={status}
-            onChange={(event) =>
-              onStatusChange(event.target.value as "" | GearAtlasStatus)
-            }
-          >
-            <option value="pending">待审核</option>
-            <option value="approved">已通过</option>
-            <option value="rejected">已拒绝</option>
-            <option value="">全部状态</option>
-          </select>
-          <select
-            aria-label="图鉴删除状态"
-            value={deleted}
-            onChange={(event) =>
-              onDeletedChange(event.target.value as DeletedFilter)
-            }
-          >
-            <option value="active">未删除</option>
-            <option value="deleted">已删除</option>
-            <option value="all">全部记录</option>
-          </select>
+          <div className="atlas-locale-toggle" aria-label="审核语言">
+            <button
+              type="button"
+              className={
+                reviewLocale === "zh-CN" ? "segmented active" : "segmented"
+              }
+              onClick={() => changeReviewLocale("zh-CN")}
+            >
+              中文
+            </button>
+            <button
+              type="button"
+              className={
+                reviewLocale === "en" ? "segmented active" : "segmented"
+              }
+              onClick={() => changeReviewLocale("en")}
+            >
+              English
+            </button>
+          </div>
+          <span className="toolbar-select-shell">
+            <select
+              className="toolbar-select"
+              aria-label="图鉴投稿状态"
+              value={status}
+              onChange={(event) =>
+                onStatusChange(event.target.value as "" | GearAtlasStatus)
+              }
+            >
+              <option value="pending">待审核</option>
+              <option value="approved">已通过</option>
+              <option value="rejected">已拒绝</option>
+              <option value="">全部状态</option>
+            </select>
+          </span>
+          <span className="toolbar-select-shell">
+            <select
+              className="toolbar-select"
+              aria-label="图鉴删除状态"
+              value={deleted}
+              onChange={(event) =>
+                onDeletedChange(event.target.value as DeletedFilter)
+              }
+            >
+              <option value="active">未删除</option>
+              <option value="deleted">已删除</option>
+              <option value="all">全部记录</option>
+            </select>
+          </span>
           <button
             type="button"
             className="secondary-button"
@@ -2337,11 +2623,14 @@ function AtlasReviewPage({
               {item.is_deleted ? (
                 <span className="status-pill status-feedback-open">已删除</span>
               ) : null}
-              <strong>{joinGearName(item)}</strong>
+              <strong>{atlasDisplayName(item)}</strong>
               <small>
-                {item.category_label || categoryLabel(item.category)} ·{" "}
+                {atlasDisplayCategoryLabel(item)} ·{" "}
                 {atlasSourceLabel(item.source_type)}
               </small>
+              <span className="atlas-localization-badges">
+                {atlasLocalizationStatusBadges(item.localization_statuses)}
+              </span>
             </button>
           ))}
           {submissions.length > 0 && hasMore ? (
@@ -2367,10 +2656,9 @@ function AtlasReviewPage({
               <div className="atlas-detail-head">
                 <div>
                   <p className="eyebrow">
-                    {selected.category_label ||
-                      categoryLabel(selected.category)}
+                    {atlasDisplayCategoryLabel(selected)}
                   </p>
-                  <h2>{joinGearName(selected)}</h2>
+                  <h2>{atlasDisplayName(selected)}</h2>
                   <p className="muted">
                     {atlasSourceLabel(selected.source_type)} ·{" "}
                     {formatDate(selected.created_at)}
@@ -2386,6 +2674,263 @@ function AtlasReviewPage({
                 ) : null}
               </div>
 
+              {localizationForm ? (
+                <form
+                  className="atlas-review-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveLocalization(false);
+                  }}
+                >
+                  <fieldset className="atlas-review-fieldset atlas-localization-fieldset">
+                    <legend>
+                      当前语言内容 · {atlasLocaleLabel(reviewLocale)}
+                    </legend>
+                    <label>
+                      展示名称
+                      <input
+                        required
+                        value={localizationForm.name}
+                        onChange={(event) =>
+                          setLocalizationForm({
+                            ...localizationForm,
+                            name: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="full-width">
+                      展示描述
+                      <textarea
+                        required
+                        value={localizationForm.description}
+                        onChange={(event) =>
+                          setLocalizationForm({
+                            ...localizationForm,
+                            description: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </fieldset>
+
+                  <div className="atlas-specs">
+                    <h3>当前语言尺寸</h3>
+                    {localizationForm.variants.length ? (
+                      <div className="atlas-variant-editor">
+                        {localizationForm.variants.map((variant, index) => (
+                          <div
+                            className="atlas-variant-row"
+                            key={`${reviewLocale}-${index}-${variant.key}`}
+                          >
+                            <label>
+                              尺寸名称
+                              <input
+                                value={variant.label}
+                                placeholder="例如 M 75*195"
+                                onChange={(event) =>
+                                  updateLocalizationVariant(index, {
+                                    label: event.target.value,
+                                    key: variantKeyFromLabel(
+                                      event.target.value,
+                                      index,
+                                    ),
+                                  })
+                                }
+                              />
+                            </label>
+                            <label>
+                              分尺寸官方价
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={fromPriceCents(
+                                  variant.official_price_cents,
+                                )}
+                                onChange={(event) =>
+                                  updateLocalizationVariant(index, {
+                                    official_price_cents: toPriceCents(
+                                      event.target.value,
+                                    ),
+                                    official_price_currency:
+                                      variant.official_price_currency ||
+                                      form?.officialPriceCurrency ||
+                                      "CNY",
+                                  })
+                                }
+                              />
+                            </label>
+                            <label>
+                              重量（g）
+                              <input
+                                type="number"
+                                min="0"
+                                value={variant.weight_g ?? ""}
+                                onChange={(event) =>
+                                  updateLocalizationVariant(index, {
+                                    weight_g: event.target.value
+                                      ? Number(event.target.value)
+                                      : null,
+                                  })
+                                }
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="secondary-button variant-remove-button"
+                              onClick={() => removeLocalizationVariant(index)}
+                            >
+                              移除
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted">当前语言未填写尺寸。</p>
+                    )}
+                    <div className="actions inline-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={addLocalizationVariant}
+                      >
+                        添加尺寸
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="atlas-specs">
+                    <h3>当前语言分类参数</h3>
+                    {localizationSpecFields.length ? (
+                      <div className="atlas-review-spec-grid">
+                        {localizationSpecFields.map((field) => (
+                          <div
+                            className="atlas-spec-input"
+                            key={`${reviewLocale}-${field.key}`}
+                          >
+                            <label htmlFor={`atlas-locale-spec-${field.key}`}>
+                              {field.label}
+                            </label>
+                            <div className="atlas-spec-input-row">
+                              {field.choiceOnly ? (
+                                <span
+                                  className={
+                                    field.unitLabel
+                                      ? "choice-value"
+                                      : "choice-value muted"
+                                  }
+                                >
+                                  {field.unitLabel || field.placeholder}
+                                </span>
+                              ) : (
+                                <input
+                                  id={`atlas-locale-spec-${field.key}`}
+                                  type={
+                                    field.inputType === "number"
+                                      ? "number"
+                                      : "text"
+                                  }
+                                  value={field.valueText}
+                                  placeholder={field.placeholder}
+                                  onChange={(event) =>
+                                    updateLocalizationSpecValue(
+                                      field.key,
+                                      event.target.value,
+                                      field.unitLabel,
+                                    )
+                                  }
+                                />
+                              )}
+                              {field.units?.length ? (
+                                <select
+                                  aria-label={`${field.label}单位`}
+                                  value={field.unitIndex}
+                                  onChange={(event) => {
+                                    const unitIndex = Number(
+                                      event.target.value || 0,
+                                    );
+                                    const unit = field.units?.[unitIndex] ?? "";
+                                    updateLocalizationSpecValue(
+                                      field.key,
+                                      field.choiceOnly ? "" : field.valueText,
+                                      unit,
+                                    );
+                                  }}
+                                >
+                                  {field.unitLabels.map((label, index) => (
+                                    <option
+                                      key={`${field.key}-${label}`}
+                                      value={index}
+                                    >
+                                      {label || "无单位"}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted">当前语言未填写分类参数。</p>
+                    )}
+                  </div>
+
+                  <dl className="atlas-public-fields atlas-readonly-fields">
+                    <div>
+                      <dt>双语状态</dt>
+                      <dd>
+                        {atlasLocalizationStatusBadges(localizationStatuses)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{atlasLocaleLabel(otherLocale)}预览</dt>
+                      <dd>
+                        {otherLocalization
+                          ? atlasLocalizationSummary(otherLocalization)
+                          : "缺失"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>通过阻塞</dt>
+                      <dd>
+                        {approvalBlockers.length
+                          ? approvalBlockers.join("；")
+                          : "双语内容已满足通过条件"}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="actions inline-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={submitting}
+                      onClick={() => void generateLocalizationDraft()}
+                    >
+                      生成草稿
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={submitting || !isLocalizationDirty}
+                      onClick={() => void saveLocalization(false)}
+                    >
+                      {isLocalizationDirty ? "保存草稿" : "语言内容已保存"}
+                    </button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      disabled={submitting}
+                      onClick={() => void saveLocalization(true)}
+                    >
+                      保存并标记本语言已审核
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+
               {form ? (
                 <form
                   className="atlas-review-form"
@@ -2395,7 +2940,7 @@ function AtlasReviewPage({
                   }}
                 >
                   <fieldset className="atlas-review-fieldset">
-                    <legend>公共字段</legend>
+                    <legend>公共字段 / Canonical</legend>
                     <label>
                       分类
                       <select
@@ -2507,6 +3052,30 @@ function AtlasReviewPage({
                   </fieldset>
 
                   <dl className="atlas-public-fields atlas-readonly-fields">
+                    <div>
+                      <dt>当前展示名称</dt>
+                      <dd>{atlasDisplayName(selected)}</dd>
+                    </div>
+                    <div>
+                      <dt>当前展示分类</dt>
+                      <dd>{atlasDisplayCategoryLabel(selected)}</dd>
+                    </div>
+                    <div>
+                      <dt>当前展示描述</dt>
+                      <dd>{atlasDisplayDescription(selected)}</dd>
+                    </div>
+                    <div>
+                      <dt>当前展示尺寸</dt>
+                      <dd>{atlasDisplayVariantSummary(selected)}</dd>
+                    </div>
+                    <div>
+                      <dt>当前展示规格</dt>
+                      <dd>{atlasDisplaySpecsSummary(selected)}</dd>
+                    </div>
+                    <div>
+                      <dt>来源原文名称</dt>
+                      <dd>{joinGearName(selected)}</dd>
+                    </div>
                     <div>
                       <dt>来源类型</dt>
                       <dd>{atlasSourceLabel(selected.source_type)}</dd>
@@ -2751,7 +3320,12 @@ function AtlasReviewPage({
                 <button
                   type="button"
                   className="primary-button"
-                  disabled={submitting || selected.status === "approved"}
+                  disabled={
+                    submitting ||
+                    selected.status === "approved" ||
+                    isLocalizationDirty ||
+                    approvalBlockers.length > 0
+                  }
                   onClick={() => void approveSelected()}
                 >
                   {isDirty ? "保存并通过" : "通过"}
@@ -3341,6 +3915,101 @@ function normalizeAtlasReviewPayload(
         : null,
     variants: normalizeVariants(payload.variants ?? []),
     specs,
+  };
+}
+
+function findAtlasLocalization(
+  item: GearAtlasSubmission,
+  locale: AppLocale,
+): GearAtlasLocalization | null {
+  return (
+    item.localizations?.find(
+      (localization) => localization.locale === locale,
+    ) ?? null
+  );
+}
+
+function atlasLocalizationFormFromSubmission(
+  item: GearAtlasSubmission,
+  locale: AppLocale,
+): AtlasLocalizationFormState {
+  const localization = findAtlasLocalization(item, locale);
+  const displayVariants = item.display_variants?.length
+    ? item.display_variants
+    : (item.variants ?? []);
+  const displaySpecs =
+    item.display_specs && Object.keys(item.display_specs).length
+      ? item.display_specs
+      : (item.specs ?? {});
+  return {
+    name: localization?.name ?? atlasDisplayName(item),
+    description:
+      localization?.description ??
+      item.display_description ??
+      item.description ??
+      "",
+    variants: normalizeVariants(localization?.variants ?? displayVariants),
+    specs: localization?.specs ?? displaySpecs,
+  };
+}
+
+function atlasLocalizationPayloadFromForm(
+  form: AtlasLocalizationFormState,
+  markReviewed = false,
+  category?: GearCategory,
+): UpdateGearAtlasLocalizationRequest {
+  const name = form.name.trim();
+  if (!name) {
+    throw new Error("请填写当前语言展示名称");
+  }
+  const description = optionalAtlasText(form.description);
+  if (markReviewed && !description) {
+    throw new Error("标记已审核前，请填写当前语言展示描述");
+  }
+  return {
+    name,
+    description,
+    variants: normalizeVariants(form.variants),
+    specs: category
+      ? normalizeSpecsForCategory(category, form.specs)
+      : { ...form.specs },
+    mark_reviewed: markReviewed,
+  };
+}
+
+function atlasLocalizationPayloadFromSubmission(
+  item: GearAtlasSubmission,
+  locale: AppLocale,
+): UpdateGearAtlasLocalizationRequest {
+  const form = atlasLocalizationFormFromSubmission(item, locale);
+  return atlasLocalizationPayloadFromForm(form, false, item.category);
+}
+
+function atlasLocalizationPayloadsEqual(
+  left: UpdateGearAtlasLocalizationRequest,
+  right: UpdateGearAtlasLocalizationRequest,
+): boolean {
+  return (
+    JSON.stringify(normalizeAtlasLocalizationPayload(left)) ===
+    JSON.stringify(normalizeAtlasLocalizationPayload(right))
+  );
+}
+
+function normalizeAtlasLocalizationPayload(
+  payload: UpdateGearAtlasLocalizationRequest,
+): UpdateGearAtlasLocalizationRequest {
+  const specs = Object.fromEntries(
+    Object.entries(payload.specs ?? {}).sort(([left], [right]) =>
+      left.localeCompare(right),
+    ),
+  );
+  return {
+    ...payload,
+    description: payload.description || null,
+    variants: normalizeVariants(payload.variants ?? []),
+    specs,
+    translation_provider: payload.translation_provider || null,
+    mark_reviewed: Boolean(payload.mark_reviewed),
   };
 }
 
@@ -4106,6 +4775,130 @@ function atlasSourceLabel(sourceType: GearAtlasSubmission["source_type"]) {
     return "外部导入";
   }
   return "手动投稿";
+}
+
+function atlasDisplayName(item: GearAtlasSubmission): string {
+  return item.display_name?.trim() || joinGearName(item);
+}
+
+function atlasDisplayCategoryLabel(item: GearAtlasSubmission): string {
+  return (
+    item.display_category_label?.trim() ||
+    item.category_label ||
+    categoryLabel(item.category)
+  );
+}
+
+function atlasDisplayDescription(item: GearAtlasSubmission): string {
+  return item.display_description?.trim() || item.description || "—";
+}
+
+function atlasDisplayVariantSummary(item: GearAtlasSubmission): string {
+  const variants = item.display_variants?.length
+    ? item.display_variants
+    : (item.variants ?? []);
+  const labels = variants
+    .map((variant) => variant.label.trim())
+    .filter(Boolean);
+  return labels.length ? labels.join("、") : "—";
+}
+
+function atlasDisplaySpecsSummary(item: GearAtlasSubmission): string {
+  const specs =
+    item.display_specs && Object.keys(item.display_specs).length
+      ? item.display_specs
+      : (item.specs ?? {});
+  const fields = getGearAtlasSpecFieldViews(item.category, specs)
+    .map((field) => {
+      const value = combineSpecValue(field.valueText, field.unitLabel);
+      return value ? `${field.label}：${value}` : "";
+    })
+    .filter(Boolean);
+  return fields.length ? fields.join("；") : "—";
+}
+
+function atlasLocaleLabel(locale: AppLocale): string {
+  return locale === "zh-CN" ? "中文" : "English";
+}
+
+function atlasLocalizationStatusBadges(
+  statuses?: GearAtlasLocalizationReviewStatus[] | null,
+) {
+  if (!statuses?.length) {
+    return (
+      <span className="status-pill status-feedback-open">双语状态缺失</span>
+    );
+  }
+  return statuses.map((status) => (
+    <span
+      className={`status-pill status-locale-${status.state}`}
+      key={status.locale}
+    >
+      {atlasLocaleLabel(status.locale)} {atlasLocalizationStateLabel(status)}
+    </span>
+  ));
+}
+
+function atlasLocalizationStateLabel(
+  status: GearAtlasLocalizationReviewStatus,
+): string {
+  if (status.state === "reviewed") {
+    return "已审核";
+  }
+  if (status.state === "missing") {
+    return "缺失";
+  }
+  if (status.state === "draft") {
+    return "草稿";
+  }
+  return status.missing_fields.length ? "待补全" : "待审核";
+}
+
+function atlasLocalizationSummary(localization: GearAtlasLocalization): string {
+  const parts = [
+    localization.name,
+    localization.description,
+    localization.variants?.length
+      ? localization.variants.map((variant) => variant.label).join("、")
+      : null,
+  ].filter((value): value is string => Boolean(value?.trim()));
+  return parts.length ? parts.join(" · ") : "—";
+}
+
+function atlasLocalizationApprovalBlockers(
+  item: GearAtlasSubmission,
+  isLocalizationDirty: boolean,
+): string[] {
+  const blockers = isLocalizationDirty ? ["当前语言内容未保存"] : [];
+  const statuses = item.localization_statuses ?? [];
+  if (!statuses.length) {
+    blockers.push("双语状态缺失");
+    return blockers;
+  }
+  for (const status of statuses) {
+    if (status.state === "reviewed") {
+      continue;
+    }
+    if (status.missing_fields.length) {
+      blockers.push(
+        `${atlasLocaleLabel(status.locale)}缺少${status.missing_fields
+          .map(atlasLocalizationMissingFieldLabel)
+          .join("、")}`,
+      );
+    }
+    if (status.state !== "missing") {
+      blockers.push(`${atlasLocaleLabel(status.locale)}未标记已审核`);
+    }
+  }
+  return Array.from(new Set(blockers));
+}
+
+function atlasLocalizationMissingFieldLabel(field: string): string {
+  if (field === "name") return "名称";
+  if (field === "description") return "描述";
+  if (field === "variants") return "尺寸";
+  if (field === "specs") return "规格";
+  return field;
 }
 
 function atlasSubmissionHint(submission: GearAtlasSubmission): string {

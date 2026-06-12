@@ -7,7 +7,10 @@ import type {
 
 import GearAtlasPage from "./GearAtlasPage";
 import type { WebGearApi } from "./api";
+import { detectPreferredAppLocale } from "./locale";
 import type { WebSession } from "./session";
+
+const TEST_APP_LOCALE = detectPreferredAppLocale();
 
 type GearAtlasApi = Pick<
   WebGearApi,
@@ -103,7 +106,7 @@ describe("GearAtlasPage", () => {
     ).toBeInTheDocument();
     expect(api.listGearAtlas).toHaveBeenCalledWith(
       { sort: "approved_at_desc", limit: 20 },
-      "zh-CN",
+      TEST_APP_LOCALE,
     );
   });
 
@@ -120,7 +123,7 @@ describe("GearAtlasPage", () => {
     await waitFor(() => {
       expect(api.listGearAtlas).toHaveBeenLastCalledWith(
         { sort: "approved_at_desc", limit: 20, q: "头灯" },
-        "zh-CN",
+        TEST_APP_LOCALE,
       );
     });
 
@@ -136,7 +139,7 @@ describe("GearAtlasPage", () => {
           category: "lighting_system",
           q: "头灯",
         },
-        "zh-CN",
+        TEST_APP_LOCALE,
       );
     });
 
@@ -152,7 +155,7 @@ describe("GearAtlasPage", () => {
           category: "lighting_system",
           q: "头灯",
         },
-        "zh-CN",
+        TEST_APP_LOCALE,
       );
     });
   });
@@ -198,7 +201,7 @@ describe("GearAtlasPage", () => {
     ).toBeInTheDocument();
     expect(api.listGearAtlas).toHaveBeenLastCalledWith(
       { sort: "approved_at_desc", limit: 20, cursor: "20" },
-      "zh-CN",
+      TEST_APP_LOCALE,
     );
   });
 
@@ -209,7 +212,10 @@ describe("GearAtlasPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: /测试头灯/ }));
 
     expect(await screen.findByLabelText("图鉴详情")).toBeInTheDocument();
-    expect(api.getGearAtlasItem).toHaveBeenCalledWith("atlas-1", "zh-CN");
+    expect(api.getGearAtlasItem).toHaveBeenCalledWith(
+      "atlas-1",
+      TEST_APP_LOCALE,
+    );
     expect(screen.getByText("最大亮度")).toBeInTheDocument();
     expect(screen.getByText("450 lm")).toBeInTheDocument();
     expect(screen.queryByText("来源摘要")).not.toBeInTheDocument();
@@ -353,7 +359,10 @@ describe("GearAtlasPage", () => {
     expect(await screen.findByLabelText("图鉴详情")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "编辑图鉴" }));
 
-    expect(api.getAdminGearAtlasSubmission).toHaveBeenCalledWith("atlas-1");
+    expect(api.getAdminGearAtlasSubmission).toHaveBeenCalledWith(
+      "atlas-1",
+      TEST_APP_LOCALE,
+    );
     expect(await screen.findByLabelText("编辑图鉴装备")).toBeInTheDocument();
     expect(
       await screen.findByRole("button", { name: "保存图鉴" }),
@@ -374,6 +383,7 @@ describe("GearAtlasPage", () => {
           model: "NU25",
           specs: { max_brightness: "450 lm" },
         }),
+        TEST_APP_LOCALE,
       );
     });
     expect(await screen.findByText("图鉴信息已保存。")).toBeInTheDocument();

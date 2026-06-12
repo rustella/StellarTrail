@@ -5,9 +5,11 @@ use stellartrail_domain::{
     deletion::DeletedFilter,
     gear::{GearCategory, GearSpecs, GearVariants},
     gear_atlas::{
-        GearAtlasDraft, GearAtlasItem, GearAtlasReviewChange, GearAtlasSort, GearAtlasSourceType,
-        GearAtlasStatus,
+        GearAtlasDraft, GearAtlasItem, GearAtlasLocalizationDraft,
+        GearAtlasLocalizationReviewStatus, GearAtlasReviewChange, GearAtlasSort,
+        GearAtlasSourceType, GearAtlasStatus,
     },
+    locale::Locale,
 };
 
 /// Query parameters accepted by the public gear atlas list endpoint.
@@ -82,6 +84,30 @@ impl CreateGearAtlasSubmissionRequest {
 
 /// Administrator body for replacing editable public fields on one submission.
 pub type UpdateGearAtlasSubmissionRequest = CreateGearAtlasSubmissionRequest;
+
+/// Administrator body for editing one locale-specific display row.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateGearAtlasLocalizationRequest {
+    pub name: String,
+    pub description: Option<String>,
+    #[serde(default)]
+    pub variants: GearVariants,
+    #[serde(default)]
+    pub specs: GearSpecs,
+    pub translation_provider: Option<String>,
+    #[serde(default)]
+    pub mark_reviewed: bool,
+}
+
+/// Administrator body for generating one locale-specific display draft.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateGearAtlasLocalizationDraftRequest {
+    #[serde(default)]
+    pub overwrite_reviewed: bool,
+    pub translation_provider: Option<String>,
+}
 
 /// Administrator reject body.
 #[derive(Debug, Deserialize)]
@@ -175,6 +201,15 @@ impl From<&GearAtlasItem> for GearAtlasSubmissionResponse {
 pub struct GearAtlasAdminSubmissionResponse {
     #[serde(flatten)]
     pub submission: GearAtlasSubmissionResponse,
+    pub review_locale: Locale,
+    pub display_name: String,
+    pub display_description: Option<String>,
+    pub display_variants: GearVariants,
+    pub display_specs: GearSpecs,
+    pub display_category_label: String,
+    pub localization_statuses: Vec<GearAtlasLocalizationReviewStatus>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub localizations: Vec<GearAtlasLocalizationResponse>,
     pub source_name: Option<String>,
     pub source_url: Option<String>,
     pub source_rating_score: Option<f64>,
@@ -183,12 +218,70 @@ pub struct GearAtlasAdminSubmissionResponse {
 
 impl From<&GearAtlasItem> for GearAtlasAdminSubmissionResponse {
     fn from(item: &GearAtlasItem) -> Self {
+        Self::from_item_and_display(
+            item,
+            item,
+            item.category.label().to_owned(),
+            Locale::ZhCn,
+            Vec::new(),
+            Vec::new(),
+        )
+    }
+}
+
+impl GearAtlasAdminSubmissionResponse {
+    /// Builds an admin response that keeps editable canonical fields separate
+    /// from locale-resolved display fields.
+    pub fn from_item_and_display(
+        item: &GearAtlasItem,
+        display_item: &GearAtlasItem,
+        display_category_label: String,
+        review_locale: Locale,
+        localization_statuses: Vec<GearAtlasLocalizationReviewStatus>,
+        localizations: Vec<GearAtlasLocalizationResponse>,
+    ) -> Self {
         Self {
             submission: GearAtlasSubmissionResponse::from(item),
+            review_locale,
+            display_name: display_item.name.clone(),
+            display_description: display_item.description.clone(),
+            display_variants: display_item.variants.clone(),
+            display_specs: display_item.specs.clone(),
+            display_category_label,
+            localization_statuses,
+            localizations,
             source_name: item.source_name.clone(),
             source_url: item.source_url.clone(),
             source_rating_score: item.source_rating_score,
             source_rating_count: item.source_rating_count,
+        }
+    }
+}
+
+/// Locale-specific atlas display content returned only to administrators.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GearAtlasLocalizationResponse {
+    pub locale: Locale,
+    pub name: String,
+    pub description: Option<String>,
+    pub variants: GearVariants,
+    pub specs: GearSpecs,
+    pub translation_status: Option<String>,
+    pub translation_provider: Option<String>,
+    pub translated_at: Option<String>,
+}
+
+impl From<&GearAtlasLocalizationDraft> for GearAtlasLocalizationResponse {
+    fn from(localization: &GearAtlasLocalizationDraft) -> Self {
+        Self {
+            locale: localization.locale,
+            name: localization.name.clone(),
+            description: localization.description.clone(),
+            variants: localization.variants.clone(),
+            specs: localization.specs.clone(),
+            translation_status: localization.translation_status.clone(),
+            translation_provider: localization.translation_provider.clone(),
+            translated_at: localization.translated_at.clone(),
         }
     }
 }

@@ -61,6 +61,28 @@ async fn fresh_schema_contains_folded_migration_columns() {
                 "is_deleted",
             ][..],
         ),
+        (
+            "gear_atlas_item_localizations",
+            &[
+                "variants_json",
+                "specs_json",
+                "translation_status",
+                "translation_provider",
+                "translated_at",
+            ][..],
+        ),
+        (
+            "gear_atlas_import_sources",
+            &[
+                "source_key",
+                "canonical_key",
+                "atlas_item_id",
+                "source_locale",
+                "detail_score",
+                "last_seen_batch_id",
+                "last_action",
+            ][..],
+        ),
         ("upload_images", &["is_deleted"][..]),
         ("user_feedback", &["is_deleted"][..]),
         (

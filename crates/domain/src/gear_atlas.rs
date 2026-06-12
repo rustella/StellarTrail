@@ -13,6 +13,7 @@ use crate::{
         GearCategory, GearSpecs, GearVariant, GearVariants, SUPPORTED_CURRENCIES, normalize_specs,
         normalize_variants, now_rfc3339, variant_key_from_label,
     },
+    locale::Locale,
     validation::{
         FieldViolation, ValidationError, normalize_optional_text, normalize_required_text,
     },
@@ -237,6 +238,167 @@ pub struct GearAtlasExternalImportDraft {
     pub import_batch_id: Option<String>,
     pub source_rating_score: Option<f64>,
     pub source_rating_count: Option<i32>,
+    pub canonical_key: Option<String>,
+    pub source_locale: Option<Locale>,
+    pub detail_score: Option<i32>,
+    pub localizations: Vec<GearAtlasLocalizationDraft>,
+}
+
+/// Locale-specific public text and display facts produced by an external import.
+///
+/// The canonical atlas item keeps normalized numeric and source fields on the
+/// main row. Localizations hold user-visible text for the requested API locale,
+/// including localized variant labels and short spec values.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GearAtlasLocalizationDraft {
+    pub locale: Locale,
+    pub name: String,
+    pub description: Option<String>,
+    pub variants: GearVariants,
+    pub specs: GearSpecs,
+    pub translation_status: Option<String>,
+    pub translation_provider: Option<String>,
+    pub translated_at: Option<String>,
+}
+
+/// Stable status stored when an admin has reviewed one localized atlas row.
+pub const GEAR_ATLAS_LOCALIZATION_STATUS_REVIEWED: &str = "reviewed";
+
+/// Stable status stored when a localized atlas row still needs human review.
+pub const GEAR_ATLAS_LOCALIZATION_STATUS_NEEDS_REVIEW: &str = "needs_review";
+
+/// Stable status stored when an admin saves localized content without approving it.
+pub const GEAR_ATLAS_LOCALIZATION_STATUS_DRAFT: &str = "draft";
+
+/// Review state computed for one locale in the administrator workflow.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GearAtlasLocalizationReviewState {
+    Missing,
+    Draft,
+    NeedsReview,
+    Reviewed,
+}
+
+/// Review summary for one locale in the administrator atlas workflow.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GearAtlasLocalizationReviewStatus {
+    pub locale: Locale,
+    pub state: GearAtlasLocalizationReviewState,
+    pub missing_fields: Vec<String>,
+    pub translation_status: Option<String>,
+}
+
+/// Deterministic localization helper for imported atlas display content.
+///
+/// This is deliberately small and auditable. It translates common gear category
+/// words while preserving brands, models, numbers, units, and source metadata.
+#[derive(Clone, Debug)]
+pub struct GearAtlasLocalizationTranslator {
+    provider: String,
+}
+
+impl GearAtlasLocalizationTranslator {
+    pub fn new(provider: impl Into<String>) -> Option<Self> {
+        let provider = provider.into();
+        let provider = provider.trim();
+        if provider.is_empty() {
+            None
+        } else {
+            Some(Self {
+                provider: provider.to_owned(),
+            })
+        }
+    }
+
+    /// Builds a generated display localization without copying source prose.
+    pub fn translate_localization(
+        &self,
+        name: &str,
+        variants: &GearVariants,
+        specs: &GearSpecs,
+        locale: Locale,
+    ) -> GearAtlasLocalizationDraft {
+        let translated = self.translate_fields(name, variants, specs, locale);
+        GearAtlasLocalizationDraft {
+            locale,
+            name: translated.name,
+            description: translated.description,
+            variants: translated.variants,
+            specs: translated.specs,
+            translation_status: Some(translated.translation_status),
+            translation_provider: Some(self.provider.clone()),
+            translated_at: Some(now_rfc3339()),
+        }
+    }
+
+    fn translate_fields(
+        &self,
+        name: &str,
+        variants: &GearVariants,
+        specs: &GearSpecs,
+        locale: Locale,
+    ) -> TranslatedAtlasLocalization {
+        let name = match locale {
+            Locale::ZhCn => translate_en_to_zh(name),
+            Locale::En => translate_zh_to_en(name),
+        };
+        let description = Some(match locale {
+            Locale::ZhCn => "待审核的外部导入装备条目，规格来自公开来源事实字段。".to_owned(),
+            Locale::En => {
+                "Pending external-import gear atlas item from public fact fields.".to_owned()
+            }
+        });
+        let variants = variants
+            .iter()
+            .enumerate()
+            .map(|(index, variant)| GearVariant {
+                key: if variant.key.trim().is_empty() {
+                    variant_key_from_label(&variant.label, index)
+                } else {
+                    variant.key.clone()
+                },
+                label: match locale {
+                    Locale::ZhCn => translate_en_to_zh(&variant.label),
+                    Locale::En => translate_zh_to_en(&variant.label),
+                },
+                official_price_cents: variant.official_price_cents,
+                official_price_currency: variant.official_price_currency.clone(),
+                weight_g: variant.weight_g,
+            })
+            .collect();
+        let specs = specs
+            .iter()
+            .map(|(key, value)| {
+                let translated = match locale {
+                    Locale::ZhCn => translate_en_to_zh(value),
+                    Locale::En => translate_zh_to_en(value),
+                };
+                (key.clone(), translated)
+            })
+            .collect();
+        let translation_status = match locale {
+            Locale::ZhCn => GEAR_ATLAS_LOCALIZATION_STATUS_NEEDS_REVIEW,
+            Locale::En if name.chars().any(is_ascii_letter) => "translated",
+            Locale::En => GEAR_ATLAS_LOCALIZATION_STATUS_NEEDS_REVIEW,
+        }
+        .to_owned();
+        TranslatedAtlasLocalization {
+            name,
+            description,
+            variants,
+            specs,
+            translation_status,
+        }
+    }
+}
+
+struct TranslatedAtlasLocalization {
+    name: String,
+    description: Option<String>,
+    variants: GearVariants,
+    specs: GearSpecs,
+    translation_status: String,
 }
 
 impl GearAtlasDraft {
@@ -355,6 +517,8 @@ impl GearAtlasExternalImportDraft {
             "import_batch_id",
             &mut errors,
         );
+        self.canonical_key =
+            normalize_optional_text(self.canonical_key.take(), 160, "canonical_key", &mut errors);
 
         if self
             .source_rating_score
@@ -374,12 +538,93 @@ impl GearAtlasExternalImportDraft {
                 "must be between 0 and 1000000",
             ));
         }
+        if self
+            .detail_score
+            .is_some_and(|score| !(0..=10_000).contains(&score))
+        {
+            errors.push(FieldViolation::new(
+                "detail_score",
+                "must be between 0 and 10000",
+            ));
+        }
+
+        for localization in &mut self.localizations {
+            localization.validate_and_normalize(self.category, &mut errors);
+        }
 
         if errors.is_empty() {
             Ok(())
         } else {
             Err(ValidationError::new(errors))
         }
+    }
+}
+
+impl GearAtlasLocalizationDraft {
+    /// Validates and normalizes a single admin-edited localization row.
+    pub fn validate_and_normalize_for_category(
+        &mut self,
+        category: GearCategory,
+    ) -> Result<(), ValidationError> {
+        let mut errors = Vec::new();
+        self.validate_and_normalize_with_prefix(
+            category,
+            &format!("localizations.{}", self.locale.as_str()),
+            &mut errors,
+        );
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ValidationError::new(errors))
+        }
+    }
+
+    fn validate_and_normalize(&mut self, category: GearCategory, errors: &mut Vec<FieldViolation>) {
+        self.validate_and_normalize_with_prefix(
+            category,
+            &format!("localizations.{}", self.locale.as_str()),
+            errors,
+        );
+    }
+
+    fn validate_and_normalize_with_prefix(
+        &mut self,
+        category: GearCategory,
+        field_prefix: &str,
+        errors: &mut Vec<FieldViolation>,
+    ) {
+        self.name = normalize_required_text(
+            std::mem::take(&mut self.name),
+            100,
+            &format!("{field_prefix}.name"),
+            errors,
+        );
+        self.description = normalize_optional_text(
+            self.description.take(),
+            100,
+            &format!("{field_prefix}.description"),
+            errors,
+        );
+        self.variants = normalize_variants(std::mem::take(&mut self.variants), errors);
+        self.specs = normalize_specs(category, std::mem::take(&mut self.specs), errors);
+        self.translation_status = normalize_optional_text(
+            self.translation_status.take(),
+            32,
+            &format!("{field_prefix}.translation_status"),
+            errors,
+        );
+        self.translation_provider = normalize_optional_text(
+            self.translation_provider.take(),
+            80,
+            &format!("{field_prefix}.translation_provider"),
+            errors,
+        );
+        self.translated_at = normalize_optional_text(
+            self.translated_at.take(),
+            64,
+            &format!("{field_prefix}.translated_at"),
+            errors,
+        );
     }
 }
 
@@ -613,6 +858,166 @@ fn spec_review_label(key: &str) -> String {
         _ => key,
     }
     .to_owned()
+}
+
+fn translate_zh_to_en(value: &str) -> String {
+    let mut output = value.to_owned();
+    for (zh, en) in [
+        ("户外", "Outdoor"),
+        ("双肩包", "Backpack"),
+        ("背包", "Backpack"),
+        ("腰包", "Waist Pack"),
+        ("帐篷", "Tent"),
+        ("睡袋", "Sleeping Bag"),
+        ("露营袋", "Bivy"),
+        ("睡垫", "Sleeping Pad"),
+        ("防潮垫", "Sleeping Pad"),
+        ("头灯", "Headlamp"),
+        ("手电", "Flashlight"),
+        ("炉具", "Stove"),
+        ("餐具", "Cookware"),
+        ("水壶", "Water Bottle"),
+        ("营地灯", "Lantern"),
+        ("夹克", "Jacket"),
+        ("冲锋衣", "Shell Jacket"),
+        ("羽绒服", "Down Jacket"),
+        ("登山鞋", "Hiking Boots"),
+        ("徒步鞋", "Hiking Shoes"),
+        ("越野跑鞋", "Trail Running Shoes"),
+        ("登山杖", "Trekking Poles"),
+        ("手表", "Watch"),
+        ("安全带", "Harness"),
+        ("头盔", "Helmet"),
+        ("绳索", "Rope"),
+        ("超轻", "Ultralight"),
+        ("轻量", "Lightweight"),
+        ("保温", "Insulated"),
+        ("带水袋", "with Reservoir"),
+        ("男女通用", "Unisex"),
+        ("探路者", "Toread"),
+    ] {
+        output = output.replace(zh, en);
+    }
+    output
+}
+
+fn translate_en_to_zh(value: &str) -> String {
+    let mut output = value.to_owned();
+    for (en, zh) in [
+        ("Sleeping Bags", "睡袋"),
+        ("sleeping bags", "睡袋"),
+        ("Sleeping Bag", "睡袋"),
+        ("sleeping bag", "睡袋"),
+        ("Backpacking Tents", "徒步帐篷"),
+        ("backpacking tents", "徒步帐篷"),
+        ("Backpacking Tent", "徒步帐篷"),
+        ("backpacking tent", "徒步帐篷"),
+        ("Bivy Sacks", "露营袋"),
+        ("bivy sacks", "露营袋"),
+        ("Bivy Sack", "露营袋"),
+        ("bivy sack", "露营袋"),
+        ("Bivies", "露营袋"),
+        ("bivies", "露营袋"),
+        ("Bivy", "露营袋"),
+        ("bivy", "露营袋"),
+        ("Bivvy", "露营袋"),
+        ("bivvy", "露营袋"),
+        ("Sleeping Pads", "睡垫"),
+        ("sleeping pads", "睡垫"),
+        ("Sleeping Pad", "睡垫"),
+        ("sleeping pad", "睡垫"),
+        ("Hydration Packs", "水袋背包"),
+        ("hydration packs", "水袋背包"),
+        ("Hydration Pack", "水袋背包"),
+        ("hydration pack", "水袋背包"),
+        ("Daypacks", "日用背包"),
+        ("daypacks", "日用背包"),
+        ("Daypack", "日用背包"),
+        ("daypack", "日用背包"),
+        ("Backpacks", "背包"),
+        ("backpacks", "背包"),
+        ("Backpack", "背包"),
+        ("backpack", "背包"),
+        ("Tents", "帐篷"),
+        ("tents", "帐篷"),
+        ("Tent", "帐篷"),
+        ("tent", "帐篷"),
+        ("Stoves", "炉具"),
+        ("stoves", "炉具"),
+        ("Stove", "炉具"),
+        ("stove", "炉具"),
+        ("Headlamps", "头灯"),
+        ("headlamps", "头灯"),
+        ("Headlamp", "头灯"),
+        ("headlamp", "头灯"),
+        ("Flashlights", "手电"),
+        ("flashlights", "手电"),
+        ("Flashlight", "手电"),
+        ("flashlight", "手电"),
+        ("Lanterns", "营地灯"),
+        ("lanterns", "营地灯"),
+        ("Lantern", "营地灯"),
+        ("lantern", "营地灯"),
+        ("Water Bottles", "水壶"),
+        ("water bottles", "水壶"),
+        ("Water Bottle", "水壶"),
+        ("water bottle", "水壶"),
+        ("Trekking Poles", "登山杖"),
+        ("trekking poles", "登山杖"),
+        ("Hiking Poles", "登山杖"),
+        ("hiking poles", "登山杖"),
+        ("Trail Running Shoes", "越野跑鞋"),
+        ("trail running shoes", "越野跑鞋"),
+        ("Hiking Boots", "登山鞋"),
+        ("hiking boots", "登山鞋"),
+        ("Hiking Shoes", "徒步鞋"),
+        ("hiking shoes", "徒步鞋"),
+        ("Down Jackets", "羽绒服"),
+        ("down jackets", "羽绒服"),
+        ("Down Jacket", "羽绒服"),
+        ("down jacket", "羽绒服"),
+        ("Shell Jackets", "冲锋衣"),
+        ("shell jackets", "冲锋衣"),
+        ("Shell Jacket", "冲锋衣"),
+        ("shell jacket", "冲锋衣"),
+        ("Jackets", "夹克"),
+        ("jackets", "夹克"),
+        ("Jacket", "夹克"),
+        ("jacket", "夹克"),
+        ("Harnesses", "安全带"),
+        ("harnesses", "安全带"),
+        ("Harness", "安全带"),
+        ("harness", "安全带"),
+        ("Helmets", "头盔"),
+        ("helmets", "头盔"),
+        ("Helmet", "头盔"),
+        ("helmet", "头盔"),
+        ("Ropes", "绳索"),
+        ("ropes", "绳索"),
+        ("Rope", "绳索"),
+        ("rope", "绳索"),
+        ("with Reservoir", "带水袋"),
+        ("With Reservoir", "带水袋"),
+        ("Reservoir", "水袋"),
+        ("reservoir", "水袋"),
+        ("Ultralight", "超轻"),
+        ("ultralight", "超轻"),
+        ("Lightweight", "轻量"),
+        ("lightweight", "轻量"),
+        ("Insulated", "保温"),
+        ("insulated", "保温"),
+        ("Degree", "度"),
+        ("degree", "度"),
+        ("Unisex", "男女通用"),
+        ("unisex", "男女通用"),
+    ] {
+        output = output.replace(en, zh);
+    }
+    output
+}
+
+fn is_ascii_letter(ch: char) -> bool {
+    ch.is_ascii_alphabetic()
 }
 
 fn normalize_official_price_currency(

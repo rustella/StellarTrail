@@ -20,7 +20,8 @@ use stellartrail_db::{
 };
 use stellartrail_domain::{
     gear::{GearCategory, GearSpecs},
-    gear_atlas::GearAtlasExternalImportDraft,
+    gear_atlas::{GearAtlasExternalImportDraft, GearAtlasLocalizationDraft},
+    locale::Locale,
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -1149,6 +1150,42 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
     assert_eq!(admin_list["items"].as_array().unwrap().len(), 1);
     let submission_id = submission["id"].as_str().unwrap();
 
+    let (blocked_approve_status, blocked_approve) = send_empty(
+        &app.router,
+        "POST",
+        &format!("/api/v1/admin/gear-atlas-submissions/{submission_id}/approve"),
+        Some(admin_token.as_str()),
+    )
+    .await;
+    assert_eq!(
+        blocked_approve_status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{blocked_approve}"
+    );
+    assert_eq!(blocked_approve["code"], "validation_failed");
+
+    for (locale, name, description) in [
+        ("zh-CN", "公共充电宝", "冬季徒步备用电源"),
+        ("en", "Public power bank", "Backup power for winter hiking"),
+    ] {
+        let (localization_status, localization_body) = send_json(
+            &app.router,
+            "PUT",
+            &format!("/api/v1/admin/gear-atlas-submissions/{submission_id}/localizations/{locale}"),
+            Some(admin_token.as_str()),
+            json!({
+                "name": name,
+                "description": description,
+                "variants": [{"key": "20000mah-biao-zhun-ban", "label": if locale == "zh-CN" { "20000mAh 标准版" } else { "20000mAh Standard" }}],
+                "specs": { "battery_capacity": "20000 mAh" },
+                "mark_reviewed": true
+            }),
+        )
+        .await;
+        assert_eq!(localization_status, StatusCode::OK, "{localization_body}");
+        assert!(localization_body["localization_statuses"].is_array());
+    }
+
     let (approve_status, approved) = send_empty(
         &app.router,
         "POST",
@@ -1174,7 +1211,7 @@ async fn gear_atlas_submission_copies_only_public_fields_and_waits_for_admin_rev
         fallback_headers.get(header::CONTENT_LANGUAGE).unwrap(),
         "en"
     );
-    assert_eq!(fallback_public["items"][0]["name"], "公共充电宝");
+    assert_eq!(fallback_public["items"][0]["name"], "Public power bank");
     assert_eq!(
         fallback_public["items"][0]["category_label"],
         "Electronics System"
@@ -1396,6 +1433,33 @@ async fn gear_atlas_public_routes_hide_external_source_audit_but_admin_routes_ex
         import_batch_id: Some("batch-20260521".to_owned()),
         source_rating_score: Some(8.6),
         source_rating_count: Some(7),
+        canonical_key: Some("external-gear:test:8264-backpack".to_owned()),
+        source_locale: Some(Locale::ZhCn),
+        detail_score: Some(20),
+        localizations: vec![
+            GearAtlasLocalizationDraft {
+                locale: Locale::ZhCn,
+                name: "探路者38L户外背包".to_owned(),
+                description: Some(
+                    "来自 8264 户外用品点评的公开事实字段，已保留来源链接供审核。".to_owned(),
+                ),
+                variants: Vec::new(),
+                specs: GearSpecs::new(),
+                translation_status: Some("source".to_owned()),
+                translation_provider: None,
+                translated_at: None,
+            },
+            GearAtlasLocalizationDraft {
+                locale: Locale::En,
+                name: "Toread 38L hiking backpack".to_owned(),
+                description: Some("Imported public fact fields pending review.".to_owned()),
+                variants: Vec::new(),
+                specs: GearSpecs::new(),
+                translation_status: Some("translated".to_owned()),
+                translation_provider: Some("test".to_owned()),
+                translated_at: None,
+            },
+        ],
     };
     draft
         .validate_and_normalize()
@@ -1457,6 +1521,118 @@ async fn gear_atlas_public_routes_hide_external_source_audit_but_admin_routes_ex
 }
 
 #[tokio::test]
+async fn gear_atlas_admin_routes_return_locale_display_fields_without_overwriting_canonical() {
+    let app = test_app().await;
+    let login_body = login_response(&app.router, "atlas-admin-display-source").await;
+    let user_id = login_body["user"]["id"].as_str().unwrap().to_owned();
+    let token = login_body["access_token"].as_str().unwrap().to_owned();
+    grant_admin_role(&app, &user_id, &user_id).await;
+
+    let repo = GearAtlasRepository::new(app.db.clone());
+    let mut draft = GearAtlasExternalImportDraft {
+        category: GearCategory::SleepSystem,
+        name: "Sierra Designs Backcountry Bivy".to_owned(),
+        brand: Some("Sierra Designs".to_owned()),
+        model: Some("Backcountry Bivy".to_owned()),
+        description: Some("Source English description".to_owned()),
+        weight_g: Some(450),
+        official_price_cents: Some(12_999),
+        official_price_currency: Some("USD".to_owned()),
+        variants: Vec::new(),
+        specs: GearSpecs::from([("type".to_owned(), "Bivy".to_owned())]),
+        submitted_by_user_id: user_id.clone(),
+        source_key: "outdoor:admin-display".to_owned(),
+        source_name: "OutdoorGearReview".to_owned(),
+        source_url: Some(
+            "https://www.outdoorgearreview.com/p/sierra-designs-backcountry-bivy/".to_owned(),
+        ),
+        source_license_note: Some("facts and source link only".to_owned()),
+        import_batch_id: Some("batch-admin-display".to_owned()),
+        source_rating_score: None,
+        source_rating_count: None,
+        canonical_key: Some("external-gear:test:admin-display-bivy".to_owned()),
+        source_locale: Some(Locale::En),
+        detail_score: Some(50),
+        localizations: vec![
+            GearAtlasLocalizationDraft {
+                locale: Locale::En,
+                name: "Sierra Designs Backcountry Bivy".to_owned(),
+                description: Some("Source English description".to_owned()),
+                variants: Vec::new(),
+                specs: GearSpecs::from([("type".to_owned(), "Bivy".to_owned())]),
+                translation_status: Some("source".to_owned()),
+                translation_provider: None,
+                translated_at: None,
+            },
+            GearAtlasLocalizationDraft {
+                locale: Locale::ZhCn,
+                name: "Sierra Designs Backcountry 露营袋".to_owned(),
+                description: Some(
+                    "待审核的外部导入装备条目，规格来自公开来源事实字段。".to_owned(),
+                ),
+                variants: Vec::new(),
+                specs: GearSpecs::from([("type".to_owned(), "露营袋".to_owned())]),
+                translation_status: Some("needs_review".to_owned()),
+                translation_provider: Some("test".to_owned()),
+                translated_at: None,
+            },
+        ],
+    };
+    draft
+        .validate_and_normalize()
+        .expect("valid external import");
+    let imported = repo
+        .upsert_external_import(&draft)
+        .await
+        .expect("import atlas source")
+        .item;
+
+    let (list_status, _, list) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        "/api/v1/admin/gear-atlas-submissions?status=pending",
+        Some(token.as_str()),
+        &[("X-StellarTrail-Locale", "zh-CN")],
+    )
+    .await;
+    assert_eq!(list_status, StatusCode::OK, "{list}");
+    let item = list["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["id"] == imported.id)
+        .expect("admin list item");
+    assert_eq!(item["name"], "Sierra Designs Backcountry Bivy");
+    assert_eq!(item["display_name"], "Sierra Designs Backcountry 露营袋");
+    assert_eq!(item["display_category_label"], "睡眠系统");
+    assert_eq!(item["display_specs"]["type"], "露营袋");
+
+    let (detail_status, _, detail) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        &format!("/api/v1/admin/gear-atlas-submissions/{}", imported.id),
+        Some(token.as_str()),
+        &[("Accept-Language", "zh-CN,zh;q=0.9")],
+    )
+    .await;
+    assert_eq!(detail_status, StatusCode::OK, "{detail}");
+    assert_eq!(detail["name"], "Sierra Designs Backcountry Bivy");
+    assert_eq!(detail["display_name"], "Sierra Designs Backcountry 露营袋");
+
+    let (invalid_status, _, invalid) = send_empty_with_headers(
+        &app.router,
+        "GET",
+        &format!("/api/v1/admin/gear-atlas-submissions/{}", imported.id),
+        Some(token.as_str()),
+        &[("X-StellarTrail-Locale", "fr")],
+    )
+    .await;
+    assert_eq!(invalid_status, StatusCode::BAD_REQUEST, "{invalid}");
+    assert_eq!(invalid["code"], "invalid_header");
+    assert_eq!(invalid["parameter"], "X-StellarTrail-Locale");
+}
+
+#[tokio::test]
 async fn gear_atlas_public_routes_use_response_cache_and_etag() {
     let store = InMemoryCacheStore::default();
     let app = test_app_with_cache(Cache::with_store_for_tests(
@@ -1469,7 +1645,7 @@ async fn gear_atlas_public_routes_use_response_cache_and_etag() {
     let user_id = login_body["user"]["id"].as_str().unwrap().to_owned();
     let repo = GearAtlasRepository::new(app.db.clone());
     let mut draft = GearAtlasExternalImportDraft {
-        category: GearCategory::ElectronicsSystem,
+        category: GearCategory::LightingSystem,
         name: "缓存图鉴头灯".to_owned(),
         brand: Some("NITECORE".to_owned()),
         model: Some("NU25".to_owned()),
@@ -1487,6 +1663,31 @@ async fn gear_atlas_public_routes_use_response_cache_and_etag() {
         import_batch_id: Some("batch-cache".to_owned()),
         source_rating_score: None,
         source_rating_count: None,
+        canonical_key: Some("external-gear:test:nitecore-nu25".to_owned()),
+        source_locale: Some(Locale::ZhCn),
+        detail_score: Some(25),
+        localizations: vec![
+            GearAtlasLocalizationDraft {
+                locale: Locale::ZhCn,
+                name: "缓存图鉴头灯".to_owned(),
+                description: Some("轻量头灯".to_owned()),
+                variants: Vec::new(),
+                specs: GearSpecs::new(),
+                translation_status: Some("source".to_owned()),
+                translation_provider: None,
+                translated_at: None,
+            },
+            GearAtlasLocalizationDraft {
+                locale: Locale::En,
+                name: "Cached atlas headlamp".to_owned(),
+                description: Some("Lightweight headlamp".to_owned()),
+                variants: Vec::new(),
+                specs: GearSpecs::from([("max_brightness".to_owned(), "400 lm".to_owned())]),
+                translation_status: Some("translated".to_owned()),
+                translation_provider: Some("test".to_owned()),
+                translated_at: None,
+            },
+        ],
     };
     draft
         .validate_and_normalize()
@@ -1765,6 +1966,34 @@ async fn gear_atlas_admin_edits_are_reported_to_submitter_after_approval() {
     )
     .await;
     assert_eq!(update_status, StatusCode::OK, "{updated}");
+
+    for (locale, name, description) in [
+        ("zh-CN", "审核后睡袋", "公开展示描述"),
+        (
+            "en",
+            "Reviewed Sleeping Bag",
+            "Reviewed public display description",
+        ),
+    ] {
+        let (localization_status, localization_body) = send_json(
+            &app.router,
+            "PUT",
+            &format!("/api/v1/admin/gear-atlas-submissions/{submission_id}/localizations/{locale}"),
+            Some(admin_token.as_str()),
+            json!({
+                "name": name,
+                "description": description,
+                "variants": [
+                    {"key": "m-75-195", "label": "M 75*195", "official_price_cents": 95000, "official_price_currency": "CNY"},
+                    {"key": "l-80-205", "label": "L 80*205", "weight_g": 1020}
+                ],
+                "specs": {"fill_weight": "720 g", "filling": if locale == "zh-CN" { "白鹅绒" } else { "Goose down" }},
+                "mark_reviewed": true
+            }),
+        )
+        .await;
+        assert_eq!(localization_status, StatusCode::OK, "{localization_body}");
+    }
 
     let (approve_status, approved) = send_empty(
         &app.router,

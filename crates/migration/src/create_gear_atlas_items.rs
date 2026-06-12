@@ -85,12 +85,43 @@ impl MigrationTrait for Migration {
             "CREATE INDEX IF NOT EXISTS idx_gear_atlas_deleted_status_approved_created ON gear_atlas_items(is_deleted, status, approved_at, created_at)",
         )
         .await?;
+        db.execute_unprepared(
+            r#"CREATE TABLE IF NOT EXISTS gear_atlas_import_sources (
+                source_key TEXT PRIMARY KEY,
+                canonical_key TEXT NOT NULL,
+                atlas_item_id TEXT NOT NULL REFERENCES gear_atlas_items(id) ON DELETE CASCADE,
+                source_name TEXT NOT NULL,
+                source_url TEXT NULL,
+                source_locale TEXT NOT NULL,
+                detail_score INTEGER NOT NULL DEFAULT 0,
+                last_seen_batch_id TEXT NULL,
+                last_seen_at TEXT NOT NULL,
+                last_action TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )"#,
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_gear_atlas_import_sources_canonical ON gear_atlas_import_sources(canonical_key, detail_score)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_gear_atlas_import_sources_item ON gear_atlas_import_sources(atlas_item_id)",
+        )
+        .await?;
         Ok(())
     }
 
     /// Drops the public gear atlas table.
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
+        db.execute_unprepared("DROP INDEX IF EXISTS idx_gear_atlas_import_sources_item")
+            .await?;
+        db.execute_unprepared("DROP INDEX IF EXISTS idx_gear_atlas_import_sources_canonical")
+            .await?;
+        db.execute_unprepared("DROP TABLE IF EXISTS gear_atlas_import_sources")
+            .await?;
         db.execute_unprepared(
             "DROP INDEX IF EXISTS idx_gear_atlas_deleted_status_approved_created",
         )

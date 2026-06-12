@@ -90,6 +90,11 @@ const PUBLIC_CONTENT_LOCALIZATION_SCHEMA_SQL: &str = r#"
         locale TEXT NOT NULL,
         name TEXT NOT NULL,
         description TEXT NULL,
+        variants_json TEXT NULL,
+        specs_json TEXT NULL,
+        translation_status TEXT NULL,
+        translation_provider TEXT NULL,
+        translated_at TEXT NULL,
         PRIMARY KEY (atlas_item_id, locale),
         FOREIGN KEY (atlas_item_id) REFERENCES gear_atlas_items(id) ON DELETE CASCADE
     );
@@ -128,8 +133,10 @@ const BACKFILL_GEAR_TEMPLATE_LOCALIZATIONS_SQL: &str = r#"
 "#;
 
 const BACKFILL_GEAR_ATLAS_LOCALIZATIONS_SQL: &str = r#"
-    INSERT INTO gear_atlas_item_localizations(atlas_item_id, locale, name, description)
-    SELECT id, 'zh-CN', name, description FROM gear_atlas_items WHERE true
+    INSERT INTO gear_atlas_item_localizations(
+        atlas_item_id, locale, name, description, variants_json, specs_json
+    )
+    SELECT id, 'zh-CN', name, description, variants_json, specs_json FROM gear_atlas_items WHERE true
     ON CONFLICT(atlas_item_id, locale) DO NOTHING;
 "#;
 

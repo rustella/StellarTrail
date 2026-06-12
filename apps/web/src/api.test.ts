@@ -171,6 +171,44 @@ describe("createWebGearApi", () => {
   });
 });
 
+describe("StellarTrailApiClient admin gear atlas locale requests", () => {
+  it("sends the locale header for admin review list requests", async () => {
+    const requests: Array<{ url: string; headers: Headers }> = [];
+    const fetcher = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({
+          url: String(input),
+          headers: new Headers(init?.headers),
+        });
+        return new Response(JSON.stringify({ items: [], next_cursor: null }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    );
+    const client = new StellarTrailApiClient({
+      baseUrl: "",
+      clientIdentity: "web/0.1.0",
+      fetcher: fetcher as typeof fetch,
+      accessToken: "access-token",
+    });
+
+    await client.listAdminGearAtlasSubmissions(
+      { status: "pending", deleted: "active", limit: 20 },
+      "zh-CN",
+    );
+
+    expect(requests).toHaveLength(1);
+    const url = new URL(`https://example.test${requests[0].url}`);
+    expect(url.pathname).toBe("/api/v1/admin/gear-atlas-submissions");
+    expect(url.searchParams.get("status")).toBe("pending");
+    expect(requests[0].headers.get("X-StellarTrail-Locale")).toBe("zh-CN");
+    expect(requests[0].headers.get("authorization")).toBe(
+      "Bearer access-token",
+    );
+  });
+});
+
 describe("StellarTrailApiClient public knot requests", () => {
   it("lists knots with zh-CN locale header without authorization", async () => {
     const requests: Array<{ url: string; headers: Headers }> = [];

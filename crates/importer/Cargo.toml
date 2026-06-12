@@ -1,0 +1,29 @@
+[package]
+name = "stellartrail-importer"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "import-gear-atlas-all"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+sea-orm-migration.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+stellartrail-db = { path = "../db" }
+stellartrail-domain = { path = "../domain" }
+stellartrail-migration = { path = "../migration" }
+time.workspace = true
+tokio.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

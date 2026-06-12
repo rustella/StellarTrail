@@ -41,7 +41,7 @@ export type GearSort =
 export type GearCurrency = "CNY" | "USD" | "EUR" | "JPY" | "HKD";
 export type GearWeightUnit = "kg" | "g" | "lb" | "oz";
 export type GearAtlasStatus = "pending" | "approved" | "rejected";
-export type GearAtlasSourceType = "manual" | "user_gear";
+export type GearAtlasSourceType = "manual" | "user_gear" | "external_import";
 export type GearAtlasSort =
   | "approved_at_desc"
   | "name_asc"
@@ -57,6 +57,13 @@ export type GearTagColor =
   | "green"
   | "slate";
 export type GearSpecs = Record<string, string>;
+export interface GearVariant {
+  key: string;
+  label: string;
+  official_price_cents?: number | null;
+  official_price_currency?: GearCurrency | string | null;
+  weight_g?: number | null;
+}
 export type GearTagColorMap = Record<string, GearTagColor | string>;
 
 export interface GearSpecField {
@@ -157,6 +164,7 @@ export interface GearAtlasPublicItem {
   weight_g?: number | null;
   official_price_cents?: number | null;
   official_price_currency?: GearCurrency | string | null;
+  variants?: GearVariant[] | null;
   specs?: GearSpecs | null;
   approved_at?: string | null;
   is_deleted: boolean;

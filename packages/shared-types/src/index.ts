@@ -1141,9 +1141,41 @@ export interface GearAtlasReviewChange {
   after?: string | null;
 }
 
+export type GearAtlasLocalizationReviewState =
+  | "missing"
+  | "draft"
+  | "needs_review"
+  | "reviewed";
+
+export interface GearAtlasLocalizationReviewStatus {
+  locale: AppLocale;
+  state: GearAtlasLocalizationReviewState;
+  missing_fields: string[];
+  translation_status?: string | null;
+}
+
+export interface GearAtlasLocalization {
+  locale: AppLocale;
+  name: string;
+  description?: string | null;
+  variants?: GearVariant[] | null;
+  specs?: GearSpecs | null;
+  translation_status?: string | null;
+  translation_provider?: string | null;
+  translated_at?: string | null;
+}
+
 export interface GearAtlasSubmission extends GearAtlasPublicItem {
   source_type: GearAtlasSourceType;
   source_user_gear_id?: string | null;
+  review_locale?: AppLocale | null;
+  display_name?: string | null;
+  display_description?: string | null;
+  display_variants?: GearVariant[] | null;
+  display_specs?: GearSpecs | null;
+  display_category_label?: string | null;
+  localization_statuses?: GearAtlasLocalizationReviewStatus[] | null;
+  localizations?: GearAtlasLocalization[] | null;
   source_name?: string | null;
   source_url?: string | null;
   source_rating_score?: number | null;
@@ -1168,6 +1200,20 @@ export interface CreateGearAtlasSubmissionRequest {
 }
 
 export type UpdateGearAtlasSubmissionRequest = CreateGearAtlasSubmissionRequest;
+
+export interface UpdateGearAtlasLocalizationRequest {
+  name: string;
+  description?: string | null;
+  variants?: GearVariant[] | null;
+  specs?: GearSpecs | null;
+  translation_provider?: string | null;
+  mark_reviewed?: boolean;
+}
+
+export interface GenerateGearAtlasLocalizationDraftRequest {
+  overwrite_reviewed?: boolean;
+  translation_provider?: string | null;
+}
 
 export interface ListGearAtlasRequest {
   category?: GearCategory;
