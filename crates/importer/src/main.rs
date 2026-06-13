@@ -31,6 +31,12 @@ use url::Url;
 const DEFAULT_8264_SCAN_START_ID: u64 = 2_074_200;
 const DEFAULT_8264_SCAN_END_ID: u64 = 1;
 const DEFAULT_8264_CONSECUTIVE_MISS_LIMIT: usize = 20_000;
+const DEFAULT_8264_LIST_MAX_PAGES_PER_SCOPE: u64 = 1_500;
+const SOURCE8264_LIST_EMPTY_PAGE_LIMIT: usize = 10;
+const SOURCE8264_LIST_STAGNANT_PAGE_LIMIT: usize = 20;
+const SOURCE8264_LIST_DISCOVERY_METHOD: &str = "authorized_8264_equipmentlist";
+const SOURCE8264_EQUIPMENTLIST_URL: &str = "https://m.8264.com/zhuangbei-equipmentlist.html";
+const SOURCE8264_GLOBAL_LIST_ORDERS: [&str; 3] = ["score", "lastpost", "heats"];
 const DISCOVERY_STDOUT_SAMPLE_LIMIT: usize = 100;
 
 #[derive(Parser, Debug)]
@@ -93,6 +99,18 @@ struct SourceOptions {
         default_value_t = DEFAULT_8264_CONSECUTIVE_MISS_LIMIT
     )]
     scan_8264_consecutive_miss_limit: usize,
+    /// Only run 8264 equipment-list discovery and skip slow id-range fallback scanning.
+    #[arg(long = "8264-skip-id-fallback")]
+    skip_8264_id_fallback: bool,
+    /// Maximum pages to scan for each 8264 equipment-list scope.
+    #[arg(
+        long = "8264-list-max-pages-per-scope",
+        default_value_t = DEFAULT_8264_LIST_MAX_PAGES_PER_SCOPE
+    )]
+    list_8264_max_pages_per_scope: u64,
+    /// Include 8264 brand-filter scopes in addition to global and category scopes.
+    #[arg(long = "8264-include-brand-scopes")]
+    include_8264_brand_scopes: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -228,6 +246,83 @@ struct DiscoveryBatch {
     written_count: usize,
     duplicate_count: usize,
     sample_urls: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum Source8264ListScopeKind {
+    Global,
+    Category,
+    Brand,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct Source8264ListScope {
+    kind: Source8264ListScopeKind,
+    order: String,
+    pcid: Option<String>,
+    cid: Option<String>,
+    bid: Option<String>,
+}
+
+impl Source8264ListScope {
+    fn global(order: &str) -> Self {
+        Self {
+            kind: Source8264ListScopeKind::Global,
+            order: order.to_owned(),
+            pcid: None,
+            cid: None,
+            bid: None,
+        }
+    }
+
+    fn category(order: &str, pcid: String, cid: String) -> Self {
+        Self {
+            kind: Source8264ListScopeKind::Category,
+            order: order.to_owned(),
+            pcid: Some(pcid),
+            cid: Some(cid),
+            bid: None,
+        }
+    }
+
+    fn brand(order: &str, bid: String) -> Self {
+        Self {
+            kind: Source8264ListScopeKind::Brand,
+            order: order.to_owned(),
+            pcid: None,
+            cid: None,
+            bid: Some(bid),
+        }
+    }
+
+    fn resume_key(&self) -> String {
+        match self.kind {
+            Source8264ListScopeKind::Global => {
+                format!("8264_list_global:{}", self.order)
+            }
+            Source8264ListScopeKind::Category => format!(
+                "8264_list_category:{}:{}:{}",
+                self.order,
+                self.pcid.as_deref().unwrap_or_default(),
+                self.cid.as_deref().unwrap_or_default()
+            ),
+            Source8264ListScopeKind::Brand => format!(
+                "8264_list_brand:{}:{}",
+                self.order,
+                self.bid.as_deref().unwrap_or_default()
+            ),
+        }
+    }
+
+    fn page_url(&self, page: u64) -> String {
+        format!(
+            "{SOURCE8264_EQUIPMENTLIST_URL}?order={}&pcid={}&cid={}&bid={}&min=&max=&page={page}",
+            self.order,
+            self.pcid.as_deref().unwrap_or_default(),
+            self.cid.as_deref().unwrap_or_default(),
+            self.bid.as_deref().unwrap_or_default()
+        )
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -1037,27 +1132,14 @@ fn discover_8264_urls(
         duplicate_count: 0,
         sample_urls: Vec::new(),
     };
-    for seed_url in [
-        "https://m.8264.com/zhuangbei",
-        "https://m.8264.com/zhuangbei/",
-        "https://m.8264.com/index.php?d=forum&c=zhuangbei",
-    ] {
-        if let Ok(body) = fetch_source_url(GearImportSource::Source8264, seed_url) {
-            for url in extract_8264_detail_urls(&body) {
-                record_discovered_url(
-                    &mut batch,
-                    seen_urls,
-                    GearImportSource::Source8264,
-                    url,
-                    discovery_method(GearImportSource::Source8264, options.full_scan),
-                    options.output_discovery_file.as_ref(),
-                    options.source_url_cache_file.as_ref(),
-                )?;
-            }
-        }
-    }
     let limit = parse_item_limit(&options.max_items_per_source)?.unwrap_or(usize::MAX);
+
+    discover_8264_equipmentlist_urls(options, resume_state, seen_urls, &mut batch, limit)?;
     if batch.discovered_count >= limit {
+        return Ok(batch);
+    }
+    if options.skip_8264_id_fallback {
+        write_resume_state(options.resume_state_file.as_ref(), resume_state)?;
         return Ok(batch);
     }
 
@@ -1079,7 +1161,7 @@ fn discover_8264_urls(
         let url = format!("https://m.8264.com/zhuangbei-equipmentDetail-{current_id}-1.html");
         match fetch_source_url(GearImportSource::Source8264, &url) {
             Ok(body) if looks_like_8264_detail(&body, current_id) => {
-                record_discovered_url(
+                let _ = record_discovered_url(
                     &mut batch,
                     seen_urls,
                     GearImportSource::Source8264,
@@ -1117,6 +1199,141 @@ fn discover_8264_urls(
     Ok(batch)
 }
 
+fn discover_8264_equipmentlist_urls(
+    options: &SourceOptions,
+    resume_state: &mut DiscoveryResumeState,
+    seen_urls: &mut BTreeSet<String>,
+    batch: &mut DiscoveryBatch,
+    limit: usize,
+) -> Result<()> {
+    if limit == 0 {
+        return Ok(());
+    }
+
+    let index_body = fetch_source_url(GearImportSource::Source8264, SOURCE8264_EQUIPMENTLIST_URL)
+        .with_context(|| format!("failed to fetch {SOURCE8264_EQUIPMENTLIST_URL}"))?;
+    for url in extract_8264_detail_urls(&index_body) {
+        if batch.discovered_count >= limit {
+            return Ok(());
+        }
+        let _ = record_discovered_url(
+            batch,
+            seen_urls,
+            GearImportSource::Source8264,
+            url,
+            SOURCE8264_LIST_DISCOVERY_METHOD,
+            options.output_discovery_file.as_ref(),
+            options.source_url_cache_file.as_ref(),
+        )?;
+    }
+
+    let mut scopes = BTreeSet::new();
+    for order in SOURCE8264_GLOBAL_LIST_ORDERS {
+        scopes.insert(Source8264ListScope::global(order));
+    }
+    scopes.extend(extract_8264_category_list_scopes(&index_body, "score"));
+    if options.include_8264_brand_scopes {
+        scopes.extend(extract_8264_brand_list_scopes(&index_body, "score"));
+    }
+
+    for scope in scopes {
+        if batch.discovered_count >= limit {
+            break;
+        }
+        discover_8264_equipmentlist_scope(options, resume_state, seen_urls, batch, limit, &scope)?;
+    }
+    write_resume_state(options.resume_state_file.as_ref(), resume_state)?;
+    Ok(())
+}
+
+fn discover_8264_equipmentlist_scope(
+    options: &SourceOptions,
+    resume_state: &mut DiscoveryResumeState,
+    seen_urls: &mut BTreeSet<String>,
+    batch: &mut DiscoveryBatch,
+    limit: usize,
+    scope: &Source8264ListScope,
+) -> Result<()> {
+    let resume_key = scope.resume_key();
+    let mut page = resume_state
+        .positions
+        .get(&resume_key)
+        .copied()
+        .unwrap_or(1);
+    let mut empty_pages = 0usize;
+    let mut stagnant_pages = 0usize;
+
+    while page <= options.list_8264_max_pages_per_scope && batch.discovered_count < limit {
+        let page_url = scope.page_url(page);
+        let body = match fetch_source_url(GearImportSource::Source8264, &page_url) {
+            Ok(body) => body,
+            Err(_) => {
+                empty_pages += 1;
+                stagnant_pages += 1;
+                if empty_pages >= SOURCE8264_LIST_EMPTY_PAGE_LIMIT
+                    || stagnant_pages >= SOURCE8264_LIST_STAGNANT_PAGE_LIMIT
+                {
+                    break;
+                }
+                page += 1;
+                resume_state.positions.insert(resume_key.clone(), page);
+                std::thread::sleep(request_delay(
+                    GearImportSource::Source8264,
+                    options.delay_ms,
+                ));
+                continue;
+            }
+        };
+
+        let urls = extract_8264_detail_urls(&body);
+        if urls.is_empty() {
+            empty_pages += 1;
+            stagnant_pages += 1;
+        } else {
+            empty_pages = 0;
+            let mut page_new_urls = 0usize;
+            for url in urls {
+                if batch.discovered_count >= limit {
+                    break;
+                }
+                if record_discovered_url(
+                    batch,
+                    seen_urls,
+                    GearImportSource::Source8264,
+                    url,
+                    SOURCE8264_LIST_DISCOVERY_METHOD,
+                    options.output_discovery_file.as_ref(),
+                    options.source_url_cache_file.as_ref(),
+                )? {
+                    page_new_urls += 1;
+                }
+            }
+            if page_new_urls == 0 {
+                stagnant_pages += 1;
+            } else {
+                stagnant_pages = 0;
+            }
+        }
+
+        page += 1;
+        resume_state.positions.insert(resume_key.clone(), page);
+        if page % 10 == 0 {
+            write_resume_state(options.resume_state_file.as_ref(), resume_state)?;
+        }
+        if empty_pages >= SOURCE8264_LIST_EMPTY_PAGE_LIMIT
+            || stagnant_pages >= SOURCE8264_LIST_STAGNANT_PAGE_LIMIT
+        {
+            break;
+        }
+        std::thread::sleep(request_delay(
+            GearImportSource::Source8264,
+            options.delay_ms,
+        ));
+    }
+    write_resume_state(options.resume_state_file.as_ref(), resume_state)?;
+    Ok(())
+}
+
 fn record_discovered_url(
     batch: &mut DiscoveryBatch,
     seen_urls: &mut BTreeSet<String>,
@@ -1125,7 +1342,7 @@ fn record_discovered_url(
     discovery_method: &str,
     output_path: Option<&PathBuf>,
     cache_path: Option<&PathBuf>,
-) -> Result<()> {
+) -> Result<bool> {
     batch.discovered_count += 1;
     if batch.sample_urls.len() < DISCOVERY_STDOUT_SAMPLE_LIMIT {
         batch.sample_urls.push(url.clone());
@@ -1144,7 +1361,7 @@ fn record_discovered_url(
     )?;
     batch.written_count += summary.written_count;
     batch.duplicate_count += summary.duplicate_count;
-    Ok(())
+    Ok(summary.written_count > 0)
 }
 
 fn source_from_url(url: &str) -> Result<GearImportSource> {
@@ -1228,25 +1445,110 @@ fn extract_xml_locs(body: &str) -> Vec<String> {
 fn extract_8264_detail_urls(body: &str) -> Vec<String> {
     let mut urls = BTreeSet::new();
     for token in body.split(['"', '\'', '<', '>', ' ', '\n', '\r', '\t']) {
-        if !token.contains("equipmentDetail-") {
-            continue;
-        }
-        let normalized = if token.starts_with("//") {
-            format!("https:{token}")
-        } else if token.starts_with('/') {
-            format!("https://m.8264.com{token}")
-        } else if token.starts_with("http://") || token.starts_with("https://") {
-            token.to_owned()
-        } else if token.starts_with("zhuangbei-equipmentDetail-") {
-            format!("https://m.8264.com/{token}")
-        } else {
-            continue;
-        };
-        if normalized.contains("equipmentDetail-") {
-            urls.insert(normalized.replace("http://", "https://"));
+        if let Some(normalized) = normalize_8264_detail_token(token) {
+            urls.insert(normalized);
         }
     }
     urls.into_iter().collect()
+}
+
+fn normalize_8264_detail_token(token: &str) -> Option<String> {
+    let normalized = if token.starts_with("//") {
+        format!("https:{token}")
+    } else if token.starts_with('/') {
+        format!("https://m.8264.com{token}")
+    } else if token.starts_with("http://") || token.starts_with("https://") {
+        token.to_owned()
+    } else if token.starts_with("zhuangbei-") {
+        format!("https://m.8264.com/{token}")
+    } else {
+        return None;
+    };
+    let id = source_id_from_8264_token(&normalized)?;
+    Some(format!(
+        "https://m.8264.com/zhuangbei-equipmentDetail-{id}-1.html"
+    ))
+}
+
+fn source_id_from_8264_token(token: &str) -> Option<String> {
+    for marker in ["equipmentDetail-", "zhuangbei-"] {
+        let Some(after_marker) = token.split(marker).nth(1) else {
+            continue;
+        };
+        let id: String = after_marker
+            .chars()
+            .take_while(|value| value.is_ascii_digit())
+            .collect();
+        if !id.is_empty() {
+            return Some(id);
+        }
+    }
+    None
+}
+
+fn extract_8264_category_list_scopes(body: &str, order: &str) -> Vec<Source8264ListScope> {
+    let mut scopes = BTreeSet::new();
+    for href in extract_html_href_values(body) {
+        if !href.contains("equipmentlist") {
+            continue;
+        }
+        let href = href.replace("&amp;", "&");
+        let Some(cid) = extract_query_value(&href, "cid").filter(|value| !value.is_empty()) else {
+            continue;
+        };
+        let pcid = extract_query_value(&href, "pcid").unwrap_or_default();
+        scopes.insert(Source8264ListScope::category(order, pcid, cid));
+    }
+    scopes.into_iter().collect()
+}
+
+fn extract_8264_brand_list_scopes(body: &str, order: &str) -> Vec<Source8264ListScope> {
+    let mut scopes = BTreeSet::new();
+    for href in extract_html_href_values(body) {
+        if !href.contains("equipmentlist") {
+            continue;
+        }
+        let href = href.replace("&amp;", "&");
+        let Some(bid) = extract_query_value(&href, "bid").filter(|value| !value.is_empty()) else {
+            continue;
+        };
+        scopes.insert(Source8264ListScope::brand(order, bid));
+    }
+    scopes.into_iter().collect()
+}
+
+fn extract_html_href_values(body: &str) -> Vec<String> {
+    let mut values = Vec::new();
+    let mut rest = body;
+    while let Some(start) = rest.find("href=") {
+        let after_attr = &rest[start + "href=".len()..];
+        let mut chars = after_attr.chars();
+        let Some(quote) = chars.next() else {
+            break;
+        };
+        if quote != '"' && quote != '\'' {
+            rest = after_attr;
+            continue;
+        }
+        let after_quote = &after_attr[quote.len_utf8()..];
+        let Some(end) = after_quote.find(quote) else {
+            break;
+        };
+        values.push(after_quote[..end].to_owned());
+        rest = &after_quote[end + quote.len_utf8()..];
+    }
+    values
+}
+
+fn extract_query_value(url: &str, key: &str) -> Option<String> {
+    let query = url.split_once('?')?.1;
+    for pair in query.split('&') {
+        let (pair_key, pair_value) = pair.split_once('=').unwrap_or((pair, ""));
+        if pair_key == key {
+            return Some(pair_value.to_owned());
+        }
+    }
+    None
 }
 
 fn looks_like_8264_detail(body: &str, id: u64) -> bool {
@@ -1365,4 +1667,68 @@ fn now_rfc3339() -> Result<String> {
 fn write_json<T: Serialize>(value: T) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_8264_equipment_list_short_urls() {
+        let html = r#"
+            <a href="/zhuangbei-2081055-1.html">OSPREY Kestrel</a>
+            <a href="https://bbs.8264.com/zhuangbei-equipmentDetail-2074165-1.html">detail</a>
+            <a href="https://m.8264.com/zhuangbei-equipmentlist.html?page=2">list</a>
+        "#;
+
+        let urls = extract_8264_detail_urls(html);
+
+        assert_eq!(
+            urls,
+            vec![
+                "https://m.8264.com/zhuangbei-equipmentDetail-2074165-1.html",
+                "https://m.8264.com/zhuangbei-equipmentDetail-2081055-1.html",
+            ]
+        );
+    }
+
+    #[test]
+    fn extracts_8264_equipment_list_scopes() {
+        let html = r#"
+            <a href="https://m.8264.com/index.php?d=forum&amp;c=dianping&amp;m=equipmentlist&amp;act=equipmentlist&amp;order=score&amp;typename=小型背包（30L以下）&amp;pcid=12&amp;cid=146&amp;bid=&amp;page=1">小型背包</a>
+            <a href="https://m.8264.com/index.php?d=forum&amp;c=dianping&amp;m=equipmentlist&amp;act=equipmentlist&amp;order=&amp;brand=OSPREY&amp;pcid=&amp;cid=&amp;bid=663&amp;page=1">OSPREY</a>
+            <a href="https://m.8264.com/zhuangbei-equipmentlist.html?order=score&amp;page=2">page</a>
+        "#;
+
+        let categories = extract_8264_category_list_scopes(html, "score");
+        let brands = extract_8264_brand_list_scopes(html, "score");
+
+        assert_eq!(categories.len(), 1);
+        assert_eq!(
+            categories[0].resume_key(),
+            "8264_list_category:score:12:146"
+        );
+        assert_eq!(brands.len(), 1);
+        assert_eq!(brands[0].resume_key(), "8264_list_brand:score:663");
+    }
+
+    #[test]
+    fn builds_8264_static_equipment_list_urls() {
+        let global = Source8264ListScope::global("score");
+        let category = Source8264ListScope::category("score", "12".to_owned(), "146".to_owned());
+        let brand = Source8264ListScope::brand("score", "663".to_owned());
+
+        assert_eq!(
+            global.page_url(2),
+            "https://m.8264.com/zhuangbei-equipmentlist.html?order=score&pcid=&cid=&bid=&min=&max=&page=2"
+        );
+        assert_eq!(
+            category.page_url(25),
+            "https://m.8264.com/zhuangbei-equipmentlist.html?order=score&pcid=12&cid=146&bid=&min=&max=&page=25"
+        );
+        assert_eq!(
+            brand.page_url(1),
+            "https://m.8264.com/zhuangbei-equipmentlist.html?order=score&pcid=&cid=&bid=663&min=&max=&page=1"
+        );
+    }
 }
