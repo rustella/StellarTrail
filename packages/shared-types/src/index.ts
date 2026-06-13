@@ -1246,16 +1246,16 @@ export interface MapStyleOption {
   id: "outdoor" | "streets" | "satellite" | string;
   label: string;
   style_url: string;
+  request_origins: string[];
 }
 
 export interface MapConfigResponse {
   provider: "maptiler" | string;
-  style_url: string;
   public_key?: string | null;
   coordinate_system: "WGS84";
   enabled: boolean;
-  styles?: MapStyleOption[];
-  default_style_id?: string;
+  styles: MapStyleOption[];
+  default_style_id: string;
 }
 
 export interface TripMapStateResponse {

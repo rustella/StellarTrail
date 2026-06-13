@@ -756,7 +756,7 @@ export class StellarTrailApiClient {
   }
 
   async getMapConfig(): Promise<MapConfigResponse> {
-    return this.get<MapConfigResponse>("/me/map/config", true);
+    return this.get<MapConfigResponse>("/map/config", true);
   }
 
   async listTrails(): Promise<ListTrailsResponse> {

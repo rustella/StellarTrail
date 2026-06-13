@@ -12,6 +12,7 @@ mod gear_packing;
 mod gears;
 mod health;
 mod localization;
+pub(crate) mod map;
 mod meta;
 mod profile;
 mod roadmap;
@@ -93,6 +94,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(gear_atlas::routes())
         .merge(gear_packing::routes())
         .merge(gears::routes())
+        .merge(map::routes())
         .merge(profile::routes())
         .merge(roadmap::routes())
         .merge(trails::routes())

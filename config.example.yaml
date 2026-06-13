@@ -50,18 +50,28 @@ map:
   provider: maptiler
   # The public key is returned to clients and should be constrained by MapTiler
   # allowed origins, quota monitoring, and rotation. Do not put service tokens here.
+  # Public origin used to build hosted /api/v1/map style URLs. When omitted,
+  # the API derives it from Host or trusted proxy headers.
+  public_api_origin: null
+  # Upstream MapTiler style used for legacy/default outdoor configuration.
   style_url: https://api.maptiler.com/maps/outdoor-v2/style.json
   default_style_id: outdoor
   styles:
     - id: outdoor
       label: 户外
       style_url: https://api.maptiler.com/maps/outdoor-v2/style.json
+      request_origins:
+        - https://api.maptiler.com
     - id: streets
       label: 街道
       style_url: https://api.maptiler.com/maps/streets-v2/style.json
+      request_origins:
+        - https://api.maptiler.com
     - id: satellite
       label: 卫星
       style_url: https://api.maptiler.com/maps/satellite/style.json
+      request_origins:
+        - https://api.maptiler.com
   public_key: null
 
 # Shared MinIO/S3-compatible connection used by private feedback uploads and

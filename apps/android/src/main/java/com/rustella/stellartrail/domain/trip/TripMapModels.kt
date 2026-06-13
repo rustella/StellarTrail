@@ -154,12 +154,12 @@ data class MapStyleOption(
     val id: String,
     val label: String,
     @SerialName("style_url") val styleUrl: String,
+    @SerialName("request_origins") val requestOrigins: List<String> = emptyList(),
 )
 
 @Serializable
 data class MapConfigResponse(
     val provider: String,
-    @SerialName("style_url") val styleUrl: String,
     @SerialName("public_key") val publicKey: String? = null,
     @SerialName("coordinate_system") val coordinateSystem: String = "WGS84",
     val enabled: Boolean = false,

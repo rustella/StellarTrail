@@ -666,12 +666,11 @@ private class FixtureTripRepository : TripRepositoryContract {
 
 private fun fixtureMapConfig(): MapConfigResponse = MapConfigResponse(
     provider = "maptiler",
-    styleUrl = "https://api.maptiler.com/maps/outdoor-v2/style.json",
     enabled = false,
     styles = listOf(
-        MapStyleOption("outdoor", "户外", "https://api.maptiler.com/maps/outdoor-v2/style.json"),
-        MapStyleOption("streets", "街道", "https://api.maptiler.com/maps/streets-v2/style.json"),
-        MapStyleOption("satellite", "卫星", "https://api.maptiler.com/maps/satellite/style.json"),
+        MapStyleOption("outdoor", "户外", "https://api.example.test/api/v1/map/styles/outdoor/style.json"),
+        MapStyleOption("streets", "街道", "https://api.example.test/api/v1/map/styles/streets/style.json"),
+        MapStyleOption("satellite", "卫星", "https://api.example.test/api/v1/map/styles/satellite/style.json"),
     ),
     defaultStyleId = "outdoor",
 )

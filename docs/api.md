@@ -1231,7 +1231,7 @@ Outdoor experience map：
 地图配置：
 
 ```http
-GET /api/v1/me/map/config
+GET /api/v1/map/config
 ```
 
 响应只包含客户端可见配置：
@@ -1239,7 +1239,6 @@ GET /api/v1/me/map/config
 ```json
 {
   "provider": "maptiler",
-  "style_url": "https://api.maptiler.com/maps/outdoor-v2/style.json",
   "public_key": "maptiler-public-key",
   "coordinate_system": "WGS84",
   "enabled": true,
@@ -1247,24 +1246,27 @@ GET /api/v1/me/map/config
     {
       "id": "outdoor",
       "label": "户外",
-      "style_url": "https://api.maptiler.com/maps/outdoor-v2/style.json"
+      "style_url": "https://api.example.com/api/v1/map/styles/outdoor/style.json",
+      "request_origins": ["https://api.maptiler.com"]
     },
     {
       "id": "streets",
       "label": "街道",
-      "style_url": "https://api.maptiler.com/maps/streets-v2/style.json"
+      "style_url": "https://api.example.com/api/v1/map/styles/streets/style.json",
+      "request_origins": ["https://api.maptiler.com"]
     },
     {
       "id": "satellite",
       "label": "卫星",
-      "style_url": "https://api.maptiler.com/maps/satellite/style.json"
+      "style_url": "https://api.example.com/api/v1/map/styles/satellite/style.json",
+      "request_origins": ["https://api.maptiler.com"]
     }
   ],
   "default_style_id": "outdoor"
 }
 ```
 
-`style_url` 是默认底图 URL，用于旧客户端兼容；新客户端应只在 `styles` 允许列表内切换底图。服务端不会返回 MapTiler service token，也不代理 MapTiler Cloud 瓦片。客户端 public key 应配合 MapTiler allowed origins、配额监控和 key rotation 使用。
+客户端应只使用 `styles` 列表加载底图。`styles[*].style_url` 指向后端托管的 style JSON，不需要再追加 MapTiler key。第一阶段 style JSON 端点原样返回官方 MapTiler JSON：`GET /api/v1/map/styles/outdoor/style.json`、`GET /api/v1/map/styles/streets/style.json`、`GET /api/v1/map/styles/satellite/style.json`。这些 style JSON 端点豁免请求签名和 `X-StellarTrail-Client` 校验，仍保留全局 rate limit 和 CORS。
 
 ## Enums
 

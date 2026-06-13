@@ -47,17 +47,23 @@ pub async fn build_state(config: ApiConfig) -> anyhow::Result<AppState> {
     } else {
         Arc::new(InMemorySmsVerificationClient::default())
     };
-    Ok(
-        AppState::new_with_wechat_client_cache_object_store_and_email_sender(
-            config,
-            db,
-            Arc::new(services::wechat::HttpWechatCodeSessionClient),
-            cache,
-            Arc::new(object_store),
-            email_sender,
-            sms_client,
-        ),
-    )
+    let state = AppState::new_with_wechat_client_cache_object_store_and_email_sender(
+        config,
+        db,
+        Arc::new(services::wechat::HttpWechatCodeSessionClient),
+        cache,
+        Arc::new(object_store),
+        email_sender,
+        sms_client,
+    );
+    state
+        .map_style_cache()
+        .refresh_all(&state.config().map)
+        .await;
+    state
+        .map_style_cache()
+        .start_refresh_worker(state.config().map.clone());
+    Ok(state)
 }
 
 async fn seed_system_gear_templates(db: &DatabaseConnection) -> anyhow::Result<()> {

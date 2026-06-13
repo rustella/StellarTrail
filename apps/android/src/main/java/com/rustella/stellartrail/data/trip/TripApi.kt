@@ -38,7 +38,7 @@ class TripApi(private val apiClient: ApiClient) {
         query = mapOf("today" to today),
     )
 
-    suspend fun mapConfig(): MapConfigResponse = apiClient.get("/me/map/config")
+    suspend fun mapConfig(): MapConfigResponse = apiClient.get("/map/config")
 
     suspend fun tripsMapOverview(): TripsMapOverviewResponse = apiClient.get("/me/trips/map-overview")
 

@@ -6,7 +6,7 @@ use axum::{
     Json, Router,
     body::Body,
     extract::{Multipart, Path, State},
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -18,13 +18,14 @@ use stellartrail_domain::{
 
 use crate::{
     dto::trail::{
-        ListTrailsResponse, MapAnnotationRequest, MapConfigResponse,
-        OutdoorExperienceMapStateResponse, TrailLinkRequest, TrailUploadResponse,
-        TripMapStateResponse, TripOverviewMapTrail, TripsMapOverviewResponse,
-        TripsMapOverviewStats, UpdateMapAnnotationRequest, UpdateTrailRequest,
+        ListTrailsResponse, MapAnnotationRequest, OutdoorExperienceMapStateResponse,
+        TrailLinkRequest, TrailUploadResponse, TripMapStateResponse, TripOverviewMapTrail,
+        TripsMapOverviewResponse, TripsMapOverviewStats, UpdateMapAnnotationRequest,
+        UpdateTrailRequest,
     },
     error::ApiError,
     extractors::AuthenticatedUser,
+    routes::map::map_config_response,
     services::trail_service,
     state::AppState,
 };
@@ -32,7 +33,6 @@ use crate::{
 /// Builds authenticated trail and map routes.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/me/map/config", get(map_config))
         .route("/me/trails", get(list_trails).post(upload_trail))
         .route("/me/trails/:trail_id/file", get(download_trail_file))
         .route(
@@ -82,10 +82,6 @@ pub fn routes() -> Router<AppState> {
             axum::routing::patch(update_outdoor_experience_annotation)
                 .delete(delete_outdoor_experience_annotation),
         )
-}
-
-async fn map_config(State(state): State<AppState>) -> Result<Json<MapConfigResponse>, ApiError> {
-    Ok(Json(MapConfigResponse::from(&state.config().map)))
 }
 
 async fn list_trails(
@@ -190,6 +186,7 @@ async fn download_trail_file(
 
 async fn get_trip_map(
     State(state): State<AppState>,
+    headers: HeaderMap,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
 ) -> Result<Json<TripMapStateResponse>, ApiError> {
@@ -198,7 +195,7 @@ async fn get_trip_map(
         .await?
         .ok_or(ApiError::NotFound)?;
     Ok(Json(TripMapStateResponse {
-        map: MapConfigResponse::from(&state.config().map),
+        map: map_config_response(&state, &headers),
         trails,
         annotations,
     }))
@@ -259,6 +256,7 @@ async fn unlink_trip_trail(
 
 async fn get_trips_map_overview(
     State(state): State<AppState>,
+    headers: HeaderMap,
     AuthenticatedUser(user): AuthenticatedUser,
 ) -> Result<Json<TripsMapOverviewResponse>, ApiError> {
     let trail_config = &state.config().trail;
@@ -306,7 +304,7 @@ async fn get_trips_map_overview(
 
     let trail_count = trails.len();
     Ok(Json(TripsMapOverviewResponse {
-        map: MapConfigResponse::from(&state.config().map),
+        map: map_config_response(&state, &headers),
         trails,
         bounds,
         stats: TripsMapOverviewStats {
@@ -392,6 +390,7 @@ async fn delete_trip_annotation(
 
 async fn get_outdoor_experience_map(
     State(state): State<AppState>,
+    headers: HeaderMap,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<String>,
 ) -> Result<Json<OutdoorExperienceMapStateResponse>, ApiError> {
@@ -400,7 +399,7 @@ async fn get_outdoor_experience_map(
         .await?
         .ok_or(ApiError::NotFound)?;
     Ok(Json(OutdoorExperienceMapStateResponse {
-        map: MapConfigResponse::from(&state.config().map),
+        map: map_config_response(&state, &headers),
         trails,
         annotations,
     }))

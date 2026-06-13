@@ -8,6 +8,7 @@ pub mod content_page_service;
 pub mod feedback_service;
 pub mod gear_service;
 pub mod knot_media_upload_service;
+pub mod map_style_cache;
 pub mod profile_service;
 pub mod public_response_cache;
 pub mod rate_limit_service;

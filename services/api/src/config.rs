@@ -15,6 +15,7 @@ use anyhow::Context;
 use axum::http::HeaderValue;
 use serde::Deserialize;
 use stellartrail_db::{DatabaseConfig, DatabaseKind};
+use url::Url;
 
 const DEFAULT_CONFIG_PATH: &str = "config.yaml";
 
@@ -101,6 +102,7 @@ struct FileMapConfig {
     provider: Option<String>,
     style_url: Option<String>,
     public_key: Option<String>,
+    public_api_origin: Option<String>,
     styles: Option<Vec<FileMapStyleConfig>>,
     default_style_id: Option<String>,
 }
@@ -111,6 +113,7 @@ struct FileMapStyleConfig {
     id: Option<String>,
     label: Option<String>,
     style_url: Option<String>,
+    request_origins: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -448,15 +451,17 @@ impl Default for TrailConfig {
 pub struct MapStyleConfig {
     pub id: String,
     pub label: String,
-    pub style_url: String,
+    pub request_origins: Vec<String>,
+    pub upstream_style_url: String,
 }
 
-/// Client-visible map provider configuration. Service tokens are intentionally excluded.
+/// Runtime map provider configuration. Service tokens are intentionally excluded.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MapConfig {
     pub provider: String,
-    pub style_url: String,
+    pub upstream_style_url: String,
     pub public_key: Option<String>,
+    pub public_api_origin: Option<String>,
     pub styles: Vec<MapStyleConfig>,
     pub default_style_id: String,
 }
@@ -466,8 +471,9 @@ impl Default for MapConfig {
         let styles = default_map_styles();
         Self {
             provider: "maptiler".to_owned(),
-            style_url: "https://api.maptiler.com/maps/outdoor-v2/style.json".to_owned(),
+            upstream_style_url: "https://api.maptiler.com/maps/outdoor-v2/style.json".to_owned(),
             public_key: None,
+            public_api_origin: None,
             styles,
             default_style_id: "outdoor".to_owned(),
         }
@@ -479,17 +485,20 @@ fn default_map_styles() -> Vec<MapStyleConfig> {
         MapStyleConfig {
             id: "outdoor".to_owned(),
             label: "户外".to_owned(),
-            style_url: "https://api.maptiler.com/maps/outdoor-v2/style.json".to_owned(),
+            upstream_style_url: "https://api.maptiler.com/maps/outdoor-v2/style.json".to_owned(),
+            request_origins: vec!["https://api.maptiler.com".to_owned()],
         },
         MapStyleConfig {
             id: "streets".to_owned(),
             label: "街道".to_owned(),
-            style_url: "https://api.maptiler.com/maps/streets-v2/style.json".to_owned(),
+            upstream_style_url: "https://api.maptiler.com/maps/streets-v2/style.json".to_owned(),
+            request_origins: vec!["https://api.maptiler.com".to_owned()],
         },
         MapStyleConfig {
             id: "satellite".to_owned(),
             label: "卫星".to_owned(),
-            style_url: "https://api.maptiler.com/maps/satellite/style.json".to_owned(),
+            upstream_style_url: "https://api.maptiler.com/maps/satellite/style.json".to_owned(),
+            request_origins: vec!["https://api.maptiler.com".to_owned()],
         },
     ]
 }
@@ -894,20 +903,25 @@ impl ApiConfig {
         let default_map = MapConfig::default();
         let legacy_style_url = optional_env_alias("MAP_STYLE_URL", &["MAPTILER_STYLE_URL"])
             .or_else(|| normalize_file_string(file_map.style_url))
-            .unwrap_or_else(|| default_map.style_url.clone());
-        let styles = map_styles_from_file(file_map.styles, &default_map.styles, &legacy_style_url);
+            .unwrap_or_else(|| default_map.upstream_style_url.clone());
+        let styles = map_styles_from_file(file_map.styles, &default_map.styles, &legacy_style_url)?;
         let default_style_id = normalize_file_string(file_map.default_style_id)
             .unwrap_or_else(|| default_map.default_style_id.clone());
-        let style_url = styles
+        let upstream_style_url = styles
             .iter()
             .find(|style| style.id == default_style_id)
-            .map(|style| style.style_url.clone())
+            .map(|style| style.upstream_style_url.clone())
             .unwrap_or_else(|| legacy_style_url.clone());
         let map = MapConfig {
             provider: config_string_env("MAP_PROVIDER", file_map.provider, &default_map.provider),
-            style_url,
+            upstream_style_url,
             public_key: optional_env_alias("MAP_PUBLIC_KEY", &["MAPTILER_PUBLIC_KEY"])
                 .or_else(|| normalize_file_string(file_map.public_key)),
+            public_api_origin: optional_env_alias(
+                "MAP_PUBLIC_API_ORIGIN",
+                &["MAP_STYLE_PUBLIC_ORIGIN"],
+            )
+            .or_else(|| normalize_file_string(file_map.public_api_origin)),
             styles,
             default_style_id,
         };
@@ -1266,26 +1280,46 @@ fn map_styles_from_file(
     file_styles: Option<Vec<FileMapStyleConfig>>,
     default_styles: &[MapStyleConfig],
     legacy_style_url: &str,
-) -> Vec<MapStyleConfig> {
-    match file_styles {
+) -> anyhow::Result<Vec<MapStyleConfig>> {
+    let styles = match file_styles {
         Some(styles) => styles
             .into_iter()
-            .map(|style| MapStyleConfig {
-                id: normalize_file_string(style.id).unwrap_or_default(),
-                label: normalize_file_string(style.label).unwrap_or_default(),
-                style_url: normalize_file_string(style.style_url).unwrap_or_default(),
+            .map(|style| {
+                let upstream_style_url = normalize_file_string(style.style_url).unwrap_or_default();
+                Ok(MapStyleConfig {
+                    id: normalize_file_string(style.id).unwrap_or_default(),
+                    label: normalize_file_string(style.label).unwrap_or_default(),
+                    request_origins: style_request_origins(
+                        style.request_origins,
+                        &upstream_style_url,
+                    )?,
+                    upstream_style_url,
+                })
             })
-            .collect(),
+            .collect::<anyhow::Result<Vec<_>>>()?,
         None => default_styles
             .iter()
             .cloned()
             .map(|mut style| {
                 if style.id == "outdoor" {
-                    style.style_url = legacy_style_url.to_owned();
+                    style.upstream_style_url = legacy_style_url.to_owned();
+                    style.request_origins = style_request_origins(None, &style.upstream_style_url)
+                        .unwrap_or_else(|_| vec!["https://api.maptiler.com".to_owned()]);
                 }
                 style
             })
             .collect(),
+    };
+    Ok(styles)
+}
+
+fn style_request_origins(
+    configured_origins: Option<Vec<String>>,
+    upstream_style_url: &str,
+) -> anyhow::Result<Vec<String>> {
+    match configured_origins {
+        Some(origins) => Ok(origins),
+        None => Ok(vec![origin_from_url(upstream_style_url)?]),
     }
 }
 
@@ -1468,11 +1502,15 @@ fn validate_map_config(config: &MapConfig) -> anyhow::Result<()> {
     if config.provider.trim() != config.provider {
         anyhow::bail!("MAP_PROVIDER must not be padded");
     }
-    if config.style_url.trim().is_empty() {
+    if config.upstream_style_url.trim().is_empty() {
         anyhow::bail!("MAP_STYLE_URL must not be empty");
     }
-    if config.style_url.trim() != config.style_url {
+    if config.upstream_style_url.trim() != config.upstream_style_url {
         anyhow::bail!("MAP_STYLE_URL must not be padded");
+    }
+    origin_from_url(&config.upstream_style_url)?;
+    if let Some(origin) = &config.public_api_origin {
+        validate_origin("MAP_PUBLIC_API_ORIGIN", origin)?;
     }
     if config.styles.is_empty() {
         anyhow::bail!("MAP_STYLES must not be empty");
@@ -1501,16 +1539,55 @@ fn validate_map_config(config: &MapConfig) -> anyhow::Result<()> {
         if style.label.trim() != style.label {
             anyhow::bail!("MAP_STYLE_LABEL must not be padded");
         }
-        if style.style_url.trim().is_empty() {
+        if style.upstream_style_url.trim().is_empty() {
             anyhow::bail!("MAP_STYLE_URL must not be empty");
         }
-        if style.style_url.trim() != style.style_url {
+        if style.upstream_style_url.trim() != style.upstream_style_url {
             anyhow::bail!("MAP_STYLE_URL must not be padded");
+        }
+        origin_from_url(&style.upstream_style_url)?;
+        if style.request_origins.is_empty() {
+            anyhow::bail!("MAP_STYLE_REQUEST_ORIGINS must not be empty");
+        }
+        let mut request_origins = HashSet::new();
+        for origin in &style.request_origins {
+            validate_origin("MAP_STYLE_REQUEST_ORIGIN", origin)?;
+            if !request_origins.insert(origin.as_str()) {
+                anyhow::bail!("MAP_STYLE_REQUEST_ORIGIN must be unique per style");
+            }
         }
         has_default_style |= style.id == config.default_style_id;
     }
     if !has_default_style {
         anyhow::bail!("MAP_DEFAULT_STYLE_ID must match one configured style");
+    }
+    Ok(())
+}
+
+fn origin_from_url(value: &str) -> anyhow::Result<String> {
+    let url =
+        Url::parse(value).with_context(|| format!("MAP_STYLE_URL `{value}` must be a URL"))?;
+    let Some(host) = url.host_str() else {
+        anyhow::bail!("MAP_STYLE_URL `{value}` must include a host");
+    };
+    let port = url
+        .port()
+        .map(|port| format!(":{port}"))
+        .unwrap_or_default();
+    Ok(format!("{}://{host}{port}", url.scheme()))
+}
+
+fn validate_origin(name: &str, value: &str) -> anyhow::Result<()> {
+    if value.trim().is_empty() || value.trim() != value {
+        anyhow::bail!("{name} must not be empty or padded");
+    }
+    let url = Url::parse(value).with_context(|| format!("{name} must be a URL origin"))?;
+    if url.host_str().is_none()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        anyhow::bail!("{name} must be an origin without path, query, or fragment");
     }
     Ok(())
 }
@@ -1912,6 +1989,7 @@ trail:
   overview_max_points_per_trail: 45
 map:
   provider: maptiler
+  public_api_origin: https://api.example.invalid
   style_url: https://maps.example.invalid/style.json
   public_key: yaml-public-key
   default_style_id: streets
@@ -1919,12 +1997,18 @@ map:
     - id: outdoor
       label: 户外
       style_url: https://maps.example.invalid/outdoor.json
+      request_origins:
+        - https://maps.example.invalid
     - id: streets
       label: 街道
       style_url: https://maps.example.invalid/streets.json
+      request_origins:
+        - https://maps.example.invalid
     - id: satellite
       label: 卫星
       style_url: https://maps.example.invalid/satellite.json
+      request_origins:
+        - https://maps.example.invalid
 minio:
   endpoint: http://minio.example.invalid
   region: us-east-1
@@ -2015,16 +2099,24 @@ mail:
         assert_eq!(config.trail.overview_max_points_per_trail, 45);
         assert_eq!(config.map.provider, "maptiler");
         assert_eq!(
-            config.map.style_url,
+            config.map.upstream_style_url,
             "https://maps.example.invalid/streets.json"
         );
         assert_eq!(config.map.public_key.as_deref(), Some("yaml-public-key"));
+        assert_eq!(
+            config.map.public_api_origin.as_deref(),
+            Some("https://api.example.invalid")
+        );
         assert_eq!(config.map.default_style_id, "streets");
         assert_eq!(config.map.styles.len(), 3);
         assert_eq!(config.map.styles[0].id, "outdoor");
         assert_eq!(
-            config.map.styles[0].style_url,
+            config.map.styles[0].upstream_style_url,
             "https://maps.example.invalid/outdoor.json"
+        );
+        assert_eq!(
+            config.map.styles[0].request_origins,
+            vec!["https://maps.example.invalid".to_owned()]
         );
         assert_eq!(config.map.styles[1].label, "街道");
         assert_eq!(config.minio.endpoint, "http://minio.example.invalid");
@@ -2156,6 +2248,7 @@ public_api:
             env::set_var("MAP_PROVIDER", "maptiler");
             env::set_var("MAP_STYLE_URL", " https://maps.example.test/outdoor.json ");
             env::set_var("MAP_PUBLIC_KEY", " public-map-key ");
+            env::set_var("MAP_PUBLIC_API_ORIGIN", " https://api.example.test ");
             env::set_var("MINIO_ENDPOINT", " http://minio:9000 ");
             env::set_var("MINIO_REGION", " us-east-1 ");
             env::set_var("MINIO_ACCESS_KEY_ID", " local-key ");
@@ -2198,13 +2291,17 @@ public_api:
         assert_eq!(config.trail.overview_max_points_per_trail, 99);
         assert_eq!(config.map.provider, "maptiler");
         assert_eq!(
-            config.map.style_url,
+            config.map.upstream_style_url,
             "https://maps.example.test/outdoor.json"
         );
         assert_eq!(config.map.public_key.as_deref(), Some("public-map-key"));
+        assert_eq!(
+            config.map.public_api_origin.as_deref(),
+            Some("https://api.example.test")
+        );
         assert_eq!(config.map.default_style_id, "outdoor");
         assert_eq!(
-            config.map.styles[0].style_url,
+            config.map.styles[0].upstream_style_url,
             "https://maps.example.test/outdoor.json"
         );
         assert_eq!(config.map.styles[1].id, "streets");
@@ -2673,6 +2770,8 @@ sms:
         "MAP_PROVIDER",
         "MAP_STYLE_URL",
         "MAP_PUBLIC_KEY",
+        "MAP_PUBLIC_API_ORIGIN",
+        "MAP_STYLE_PUBLIC_ORIGIN",
         "MAPTILER_STYLE_URL",
         "MAPTILER_PUBLIC_KEY",
         "MINIO_ENDPOINT",

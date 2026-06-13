@@ -34,6 +34,10 @@ pub enum ApiError {
     RateLimited {
         retry_after_seconds: u64,
     },
+    ServiceUnavailable {
+        code: &'static str,
+        message: String,
+    },
     EmailDeliveryFailed,
     SmsDeliveryFailed,
     Internal(anyhow::Error),
@@ -243,6 +247,16 @@ impl IntoResponse for ApiError {
                 None,
                 None,
                 Some(retry_after_seconds),
+            ),
+            Self::ServiceUnavailable { code, message } => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                code,
+                message,
+                None,
+                None,
+                None,
+                None,
+                None,
             ),
             Self::EmailDeliveryFailed => (
                 StatusCode::BAD_GATEWAY,

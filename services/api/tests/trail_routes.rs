@@ -29,6 +29,7 @@ const TEST_CLIENT_IDENTITY: &str = "web/test";
 
 struct TestApp {
     router: Router,
+    state: AppState,
     object_store: InMemoryObjectStore,
     _temp_dir: TempDir,
 }
@@ -54,8 +55,9 @@ async fn test_app(map_public_key: Option<&str>) -> TestApp {
         trail: Default::default(),
         map: MapConfig {
             provider: "maptiler".to_owned(),
-            style_url: "https://api.maptiler.com/maps/outdoor-v2/style.json".to_owned(),
+            upstream_style_url: "https://api.maptiler.com/maps/outdoor-v2/style.json".to_owned(),
             public_key: map_public_key.map(ToOwned::to_owned),
+            public_api_origin: Some("https://api.example.test".to_owned()),
             ..MapConfig::default()
         },
         minio: Default::default(),
@@ -78,7 +80,8 @@ async fn test_app(map_public_key: Option<&str>) -> TestApp {
         Arc::new(object_store.clone()),
     );
     TestApp {
-        router: build_router(state),
+        router: build_router(state.clone()),
+        state,
         object_store,
         _temp_dir: temp_dir,
     }
@@ -139,6 +142,23 @@ async fn send_empty_bytes(
     let response = app
         .clone()
         .oneshot(builder.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    (status, bytes.to_vec())
+}
+
+async fn send_raw_empty_bytes(app: &Router, method: &str, path: &str) -> (StatusCode, Vec<u8>) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(method)
+                .uri(path)
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let status = response.status();
@@ -256,22 +276,66 @@ async fn upload_trail(
 }
 
 #[tokio::test]
+async fn hosted_map_style_json_allows_sdk_requests_without_api_headers() {
+    let app = test_app(Some("pk.visible")).await;
+    app.state
+        .map_style_cache()
+        .insert_for_tests("outdoor", r#"{"version":8,"sources":{},"layers":[]}"#);
+
+    let (status, bytes) =
+        send_raw_empty_bytes(&app.router, "GET", "/api/v1/map/styles/outdoor/style.json").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(bytes, br#"{"version":8,"sources":{},"layers":[]}"#);
+}
+
+#[tokio::test]
+async fn hosted_map_style_json_reports_unknown_or_unready_styles() {
+    let app = test_app(Some("pk.visible")).await;
+
+    let (missing_status, missing_body) =
+        send_raw_empty_bytes(&app.router, "GET", "/api/v1/map/styles/terrain/style.json").await;
+    assert_eq!(missing_status, StatusCode::NOT_FOUND);
+    let missing_json: Value = serde_json::from_slice(&missing_body).unwrap();
+    assert_eq!(missing_json["code"], "not_found");
+
+    let (unready_status, unready_body) =
+        send_raw_empty_bytes(&app.router, "GET", "/api/v1/map/styles/outdoor/style.json").await;
+    assert_eq!(unready_status, StatusCode::SERVICE_UNAVAILABLE);
+    let unready_json: Value = serde_json::from_slice(&unready_body).unwrap();
+    assert_eq!(unready_json["code"], "map_style_unavailable");
+}
+
+#[tokio::test]
 async fn trail_library_upload_list_detail_and_file_download_work() {
     let app = test_app(Some("pk.visible")).await;
     let token = login(&app.router, "trail-library-owner", "山友").await;
 
     let (config_status, config) =
-        send_empty_json(&app.router, "GET", "/api/v1/me/map/config", Some(&token)).await;
+        send_empty_json(&app.router, "GET", "/api/v1/map/config", Some(&token)).await;
     assert_eq!(config_status, StatusCode::OK, "{config}");
     assert_eq!(config["provider"], "maptiler");
     assert_eq!(config["public_key"], "pk.visible");
     assert_eq!(config["coordinate_system"], "WGS84");
     assert_eq!(config["enabled"], true);
     assert_eq!(config["default_style_id"], "outdoor");
+    assert!(config.get("style_url").is_none());
     assert_eq!(config["styles"][0]["id"], "outdoor");
+    assert_eq!(
+        config["styles"][0]["style_url"],
+        "https://api.example.test/api/v1/map/styles/outdoor/style.json"
+    );
+    assert_eq!(
+        config["styles"][0]["request_origins"][0],
+        "https://api.maptiler.com"
+    );
     assert_eq!(config["styles"][1]["id"], "streets");
     assert_eq!(config["styles"][2]["id"], "satellite");
     assert!(config.get("service_token").is_none());
+
+    let (old_config_status, old_config) =
+        send_empty_json(&app.router, "GET", "/api/v1/me/map/config", Some(&token)).await;
+    assert_eq!(old_config_status, StatusCode::NOT_FOUND, "{old_config}");
 
     let (upload_status, trail) = upload_trail(
         &app.router,

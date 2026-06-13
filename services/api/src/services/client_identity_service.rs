@@ -12,7 +12,10 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::{error::ApiError, routes::API_PREFIX_WITH_SLASH};
+use crate::{
+    error::ApiError,
+    routes::{API_PREFIX_WITH_SLASH, map::is_map_style_json_path},
+};
 
 /// Header carrying the compact client identity value, for example `ios/0.1.0`.
 pub const CLIENT_IDENTITY_HEADER: &str = "X-StellarTrail-Client";
@@ -32,7 +35,9 @@ pub async fn enforce_client_identity(request: Request, next: Next) -> Response {
 }
 
 fn should_verify_request(method: &Method, path: &str) -> bool {
-    method != Method::OPTIONS && path.starts_with(API_PREFIX_WITH_SLASH)
+    method != Method::OPTIONS
+        && path.starts_with(API_PREFIX_WITH_SLASH)
+        && !is_map_style_json_path(path)
 }
 
 fn validate_client_identity(headers: &HeaderMap) -> Result<(), ApiError> {

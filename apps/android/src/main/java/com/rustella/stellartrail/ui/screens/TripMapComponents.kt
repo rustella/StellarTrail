@@ -147,12 +147,13 @@ fun TripsOverviewMapSection(
     var compactAutoStartLocationTrackingKey by remember { mutableStateOf(0) }
     var expandedAutoStartLocationTrackingKey by remember { mutableStateOf(0) }
     val styleOptions = if (canRenderMap) resolveMapStyleOptions(data.map) else emptyList()
-    val expandedSelectedStyle = if (canRenderMap) {
+    val canRenderStyledMap = canRenderMap && styleOptions.isNotEmpty()
+    val expandedSelectedStyle = if (canRenderStyledMap) {
         resolveSelectedMapStyle(data.map, compactStyleIdWhileExpanded ?: selectedStyleId)
     } else {
         null
     }
-    val compactSelectedStyle = if (canRenderMap) {
+    val compactSelectedStyle = if (canRenderStyledMap) {
         resolveSelectedMapStyle(data.map, compactStyleIdWhileExpanded ?: selectedStyleId)
     } else {
         null
@@ -171,7 +172,7 @@ fun TripsOverviewMapSection(
                 CompactPillAction("轨迹库", onOpenTrailLibrary)
             }
         }
-        if (canRenderMap && compactSelectedStyle != null) {
+        if (canRenderStyledMap && compactSelectedStyle != null) {
             MapTilerTrailMap(
                 map = data.map,
                 styleOptions = styleOptions,
@@ -219,7 +220,7 @@ fun TripsOverviewMapSection(
             )
         }
     }
-    if (expandedMap && canRenderMap && expandedSelectedStyle != null) {
+    if (expandedMap && canRenderStyledMap && expandedSelectedStyle != null) {
         ExpandedTrailMapDialog(
             title = "行程轨迹总览",
             map = data.map,
@@ -307,8 +308,8 @@ fun TripDetailMapSection(
                 MetricTile("备注", "${data.annotations.size}", Modifier.weight(1f))
                 MetricTile("点数", "${data.trails.sumOf { it.trail.pointCount }}", Modifier.weight(1f))
             }
-            if (canRenderMap) {
-                val styleOptions = resolveMapStyleOptions(data.map)
+            val styleOptions = if (canRenderMap) resolveMapStyleOptions(data.map) else emptyList()
+            if (canRenderMap && styleOptions.isNotEmpty()) {
                 val selectedStyle = resolveSelectedMapStyle(data.map, compactStyleIdWhileExpanded ?: selectedStyleId)
                 val bounds = unionBounds(data.trails.mapNotNull { it.trail.bounds })
                 val featureCollection = rememberTripFeatureCollection(data.trails)
@@ -393,8 +394,8 @@ fun TripDetailMapSection(
     }
     state.data?.let { data ->
         val canRenderMap = data.map.enabled && data.map.publicKey?.isNotBlank() == true
-        if (expandedMap && canRenderMap) {
-            val styleOptions = resolveMapStyleOptions(data.map)
+        val styleOptions = if (canRenderMap) resolveMapStyleOptions(data.map) else emptyList()
+        if (expandedMap && canRenderMap && styleOptions.isNotEmpty()) {
             val selectedStyle = resolveSelectedMapStyle(data.map, compactStyleIdWhileExpanded ?: selectedStyleId)
             ExpandedTrailMapDialog(
                 title = "轨迹地图",
@@ -524,6 +525,14 @@ fun TrailAssetPreviewMap(
         return
     }
     val styleOptions = resolveMapStyleOptions(map)
+    if (styleOptions.isEmpty()) {
+        CompactMapFallback(
+            title = "地图暂未启用",
+            body = "后端未返回可用地图样式。",
+            height = height,
+        )
+        return
+    }
     val selectedStyle = resolveSelectedMapStyle(map, selectedStyleId)
     MapTilerTrailMap(
         map = map,
@@ -567,8 +576,8 @@ private fun MapTilerTrailMap(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
-    val publicKey = map.publicKey.orEmpty()
-    val styleUrl = selectedStyle.styleUrl.withMapTilerKey(publicKey)
+    val styleUrl = selectedStyle.styleUrl
+    val mapPublicKey = map.publicKey.orEmpty()
     val locationProvider = remember(context) { AndroidForegroundLocationProvider(context) }
     var legendVisible by remember { mutableStateOf(false) }
     var styleSwitchLocked by remember { mutableStateOf(false) }
@@ -612,8 +621,8 @@ private fun MapTilerTrailMap(
     val currentOnCameraSnapshotChanged by rememberUpdatedState(onCameraSnapshotChanged)
     val currentOnLocationChanged by rememberUpdatedState(onLocationChanged)
     val currentOnLocationTrackingActiveChanged by rememberUpdatedState(onLocationTrackingActiveChanged)
-    val controllerDelegate = remember(styleUrl, featureCollection, bounds, lineColor, eventLevel, zoomGesturesEnabled) {
-        MTConfig.apiKey = publicKey
+    val controllerDelegate = remember(styleUrl, mapPublicKey, featureCollection, bounds, lineColor, eventLevel, zoomGesturesEnabled) {
+        MTConfig.apiKey = mapPublicKey
         TrailMapDelegate(
             context = context,
             coroutineScope = coroutineScope,
@@ -1532,15 +1541,7 @@ internal fun resolveMapStyleOptions(map: MapConfigResponse): List<MapStyleOption
             )
         }
     }
-    if (configuredStyles.isNotEmpty()) return configuredStyles
-    val fallbackId = map.defaultStyleId.trim().ifEmpty { DEFAULT_MAP_STYLE_ID }
-    return listOf(
-        MapStyleOption(
-            id = fallbackId,
-            label = fallbackMapStyleLabel(fallbackId),
-            styleUrl = map.styleUrl,
-        ),
-    )
+    return configuredStyles
 }
 
 internal fun resolveSelectedMapStyle(map: MapConfigResponse, selectedStyleId: String?): MapStyleOption {
@@ -1549,12 +1550,6 @@ internal fun resolveSelectedMapStyle(map: MapConfigResponse, selectedStyleId: St
     return styles.firstOrNull { it.id == selectedId }
         ?: styles.firstOrNull { it.id == map.defaultStyleId.trim() }
         ?: styles.first()
-}
-
-private fun String.withMapTilerKey(publicKey: String): String = when {
-    publicKey.isBlank() || contains("key=") -> this
-    contains('?') -> "$this&key=$publicKey"
-    else -> "$this?key=$publicKey"
 }
 
 private fun Double.formatOne(): String = "%.1f".format(this)
