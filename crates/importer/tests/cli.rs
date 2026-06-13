@@ -82,6 +82,30 @@ fn ignore_robots_is_restricted_to_8264() {
 }
 
 #[test]
+fn discover_8264_list_flags_are_accepted_with_authorization() {
+    let output = Command::new(env!("CARGO_BIN_EXE_import-gear-atlas-all"))
+        .args([
+            "discover",
+            "--source",
+            "8264",
+            "--full-scan",
+            "--ignore-robots",
+            "8264",
+            "--8264-skip-id-fallback",
+            "--8264-list-max-pages-per-scope",
+            "1",
+            "--max-items-per-source",
+            "0",
+        ])
+        .output()
+        .expect("run importer");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"source\": \"8264\""), "{stdout}");
+}
+
+#[test]
 fn dry_run_accepts_discovery_jsonl_without_fetching_when_limit_is_zero() {
     let dir = tempfile::tempdir().expect("tempdir");
     let discovery = dir.path().join("discovery.jsonl");
