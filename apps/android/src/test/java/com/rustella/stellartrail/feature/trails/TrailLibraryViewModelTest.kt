@@ -106,7 +106,6 @@ private class FakeTrailRepository : TrailRepositoryContract {
 private class FakeTripRepository : TripRepositoryContract {
     override suspend fun mapConfig(): MapConfigResponse = MapConfigResponse(
         provider = "maptiler",
-        styleUrl = "https://api.maptiler.com/maps/outdoor-v2/style.json",
         publicKey = "pk.test",
         enabled = true,
     )

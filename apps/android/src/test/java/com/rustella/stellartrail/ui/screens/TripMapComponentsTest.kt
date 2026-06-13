@@ -88,10 +88,9 @@ class TripMapComponentsTest {
     }
 
     @Test
-    fun mapStyleResolutionKeepsLegacySingleStyleConfigRenderable() {
+    fun mapStyleResolutionRequiresBackendStyleList() {
         val map = MapConfigResponse(
             provider = "maptiler",
-            styleUrl = "https://maps.example.test/custom.json",
             publicKey = "pk.test",
             enabled = true,
             styles = emptyList(),
@@ -99,11 +98,8 @@ class TripMapComponentsTest {
         )
 
         val styles = resolveMapStyleOptions(map)
-        val selected = resolveSelectedMapStyle(map, selectedStyleId = "streets")
 
-        assertEquals(1, styles.size)
-        assertEquals("outdoor", selected.id)
-        assertEquals("https://maps.example.test/custom.json", selected.styleUrl)
+        assertTrue(styles.isEmpty())
     }
 
     @Test
@@ -278,13 +274,12 @@ class TripMapComponentsTest {
 
     private fun mapConfigWithStyles() = MapConfigResponse(
         provider = "maptiler",
-        styleUrl = "https://api.maptiler.com/maps/outdoor-v2/style.json",
         publicKey = "pk.test",
         enabled = true,
         styles = listOf(
-            MapStyleOption("outdoor", "户外", "https://api.maptiler.com/maps/outdoor-v2/style.json"),
-            MapStyleOption("streets", "街道", "https://api.maptiler.com/maps/streets-v2/style.json"),
-            MapStyleOption("satellite", "卫星", "https://api.maptiler.com/maps/satellite/style.json"),
+            MapStyleOption("outdoor", "户外", "https://api.example.test/api/v1/map/styles/outdoor/style.json"),
+            MapStyleOption("streets", "街道", "https://api.example.test/api/v1/map/styles/streets/style.json"),
+            MapStyleOption("satellite", "卫星", "https://api.example.test/api/v1/map/styles/satellite/style.json"),
         ),
         defaultStyleId = "outdoor",
     )

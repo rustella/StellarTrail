@@ -100,6 +100,24 @@ class TripApiTest {
     }
 
     @Test
+    fun mapConfigUsesPublicMapConfigPathAndHostedStyles() = runTest {
+        val requests = mutableListOf<HttpRequestData>()
+        val api = TripApi(testClient { request ->
+            requests += request
+            respondJson(mapConfigJson)
+        })
+
+        val config = api.mapConfig()
+
+        assertEquals(HttpMethod.Get, requests.single().method)
+        assertEquals("/api/v1/map/config", requests.single().url.encodedPath)
+        assertEquals(
+            "https://api.example.test/api/v1/map/styles/outdoor/style.json",
+            config.styles.first().styleUrl,
+        )
+    }
+
+    @Test
     fun tripMapEndpointsUseSingleMapRequests() = runTest {
         val requests = mutableListOf<HttpRequestData>()
         val api = TripApi(testClient { request ->
@@ -171,6 +189,7 @@ class TripMapDtoTest {
         assertEquals(true, tripMap.map.enabled)
         assertEquals("outdoor", tripMap.map.defaultStyleId)
         assertEquals(listOf("outdoor", "streets", "satellite"), tripMap.map.styles.map { it.id })
+        assertEquals(listOf("https://api.maptiler.com"), tripMap.map.styles.first().requestOrigins)
         assertEquals("trail-1", tripMap.trails.single().trailId)
         assertEquals("trip-1", overview.trails.single().tripId)
         assertEquals(2, overview.stats.renderedPointCount)
@@ -249,18 +268,32 @@ private val mapTrailLinkJson = """
 }
 """.trimIndent()
 
+private val mapConfigJson = """
+{
+  "provider": "maptiler",
+  "public_key": "pk.test",
+  "coordinate_system": "WGS84",
+  "enabled": true,
+  "styles": [
+    {"id": "outdoor", "label": "户外", "style_url": "https://api.example.test/api/v1/map/styles/outdoor/style.json", "request_origins": ["https://api.maptiler.com"]},
+    {"id": "streets", "label": "街道", "style_url": "https://api.example.test/api/v1/map/styles/streets/style.json", "request_origins": ["https://api.maptiler.com"]},
+    {"id": "satellite", "label": "卫星", "style_url": "https://api.example.test/api/v1/map/styles/satellite/style.json", "request_origins": ["https://api.maptiler.com"]}
+  ],
+  "default_style_id": "outdoor"
+}
+""".trimIndent()
+
 private val tripMapStateJson = """
 {
   "map": {
     "provider": "maptiler",
-    "style_url": "https://api.maptiler.com/maps/outdoor-v2/style.json",
     "public_key": "pk.test",
     "coordinate_system": "WGS84",
     "enabled": true,
     "styles": [
-      {"id": "outdoor", "label": "户外", "style_url": "https://api.maptiler.com/maps/outdoor-v2/style.json"},
-      {"id": "streets", "label": "街道", "style_url": "https://api.maptiler.com/maps/streets-v2/style.json"},
-      {"id": "satellite", "label": "卫星", "style_url": "https://api.maptiler.com/maps/satellite/style.json"}
+      {"id": "outdoor", "label": "户外", "style_url": "https://api.example.test/api/v1/map/styles/outdoor/style.json", "request_origins": ["https://api.maptiler.com"]},
+      {"id": "streets", "label": "街道", "style_url": "https://api.example.test/api/v1/map/styles/streets/style.json", "request_origins": ["https://api.maptiler.com"]},
+      {"id": "satellite", "label": "卫星", "style_url": "https://api.example.test/api/v1/map/styles/satellite/style.json", "request_origins": ["https://api.maptiler.com"]}
     ],
     "default_style_id": "outdoor"
   },
@@ -273,14 +306,13 @@ private val tripsMapOverviewJson = """
 {
   "map": {
     "provider": "maptiler",
-    "style_url": "https://api.maptiler.com/maps/outdoor-v2/style.json",
     "public_key": "pk.test",
     "coordinate_system": "WGS84",
     "enabled": true,
     "styles": [
-      {"id": "outdoor", "label": "户外", "style_url": "https://api.maptiler.com/maps/outdoor-v2/style.json"},
-      {"id": "streets", "label": "街道", "style_url": "https://api.maptiler.com/maps/streets-v2/style.json"},
-      {"id": "satellite", "label": "卫星", "style_url": "https://api.maptiler.com/maps/satellite/style.json"}
+      {"id": "outdoor", "label": "户外", "style_url": "https://api.example.test/api/v1/map/styles/outdoor/style.json", "request_origins": ["https://api.maptiler.com"]},
+      {"id": "streets", "label": "街道", "style_url": "https://api.example.test/api/v1/map/styles/streets/style.json", "request_origins": ["https://api.maptiler.com"]},
+      {"id": "satellite", "label": "卫星", "style_url": "https://api.example.test/api/v1/map/styles/satellite/style.json", "request_origins": ["https://api.maptiler.com"]}
     ],
     "default_style_id": "outdoor"
   },

@@ -14,6 +14,7 @@ use crate::{
     email::{EmailSender, NoopEmailSender},
     object_store::{InMemoryObjectStore, ObjectStore},
     services::{
+        map_style_cache::MapStyleCache,
         public_response_cache::InMemoryPublicResponseCache,
         rate_limit_service::InMemoryRateLimiter,
         request_signature_service::InMemoryRequestSignatureNonceStore,
@@ -37,6 +38,7 @@ struct AppStateInner {
     email_sender: Arc<dyn EmailSender>,
     sms_client: Arc<dyn SmsVerificationClient>,
     disclaimer_acceptance_repository: DisclaimerAcceptanceRepository,
+    map_style_cache: MapStyleCache,
     knot_repository: KnotRepository,
     skill_favorite_repository: SkillFavoriteRepository,
     gear_template_repository: GearTemplateRepository,
@@ -178,6 +180,7 @@ impl AppState {
                 email_sender,
                 sms_client,
                 disclaimer_acceptance_repository,
+                map_style_cache: MapStyleCache::default(),
                 knot_repository,
                 skill_favorite_repository,
                 gear_template_repository,
@@ -227,6 +230,11 @@ impl AppState {
     /// Returns the DB-backed current-user disclaimer acceptance repository.
     pub fn disclaimer_acceptance_repository(&self) -> &DisclaimerAcceptanceRepository {
         &self.inner.disclaimer_acceptance_repository
+    }
+
+    /// Returns the in-memory hosted map style cache.
+    pub fn map_style_cache(&self) -> MapStyleCache {
+        self.inner.map_style_cache.clone()
     }
 
     /// Returns the DB-backed public knot repository.

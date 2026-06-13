@@ -20,7 +20,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     config::RequestSignatureConfig,
     error::ApiError,
-    routes::{API_PREFIX, API_PREFIX_WITH_SLASH},
+    routes::{API_PREFIX, API_PREFIX_WITH_SLASH, map::is_map_style_json_path},
     state::AppState,
 };
 
@@ -86,10 +86,11 @@ fn is_versioned_api_path(path: &str) -> bool {
 }
 
 fn is_signature_exempt_path(path: &str) -> bool {
-    matches!(
-        path,
-        "/healthz" | "/ping" | "/echo" | "/api/v1/ping" | "/api/v1/echo"
-    )
+    is_map_style_json_path(path)
+        || matches!(
+            path,
+            "/healthz" | "/ping" | "/echo" | "/api/v1/ping" | "/api/v1/echo"
+        )
 }
 
 async fn verify_request_signature(state: AppState, request: Request) -> Result<Request, ApiError> {

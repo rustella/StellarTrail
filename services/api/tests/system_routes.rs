@@ -233,6 +233,23 @@ async fn request_signature_rejects_unsigned_api_request() {
 }
 
 #[tokio::test]
+async fn hosted_map_style_json_exempts_client_identity_and_request_signature() {
+    let app = test_app_with_request_signature(signature_config()).await;
+
+    let (status, body) = send_empty_with_client(
+        &app.router,
+        "GET",
+        "/api/v1/map/styles/outdoor/style.json",
+        None,
+        None,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["code"], "map_style_unavailable");
+}
+
+#[tokio::test]
 async fn client_identity_runs_before_request_signature() {
     let app = test_app_with_request_signature(signature_config()).await;
 

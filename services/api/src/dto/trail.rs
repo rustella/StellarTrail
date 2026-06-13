@@ -50,14 +50,16 @@ pub struct MapStyleOption {
     pub id: String,
     pub label: String,
     pub style_url: String,
+    pub request_origins: Vec<String>,
 }
 
-impl From<&MapStyleConfig> for MapStyleOption {
-    fn from(config: &MapStyleConfig) -> Self {
+impl MapStyleOption {
+    fn from_config(config: &MapStyleConfig, public_origin: &str) -> Self {
         Self {
             id: config.id.clone(),
             label: config.label.clone(),
-            style_url: config.style_url.clone(),
+            style_url: hosted_style_url(public_origin, &config.id),
+            request_origins: config.request_origins.clone(),
         }
     }
 }
@@ -66,7 +68,6 @@ impl From<&MapStyleConfig> for MapStyleOption {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MapConfigResponse {
     pub provider: String,
-    pub style_url: String,
     pub public_key: Option<String>,
     pub coordinate_system: String,
     pub enabled: bool,
@@ -74,19 +75,30 @@ pub struct MapConfigResponse {
     pub default_style_id: String,
 }
 
-impl From<&MapConfig> for MapConfigResponse {
-    fn from(config: &MapConfig) -> Self {
+impl MapConfigResponse {
+    pub fn from_config(config: &MapConfig, public_origin: &str) -> Self {
         let public_key = config.public_key.clone();
         Self {
             provider: config.provider.clone(),
-            style_url: config.style_url.clone(),
             enabled: public_key.as_ref().is_some_and(|key| !key.is_empty()),
             public_key,
             coordinate_system: "WGS84".to_owned(),
-            styles: config.styles.iter().map(MapStyleOption::from).collect(),
+            styles: config
+                .styles
+                .iter()
+                .map(|style| MapStyleOption::from_config(style, public_origin))
+                .collect(),
             default_style_id: config.default_style_id.clone(),
         }
     }
+}
+
+fn hosted_style_url(public_origin: &str, style_id: &str) -> String {
+    format!(
+        "{}/api/v1/map/styles/{}/style.json",
+        public_origin.trim_end_matches('/'),
+        style_id
+    )
 }
 
 /// Trip map state including linked trails and trip-scoped annotations.
