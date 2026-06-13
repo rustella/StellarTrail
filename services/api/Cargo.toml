@@ -47,6 +47,7 @@ tracing-subscriber.workspace = true
 url.workspace = true
 uuid.workspace = true
 webpki-roots.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

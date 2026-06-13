@@ -24,6 +24,15 @@ internal enum class TrailFileType(
             "application/x-kml",
         ),
     ),
+    KMZ(
+        extension = "kmz",
+        canonicalContentType = "application/vnd.google-earth.kmz",
+        acceptedContentTypes = setOf(
+            "application/vnd.google-earth.kmz",
+            "application/kmz",
+            "application/x-kmz",
+        ),
+    ),
     FIT(
         extension = "fit",
         canonicalContentType = "application/vnd.ant.fit",
@@ -40,6 +49,7 @@ internal enum class TrailFileType(
         fun fromExtension(extension: String): TrailFileType? = when (extension.lowercase()) {
             GPX.extension -> GPX
             KML.extension -> KML
+            KMZ.extension -> KMZ
             FIT.extension -> FIT
             else -> null
         }
@@ -51,9 +61,6 @@ internal enum class TrailFileType(
 
 internal fun resolveTrailFileType(filename: String?, contentType: String?): TrailFileType? {
     val extension = filename?.trailExtension()
-    if (extension == "kmz" || contentType.normalizedMimeType() == "application/vnd.google-earth.kmz") {
-        return null
-    }
     return extension?.let(TrailFileType::fromExtension)
         ?: contentType.normalizedMimeType().takeIf { it.isNotBlank() }?.let(TrailFileType::fromContentType)
 }

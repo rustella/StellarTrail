@@ -9,6 +9,7 @@ class TrailFileTypesTest {
     fun knownMimeTypesResolveToCanonicalTrailTypes() {
         assertEquals(TrailFileType.GPX, resolveTrailFileType("track", "application/gpx+xml"))
         assertEquals(TrailFileType.KML, resolveTrailFileType("route", "application/kml"))
+        assertEquals(TrailFileType.KMZ, resolveTrailFileType("route", "application/vnd.google-earth.kmz"))
         assertEquals(TrailFileType.FIT, resolveTrailFileType("activity", "application/fit"))
     }
 
@@ -22,6 +23,15 @@ class TrailFileTypesTest {
     }
 
     @Test
+    fun genericMimeUsesKmzFilenameExtension() {
+        val fileType = resolveTrailFileType("two-step-track.KMZ", "application/octet-stream")
+
+        assertEquals(TrailFileType.KMZ, fileType)
+        assertEquals("two-step-track.KMZ", canonicalTrailFilename("two-step-track.KMZ", fileType!!))
+        assertEquals("application/vnd.google-earth.kmz", fileType.canonicalContentType)
+    }
+
+    @Test
     fun canonicalFilenameAddsExtensionWhenOnlyMimeTypeIdentifiesTrail() {
         val fileType = resolveTrailFileType("shared-route", "application/x-gpx+xml")
 
@@ -30,8 +40,7 @@ class TrailFileTypesTest {
     }
 
     @Test
-    fun kmzAndUnidentifiedGenericFilesAreRejected() {
-        assertNull(resolveTrailFileType("route.kmz", "application/vnd.google-earth.kmz"))
+    fun unidentifiedGenericFilesAreRejected() {
         assertNull(resolveTrailFileType("document.pdf", "*/*"))
         assertNull(resolveTrailFileType("shared-route", "*/*"))
     }

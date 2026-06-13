@@ -4039,6 +4039,7 @@ dependencies = [
  "url",
  "uuid",
  "webpki-roots 1.0.7",
+ "zip",
 ]
 
 [[package]]
