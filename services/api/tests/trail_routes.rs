@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{io::Write, sync::Arc};
 
 use axum::{
     Router,
@@ -17,6 +17,7 @@ use stellartrail_api::{
 use stellartrail_db::{DatabaseConfig, connect_database};
 use tempfile::TempDir;
 use tower::ServiceExt;
+use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
 const GPX: &[u8] = br#"<?xml version="1.0"?>
 <gpx version="1.1" creator="stellartrail-test">
@@ -25,7 +26,22 @@ const GPX: &[u8] = br#"<?xml version="1.0"?>
     <trkpt lat="30.001" lon="120.001"><ele>25</ele><time>2026-01-01T00:10:00Z</time></trkpt>
   </trkseg></trk>
 </gpx>"#;
+const KML: &[u8] = br#"<?xml version="1.0"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <Placemark><LineString><coordinates>120.0,30.0,10 120.001,30.001,25</coordinates></LineString></Placemark>
+</Document></kml>"#;
 const TEST_CLIENT_IDENTITY: &str = "web/test";
+
+fn kmz_fixture(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    let cursor = std::io::Cursor::new(Vec::new());
+    let mut writer = ZipWriter::new(cursor);
+    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+    for (name, bytes) in entries {
+        writer.start_file(*name, options).unwrap();
+        writer.write_all(bytes).unwrap();
+    }
+    writer.finish().unwrap().into_inner()
+}
 
 struct TestApp {
     router: Router,
@@ -416,10 +432,59 @@ async fn trail_library_upload_list_detail_and_file_download_work() {
     .await;
     assert_eq!(
         invalid_status,
-        StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        StatusCode::UNPROCESSABLE_ENTITY,
         "{invalid}"
     );
     assert_eq!(app.object_store.object_count(), 1);
+}
+
+#[tokio::test]
+async fn trail_library_upload_accepts_kmz_archive() {
+    let app = test_app(Some("pk.visible")).await;
+    let token = login(&app.router, "trail-kmz-owner", "山友").await;
+    let kmz = kmz_fixture(&[("doc.kml", KML)]);
+
+    let (upload_status, trail) = upload_trail(
+        &app.router,
+        &token,
+        "/api/v1/me/trails",
+        "ridge-loop.kmz",
+        "application/vnd.google-earth.kmz",
+        &kmz,
+    )
+    .await;
+
+    assert_eq!(upload_status, StatusCode::CREATED, "{trail}");
+    let trail_id = trail["id"].as_str().unwrap();
+    assert_eq!(trail["display_name"], "ridge-loop");
+    assert_eq!(trail["source_format"], "kml");
+    assert_eq!(trail["original_filename"], "ridge-loop.kmz");
+    assert_eq!(trail["content_type"], "application/vnd.google-earth.kmz");
+    assert_eq!(trail["point_count"], 2);
+    assert_eq!(trail["start_elevation_m"], 10.0);
+    assert_eq!(trail["end_elevation_m"], 25.0);
+    assert!(
+        trail["object_key"]
+            .as_str()
+            .expect("object key")
+            .ends_with(".kmz")
+    );
+
+    assert_eq!(app.object_store.object_count(), 1);
+    let stored = app.object_store.only_object().unwrap();
+    assert_eq!(stored.content_type, "application/vnd.google-earth.kmz");
+    assert_eq!(stored.bytes, kmz);
+    assert_eq!(stored.metadata.get("source_format").unwrap(), "kml");
+
+    let (file_status, file_bytes) = send_empty_bytes(
+        &app.router,
+        "GET",
+        &format!("/api/v1/me/trails/{trail_id}/file"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(file_status, StatusCode::OK);
+    assert_eq!(file_bytes, kmz);
 }
 
 #[tokio::test]

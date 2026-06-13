@@ -1189,7 +1189,7 @@ DELETE /api/v1/me/packing-lists/:id/items/:item_id
 
 ## Trail Library And Map State
 
-Trail 是用户拥有的独立轨迹资产，不作为 trip 或个人户外经历的子资源存储。同一份 trail 可以通过关联表挂到多个 trip 或 outdoor experience。v1 支持 GPX、KML、FIT 上传，同步解析为 WGS84 点列，保存原始文件到私有对象存储，并返回用于地图预览的简化 GeoJSON。KML v1 只支持 `.kml`，`.kmz` 会返回 `unsupported_media_type`。
+Trail 是用户拥有的独立轨迹资产，不作为 trip 或个人户外经历的子资源存储。同一份 trail 可以通过关联表挂到多个 trip 或 outdoor experience。v1 支持 GPX、KML/KMZ、FIT 上传，同步解析为 WGS84 点列，保存原始文件到私有对象存储，并返回用于地图预览的简化 GeoJSON。KMZ 会在服务端解压读取内部 KML；响应里的 `source_format` 仍为 `kml`，原始 `.kmz` 文件名、Content-Type 和字节会保留用于去重、对象存储与下载。
 
 同一用户重复上传内容完全相同的 active 轨迹文件时，服务端会按 `sha256_hex` 复用已有 trail，不重复写入对象存储或创建新的轨迹资产；重复把同一 trail 关联到同一 trip/outdoor experience 时返回已有关联。
 

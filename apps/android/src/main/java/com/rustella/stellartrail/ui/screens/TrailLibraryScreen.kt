@@ -149,7 +149,7 @@ fun TrailLibraryScreen(
             }
         }
         if (!state.loading && state.trails.isEmpty()) {
-            item { EmptyState("还没有轨迹", "上传 GPX、KML 或 FIT 文件后，可以复用到行程和户外经历。") }
+            item { EmptyState("还没有轨迹", "上传 GPX、KML/KMZ 或 FIT 文件后，可以复用到行程和户外经历。") }
         }
         if (!state.loading && state.trails.isNotEmpty() && visibleTrails.isEmpty()) {
             item {

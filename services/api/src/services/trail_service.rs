@@ -1,6 +1,10 @@
-//! Trail upload service for parsing GPX/KML/FIT files into WGS84 geometry, writing source files to object storage, and persisting reusable trail assets.
+//! Trail upload service for parsing GPX/KML/KMZ/FIT files into WGS84 geometry, writing source files to object storage, and persisting reusable trail assets.
 
-use std::{collections::HashMap, io::Cursor, path::Path};
+use std::{
+    collections::HashMap,
+    io::{Cursor, Read},
+    path::Path,
+};
 
 use fitparser::{FitDataRecord, Value as FitValue, profile::MesgNum};
 use geojson::{Feature, Geometry as GeoJsonGeometry, Value as GeoJsonValue};
@@ -23,6 +27,7 @@ use crate::{error::ApiError, object_store::PutObjectRequest, state::AppState};
 #[derive(Clone, Debug)]
 pub struct ParsedTrailUpload {
     pub source_format: TrailSourceFormat,
+    pub storage_extension: String,
     pub original_filename: String,
     pub display_name: String,
     pub content_type: String,
@@ -125,10 +130,14 @@ pub fn parse_trail_upload(
         return Err(ApiError::PayloadTooLarge { max_bytes });
     }
     let file = validate_upload_identity(original_filename, declared_content_type, bytes)?;
-    let points = match file.source_format {
-        TrailSourceFormat::Gpx => parse_gpx_points(bytes)?,
-        TrailSourceFormat::Kml => parse_kml_points(bytes)?,
-        TrailSourceFormat::Fit => parse_fit_points(bytes)?,
+    let points = match file.kind {
+        UploadFileKind::Gpx => parse_gpx_points(bytes)?,
+        UploadFileKind::Kml => parse_kml_points(bytes)?,
+        UploadFileKind::Kmz => {
+            let kml_bytes = extract_kmz_kml(bytes, max_bytes)?;
+            parse_kml_points(&kml_bytes)?
+        }
+        UploadFileKind::Fit => parse_fit_points(bytes)?,
     };
     if points.is_empty() {
         return Err(validation_error("file", "must contain valid coordinates"));
@@ -142,7 +151,8 @@ pub fn parse_trail_upload(
     let stats = compute_stats(&points);
     let simplified = simplify_points(&points, max_simplified_points as usize);
     Ok(ParsedTrailUpload {
-        source_format: file.source_format,
+        source_format: file.kind.source_format(),
+        storage_extension: file.kind.storage_extension().to_owned(),
         original_filename: file.original_filename,
         display_name: file.display_name,
         content_type: file.content_type,
@@ -170,7 +180,7 @@ async fn persist_parsed_trail(
     let object_key = format!(
         "trails/{user_id}/{}.{}",
         Uuid::new_v4(),
-        parsed.source_format.as_str()
+        parsed.storage_extension
     );
     let object_store = state.object_store();
     object_store
@@ -232,10 +242,58 @@ async fn persist_parsed_trail(
 
 #[derive(Clone, Debug)]
 struct UploadIdentity {
-    source_format: TrailSourceFormat,
+    kind: UploadFileKind,
     original_filename: String,
     display_name: String,
     content_type: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum UploadFileKind {
+    Gpx,
+    Kml,
+    Kmz,
+    Fit,
+}
+
+impl UploadFileKind {
+    fn from_extension(extension: &str) -> Result<Self, ApiError> {
+        match extension {
+            "gpx" => Ok(Self::Gpx),
+            "kml" => Ok(Self::Kml),
+            "kmz" => Ok(Self::Kmz),
+            "fit" => Ok(Self::Fit),
+            _ => Err(ApiError::UnsupportedMediaType(
+                "trail upload supports GPX, KML, KMZ, and FIT files".to_owned(),
+            )),
+        }
+    }
+
+    fn source_format(self) -> TrailSourceFormat {
+        match self {
+            Self::Gpx => TrailSourceFormat::Gpx,
+            Self::Kml | Self::Kmz => TrailSourceFormat::Kml,
+            Self::Fit => TrailSourceFormat::Fit,
+        }
+    }
+
+    fn storage_extension(self) -> &'static str {
+        match self {
+            Self::Gpx => "gpx",
+            Self::Kml => "kml",
+            Self::Kmz => "kmz",
+            Self::Fit => "fit",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Gpx => "GPX",
+            Self::Kml => "KML",
+            Self::Kmz => "KMZ",
+            Self::Fit => "FIT",
+        }
+    }
 }
 
 fn validate_upload_identity(
@@ -252,26 +310,12 @@ fn validate_upload_identity(
         .and_then(|extension| extension.to_str())
         .map(|extension| extension.to_ascii_lowercase())
         .ok_or_else(|| validation_error("file", "filename extension is required"))?;
-    if extension == "kmz" {
-        return Err(ApiError::UnsupportedMediaType(
-            "KMZ archives are not supported in trail upload v1".to_owned(),
-        ));
-    }
-    let source_format = match extension.as_str() {
-        "gpx" => TrailSourceFormat::Gpx,
-        "kml" => TrailSourceFormat::Kml,
-        "fit" => TrailSourceFormat::Fit,
-        _ => {
-            return Err(ApiError::UnsupportedMediaType(
-                "trail upload supports GPX, KML, and FIT files".to_owned(),
-            ));
-        }
-    };
-    let content_type = normalized_content_type(declared_content_type, source_format);
-    validate_declared_content_type(declared_content_type, source_format)?;
-    validate_magic(bytes, source_format)?;
+    let kind = UploadFileKind::from_extension(extension.as_str())?;
+    let content_type = normalized_content_type(declared_content_type, kind);
+    validate_declared_content_type(declared_content_type, kind)?;
+    validate_magic(bytes, kind)?;
     Ok(UploadIdentity {
-        source_format,
+        kind,
         original_filename: safe_filename(original_filename),
         display_name: display_name_from_filename(original_filename),
         content_type,
@@ -280,7 +324,7 @@ fn validate_upload_identity(
 
 fn validate_declared_content_type(
     declared_content_type: Option<&str>,
-    source_format: TrailSourceFormat,
+    kind: UploadFileKind,
 ) -> Result<(), ApiError> {
     let Some(content_type) = declared_content_type
         .map(str::trim)
@@ -288,8 +332,8 @@ fn validate_declared_content_type(
     else {
         return Ok(());
     };
-    let allowed = match source_format {
-        TrailSourceFormat::Gpx => [
+    let allowed = match kind {
+        UploadFileKind::Gpx => [
             "application/gpx+xml",
             "application/xml",
             "text/xml",
@@ -297,7 +341,7 @@ fn validate_declared_content_type(
             "application/octet-stream",
         ]
         .as_slice(),
-        TrailSourceFormat::Kml => [
+        UploadFileKind::Kml => [
             "application/vnd.google-earth.kml+xml",
             "application/xml",
             "text/xml",
@@ -305,7 +349,16 @@ fn validate_declared_content_type(
             "application/octet-stream",
         ]
         .as_slice(),
-        TrailSourceFormat::Fit => [
+        UploadFileKind::Kmz => [
+            "application/vnd.google-earth.kmz",
+            "application/kmz",
+            "application/x-kmz",
+            "application/zip",
+            "application/x-zip-compressed",
+            "application/octet-stream",
+        ]
+        .as_slice(),
+        UploadFileKind::Fit => [
             "application/vnd.ant.fit",
             "application/fit",
             "application/octet-stream",
@@ -320,29 +373,30 @@ fn validate_declared_content_type(
     } else {
         Err(ApiError::UnsupportedMediaType(format!(
             "content type {content_type} does not match {} upload",
-            source_format.as_str()
+            kind.label()
         )))
     }
 }
 
-fn normalized_content_type(
-    declared_content_type: Option<&str>,
-    source_format: TrailSourceFormat,
-) -> String {
+fn normalized_content_type(declared_content_type: Option<&str>, kind: UploadFileKind) -> String {
+    if kind == UploadFileKind::Kmz {
+        return "application/vnd.google-earth.kmz".to_owned();
+    }
     declared_content_type
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
-        .unwrap_or_else(|| match source_format {
-            TrailSourceFormat::Gpx => "application/gpx+xml".to_owned(),
-            TrailSourceFormat::Kml => "application/vnd.google-earth.kml+xml".to_owned(),
-            TrailSourceFormat::Fit => "application/vnd.ant.fit".to_owned(),
+        .unwrap_or_else(|| match kind {
+            UploadFileKind::Gpx => "application/gpx+xml".to_owned(),
+            UploadFileKind::Kml => "application/vnd.google-earth.kml+xml".to_owned(),
+            UploadFileKind::Kmz => unreachable!("KMZ content type is canonicalized above"),
+            UploadFileKind::Fit => "application/vnd.ant.fit".to_owned(),
         })
 }
 
-fn validate_magic(bytes: &[u8], source_format: TrailSourceFormat) -> Result<(), ApiError> {
-    match source_format {
-        TrailSourceFormat::Gpx => {
+fn validate_magic(bytes: &[u8], kind: UploadFileKind) -> Result<(), ApiError> {
+    match kind {
+        UploadFileKind::Gpx => {
             let root = xml_root_tag(bytes)?;
             if root.as_deref() == Some("gpx") {
                 Ok(())
@@ -350,7 +404,7 @@ fn validate_magic(bytes: &[u8], source_format: TrailSourceFormat) -> Result<(), 
                 Err(validation_error("file", "GPX root tag must be gpx"))
             }
         }
-        TrailSourceFormat::Kml => {
+        UploadFileKind::Kml => {
             let root = xml_root_tag(bytes)?;
             if root.as_deref() == Some("kml") {
                 Ok(())
@@ -358,7 +412,14 @@ fn validate_magic(bytes: &[u8], source_format: TrailSourceFormat) -> Result<(), 
                 Err(validation_error("file", "KML root tag must be kml"))
             }
         }
-        TrailSourceFormat::Fit => {
+        UploadFileKind::Kmz => {
+            if has_zip_magic(bytes) {
+                Ok(())
+            } else {
+                Err(validation_error("file", "KMZ archive must be a ZIP file"))
+            }
+        }
+        UploadFileKind::Fit => {
             if bytes.len() >= 12 && &bytes[8..12] == b".FIT" {
                 Ok(())
             } else {
@@ -366,6 +427,67 @@ fn validate_magic(bytes: &[u8], source_format: TrailSourceFormat) -> Result<(), 
             }
         }
     }
+}
+
+fn has_zip_magic(bytes: &[u8]) -> bool {
+    bytes.len() >= 4 && matches!(&bytes[..4], b"PK\x03\x04" | b"PK\x05\x06" | b"PK\x07\x08")
+}
+
+fn extract_kmz_kml(bytes: &[u8], max_kml_bytes: u64) -> Result<Vec<u8>, ApiError> {
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes))
+        .map_err(|error| ApiError::BadRequest(format!("invalid KMZ archive: {error}")))?;
+    let mut fallback_index = None;
+    let mut doc_index = None;
+
+    for index in 0..archive.len() {
+        let entry_name = {
+            let entry = archive.by_index(index).map_err(|error| {
+                ApiError::BadRequest(format!("invalid KMZ archive entry: {error}"))
+            })?;
+            entry.name().to_owned()
+        };
+        let normalized_name = entry_name
+            .replace('\\', "/")
+            .trim_start_matches('/')
+            .to_ascii_lowercase();
+        if normalized_name.ends_with('/') {
+            continue;
+        }
+        if normalized_name == "doc.kml" {
+            doc_index = Some(index);
+            break;
+        }
+        if fallback_index.is_none() && normalized_name.ends_with(".kml") {
+            fallback_index = Some(index);
+        }
+    }
+
+    let kml_index = doc_index
+        .or(fallback_index)
+        .ok_or_else(|| validation_error("file", "KMZ archive must contain a KML file"))?;
+    let mut entry = archive
+        .by_index(kml_index)
+        .map_err(|error| ApiError::BadRequest(format!("invalid KMZ KML entry: {error}")))?;
+    if entry.size() > max_kml_bytes {
+        return Err(ApiError::PayloadTooLarge {
+            max_bytes: max_kml_bytes,
+        });
+    }
+
+    let mut kml_bytes = Vec::new();
+    let mut limited_entry = entry.by_ref().take(max_kml_bytes.saturating_add(1));
+    limited_entry
+        .read_to_end(&mut kml_bytes)
+        .map_err(|error| ApiError::BadRequest(format!("invalid KMZ KML entry: {error}")))?;
+    if kml_bytes.len() as u64 > max_kml_bytes {
+        return Err(ApiError::PayloadTooLarge {
+            max_bytes: max_kml_bytes,
+        });
+    }
+    if kml_bytes.is_empty() {
+        return Err(validation_error("file", "KMZ KML file must not be empty"));
+    }
+    Ok(kml_bytes)
 }
 
 fn parse_gpx_points(bytes: &[u8]) -> Result<Vec<TrailPoint>, ApiError> {
@@ -760,6 +882,9 @@ fn sha256_hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+
+    use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
     #[test]
     fn parses_gpx_track_and_route_fallback() {
@@ -813,6 +938,55 @@ mod tests {
     }
 
     #[test]
+    fn parses_kmz_doc_kml_as_kml_source() {
+        let kml = br#"<?xml version="1.0"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <Placemark><LineString><coordinates>120.0,30.0,10 120.1,30.1,20</coordinates></LineString></Placemark>
+</Document></kml>"#;
+        let kmz = kmz_fixture(&[("doc.kml", kml)]);
+
+        let parsed = parse_trail_upload(
+            Some("demo.kmz"),
+            Some("application/zip"),
+            &kmz,
+            1_000_000,
+            10,
+            10,
+        )
+        .unwrap();
+
+        assert_eq!(parsed.source_format, TrailSourceFormat::Kml);
+        assert_eq!(parsed.storage_extension, "kmz");
+        assert_eq!(parsed.content_type, "application/vnd.google-earth.kmz");
+        assert_eq!(parsed.original_filename, "demo.kmz");
+        assert_eq!(parsed.points.len(), 2);
+        assert_eq!(parsed.points[0].elevation_m, Some(10.0));
+    }
+
+    #[test]
+    fn parses_kmz_first_kml_when_doc_kml_is_missing() {
+        let kml = br#"<?xml version="1.0"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <Placemark><LineString><coordinates>121.0,31.0 121.1,31.1</coordinates></LineString></Placemark>
+</Document></kml>"#;
+        let kmz = kmz_fixture(&[("assets/icon.txt", b"ignored"), ("routes/ridge.kml", kml)]);
+
+        let parsed = parse_trail_upload(
+            Some("ridge.kmz"),
+            Some("application/vnd.google-earth.kmz"),
+            &kmz,
+            1_000_000,
+            10,
+            10,
+        )
+        .unwrap();
+
+        assert_eq!(parsed.source_format, TrailSourceFormat::Kml);
+        assert_eq!(parsed.points.len(), 2);
+        assert_eq!(parsed.points[0].lng, 121.0);
+    }
+
+    #[test]
     fn parses_fit_gps_records() {
         let fit = tiny_fit_fixture(&[(120.0, 30.0), (120.001, 30.001)]);
         let parsed = parse_trail_upload(
@@ -841,6 +1015,32 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_kmz_archives() {
+        assert!(
+            parse_trail_upload(
+                Some("invalid.kmz"),
+                Some("application/vnd.google-earth.kmz"),
+                b"PK\x03\x04invalid",
+                1_000_000,
+                10,
+                10,
+            )
+            .is_err()
+        );
+
+        let no_kml = kmz_fixture(&[("readme.txt", b"no route here")]);
+        assert!(parse_trail_upload(Some("missing.kmz"), None, &no_kml, 1_000_000, 10, 10).is_err());
+
+        let empty_kml = kmz_fixture(&[("doc.kml", b"")]);
+        assert!(
+            parse_trail_upload(Some("empty.kmz"), None, &empty_kml, 1_000_000, 10, 10).is_err()
+        );
+
+        let oversized = kmz_fixture(&[("doc.kml", b"<kml></kml>")]);
+        assert!(extract_kmz_kml(&oversized, 4).is_err());
+    }
+
+    #[test]
     fn simplifies_to_configured_point_limit() {
         let points = (0..50)
             .map(|index| TrailPoint {
@@ -854,6 +1054,17 @@ mod tests {
         assert_eq!(simplified.len(), 5);
         assert_eq!(simplified.first().unwrap().lng, 0.0);
         assert_eq!(simplified.last().unwrap().lng, 49.0);
+    }
+
+    fn kmz_fixture(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let cursor = Cursor::new(Vec::new());
+        let mut writer = ZipWriter::new(cursor);
+        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+        for (name, bytes) in entries {
+            writer.start_file(*name, options).unwrap();
+            writer.write_all(bytes).unwrap();
+        }
+        writer.finish().unwrap().into_inner()
     }
 
     fn tiny_fit_fixture(points: &[(f64, f64)]) -> Vec<u8> {
