@@ -8,10 +8,7 @@ use std::{
 
 use fitparser::{FitDataRecord, Value as FitValue, profile::MesgNum};
 use geojson::{Feature, Geometry as GeoJsonGeometry, Value as GeoJsonValue};
-use kml::{
-    Kml,
-    types::{Geometry as KmlGeometry, LineString as KmlLineString},
-};
+use quick_xml::{Reader, events::Event};
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
 use stellartrail_db::repositories::{TrailRepository, TripRepository};
@@ -530,65 +527,197 @@ fn point_from_gpx(point: &gpx::Waypoint) -> Result<TrailPoint, ApiError> {
 fn parse_kml_points(bytes: &[u8]) -> Result<Vec<TrailPoint>, ApiError> {
     let text = std::str::from_utf8(bytes)
         .map_err(|_| ApiError::BadRequest("KML file must be valid UTF-8".to_owned()))?;
-    let kml = text
-        .parse::<Kml<f64>>()
-        .map_err(|error| ApiError::BadRequest(format!("invalid KML file: {error}")))?;
+    let mut reader = Reader::from_str(text);
+    reader.config_mut().trim_text(true);
     let mut points = Vec::new();
-    collect_kml_points(&kml, &mut points);
+    let mut line_string_depth = 0_usize;
+    let mut track_depth = 0_usize;
+    let mut text_target = None;
+    let mut track_points = Vec::new();
+    let mut track_times = Vec::new();
+
+    loop {
+        match reader.read_event() {
+            Ok(Event::Start(element)) => match element.local_name().as_ref() {
+                b"LineString" => line_string_depth += 1,
+                b"Track" => {
+                    if track_depth == 0 {
+                        track_points.clear();
+                        track_times.clear();
+                    }
+                    track_depth += 1;
+                }
+                b"coordinates" if line_string_depth > 0 => {
+                    text_target = Some(KmlTextTarget::LineCoordinates);
+                }
+                b"coord" if track_depth > 0 => {
+                    text_target = Some(KmlTextTarget::TrackCoord);
+                }
+                b"when" if track_depth > 0 => {
+                    text_target = Some(KmlTextTarget::TrackWhen);
+                }
+                _ => {}
+            },
+            Ok(Event::Text(text_event)) => {
+                let text = text_event
+                    .unescape()
+                    .map_err(|error| ApiError::BadRequest(format!("invalid KML file: {error}")))?;
+                collect_kml_text(
+                    text_target,
+                    text.as_ref(),
+                    &mut points,
+                    &mut track_points,
+                    &mut track_times,
+                )?;
+            }
+            Ok(Event::CData(text_event)) => {
+                let text = text_event
+                    .decode()
+                    .map_err(|error| ApiError::BadRequest(format!("invalid KML file: {error}")))?;
+                collect_kml_text(
+                    text_target,
+                    text.as_ref(),
+                    &mut points,
+                    &mut track_points,
+                    &mut track_times,
+                )?;
+            }
+            Ok(Event::End(element)) => match element.local_name().as_ref() {
+                b"coordinates" | b"coord" | b"when" => text_target = None,
+                b"LineString" => line_string_depth = line_string_depth.saturating_sub(1),
+                b"Track" => {
+                    track_depth = track_depth.saturating_sub(1);
+                    if track_depth == 0 {
+                        append_kml_track(&mut points, &mut track_points, &track_times);
+                        track_times.clear();
+                    }
+                }
+                _ => {}
+            },
+            Ok(Event::Eof) => break,
+            Ok(_) => {}
+            Err(error) => return Err(ApiError::BadRequest(format!("invalid KML file: {error}"))),
+        }
+    }
+
     Ok(points.into_iter().filter(valid_point).collect())
 }
 
-fn collect_kml_points(kml: &Kml<f64>, points: &mut Vec<TrailPoint>) {
-    match kml {
-        Kml::KmlDocument(document) => {
-            for child in &document.elements {
-                collect_kml_points(child, points);
+#[derive(Clone, Copy)]
+enum KmlTextTarget {
+    LineCoordinates,
+    TrackCoord,
+    TrackWhen,
+}
+
+fn collect_kml_text(
+    target: Option<KmlTextTarget>,
+    text: &str,
+    points: &mut Vec<TrailPoint>,
+    track_points: &mut Vec<TrailPoint>,
+    track_times: &mut Vec<String>,
+) -> Result<(), ApiError> {
+    match target {
+        Some(KmlTextTarget::LineCoordinates) => collect_kml_coordinates(text, points),
+        Some(KmlTextTarget::TrackCoord) => {
+            if let Some(point) = parse_kml_track_coord(text)? {
+                track_points.push(point);
             }
+            Ok(())
         }
-        Kml::Document { elements, .. } => {
-            for child in elements {
-                collect_kml_points(child, points);
+        Some(KmlTextTarget::TrackWhen) => {
+            let time = text.trim();
+            if !time.is_empty() {
+                track_times.push(time.to_owned());
             }
+            Ok(())
         }
-        Kml::Folder(folder) => {
-            for child in &folder.elements {
-                collect_kml_points(child, points);
-            }
-        }
-        Kml::Placemark(placemark) => {
-            if let Some(geometry) = &placemark.geometry {
-                collect_kml_geometry_points(geometry, points);
-            }
-        }
-        Kml::LineString(line) => collect_kml_line_points(line, points),
-        Kml::MultiGeometry(multi) => {
-            for geometry in &multi.geometries {
-                collect_kml_geometry_points(geometry, points);
-            }
-        }
-        _ => {}
+        None => Ok(()),
     }
 }
 
-fn collect_kml_geometry_points(geometry: &KmlGeometry<f64>, points: &mut Vec<TrailPoint>) {
-    match geometry {
-        KmlGeometry::LineString(line) => collect_kml_line_points(line, points),
-        KmlGeometry::MultiGeometry(multi) => {
-            for geometry in &multi.geometries {
-                collect_kml_geometry_points(geometry, points);
-            }
+fn collect_kml_coordinates(text: &str, points: &mut Vec<TrailPoint>) -> Result<(), ApiError> {
+    for tuple in text.split_whitespace() {
+        if let Some(point) = parse_kml_coordinate_tuple(tuple)? {
+            points.push(point);
         }
-        _ => {}
     }
+    Ok(())
 }
 
-fn collect_kml_line_points(line: &KmlLineString<f64>, points: &mut Vec<TrailPoint>) {
-    points.extend(line.coords.iter().map(|coord| TrailPoint {
-        lng: coord.x,
-        lat: coord.y,
-        elevation_m: coord.z,
+fn parse_kml_coordinate_tuple(tuple: &str) -> Result<Option<TrailPoint>, ApiError> {
+    let tuple = tuple.trim();
+    if tuple.is_empty() {
+        return Ok(None);
+    }
+
+    let mut values = tuple.split(',');
+    let lng = parse_kml_number(values.next(), "longitude")?;
+    let lat = parse_kml_number(values.next(), "latitude")?;
+    let elevation_m = values
+        .next()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| parse_kml_f64(value, "elevation"))
+        .transpose()?;
+
+    Ok(Some(TrailPoint {
+        lng,
+        lat,
+        elevation_m,
         time: None,
-    }));
+    }))
+}
+
+fn parse_kml_track_coord(text: &str) -> Result<Option<TrailPoint>, ApiError> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(None);
+    }
+
+    let mut values = text.split_whitespace();
+    let lng = parse_kml_number(values.next(), "longitude")?;
+    let lat = parse_kml_number(values.next(), "latitude")?;
+    let elevation_m = values
+        .next()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| parse_kml_f64(value, "elevation"))
+        .transpose()?;
+
+    Ok(Some(TrailPoint {
+        lng,
+        lat,
+        elevation_m,
+        time: None,
+    }))
+}
+
+fn parse_kml_number(value: Option<&str>, field: &str) -> Result<f64, ApiError> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ApiError::BadRequest(format!("invalid KML coordinate: missing {field}")))
+        .and_then(|value| parse_kml_f64(value, field))
+}
+
+fn parse_kml_f64(value: &str, field: &str) -> Result<f64, ApiError> {
+    value
+        .parse::<f64>()
+        .map_err(|error| ApiError::BadRequest(format!("invalid KML {field}: {error}")))
+}
+
+fn append_kml_track(
+    points: &mut Vec<TrailPoint>,
+    track_points: &mut Vec<TrailPoint>,
+    track_times: &[String],
+) {
+    for (index, mut point) in track_points.drain(..).enumerate() {
+        if let Some(time) = track_times.get(index) {
+            point.time = Some(time.clone());
+        }
+        points.push(point);
+    }
 }
 
 fn parse_fit_points(bytes: &[u8]) -> Result<Vec<TrailPoint>, ApiError> {
@@ -938,6 +1067,71 @@ mod tests {
     }
 
     #[test]
+    fn parses_kml_gx_track_with_html_description_and_times() {
+        let kml = br#"<?xml version="1.0"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2"><Document>
+  <Placemark><Point><coordinates>1.0,1.0,1</coordinates></Point></Placemark>
+  <Placemark>
+    <description><div>generated by 2bulu</div><div>track points: 3</div></description>
+    <gx:Track>
+      <gx:coord>120.0 30.0 10</gx:coord>
+      <gx:coord>120.1 30.1 20</gx:coord>
+      <gx:coord>120.2 30.2 30</gx:coord>
+      <when>2026-05-29T15:38:45Z</when>
+      <when>2026-05-29T15:39:45Z</when>
+      <when>2026-05-29T15:40:45Z</when>
+    </gx:Track>
+  </Placemark>
+</Document></kml>"#;
+        let parsed = parse_trail_upload(
+            Some("tbulu.kml"),
+            Some("application/vnd.google-earth.kml+xml"),
+            kml,
+            1_000_000,
+            10,
+            10,
+        )
+        .unwrap();
+        assert_eq!(parsed.points.len(), 3);
+        assert_eq!(parsed.points[0].lng, 120.0);
+        assert_eq!(parsed.points[0].lat, 30.0);
+        assert_eq!(parsed.points[0].elevation_m, Some(10.0));
+        assert_eq!(
+            parsed.points[0].time.as_deref(),
+            Some("2026-05-29T15:38:45Z")
+        );
+    }
+
+    #[test]
+    fn parses_tbulu_like_kmz_gx_track_and_ignores_marker_points() {
+        let kml = tbulu_like_gx_track_fixture(1_573);
+        let kmz = kmz_fixture(&[("doc.kml", kml.as_bytes())]);
+
+        let parsed = parse_trail_upload(
+            Some("tbulu.kmz"),
+            Some("application/vnd.google-earth.kmz"),
+            &kmz,
+            1_000_000,
+            2_000,
+            10,
+        )
+        .unwrap();
+
+        assert_eq!(parsed.source_format, TrailSourceFormat::Kml);
+        assert_eq!(parsed.points.len(), 1_573);
+        assert_eq!(parsed.points[0].lng, 113.0);
+        assert_eq!(parsed.points[0].lat, 23.0);
+        assert_eq!(parsed.points[0].elevation_m, Some(200.0));
+        assert_eq!(
+            parsed.points[0].time.as_deref(),
+            Some("2026-05-29T00:00:00Z")
+        );
+        let last = parsed.points.last().unwrap();
+        assert!((last.lng - 113.01572).abs() < 0.000_000_1);
+        assert!((last.lat - 23.01572).abs() < 0.000_000_1);
+    }
+
+    #[test]
     fn parses_kmz_doc_kml_as_kml_source() {
         let kml = br#"<?xml version="1.0"?>
 <kml xmlns="http://www.opengis.net/kml/2.2"><Document>
@@ -1065,6 +1259,50 @@ mod tests {
             writer.write_all(bytes).unwrap();
         }
         writer.finish().unwrap().into_inner()
+    }
+
+    fn tbulu_like_gx_track_fixture(point_count: usize) -> String {
+        let mut kml = String::from(
+            r#"<?xml version="1.0"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2"><Document>
+  <Folder><name>markers</name>
+    <Placemark><Point><coordinates>1,1,1</coordinates></Point></Placemark>
+    <Placemark><Point><coordinates>2,2,2</coordinates></Point></Placemark>
+    <Placemark><Point><coordinates>3,3,3</coordinates></Point></Placemark>
+  </Folder>
+  <Folder><name>轨迹</name><Placemark>
+    <description>
+      <div>通过“两步路”生成，http://www.2bulu.com</div>
+      <div>轨迹点数:"#,
+        );
+        kml.push_str(&point_count.to_string());
+        kml.push_str(
+            r#"</div>
+    </description>
+    <gx:Track>
+"#,
+        );
+        for index in 0..point_count {
+            let offset = index as f64 / 100_000.0;
+            kml.push_str(&format!(
+                "      <gx:coord>{:.5} {:.5} {:.1}</gx:coord>\n",
+                113.0 + offset,
+                23.0 + offset,
+                200.0 + index as f64
+            ));
+        }
+        for index in 0..point_count {
+            kml.push_str(&format!(
+                "      <when>2026-05-29T00:{:02}:00Z</when>\n",
+                index % 60
+            ));
+        }
+        kml.push_str(
+            r#"    </gx:Track>
+  </Placemark></Folder>
+</Document></kml>"#,
+        );
+        kml
     }
 
     fn tiny_fit_fixture(points: &[(f64, f64)]) -> Vec<u8> {
