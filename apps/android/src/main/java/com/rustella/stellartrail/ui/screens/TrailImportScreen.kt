@@ -93,7 +93,7 @@ fun TrailImportScreen(
                 SurfaceCard {
                     Badge("已保存到轨迹库")
                     Text(trail.displayName, fontWeight = FontWeight.ExtraBold)
-                    Text("${(trail.distanceM / 1000.0).formatOne()} km · ${trail.pointCount} 点", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${(trail.distanceM / 1000.0).formatOne()} km", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             when (state.mode) {

@@ -283,7 +283,7 @@ private fun TrailLibraryRow(
                 )
                 Text(trail.elevationLine(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    "${trail.pointCount} 点 · 更新 ${trail.updatedAt.datePart()}",
+                    "更新 ${trail.updatedAt.datePart()}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -309,7 +309,7 @@ private fun TrailPreviewDialog(
         title = { Text(trail.displayName) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("${(trail.distanceM / 1000.0).formatOne()} km · ${trail.pointCount} 点", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${(trail.distanceM / 1000.0).formatOne()} km", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (mapConfig != null) {
                     TrailAssetPreviewMap(mapConfig, trail, selectedStyleId, onSelectMapStyle)
                 } else {

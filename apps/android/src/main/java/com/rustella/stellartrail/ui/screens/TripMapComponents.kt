@@ -306,7 +306,6 @@ fun TripDetailMapSection(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MetricTile("轨迹", "${data.trails.size}", Modifier.weight(1f))
                 MetricTile("备注", "${data.annotations.size}", Modifier.weight(1f))
-                MetricTile("点数", "${data.trails.sumOf { it.trail.pointCount }}", Modifier.weight(1f))
             }
             val styleOptions = if (canRenderMap) resolveMapStyleOptions(data.map) else emptyList()
             if (canRenderMap && styleOptions.isNotEmpty()) {
@@ -1378,7 +1377,7 @@ private fun TrailLinkRow(link: MapTrailLink, onRemove: () -> Unit, enabled: Bool
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(link.trail.displayName, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${(link.trail.distanceM / 1000.0).formatOne()} km · ${link.trail.pointCount} 点", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${(link.trail.distanceM / 1000.0).formatOne()} km", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             SoftPillButton("移除", onRemove, enabled = enabled)
         }
