@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -18,6 +19,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rustella.stellartrail.core.theme.ThemeMode
+import com.rustella.stellartrail.core.trail.TrailImportIntentResult
 import com.rustella.stellartrail.di.AppContainer
 import com.rustella.stellartrail.screenshot.ScreenshotFixtures
 import com.rustella.stellartrail.ui.StellarTrailApp
@@ -53,8 +55,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleTrailImportIntent(intent: Intent) {
-        appContainer.pendingTrailImportStore.createFromIntent(intent)?.let { pending ->
-            pendingTrailImportRoute = AppRoutes.trailImport(pending.id)
+        when (val result = appContainer.pendingTrailImportStore.createFromIntent(intent)) {
+            is TrailImportIntentResult.Created -> pendingTrailImportRoute = AppRoutes.trailImport(result.pending.id)
+            TrailImportIntentResult.Unsupported -> {
+                Toast.makeText(this, R.string.unsupported_trail_import, Toast.LENGTH_SHORT).show()
+            }
+            TrailImportIntentResult.Ignored -> Unit
         }
     }
 }
