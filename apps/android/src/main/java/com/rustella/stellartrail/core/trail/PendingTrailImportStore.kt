@@ -20,10 +20,16 @@ data class PendingTrailImport(
 )
 
 interface PendingTrailImportStore {
-    fun createFromIntent(intent: Intent): PendingTrailImport?
+    fun createFromIntent(intent: Intent): TrailImportIntentResult
     fun get(id: String): PendingTrailImport?
     fun readBytes(id: String): ByteArray?
     fun clear(id: String)
+}
+
+sealed class TrailImportIntentResult {
+    data class Created(val pending: PendingTrailImport) : TrailImportIntentResult()
+    object Ignored : TrailImportIntentResult()
+    object Unsupported : TrailImportIntentResult()
 }
 
 class AndroidPendingTrailImportStore(context: Context) : PendingTrailImportStore {
@@ -31,27 +37,42 @@ class AndroidPendingTrailImportStore(context: Context) : PendingTrailImportStore
     private val importsDir = File(appContext.cacheDir, "trail-imports")
     private val json = Json { ignoreUnknownKeys = true }
 
-    override fun createFromIntent(intent: Intent): PendingTrailImport? {
-        val uri = intent.trailImportUri() ?: return null
-        val contentType = intent.type?.takeIf { it.isNotBlank() } ?: appContext.contentResolver.getType(uri)
-        val filename = filenameFor(uri, contentType)
+    override fun createFromIntent(intent: Intent): TrailImportIntentResult {
+        val uris = intent.trailImportUris()
+        if (uris.isEmpty()) return TrailImportIntentResult.Ignored
+        return uris.firstNotNullOfOrNull { uri -> createFromUri(intent, uri) }
+            ?.let(TrailImportIntentResult::Created)
+            ?: TrailImportIntentResult.Unsupported
+    }
+
+    private fun createFromUri(intent: Intent, uri: Uri): PendingTrailImport? = runCatching {
+        val intentContentType = intent.type?.takeIf { it.isNotBlank() }
+        val resolverContentType = appContext.contentResolver.getType(uri)
+        val rawContentType = if (isGenericTrailContentType(intentContentType)) {
+            resolverContentType ?: intentContentType
+        } else {
+            intentContentType ?: resolverContentType
+        }
+        val rawFilename = filenameFor(uri)
+        val fileType = resolveTrailFileType(rawFilename, rawContentType) ?: return@runCatching null
+        val filename = canonicalTrailFilename(rawFilename, fileType)
         val size = sizeFor(uri)
         val id = UUID.randomUUID().toString()
         importsDir.mkdirs()
         val cacheFile = File(importsDir, "$id-${filename.sanitizeFilename()}")
         appContext.contentResolver.openInputStream(uri)?.use { input ->
             cacheFile.outputStream().use { output -> input.copyTo(output) }
-        } ?: return null
+        } ?: return@runCatching null
         val import = PendingTrailImport(
             id = id,
             filename = filename,
-            contentType = contentType,
+            contentType = fileType.canonicalContentType,
             sizeBytes = size.takeIf { it > 0 } ?: cacheFile.length(),
             cachePath = cacheFile.absolutePath,
         )
         metadataFile(id).writeText(json.encodeToString(PendingTrailImport.serializer(), import))
-        return import
-    }
+        import
+    }.getOrNull()
 
     override fun get(id: String): PendingTrailImport? = runCatching {
         val file = metadataFile(id)
@@ -67,21 +88,24 @@ class AndroidPendingTrailImportStore(context: Context) : PendingTrailImportStore
         runCatching { metadataFile(id).delete() }
     }
 
-    private fun filenameFor(uri: Uri, contentType: String?): String {
-        val displayName = appContext.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
-        }?.takeIf { it.isNotBlank() }
-        val rawName = displayName
+    private fun filenameFor(uri: Uri): String {
+        val displayName = runCatching {
+            appContext.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+            }
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+        return displayName
             ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
             ?: "imported-trail"
-        return rawName.ensureTrailExtension(contentType)
     }
 
-    private fun sizeFor(uri: Uri): Long = appContext.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-        val index = cursor.getColumnIndex(OpenableColumns.SIZE)
-        if (index >= 0 && cursor.moveToFirst()) cursor.getLong(index) else 0L
-    } ?: 0L
+    private fun sizeFor(uri: Uri): Long = runCatching {
+        appContext.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val index = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (index >= 0 && cursor.moveToFirst()) cursor.getLong(index) else 0L
+        } ?: 0L
+    }.getOrDefault(0L)
 
     private fun metadataFile(id: String): File = File(importsDir, "$id.json")
 }
@@ -89,7 +113,7 @@ class AndroidPendingTrailImportStore(context: Context) : PendingTrailImportStore
 class InMemoryPendingTrailImportStore : PendingTrailImportStore {
     private val imports = mutableMapOf<String, Pair<PendingTrailImport, ByteArray>>()
 
-    override fun createFromIntent(intent: Intent): PendingTrailImport? = null
+    override fun createFromIntent(intent: Intent): TrailImportIntentResult = TrailImportIntentResult.Ignored
 
     fun put(filename: String, contentType: String?, bytes: ByteArray): PendingTrailImport {
         val id = UUID.randomUUID().toString()
@@ -105,27 +129,33 @@ class InMemoryPendingTrailImportStore : PendingTrailImportStore {
     }
 }
 
-private fun Intent.trailImportUri(): Uri? = when (action) {
-    Intent.ACTION_SEND -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-    } else {
-        @Suppress("DEPRECATION")
-        getParcelableExtra(Intent.EXTRA_STREAM)
+private fun Intent.trailImportUris(): List<Uri> {
+    if (action !in setOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE, Intent.ACTION_VIEW)) {
+        return emptyList()
     }
-    Intent.ACTION_VIEW -> data
-    else -> null
+    val uris = linkedSetOf<Uri>()
+    if (action == Intent.ACTION_SEND || action == Intent.ACTION_SEND_MULTIPLE) {
+        streamUris().forEach(uris::add)
+    }
+    data?.let(uris::add)
+    clipData?.let { clip ->
+        repeat(clip.itemCount) { index ->
+            clip.getItemAt(index).uri?.let(uris::add)
+        }
+    }
+    return uris.toList()
 }
 
-private fun String.ensureTrailExtension(contentType: String?): String {
-    val lower = lowercase()
-    if (lower.endsWith(".gpx") || lower.endsWith(".kml") || lower.endsWith(".fit")) return this
-    val extension = when (contentType?.lowercase()) {
-        "application/gpx+xml" -> "gpx"
-        "application/vnd.google-earth.kml+xml" -> "kml"
-        "application/vnd.ant.fit" -> "fit"
-        else -> null
+private fun Intent.streamUris(): List<Uri> = buildList {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)?.let(::add)
+        getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)?.let(::addAll)
+    } else {
+        @Suppress("DEPRECATION")
+        getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let(::add)
+        @Suppress("DEPRECATION")
+        getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.let(::addAll)
     }
-    return if (extension == null) this else "$this.$extension"
 }
 
 private fun String.sanitizeFilename(): String =

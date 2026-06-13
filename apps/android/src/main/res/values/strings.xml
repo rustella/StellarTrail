@@ -5,4 +5,5 @@
     <string name="nav_trips">行程</string>
     <string name="nav_skills">技能</string>
     <string name="nav_profile">我的</string>
+    <string name="unsupported_trail_import">仅支持 GPX、KML、FIT 轨迹文件</string>
 </resources>
