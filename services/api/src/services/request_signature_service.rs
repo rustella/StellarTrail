@@ -126,10 +126,13 @@ async fn verify_request_signature(state: AppState, request: Request) -> Result<R
         return Err(ApiError::InvalidRequestSignature);
     }
     record_nonce_once(&state, &fields.app_id, &fields.nonce).await?;
-    if !is_json_body {
+    let forwarded_body_bytes = if is_json_body {
+        json_body_without_signing_fields(&body_bytes)?
+    } else {
         parts.uri = uri_without_signing_query_fields(&parts.uri)?;
-    }
-    Ok(Request::from_parts(parts, Body::from(body_bytes)))
+        body_bytes
+    };
+    Ok(Request::from_parts(parts, Body::from(forwarded_body_bytes)))
 }
 
 fn signature_body_limit(state: &AppState) -> usize {
@@ -230,6 +233,20 @@ fn signed_json_body_sha256_hex(body: &Bytes) -> Result<String, ApiError> {
     let mut canonical = String::new();
     write_canonical_json(&value, &mut canonical)?;
     Ok(sha256_hex(canonical.as_bytes()))
+}
+
+fn json_body_without_signing_fields(body: &Bytes) -> Result<Bytes, ApiError> {
+    let mut value: Value =
+        serde_json::from_slice(body).map_err(|_| ApiError::InvalidRequestSignature)?;
+    let Value::Object(object) = &mut value else {
+        return Err(ApiError::InvalidRequestSignature);
+    };
+    object.remove(SIGNING_FIELD_APP_ID);
+    object.remove(SIGNING_FIELD_NONCE);
+    object.remove(SIGNING_FIELD_SIGNATURE);
+    serde_json::to_vec(&value)
+        .map(Bytes::from)
+        .map_err(ApiError::internal)
 }
 
 fn write_canonical_json(value: &Value, output: &mut String) -> Result<(), ApiError> {
@@ -375,6 +392,7 @@ fn sha256_hex(bytes: impl AsRef<[u8]>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     fn signature(secret: &str, canonical_request: &str) -> String {
         let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
@@ -425,6 +443,22 @@ mod tests {
         assert_eq!(
             signed_json_body_sha256_hex(&left).unwrap(),
             signed_json_body_sha256_hex(&right).unwrap()
+        );
+    }
+
+    #[test]
+    fn json_signing_fields_are_removed_before_handlers_read_body() {
+        let body = Bytes::from_static(
+            br#"{"title":"luofu","app_id":"client","nonce":"n1","signature":"sig"}"#,
+        );
+
+        let cleaned = json_body_without_signing_fields(&body).unwrap();
+        let value: Value = serde_json::from_slice(&cleaned).unwrap();
+
+        assert_eq!(value, json!({"title": "luofu"}));
+        assert_eq!(
+            signed_json_body_sha256_hex(&body).unwrap(),
+            signed_json_body_sha256_hex(&cleaned).unwrap()
         );
     }
 

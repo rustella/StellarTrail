@@ -68,17 +68,26 @@ async fn test_app_with_request_signature(request_signature: RequestSignatureConf
 }
 
 async fn send_json(app: &Router, path: &str, body: Value) -> (StatusCode, Value) {
+    send_json_with_token(app, path, None, body).await
+}
+
+async fn send_json_with_token(
+    app: &Router,
+    path: &str,
+    token: Option<&str>,
+    body: Value,
+) -> (StatusCode, Value) {
+    let mut builder = Request::builder()
+        .method("POST")
+        .uri(path)
+        .header(CLIENT_IDENTITY_HEADER, TEST_CLIENT_IDENTITY)
+        .header(header::CONTENT_TYPE, "application/json");
+    if let Some(token) = token {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
     let response = app
         .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(path)
-                .header(CLIENT_IDENTITY_HEADER, TEST_CLIENT_IDENTITY)
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(Body::from(body.to_string()))
-                .unwrap(),
-        )
+        .oneshot(builder.body(Body::from(body.to_string())).unwrap())
         .await
         .unwrap();
     let status = response.status();
@@ -289,6 +298,46 @@ async fn request_signature_accepts_signed_json_without_breaking_dto_parsing() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(response["captcha_type"], "image");
     assert!(response["captcha_ticket"].as_str().is_some());
+}
+
+#[tokio::test]
+async fn request_signature_strips_json_fields_before_strict_dto_deserialization() {
+    let app = test_app_with_request_signature(signature_config()).await;
+    let login_body = signed_json_body(
+        "/api/v1/auth/wechat-login",
+        "nonce-login-strict-dto",
+        json!({
+            "code": "strict-dto-user",
+            "profile": {
+                "nickname": "星",
+                "avatar_url": null,
+            },
+        }),
+    );
+    let (login_status, login) =
+        send_json(&app.router, "/api/v1/auth/wechat-login", login_body).await;
+    assert_eq!(login_status, StatusCode::OK, "{login}");
+    let token = login["access_token"].as_str().unwrap();
+    let experience_body = signed_json_body(
+        "/api/v1/me/outdoor-experiences",
+        "nonce-experience-strict-dto",
+        json!({
+            "title": "两日罗浮山",
+            "route_summary": "环线",
+        }),
+    );
+
+    let (status, response) = send_json_with_token(
+        &app.router,
+        "/api/v1/me/outdoor-experiences",
+        Some(token),
+        experience_body,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CREATED, "{response}");
+    assert_eq!(response["title"], "两日罗浮山");
+    assert_eq!(response["route_summary"], "环线");
 }
 
 fn signature_config() -> RequestSignatureConfig {
