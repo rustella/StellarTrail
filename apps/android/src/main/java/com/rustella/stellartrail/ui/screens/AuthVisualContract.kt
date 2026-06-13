@@ -11,7 +11,7 @@ object AuthVisualContract {
     const val passwordTab = "账号登录"
     const val verificationCodeTab = "验证码登录"
     const val passwordPrimaryAction = "登录"
-    const val verificationCodePrimaryAction = "验证码登录"
+    const val verificationCodePrimaryAction = "登录"
     const val phoneRegisterMethod = "手机号注册"
     const val emailRegisterMethod = "邮箱注册"
     const val phoneResetMethod = "手机号找回"
