@@ -11,6 +11,7 @@ class AuthVisualContractTest {
         assertEquals(listOf(AuthMode.LOGIN, AuthMode.VERIFICATION_CODE), AuthVisualContract.loginTabModes)
         assertEquals("账号登录", AuthVisualContract.loginTabLabels.getValue(AuthMode.LOGIN))
         assertEquals("验证码登录", AuthVisualContract.loginTabLabels.getValue(AuthMode.VERIFICATION_CODE))
+        assertEquals("登录", AuthVisualContract.verificationCodePrimaryAction)
         assertEquals("手机号注册", AuthVisualContract.phoneRegisterMethod)
         assertEquals("邮箱注册", AuthVisualContract.emailRegisterMethod)
         assertEquals("手机号找回", AuthVisualContract.phoneResetMethod)

@@ -289,7 +289,7 @@ private fun TrailLibraryRow(
                 )
                 Text(trail.elevationLine(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    "${trail.pointCount} 点 · 更新 ${trail.updatedAt.datePart()}",
+                    "更新 ${trail.updatedAt.datePart()}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
