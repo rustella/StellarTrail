@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -40,8 +41,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -74,6 +73,7 @@ import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SoftPillButton
 import com.rustella.stellartrail.ui.common.SurfaceCard
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -320,7 +320,7 @@ private fun TrailLibraryRow(
 private enum class Trail3dPreviewMode {
     Map,
     Terrain3d,
-    ElevationTrend3d,
+    Track3d,
 }
 
 @Composable
@@ -396,8 +396,8 @@ private fun TrailPreviewDialog(
                                 }
                             }
                         }
-                        Trail3dPreviewMode.ElevationTrend3d -> {
-                            TrailElevationTrend3dPanel(trail = trail, modifier = Modifier.fillMaxSize())
+                        Trail3dPreviewMode.Track3d -> {
+                            Trail3dTrackPanel(trail = trail, modifier = Modifier.fillMaxSize())
                         }
                     }
                 }
@@ -440,23 +440,36 @@ private fun TrailPreviewModeSelector(
 }
 
 @Composable
-private fun TrailElevationTrend3dPanel(trail: Trail, modifier: Modifier = Modifier) {
-    val profile = remember(trail.normalizedPoints) { buildTrailElevationProfile(trail.normalizedPoints) }
-    var chartWidthPx by remember(profile) { mutableStateOf(1) }
-    var selectedIndex by remember(profile) { mutableStateOf(profile.points.lastIndex.coerceAtLeast(0)) }
-    if (!profile.hasEnoughData) {
+private fun Trail3dTrackPanel(trail: Trail, modifier: Modifier = Modifier) {
+    val model = remember(trail.normalizedPoints) { buildTrail3dTrackModel(trail.normalizedPoints) }
+    var camera by remember(model) { mutableStateOf(resetTrail3dCamera()) }
+    var canvasWidthPx by remember(model) { mutableStateOf(1) }
+    var canvasHeightPx by remember(model) { mutableStateOf(1) }
+    var selectedTrackIndex by remember(model) { mutableStateOf(model.points.lastIndex.coerceAtLeast(0)) }
+    if (!model.hasEnoughData) {
         Box(modifier, contentAlignment = Alignment.Center) {
-            EmptyState("暂无海拔走势", "这条轨迹没有足够的海拔点。")
+            EmptyState("暂无轨迹3D", "这条轨迹没有足够的带海拔轨迹点。")
         }
         return
     }
-    val safeSelectedIndex = selectedIndex.coerceIn(0, profile.points.lastIndex)
-    val selectedPoint = profile.points[safeSelectedIndex]
+    val projection = remember(model, camera, canvasWidthPx, canvasHeightPx) {
+        projectTrail3dScene(
+            model = model,
+            camera = camera,
+            viewportWidthPx = canvasWidthPx.toFloat(),
+            viewportHeightPx = canvasHeightPx.toFloat(),
+        )
+    }
+    val safeSelectedIndex = selectedTrackIndex.coerceIn(0, model.points.lastIndex)
+    val selectedPoint = model.points[safeSelectedIndex]
     val lineColor = MaterialTheme.colorScheme.primary
-    val shadowColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.48f)
-    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
-    val baseColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f)
-    val markerColor = MaterialTheme.colorScheme.tertiary
+    val groundFillColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.68f)
+    val groundStrokeColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.84f)
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.58f)
+    val shadowColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)
+    val startColor = MaterialTheme.colorScheme.secondary
+    val endColor = MaterialTheme.colorScheme.tertiary
+    val selectedColor = MaterialTheme.colorScheme.tertiary
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(8.dp),
@@ -469,31 +482,54 @@ private fun TrailElevationTrend3dPanel(trail: Trail, modifier: Modifier = Modifi
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TrailTrendMetric("最低", profile.minElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
-                TrailTrendMetric("最高", profile.maxElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
-                TrailTrendMetric("长度", (profile.distanceM / 1000.0).formatOne() + " km", Modifier.weight(1f))
+                TrailTrendMetric("最低", model.minElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
+                TrailTrendMetric("最高", model.maxElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
+                TrailTrendMetric("长度", (model.distanceM / 1000.0).formatOne() + " km", Modifier.weight(1f))
             }
             Canvas(
                 Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .onSizeChanged { chartWidthPx = it.width.coerceAtLeast(1) }
-                    .pointerInput(profile) {
-                        detectTapGestures { offset ->
-                            selectedIndex = profile.nearestPointIndex(offset.x / chartWidthPx.toFloat())
+                    .onSizeChanged { size ->
+                        canvasWidthPx = size.width.coerceAtLeast(1)
+                        canvasHeightPx = size.height.coerceAtLeast(1)
+                    }
+                    .pointerInput(model) {
+                        detectTransformGestures { _, pan, zoomChange, _ ->
+                            camera = updateTrail3dCamera(
+                                camera = camera,
+                                yawDeltaDegrees = pan.x * 0.32,
+                                pitchDeltaDegrees = -pan.y * 0.24,
+                                zoomMultiplier = zoomChange.toDouble(),
+                            )
                         }
+                    }
+                    .pointerInput(model, projection) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                camera = resetTrail3dCamera()
+                                selectedTrackIndex = model.points.lastIndex.coerceAtLeast(0)
+                            },
+                            onTap = { offset ->
+                                projection?.nearestTrackPointIndex(offset)?.let { selectedTrackIndex = it }
+                            },
+                        )
                     },
             ) {
-                drawTrailElevationProfile(
-                    profile = profile,
-                    selectedIndex = safeSelectedIndex,
-                    lineColor = lineColor,
-                    shadowColor = shadowColor,
-                    gridColor = gridColor,
-                    baseColor = baseColor,
-                    fillColor = lineColor.copy(alpha = 0.16f),
-                    markerColor = markerColor,
-                )
+                projection?.let {
+                    drawTrail3dTrackProjection(
+                        projection = it,
+                        selectedIndex = safeSelectedIndex,
+                        lineColor = lineColor,
+                        groundFillColor = groundFillColor,
+                        groundStrokeColor = groundStrokeColor,
+                        gridColor = gridColor,
+                        shadowColor = shadowColor,
+                        startColor = startColor,
+                        endColor = endColor,
+                        selectedColor = selectedColor,
+                    )
+                }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -525,103 +561,99 @@ private fun TrailTrendMetric(label: String, value: String, modifier: Modifier = 
     }
 }
 
-private fun DrawScope.drawTrailElevationProfile(
-    profile: TrailElevationProfile,
+private fun DrawScope.drawTrail3dTrackProjection(
+    projection: Trail3dProjection,
     selectedIndex: Int,
     lineColor: Color,
+    groundFillColor: Color,
+    groundStrokeColor: Color,
     shadowColor: Color,
     gridColor: Color,
-    baseColor: Color,
-    fillColor: Color,
-    markerColor: Color,
+    startColor: Color,
+    endColor: Color,
+    selectedColor: Color,
 ) {
-    if (profile.points.size < 2 || size.width <= 0f || size.height <= 0f) return
-    val left = 44f
-    val right = 18f
-    val top = 18f
-    val bottom = 34f
-    val depth = 22f
-    val chartWidth = size.width - left - right - depth
-    val chartHeight = size.height - top - bottom - depth
-    if (chartWidth <= 0f || chartHeight <= 0f) return
-    val baseY = top + chartHeight
-    val iso = Offset(depth, depth)
-    val minElevation = profile.minElevationM ?: return
-    val maxElevation = profile.maxElevationM ?: return
-    val elevationRange = (maxElevation - minElevation).takeIf { abs(it) > 0.0001 } ?: 1.0
-    val distanceRange = profile.points.maxOf { it.distanceM }.takeIf { it > 0.0 } ?: 1.0
-    fun pointOffset(point: TrailElevationProfilePoint, index: Int): Offset {
-        val distanceRatio = if (distanceRange > 1.0) {
-            (point.distanceM / distanceRange).toFloat()
-        } else {
-            index.toFloat() / profile.points.lastIndex.coerceAtLeast(1)
-        }
-        val elevationRatio = ((point.elevationM - minElevation) / elevationRange).toFloat()
-        return Offset(
-            x = left + chartWidth * distanceRatio.coerceIn(0f, 1f),
-            y = top + chartHeight * (1f - elevationRatio.coerceIn(0f, 1f)),
-        )
-    }
-    val offsets = profile.points.mapIndexed { index, point -> pointOffset(point, index) }
-    val basePath = Path().apply {
-        moveTo(left + iso.x, top + iso.y)
-        lineTo(left + chartWidth + iso.x, top + iso.y)
-        lineTo(left + chartWidth + iso.x, baseY + iso.y)
-        lineTo(left + iso.x, baseY + iso.y)
-        close()
-    }
-    drawPath(basePath, baseColor)
-    repeat(4) { step ->
-        val y = top + chartHeight * (step + 1) / 5f
-        drawLine(gridColor, Offset(left, y), Offset(left + chartWidth, y), strokeWidth = 1f)
+    if (projection.trackPoints.size < 2) return
+    val groundPath = projection.groundOutline.toPath()
+    drawPath(groundPath, groundFillColor)
+    drawPath(groundPath, groundStrokeColor, style = Stroke(width = 1.5f))
+    projection.gridLines.sortedBy { it.depth }.forEach { line ->
         drawLine(
-            gridColor.copy(alpha = 0.36f),
-            Offset(left + iso.x, y + iso.y),
-            Offset(left + chartWidth + iso.x, y + iso.y),
-            strokeWidth = 1f,
+            color = gridColor,
+            start = Offset(line.start.x, line.start.y),
+            end = Offset(line.end.x, line.end.y),
+            strokeWidth = 1.2f,
         )
     }
-    val areaPath = Path().apply {
-        moveTo(offsets.first().x, baseY)
-        offsets.forEach { lineTo(it.x, it.y) }
-        lineTo(offsets.last().x, baseY)
-        close()
+    projection.shadowPoints.zipWithNext().forEach { (start, end) ->
+        drawLine(
+            color = shadowColor,
+            start = Offset(start.x, start.y),
+            end = Offset(end.x, end.y),
+            strokeWidth = 4.5f,
+            cap = StrokeCap.Round,
+        )
     }
-    drawPath(path = areaPath, brush = Brush.verticalGradient(listOf(fillColor, Color.Transparent)))
-    val shadowPath = Path().apply {
-        offsets.forEachIndexed { index, offset ->
-            val shifted = offset + iso
-            if (index == 0) moveTo(shifted.x, shifted.y) else lineTo(shifted.x, shifted.y)
-        }
+    val depthMin = projection.trackPoints.minOf { it.depth }
+    val depthMax = projection.trackPoints.maxOf { it.depth }
+    val depthRange = (depthMax - depthMin).takeIf { abs(it) > 0.0001 } ?: 1.0
+    projection.trackPoints.zipWithNext().forEach { (start, end) ->
+        val depthRatio = (((start.depth + end.depth) / 2.0 - depthMin) / depthRange).coerceIn(0.0, 1.0).toFloat()
+        val segmentColor = lineColor.copy(alpha = 0.72f + depthRatio * 0.28f)
+        drawLine(
+            color = lineColor.copy(alpha = 0.22f),
+            start = Offset(start.x, start.y),
+            end = Offset(end.x, end.y),
+            strokeWidth = 10f,
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color = segmentColor,
+            start = Offset(start.x, start.y),
+            end = Offset(end.x, end.y),
+            strokeWidth = 5.2f,
+            cap = StrokeCap.Round,
+        )
     }
-    drawPath(shadowPath, shadowColor, style = Stroke(width = 5f, cap = StrokeCap.Round))
-    val linePath = Path().apply {
-        offsets.forEachIndexed { index, offset ->
-            if (index == 0) moveTo(offset.x, offset.y) else lineTo(offset.x, offset.y)
-        }
-    }
-    drawPath(linePath, lineColor, style = Stroke(width = 4f, cap = StrokeCap.Round))
-    val selected = offsets[selectedIndex.coerceIn(offsets.indices)]
-    drawLine(markerColor.copy(alpha = 0.54f), Offset(selected.x, top), Offset(selected.x, baseY + iso.y), strokeWidth = 2f)
-    drawCircle(markerColor.copy(alpha = 0.24f), radius = 11f, center = selected)
-    drawCircle(markerColor, radius = 5f, center = selected)
-    drawRect(
-        color = gridColor.copy(alpha = 0.5f),
-        topLeft = Offset(left, top),
-        size = Size(chartWidth, chartHeight),
-        style = Stroke(width = 1f),
+    val start = projection.trackPoints.first()
+    val end = projection.trackPoints.last()
+    drawTrackPointMarker(start, startColor, radius = 5.5f)
+    drawTrackPointMarker(end, endColor, radius = 6.5f)
+    val selectedIndexSafe = selectedIndex.coerceIn(projection.trackPoints.indices)
+    val selected = projection.trackPoints[selectedIndexSafe]
+    val selectedShadow = projection.shadowPoints[selectedIndexSafe]
+    drawLine(
+        color = selectedColor.copy(alpha = 0.48f),
+        start = Offset(selected.x, selected.y),
+        end = Offset(selectedShadow.x, selectedShadow.y),
+        strokeWidth = 2f,
     )
+    drawCircle(selectedColor.copy(alpha = 0.20f), radius = 13f, center = Offset(selected.x, selected.y))
+    drawTrackPointMarker(selected, selectedColor, radius = 6f)
 }
 
-private fun TrailElevationProfile.nearestPointIndex(fraction: Float): Int {
-    val targetDistance = points.maxOf { it.distanceM } * fraction.coerceIn(0f, 1f)
-    return points.indices.minByOrNull { index -> abs(points[index].distanceM - targetDistance) } ?: 0
+private fun DrawScope.drawTrackPointMarker(point: Trail3dProjectedPoint, color: Color, radius: Float) {
+    drawCircle(Color.White.copy(alpha = 0.86f), radius = radius + 2.5f, center = Offset(point.x, point.y))
+    drawCircle(color, radius = radius, center = Offset(point.x, point.y))
 }
+
+private fun List<Trail3dProjectedPoint>.toPath(): Path = Path().apply {
+    forEachIndexed { index, point ->
+        if (index == 0) moveTo(point.x, point.y) else lineTo(point.x, point.y)
+    }
+    close()
+}
+
+private fun Trail3dProjection.nearestTrackPointIndex(offset: Offset): Int? =
+    trackPoints.indices.minByOrNull { index ->
+        val point = trackPoints[index]
+        hypot((point.x - offset.x).toDouble(), (point.y - offset.y).toDouble())
+    }
 
 private fun Trail3dPreviewMode.label(): String = when (this) {
     Trail3dPreviewMode.Map -> "地图"
     Trail3dPreviewMode.Terrain3d -> "地形3D"
-    Trail3dPreviewMode.ElevationTrend3d -> "走势3D"
+    Trail3dPreviewMode.Track3d -> "轨迹3D"
 }
 
 @Composable
