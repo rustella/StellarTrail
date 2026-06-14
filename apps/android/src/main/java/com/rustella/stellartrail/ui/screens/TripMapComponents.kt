@@ -122,6 +122,8 @@ import kotlinx.coroutines.launch
 import java.net.URI
 import java.net.URL
 import kotlin.math.hypot
+import kotlin.math.ln
+import kotlin.math.max
 
 @Composable
 fun TripsOverviewMapSection(
@@ -160,7 +162,7 @@ fun TripsOverviewMapSection(
     fun selectOverviewTrail(index: Int) {
         val item = overviewTrailItems.getOrNull(index) ?: return
         selectedOverviewTrailId = item.trailId
-        overviewTrailFocusRequestKey++
+        overviewTrailFocusRequestKey = nextOverviewTrailFocusRequestKey(overviewTrailFocusRequestKey)
     }
     fun selectNextOverviewTrail() {
         nextOverviewTrailIndex(selectedOverviewTrailIndex, overviewTrailItems.size)?.let(::selectOverviewTrail)
@@ -803,10 +805,11 @@ private fun MapTilerTrailMap(
     }
     val currentControllerDelegate by rememberUpdatedState(controllerDelegate)
     LaunchedEffect(focusRequestKey, selectedBounds, terrain3dEnabled, controllerDelegate) {
-        val nextBounds = sanitizeOverviewFocusBounds(selectedBounds)
-        if (focusRequestKey > 0 && nextBounds != null) {
-            controllerDelegate.focusBounds(nextBounds, terrain3dEnabled)
-        }
+        controllerDelegate.requestFocusBounds(
+            requestKey = focusRequestKey,
+            bounds = sanitizeOverviewFocusBounds(selectedBounds),
+            terrain3dEnabled = terrain3dEnabled,
+        )
     }
 
     fun startLocationTracking(
@@ -1624,6 +1627,12 @@ internal data class TrailMapRenderIdentity(
     val styleUrl: String,
 )
 
+private data class TrailMapFocusRequest(
+    val requestKey: Int,
+    val bounds: TrailBounds,
+    val terrain3dEnabled: Boolean,
+)
+
 internal fun trailMapRenderIdentity(
     selectedStyle: MapStyleOption,
     @Suppress("UNUSED_PARAMETER") presentation: TrailMapPresentation,
@@ -1652,21 +1661,29 @@ private class TrailMapDelegate(
     private var pinchGestureEnabled = false
     private var pitchGestureEnabled = false
     private var doubleTapGestureEnabled = false
+    private var mapReady = false
+    private var pendingFocusRequest: TrailMapFocusRequest? = null
+    private var appliedFocusRequestKey: Int? = null
+    private var initialCameraApplied = false
     private var currentLocationMarker: MTMarker? = null
     private var currentLocationForMarker: ForegroundLocation? = initialLocation
     private var appliedStyleUrl: String? = null
 
     override fun onMapViewInitialized() {
+        mapReady = true
         renderTrailLayer()
         restoreCurrentLocationMarker()
         applyMapPresentation()
+        tryApplyPendingFocusRequest()
     }
 
     override fun onEventTriggered(event: MTEvent, data: MTData?) {
         if (shouldEnsureTrailLayerOnEvent(event)) {
+            mapReady = true
             renderTrailLayer()
             applyMapPresentation()
             restoreCurrentLocationMarker()
+            tryApplyPendingFocusRequest()
             return
         }
         when (event) {
@@ -1736,6 +1753,7 @@ private class TrailMapDelegate(
                 renderTrailLayer()
                 applyMapPresentation()
                 restoreCurrentLocationMarker()
+                tryApplyPendingFocusRequest()
             }
         }
     }
@@ -1787,12 +1805,34 @@ private class TrailMapDelegate(
         }
     }
 
-    fun focusBounds(bounds: TrailBounds, terrain3dEnabled: Boolean) {
+    fun requestFocusBounds(requestKey: Int, bounds: TrailBounds?, terrain3dEnabled: Boolean) {
+        if (requestKey <= 0 || bounds == null) return
+        pendingFocusRequest = TrailMapFocusRequest(
+            requestKey = requestKey,
+            bounds = bounds,
+            terrain3dEnabled = terrain3dEnabled,
+        )
+        tryApplyPendingFocusRequest()
+    }
+
+    private fun tryApplyPendingFocusRequest() {
+        val request = pendingFocusRequest ?: return
+        if (appliedFocusRequestKey == request.requestKey) {
+            pendingFocusRequest = null
+            return
+        }
+        if (!mapReady || controller.style == null) return
         runCatching {
             controller.fitBounds(
-                MTBounds(bounds.minLng, bounds.minLat, bounds.maxLng, bounds.maxLat),
-                overviewMapFitBoundsOptions(terrain3dEnabled),
+                MTBounds(request.bounds.minLng, request.bounds.minLat, request.bounds.maxLng, request.bounds.maxLat),
+                overviewMapFitBoundsOptions(request.terrain3dEnabled),
             )
+            controller.setCenter(overviewMapFocusCenter(request.bounds))
+            controller.setZoom(overviewMapFocusZoom(request.bounds, request.terrain3dEnabled))
+        }.onSuccess {
+            appliedFocusRequestKey = request.requestKey
+            pendingFocusRequest = null
+            initialCameraApplied = true
             applyMapPresentation()
             requestCameraSnapshot(MAP_CAMERA_SNAPSHOT_AFTER_CONTROL_DELAY_MILLIS)
         }
@@ -1859,12 +1899,13 @@ private class TrailMapDelegate(
             )
         }.onFailure { if (it !is MTStyleError.LayerAlreadyExists) throw it }
         val snapshot = initialCameraSnapshot
-        if (initialMapCameraSource(snapshot) == InitialMapCameraSource.Snapshot && snapshot != null) {
+        if (!initialCameraApplied && initialMapCameraSource(snapshot) == InitialMapCameraSource.Snapshot && snapshot != null) {
             restoreCameraSnapshot(snapshot)
+            initialCameraApplied = true
             applyMapPresentation()
             return
         }
-        bounds?.let {
+        bounds?.takeIf { !initialCameraApplied && pendingFocusRequest == null }?.let {
             controller.fitBounds(
                 MTBounds(it.minLng, it.minLat, it.maxLng, it.maxLat),
                 MTFitBoundsOptions(
@@ -1873,6 +1914,7 @@ private class TrailMapDelegate(
                     duration = 0.0,
                 ),
             )
+            initialCameraApplied = true
         }
         applyMapPresentation()
     }
@@ -1891,6 +1933,7 @@ private class TrailMapDelegate(
         runCatching { controller.setBearing(mapPresentation.bearing ?: 0.0) }
         runCatching { controller.setPitch(mapPresentation.pitch ?: 0.0) }
         enableMapGesturesIfNeeded()
+        tryApplyPendingFocusRequest()
     }
 
     private suspend fun captureAndPublishCameraSnapshot() {
@@ -2029,6 +2072,9 @@ internal fun nextOverviewTrailIndex(currentIndex: Int, itemCount: Int): Int? {
     if (currentIndex !in 0 until itemCount) return 0
     return (currentIndex + 1) % itemCount
 }
+
+internal fun nextOverviewTrailFocusRequestKey(currentKey: Int): Int =
+    if (currentKey == Int.MAX_VALUE) 1 else currentKey + 1
 
 internal fun overviewTrailBoundsFromGeojson(feature: JsonElement): TrailBounds? {
     val featureObject = feature as? JsonObject ?: return null
@@ -2389,6 +2435,18 @@ private fun overviewMapFitBoundsOptions(terrain3dEnabled: Boolean): MTFitBoundsO
         maxZoom = if (terrain3dEnabled) 13.2 else 14.6,
         duration = 260.0,
     )
+}
+
+private fun overviewMapFocusCenter(bounds: TrailBounds): LngLat =
+    LngLat((bounds.minLng + bounds.maxLng) / 2.0, (bounds.minLat + bounds.maxLat) / 2.0)
+
+internal fun overviewMapFocusZoom(bounds: TrailBounds, terrain3dEnabled: Boolean): Double {
+    val lngSpan = (bounds.maxLng - bounds.minLng).coerceAtLeast(OVERVIEW_FOCUS_MIN_SPAN_DEGREES)
+    val latSpan = (bounds.maxLat - bounds.minLat).coerceAtLeast(OVERVIEW_FOCUS_MIN_SPAN_DEGREES)
+    val span = max(lngSpan, latSpan)
+    val visualOffset = if (terrain3dEnabled) 2.2 else 1.7
+    val maxZoom = if (terrain3dEnabled) 13.2 else 14.6
+    return (ln(360.0 / span) / ln(2.0) - visualOffset).coerceIn(6.0, maxZoom)
 }
 
 internal enum class LocationTrackingStopReason {

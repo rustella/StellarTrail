@@ -197,6 +197,22 @@ class TripMapComponentsTest {
     }
 
     @Test
+    fun nextOverviewTrailFocusRequestKeyAlwaysAdvancesAndWrapsSafely() {
+        assertEquals(1, nextOverviewTrailFocusRequestKey(0))
+        assertEquals(8, nextOverviewTrailFocusRequestKey(7))
+        assertEquals(1, nextOverviewTrailFocusRequestKey(Int.MAX_VALUE))
+    }
+
+    @Test
+    fun overviewMapFocusZoomIncreasesForNarrowerTrailBounds() {
+        val wide = TrailBounds(113.7, 22.4, 114.8, 23.2)
+        val narrow = TrailBounds(114.21, 22.54, 114.25, 22.58)
+
+        assertTrue(overviewMapFocusZoom(narrow, terrain3dEnabled = false) > overviewMapFocusZoom(wide, terrain3dEnabled = false))
+        assertTrue(overviewMapFocusZoom(narrow, terrain3dEnabled = true) <= 13.2)
+    }
+
+    @Test
     fun mapStyleResolutionUsesBackendStylesAndFallsBackToDefault() {
         val map = mapConfigWithStyles()
 
