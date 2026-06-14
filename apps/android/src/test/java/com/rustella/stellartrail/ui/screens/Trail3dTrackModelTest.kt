@@ -152,6 +152,36 @@ class Trail3dTrackModelTest {
     }
 
     @Test
+    fun trackCameraMapGestureUsesRotationForYawAndVerticalPanForPitch() {
+        val camera = Trail3dCamera(yawDegrees = 0.0, pitchDegrees = 55.0, zoom = 1.0)
+
+        val rotated = updateTrail3dCameraFromMapGesture(
+            camera,
+            rotationDeltaDegrees = 15.0,
+            pitchPanDeltaYPx = 0.0,
+            zoomMultiplier = 1.0,
+        )
+        val pitched = updateTrail3dCameraFromMapGesture(
+            camera,
+            rotationDeltaDegrees = 0.0,
+            pitchPanDeltaYPx = -20.0,
+            zoomMultiplier = 1.0,
+        )
+        val zoomed = updateTrail3dCameraFromMapGesture(
+            Trail3dCamera(zoom = TRAIL_3D_MAX_ZOOM),
+            rotationDeltaDegrees = 0.0,
+            pitchPanDeltaYPx = 0.0,
+            zoomMultiplier = 10.0,
+        )
+
+        assertEquals(15.0 * TRAIL_3D_ROTATION_GESTURE_YAW_FACTOR, rotated.yawDegrees, 0.0)
+        assertEquals(55.0, rotated.pitchDegrees, 0.0)
+        assertEquals(0.0, pitched.yawDegrees, 0.0)
+        assertEquals(55.0 + 20.0 * TRAIL_3D_PITCH_GESTURE_PX_FACTOR, pitched.pitchDegrees, 0.0)
+        assertEquals(TRAIL_3D_MAX_ZOOM, zoomed.zoom, 0.0)
+    }
+
+    @Test
     fun trackCameraPanMovesProjectionAndCanReset() {
         val model = buildTrail3dTrackModel(
             listOf(
@@ -179,5 +209,17 @@ class Trail3dTrackModelTest {
     @Test
     fun trackCameraCanReset() {
         assertEquals(Trail3dCamera(), resetTrail3dCamera())
+    }
+
+    @Test
+    fun trackGestureGuideDescribesMapAlignedControls() {
+        val lines = trail3dGestureGuideLines()
+
+        assertTrue(lines.contains("单指拖动移动模型"))
+        assertTrue(lines.contains("双指捏合缩放"))
+        assertTrue(lines.contains("双指旋转方向"))
+        assertTrue(lines.contains("双指上下拖动调整俯仰"))
+        assertTrue(lines.contains("双击放大"))
+        assertTrue(lines.contains("点按轨迹查看点位"))
     }
 }

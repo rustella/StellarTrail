@@ -22,6 +22,8 @@ internal const val TRAIL_3D_MAX_PITCH_DEGREES = 78.0
 internal const val TRAIL_3D_MIN_ZOOM = 0.65
 internal const val TRAIL_3D_MAX_ZOOM = 2.4
 internal const val TRAIL_3D_DOUBLE_TAP_ZOOM_MULTIPLIER = 1.35
+internal const val TRAIL_3D_ROTATION_GESTURE_YAW_FACTOR = 0.8
+internal const val TRAIL_3D_PITCH_GESTURE_PX_FACTOR = 0.22
 
 internal data class Trail3dTrackPoint(
     val eastM: Double,
@@ -193,6 +195,18 @@ internal fun updateTrail3dCamera(
     .let { setTrail3dCameraPitch(it, it.pitchDegrees + pitchDeltaDegrees) }
     .let { zoomTrail3dCamera(it, zoomMultiplier) }
     .let { panTrail3dCamera(it, panDeltaXPx, panDeltaYPx) }
+
+internal fun updateTrail3dCameraFromMapGesture(
+    camera: Trail3dCamera,
+    rotationDeltaDegrees: Double = 0.0,
+    pitchPanDeltaYPx: Double = 0.0,
+    zoomMultiplier: Double = 1.0,
+): Trail3dCamera = updateTrail3dCamera(
+    camera = camera,
+    yawDeltaDegrees = rotationDeltaDegrees.finiteOrDefault(0.0) * TRAIL_3D_ROTATION_GESTURE_YAW_FACTOR,
+    pitchDeltaDegrees = -pitchPanDeltaYPx.finiteOrDefault(0.0) * TRAIL_3D_PITCH_GESTURE_PX_FACTOR,
+    zoomMultiplier = zoomMultiplier,
+)
 
 internal fun normalizeTrail3dYawDegrees(yawDegrees: Double): Double {
     if (!yawDegrees.isFinite()) return TRAIL_3D_DEFAULT_YAW_DEGREES

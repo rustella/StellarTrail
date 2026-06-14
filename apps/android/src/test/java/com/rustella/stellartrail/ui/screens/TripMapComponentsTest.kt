@@ -161,6 +161,17 @@ class TripMapComponentsTest {
     }
 
     @Test
+    fun map3dGestureGuideDescribesTerrainMapControls() {
+        val lines = map3dGestureGuideLines()
+
+        assertTrue(lines.contains("单指拖动移动地图"))
+        assertTrue(lines.contains("双指捏合缩放"))
+        assertTrue(lines.contains("双指旋转方向"))
+        assertTrue(lines.contains("双指上下拖动调整俯仰"))
+        assertTrue(lines.contains("双击放大"))
+    }
+
+    @Test
     fun trailMapRenderIdentityChangesForStyleIdStyleUrlAndPresentation() {
         val flatPresentation = trailMapPresentation(terrain3dEnabled = false, zoomGesturesEnabled = true)
         val terrainPresentation = trailMapPresentation(terrain3dEnabled = true, zoomGesturesEnabled = true)

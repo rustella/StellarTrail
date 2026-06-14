@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
@@ -948,11 +949,19 @@ private fun MapTilerTrailMap(
             )
         }
         if (legendVisible) {
-            MapLegendPopover(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 46.dp, bottom = 112.dp),
-            )
+            if (terrain3dEnabled) {
+                Map3dGestureGuidePopover(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 46.dp, bottom = 112.dp),
+                )
+            } else {
+                MapLegendPopover(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 46.dp, bottom = 112.dp),
+                )
+            }
         }
     }
 }
@@ -1094,6 +1103,46 @@ private fun MapLegendHelpButton(
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1,
             )
+        }
+    }
+}
+
+internal fun map3dGestureGuideLines(): List<String> = listOf(
+    "单指拖动移动地图",
+    "双指捏合缩放",
+    "双指旋转方向",
+    "双指上下拖动调整俯仰",
+    "双击放大",
+)
+
+@Composable
+private fun Map3dGestureGuidePopover(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier
+            .widthIn(max = 220.dp)
+            .clickable { },
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        tonalElevation = 1.dp,
+        shadowElevation = 1.dp,
+    ) {
+        Column(
+            Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                "地图3D操作",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            map3dGestureGuideLines().forEach { line ->
+                Text(
+                    line,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
         }
     }
 }

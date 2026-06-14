@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -718,6 +719,7 @@ private fun Trail3dTrackPanel(
     var canvasWidthPx by remember(model) { mutableStateOf(1) }
     var canvasHeightPx by remember(model) { mutableStateOf(1) }
     var selectedTrackIndex by remember(model) { mutableStateOf(model.points.lastIndex.coerceAtLeast(0)) }
+    var gestureGuideVisible by remember(model) { mutableStateOf(false) }
     if (!model.hasEnoughData) {
         Surface(
             modifier = modifier,
@@ -736,6 +738,20 @@ private fun Trail3dTrackPanel(
                 )
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     EmptyState("暂无轨迹3D", "这条轨迹没有足够的带海拔轨迹点。")
+                }
+                Trail3dGestureHelpButton(
+                    expanded = gestureGuideVisible,
+                    onToggle = { gestureGuideVisible = !gestureGuideVisible },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 12.dp, bottom = 12.dp),
+                )
+                if (gestureGuideVisible) {
+                    Trail3dGestureGuidePopover(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 50.dp, bottom = 48.dp),
+                    )
                 }
             }
         }
@@ -811,10 +827,10 @@ private fun Trail3dTrackPanel(
                                             val stableChanges = pressedChanges.filter { it.previousPressed }
                                             if (stableChanges.size >= 2) {
                                                 val pan = stableChanges.currentCentroid() - stableChanges.previousCentroid()
-                                                camera = updateTrail3dCamera(
+                                                camera = updateTrail3dCameraFromMapGesture(
                                                     camera = camera,
-                                                    yawDeltaDegrees = pan.x * 0.28 + stableChanges.rotationDegrees() * 0.8,
-                                                    pitchDeltaDegrees = -pan.y * 0.22,
+                                                    rotationDeltaDegrees = stableChanges.rotationDegrees(),
+                                                    pitchPanDeltaYPx = pan.y.toDouble(),
                                                     zoomMultiplier = stableChanges.zoomMultiplier().toDouble(),
                                                 )
                                                 stableChanges.forEach { it.consume() }
@@ -827,9 +843,11 @@ private fun Trail3dTrackPanel(
                         .pointerInput(model, projection) {
                             detectTapGestures(
                                 onDoubleTap = {
+                                    gestureGuideVisible = false
                                     camera = zoomTrail3dCamera(camera, TRAIL_3D_DOUBLE_TAP_ZOOM_MULTIPLIER)
                                 },
                                 onTap = { offset ->
+                                    gestureGuideVisible = false
                                     projection?.nearestTrackPointIndex(offset)?.let { selectedTrackIndex = it }
                                 },
                             )
@@ -861,6 +879,92 @@ private fun Trail3dTrackPanel(
                         fontWeight = FontWeight.ExtraBold,
                     )
                 }
+            }
+            Trail3dGestureHelpButton(
+                expanded = gestureGuideVisible,
+                onToggle = { gestureGuideVisible = !gestureGuideVisible },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 12.dp, bottom = 44.dp),
+            )
+            if (gestureGuideVisible) {
+                Trail3dGestureGuidePopover(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 50.dp, bottom = 82.dp),
+                )
+            }
+        }
+    }
+}
+
+internal fun trail3dGestureGuideLines(): List<String> = listOf(
+    "单指拖动移动模型",
+    "双指捏合缩放",
+    "双指旋转方向",
+    "双指上下拖动调整俯仰",
+    "双击放大",
+    "点按轨迹查看点位",
+)
+
+@Composable
+private fun Trail3dGestureHelpButton(
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = if (expanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.94f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp,
+    ) {
+        Box(
+            Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(onClick = onToggle),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "?",
+                color = if (expanded) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun Trail3dGestureGuidePopover(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier
+            .widthIn(max = 220.dp)
+            .clickable { },
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        tonalElevation = 1.dp,
+        shadowElevation = 1.dp,
+    ) {
+        Column(
+            Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                "轨迹3D操作",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            trail3dGestureGuideLines().forEach { line ->
+                Text(
+                    line,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
         }
     }
