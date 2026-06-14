@@ -25,7 +25,9 @@ import java.time.LocalDate
 
 data class HomeUiState(
     val isLoggedIn: Boolean = false,
+    val hasLoaded: Boolean = false,
     val loading: Boolean = false,
+    val refreshing: Boolean = false,
     val error: String? = null,
     val stats: GearStatsResponse = EMPTY_STATS,
     val recentGears: List<GearSummary> = emptyList(),
@@ -43,9 +45,33 @@ class HomeViewModel(
     private val _state = MutableStateFlow(HomeUiState())
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
+    fun loadIfNeeded(isLoggedIn: Boolean = true) {
+        val current = _state.value
+        load(isLoggedIn = isLoggedIn, preserveContent = current.hasLoaded && current.isLoggedIn == isLoggedIn)
+    }
+
     fun load(isLoggedIn: Boolean = true) {
+        load(isLoggedIn = isLoggedIn, preserveContent = false)
+    }
+
+    private fun load(isLoggedIn: Boolean, preserveContent: Boolean) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoggedIn = isLoggedIn, loading = true, error = null) }
+            val keepContent = preserveContent && _state.value.hasLoaded && _state.value.isLoggedIn == isLoggedIn
+            _state.update {
+                val resetForGuest = !isLoggedIn && it.isLoggedIn
+                it.copy(
+                    isLoggedIn = isLoggedIn,
+                    loading = !keepContent,
+                    refreshing = keepContent,
+                    error = null,
+                    stats = if (resetForGuest) EMPTY_STATS else it.stats,
+                    recentGears = if (resetForGuest) emptyList() else it.recentGears,
+                    templates = if (resetForGuest) emptyList() else it.templates,
+                    skills = if (resetForGuest) emptyList() else it.skills,
+                    featuredKnots = if (resetForGuest) emptyList() else it.featuredKnots,
+                    tripHighlight = if (resetForGuest) null else it.tripHighlight,
+                )
+            }
             try {
                 supervisorScope {
                     if (isLoggedIn) {
@@ -63,6 +89,7 @@ class HomeViewModel(
                                 skills = emptyList(),
                                 featuredKnots = featuredKnotItems,
                                 tripHighlight = tripHighlightValue,
+                                hasLoaded = true,
                             )
                         }
                     } else {
@@ -74,6 +101,7 @@ class HomeViewModel(
                                 skills = emptyList(),
                                 featuredKnots = emptyList(),
                                 tripHighlight = null,
+                                hasLoaded = true,
                             )
                         }
                     }
@@ -81,7 +109,7 @@ class HomeViewModel(
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }
             } finally {
-                _state.update { it.copy(loading = false) }
+                _state.update { it.copy(loading = false, refreshing = false) }
             }
         }
     }

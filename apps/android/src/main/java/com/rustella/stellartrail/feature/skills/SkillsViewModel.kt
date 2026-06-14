@@ -21,6 +21,7 @@ enum class SkillsMode { Catalog, Knots, Favorites }
 
 data class SkillsUiState(
     val mode: SkillsMode = SkillsMode.Catalog,
+    val hasLoaded: Boolean = false,
     val categories: List<SkillCategorySummary> = emptyList(),
     val knots: List<KnotSummary> = emptyList(),
     val favoriteKnots: List<FavoriteKnotItem> = emptyList(),
@@ -28,6 +29,7 @@ data class SkillsUiState(
     val nextOffset: Int? = null,
     val favoriteNextOffset: Int? = null,
     val loading: Boolean = false,
+    val refreshing: Boolean = false,
     val loadingMore: Boolean = false,
     val error: String? = null,
 )
@@ -36,18 +38,27 @@ class SkillsViewModel(private val repository: SkillRepositoryContract) : ViewMod
     private val _state = MutableStateFlow(SkillsUiState())
     val state: StateFlow<SkillsUiState> = _state.asStateFlow()
 
+    fun loadIfNeeded() {
+        load(preserveContent = _state.value.hasLoaded)
+    }
+
     fun load() {
+        load(preserveContent = false)
+    }
+
+    private fun load(preserveContent: Boolean) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            val keepContent = preserveContent && _state.value.hasLoaded
+            _state.update { it.copy(loading = !keepContent, refreshing = keepContent, error = null) }
             try {
                 val categoryItems = repository.listSkills(SkillLocale.ZH_CN).items
                 _state.update {
-                    it.copy(categories = categoryItems)
+                    it.copy(categories = categoryItems, hasLoaded = true)
                 }
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }
             } finally {
-                _state.update { it.copy(loading = false) }
+                _state.update { it.copy(loading = false, refreshing = false) }
             }
         }
     }
@@ -87,7 +98,7 @@ class SkillsViewModel(private val repository: SkillRepositoryContract) : ViewMod
 
     fun loadMoreKnots() {
         val offset = _state.value.nextOffset ?: return
-        if (_state.value.loadingMore) return
+        if (_state.value.loadingMore || _state.value.refreshing) return
         viewModelScope.launch {
             _state.update { it.copy(loadingMore = true, error = null) }
             try {
@@ -123,7 +134,7 @@ class SkillsViewModel(private val repository: SkillRepositoryContract) : ViewMod
 
     fun loadMoreFavoriteSkills() {
         val offset = _state.value.favoriteNextOffset ?: return
-        if (_state.value.loadingMore) return
+        if (_state.value.loadingMore || _state.value.refreshing) return
         viewModelScope.launch {
             _state.update { it.copy(loadingMore = true, error = null) }
             try {

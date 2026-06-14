@@ -24,6 +24,7 @@ import kotlinx.coroutines.supervisorScope
 
 data class GearListUiState(
     val isLoggedIn: Boolean = false,
+    val hasLoaded: Boolean = false,
     val tab: GearTab = GearTab.AVAILABLE,
     val selectedCategory: GearCategory? = null,
     val selectedStatus: GearStatus? = null,
@@ -35,6 +36,7 @@ data class GearListUiState(
     val templates: List<GearTemplate> = emptyList(),
     val nextCursor: String? = null,
     val loading: Boolean = false,
+    val refreshing: Boolean = false,
     val loadingMore: Boolean = false,
     val error: String? = null,
 )
@@ -43,16 +45,31 @@ class GearListViewModel(private val repository: GearRepositoryContract) : ViewMo
     private val _state = MutableStateFlow(GearListUiState())
     val state: StateFlow<GearListUiState> = _state.asStateFlow()
 
+    fun loadIfNeeded(isLoggedIn: Boolean = true) {
+        val current = _state.value
+        refresh(isLoggedIn = isLoggedIn, preserveContent = current.hasLoaded && current.isLoggedIn == isLoggedIn)
+    }
+
     fun refresh(isLoggedIn: Boolean = true) {
+        refresh(isLoggedIn = isLoggedIn, preserveContent = false)
+    }
+
+    private fun refresh(isLoggedIn: Boolean, preserveContent: Boolean) {
         viewModelScope.launch {
+            val keepContent = preserveContent && _state.value.hasLoaded && _state.value.isLoggedIn == isLoggedIn
             _state.update {
+                val authChanged = it.isLoggedIn != isLoggedIn
+                val resetPrivateContent = authChanged && !isLoggedIn
                 it.copy(
                     isLoggedIn = isLoggedIn,
-                    loading = true,
+                    loading = !keepContent,
+                    refreshing = keepContent,
                     error = null,
-                    gears = emptyList(),
-                    templates = if (isLoggedIn) it.templates else emptyList(),
-                    nextCursor = null,
+                    categories = if (resetPrivateContent) GearCategoriesResponse(emptyList()) else it.categories,
+                    stats = if (resetPrivateContent) EMPTY_STATS else it.stats,
+                    gears = if (keepContent) it.gears else emptyList(),
+                    templates = if (keepContent || isLoggedIn) it.templates else emptyList(),
+                    nextCursor = if (keepContent) it.nextCursor else null,
                 )
             }
             try {
@@ -64,6 +81,8 @@ class GearListViewModel(private val repository: GearRepositoryContract) : ViewMo
                             stats = EMPTY_STATS,
                             gears = emptyList(),
                             templates = templates,
+                            nextCursor = null,
+                            hasLoaded = true,
                         )
                     }
                     return@launch
@@ -85,20 +104,21 @@ class GearListViewModel(private val repository: GearRepositoryContract) : ViewMo
                             gears = response.items,
                             templates = templateItems,
                             nextCursor = response.nextCursor,
+                            hasLoaded = true,
                         )
                     }
                 }
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }
             } finally {
-                _state.update { it.copy(loading = false) }
+                _state.update { it.copy(loading = false, refreshing = false) }
             }
         }
     }
 
     fun loadMore() {
         val cursor = _state.value.nextCursor ?: return
-        if (_state.value.loadingMore || _state.value.loading || !_state.value.isLoggedIn) return
+        if (_state.value.loadingMore || _state.value.loading || _state.value.refreshing || !_state.value.isLoggedIn) return
         viewModelScope.launch {
             _state.update { it.copy(loadingMore = true, error = null) }
             try {

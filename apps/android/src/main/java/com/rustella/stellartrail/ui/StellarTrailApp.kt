@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -187,19 +188,19 @@ private fun AuthenticatedApp(
                 val viewModel: HomeViewModel = viewModel(factory = viewModelFactory {
                     HomeViewModel(container.gearRepository, container.skillRepository, container.tripRepository)
                 })
-                LaunchedEffect(isLoggedIn) { viewModel.load(isLoggedIn) }
+                LaunchedEffect(isLoggedIn) { viewModel.loadIfNeeded(isLoggedIn) }
                 HomeScreen(
                     viewModel = viewModel,
-                    onOpenGears = { navController.navigate(AppRoutes.GEARS) },
+                    onOpenGears = { navController.navigateToTopLevelRoute(AppRoutes.GEARS) },
                     onCreateGear = {
                         if (isLoggedIn) navController.navigate(AppRoutes.GEAR_NEW) else navController.navigate(AppRoutes.AUTH)
                     },
-                    onOpenSkills = { navController.navigate(AppRoutes.SKILLS) },
-                    onOpenTrips = { navController.navigate(AppRoutes.TRIPS) },
+                    onOpenSkills = { navController.navigateToTopLevelRoute(AppRoutes.SKILLS) },
+                    onOpenTrips = { navController.navigateToTopLevelRoute(AppRoutes.TRIPS) },
                     onOpenTrip = { id ->
                         if (isLoggedIn) navController.navigate(AppRoutes.tripDetail(id)) else navController.navigate(AppRoutes.AUTH)
                     },
-                    onOpenProfile = { navController.navigate(AppRoutes.PROFILE) },
+                    onOpenProfile = { navController.navigateToTopLevelRoute(AppRoutes.PROFILE) },
                     onOpenGear = { id ->
                         if (isLoggedIn) navController.navigate(AppRoutes.gearDetail(id)) else navController.navigate(AppRoutes.AUTH)
                     },
@@ -211,7 +212,7 @@ private fun AuthenticatedApp(
                 val viewModel: GearListViewModel = viewModel(factory = viewModelFactory {
                     GearListViewModel(container.gearRepository)
                 })
-                LaunchedEffect(isLoggedIn) { viewModel.refresh(isLoggedIn) }
+                LaunchedEffect(isLoggedIn) { viewModel.loadIfNeeded(isLoggedIn) }
                 GearListScreen(
                     viewModel = viewModel,
                     onOpenGear = { id ->
@@ -358,7 +359,7 @@ private fun AuthenticatedApp(
                 val viewModel: SkillsViewModel = viewModel(factory = viewModelFactory {
                     SkillsViewModel(container.skillRepository)
                 })
-                LaunchedEffect(Unit) { viewModel.load() }
+                LaunchedEffect(Unit) { viewModel.loadIfNeeded() }
                 SkillsScreen(viewModel = viewModel, onOpenKnot = { id -> navController.navigate(AppRoutes.skillDetail(id)) })
             }
             composable(AppRoutes.TRIPS) {
@@ -657,12 +658,17 @@ private fun AuthenticatedApp(
 }
 
 private fun NavHostController.navigateToTopLevelDestination(destination: TopLevelDestination) {
-    val targetRoute = destination.route
-    if (currentDestination?.route == targetRoute) return
-    if (popBackStack(targetRoute, inclusive = false)) return
-    navigate(targetRoute) {
-        popUpTo(AppRoutes.HOME) { inclusive = false }
+    navigateToTopLevelRoute(destination.route)
+}
+
+private fun NavHostController.navigateToTopLevelRoute(route: String) {
+    if (currentDestination?.route == route) return
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) {
+            saveState = true
+        }
         launchSingleTop = true
+        restoreState = true
     }
 }
 

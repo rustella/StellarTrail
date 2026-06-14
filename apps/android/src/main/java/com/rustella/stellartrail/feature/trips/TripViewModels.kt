@@ -38,11 +38,13 @@ data class TripsOverviewMapUiState(
 
 data class TripListUiState(
     val isLoggedIn: Boolean = false,
+    val hasLoaded: Boolean = false,
     val trips: List<TripSummary> = emptyList(),
     val highlight: TripHomeHighlightItem? = null,
     val overviewMap: TripsOverviewMapUiState = TripsOverviewMapUiState(),
     val nextCursor: String? = null,
     val loading: Boolean = false,
+    val refreshing: Boolean = false,
     val loadingMore: Boolean = false,
     val mutatingId: String? = null,
     val error: String? = null,
@@ -52,31 +54,62 @@ class TripListViewModel(private val repository: TripRepositoryContract) : ViewMo
     private val _state = MutableStateFlow(TripListUiState())
     val state: StateFlow<TripListUiState> = _state.asStateFlow()
 
+    fun loadIfNeeded(isLoggedIn: Boolean) {
+        val current = _state.value
+        refresh(isLoggedIn = isLoggedIn, preserveContent = current.hasLoaded && current.isLoggedIn == isLoggedIn)
+    }
+
     fun refresh(isLoggedIn: Boolean) {
+        refresh(isLoggedIn = isLoggedIn, preserveContent = false)
+    }
+
+    private fun refresh(isLoggedIn: Boolean, preserveContent: Boolean) {
         viewModelScope.launch {
+            val keepContent = preserveContent && _state.value.hasLoaded && _state.value.isLoggedIn == isLoggedIn
             _state.update {
+                val authChanged = it.isLoggedIn != isLoggedIn
                 it.copy(
                     isLoggedIn = isLoggedIn,
-                    loading = true,
+                    loading = !keepContent,
+                    refreshing = keepContent,
                     error = null,
-                    trips = emptyList(),
-                    nextCursor = null,
-                    overviewMap = TripsOverviewMapUiState(loading = isLoggedIn),
+                    trips = if (keepContent && !authChanged) it.trips else emptyList(),
+                    highlight = if (keepContent && !authChanged) it.highlight else null,
+                    nextCursor = if (keepContent && !authChanged) it.nextCursor else null,
+                    overviewMap = if (keepContent && !authChanged) {
+                        it.overviewMap.copy(loading = isLoggedIn, error = null)
+                    } else {
+                        TripsOverviewMapUiState(loading = isLoggedIn)
+                    },
                 )
             }
             if (!isLoggedIn) {
-                _state.update { it.copy(loading = false, overviewMap = TripsOverviewMapUiState()) }
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        refreshing = false,
+                        overviewMap = TripsOverviewMapUiState(),
+                        hasLoaded = true,
+                    )
+                }
                 return@launch
             }
             try {
                 val today = LocalDate.now().toString()
                 val highlight = repository.homeHighlight(today).item
                 val response = repository.list(ListTripsRequest(limit = 20))
-                _state.update { it.copy(highlight = highlight, trips = response.items, nextCursor = response.nextCursor) }
+                _state.update {
+                    it.copy(
+                        highlight = highlight,
+                        trips = response.items,
+                        nextCursor = response.nextCursor,
+                        hasLoaded = true,
+                    )
+                }
             } catch (throwable: Throwable) {
                 _state.update { it.copy(error = throwable.userMessage()) }
             } finally {
-                _state.update { it.copy(loading = false) }
+                _state.update { it.copy(loading = false, refreshing = false) }
             }
             refreshOverviewMap()
         }
@@ -89,13 +122,20 @@ class TripListViewModel(private val repository: TripRepositoryContract) : ViewMo
             val overview = repository.tripsMapOverview()
             _state.update { it.copy(overviewMap = TripsOverviewMapUiState(data = overview)) }
         } catch (throwable: Throwable) {
-            _state.update { it.copy(overviewMap = TripsOverviewMapUiState(error = throwable.userMessage())) }
+            _state.update {
+                it.copy(
+                    overviewMap = it.overviewMap.copy(
+                        loading = false,
+                        error = throwable.userMessage(),
+                    ),
+                )
+            }
         }
     }
 
     fun loadMore() {
         val cursor = _state.value.nextCursor ?: return
-        if (_state.value.loading || _state.value.loadingMore || !_state.value.isLoggedIn) return
+        if (_state.value.loading || _state.value.refreshing || _state.value.loadingMore || !_state.value.isLoggedIn) return
         viewModelScope.launch {
             _state.update { it.copy(loadingMore = true, error = null) }
             try {

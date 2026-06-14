@@ -27,6 +27,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -68,14 +69,37 @@ class SkillsViewModelTest {
         assertEquals(listOf("单套结"), state.favoriteKnots.map { it.knot.title })
     }
 
+    @Test
+    fun loadIfNeededKeepsCatalogDuringBackgroundFailure() = runTest {
+        val repository = FakeSkillRepository()
+        val viewModel = SkillsViewModel(repository)
+
+        viewModel.loadIfNeeded()
+        advanceUntilIdle()
+        repository.failSkills = true
+        viewModel.loadIfNeeded()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue(state.hasLoaded)
+        assertFalse(state.loading)
+        assertFalse(state.refreshing)
+        assertEquals(listOf("绳结"), state.categories.map { it.title })
+        assertEquals("无法连接到 API，请检查网络或 API Base URL。", state.error)
+    }
+
     private class FakeSkillRepository(
         private val failKnots: Boolean = false,
     ) : SkillRepositoryContract {
         override val knotCacheStatus: StateFlow<KnotCacheStatus> = MutableStateFlow(KnotCacheStatus())
+        var failSkills = false
 
-        override suspend fun listSkills(locale: SkillLocale): SkillCategoriesResponse = SkillCategoriesResponse(
-            listOf(SkillCategorySummary("knots", "knots", "绳结", "常用户外绳结", 8, "/api/v1/skills/knots")),
-        )
+        override suspend fun listSkills(locale: SkillLocale): SkillCategoriesResponse {
+            if (failSkills) throw UnknownHostException("api.stellartrail.example")
+            return SkillCategoriesResponse(
+                listOf(SkillCategorySummary("knots", "knots", "绳结", "常用户外绳结", 8, "/api/v1/skills/knots")),
+            )
+        }
 
         override suspend fun listKnots(locale: SkillLocale, request: ListKnotsRequest): KnotListResponse {
             if (failKnots) throw UnknownHostException("api.stellartrail.example")

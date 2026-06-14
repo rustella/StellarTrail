@@ -37,6 +37,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.net.UnknownHostException
@@ -90,6 +91,28 @@ class HomeViewModelTest {
         assertEquals("无法连接到 API，请检查网络或 API Base URL。", state.error)
     }
 
+    @Test
+    fun loadIfNeededKeepsDashboardContentDuringBackgroundFailure() = runTest {
+        val skillRepository = FakeSkillRepository()
+        val viewModel = HomeViewModel(
+            gearRepository = FakeGearRepository(),
+            skillRepository = skillRepository,
+        )
+
+        viewModel.loadIfNeeded(isLoggedIn = true)
+        advanceUntilIdle()
+        skillRepository.failListKnots = true
+        viewModel.loadIfNeeded(isLoggedIn = true)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue(state.hasLoaded)
+        assertFalse(state.loading)
+        assertFalse(state.refreshing)
+        assertEquals(listOf("单套结"), state.featuredKnots.map { it.title })
+        assertEquals("无法连接到 API，请检查网络或 API Base URL。", state.error)
+    }
+
     private class FakeGearRepository : GearRepositoryContract {
         var templateCalls = 0
         var privateGearCalls = 0
@@ -134,7 +157,7 @@ class HomeViewModelTest {
     }
 
     private class FakeSkillRepository(
-        private val failListKnots: Boolean = false,
+        var failListKnots: Boolean = false,
     ) : SkillRepositoryContract {
         override val knotCacheStatus: StateFlow<KnotCacheStatus> = MutableStateFlow(KnotCacheStatus())
         var listSkillCalls = 0
@@ -149,7 +172,19 @@ class HomeViewModelTest {
         override suspend fun listKnots(locale: SkillLocale, request: ListKnotsRequest): KnotListResponse {
             listKnotCalls += 1
             if (failListKnots) throw UnknownHostException("api.stellartrail.example")
-            return KnotListResponse(locale, emptyList(), PageInfo(limit = 20, offset = 0))
+            return KnotListResponse(
+                locale,
+                listOf(
+                    KnotSummary(
+                        id = "bowline",
+                        slug = "bowline",
+                        title = "单套结",
+                        summary = "固定绳圈",
+                        href = "/api/v1/skills/knots/bowline",
+                    ),
+                ),
+                PageInfo(limit = 20, offset = 0),
+            )
         }
 
         override suspend fun knotDetail(id: String, locale: SkillLocale): KnotDetail = error("unused")
