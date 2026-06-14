@@ -109,6 +109,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.net.URI
 import java.net.URL
 import kotlin.math.hypot
 
@@ -526,22 +527,28 @@ fun TrailAssetPreviewMap(
     height: Dp = 220.dp,
     zoomGesturesEnabled: Boolean = false,
     terrain3dEnabled: Boolean = false,
+    showStyleSelector: Boolean = true,
+    topEndControls: @Composable () -> Unit = {},
 ) {
     val canRenderMap = map.enabled && map.publicKey?.isNotBlank() == true
     if (!canRenderMap) {
-        CompactMapFallback(
+        TrailAssetPreviewFallback(
             title = "地图暂未启用",
             body = "后端未返回可用 MapTiler public key。",
             height = height,
+            modifier = modifier,
+            topEndControls = topEndControls,
         )
         return
     }
     val styleOptions = resolveMapStyleOptions(map)
     if (styleOptions.isEmpty()) {
-        CompactMapFallback(
+        TrailAssetPreviewFallback(
             title = "地图暂未启用",
             body = "后端未返回可用地图样式。",
             height = height,
+            modifier = modifier,
+            topEndControls = topEndControls,
         )
         return
     }
@@ -558,9 +565,37 @@ fun TrailAssetPreviewMap(
         eventLevel = MTEventLevel.ESSENTIAL,
         zoomGesturesEnabled = zoomGesturesEnabled,
         terrain3dEnabled = terrain3dEnabled,
+        showStyleSelector = showStyleSelector,
+        topEndControls = topEndControls,
         onMapTap = { _, _ -> },
         modifier = modifier,
     )
+}
+
+@Composable
+private fun TrailAssetPreviewFallback(
+    title: String,
+    body: String,
+    height: Dp,
+    modifier: Modifier,
+    topEndControls: @Composable () -> Unit,
+) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(height),
+    ) {
+        CompactMapFallback(title = title, body = body, height = height)
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            topEndControls()
+        }
+    }
 }
 
 @Composable
@@ -585,6 +620,8 @@ private fun MapTilerTrailMap(
     onLocationTrackingActiveChanged: (Boolean) -> Unit = {},
     onMapTap: (Double, Double) -> Unit,
     onMapLongPress: (Double, Double) -> Unit = { _, _ -> },
+    showStyleSelector: Boolean = true,
+    topEndControls: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -869,15 +906,23 @@ private fun MapTilerTrailMap(
                 },
             )
         }
-        MapStyleSelector(
-            styles = styleOptions,
-            selectedStyleId = selectedStyle.id,
-            enabled = !styleSwitchLocked,
-            onSelectStyle = onSafeSelectStyle,
+        Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(8.dp),
-        )
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            topEndControls()
+            if (showStyleSelector) {
+                MapStyleSelector(
+                    styles = styleOptions,
+                    selectedStyleId = selectedStyle.id,
+                    enabled = !styleSwitchLocked,
+                    onSelectStyle = onSafeSelectStyle,
+                )
+            }
+        }
         locationTrackingState.message?.takeIf { !legendVisible }?.let { message ->
             MapLocationMessage(
                 message = message,
@@ -1650,7 +1695,7 @@ private fun unionBounds(bounds: List<TrailBounds>): TrailBounds? = bounds.reduce
 internal fun resolveMapStyleOptions(map: MapConfigResponse): List<MapStyleOption> {
     val configuredStyles = map.styles.mapNotNull { style ->
         val id = style.id.trim()
-        val styleUrl = style.styleUrl.trim()
+        val styleUrl = normalizeMapStyleUrl(style.styleUrl)
         if (id.isEmpty() || styleUrl.isEmpty()) {
             null
         } else {
@@ -1662,6 +1707,31 @@ internal fun resolveMapStyleOptions(map: MapConfigResponse): List<MapStyleOption
         }
     }
     return configuredStyles
+}
+
+internal fun normalizeMapStyleUrl(styleUrl: String): String {
+    val trimmed = styleUrl.trim()
+    if (trimmed.isEmpty()) return ""
+    return runCatching {
+        val uri = URI(trimmed)
+        if (uri.scheme.equals("http", ignoreCase = true) && shouldUpgradeMapStyleHost(uri.host)) {
+            URI("https", uri.userInfo, uri.host, uri.port, uri.path, uri.query, uri.fragment).toString()
+        } else {
+            trimmed
+        }
+    }.getOrDefault(trimmed)
+}
+
+private fun shouldUpgradeMapStyleHost(host: String?): Boolean {
+    val value = host?.lowercase().orEmpty()
+    if (value.isEmpty()) return false
+    if (value == "localhost" || value.endsWith(".local")) return false
+    if (value == "0.0.0.0" || value.startsWith("127.")) return false
+    if (value.startsWith("10.") || value.startsWith("192.168.")) return false
+    val parts = value.split('.')
+    val secondOctet = parts.getOrNull(1)?.toIntOrNull()
+    if (parts.firstOrNull() == "172" && secondOctet != null && secondOctet in 16..31) return false
+    return true
 }
 
 internal fun resolveSelectedMapStyle(map: MapConfigResponse, selectedStyleId: String?): MapStyleOption {

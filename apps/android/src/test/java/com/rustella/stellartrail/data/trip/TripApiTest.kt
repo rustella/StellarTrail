@@ -194,6 +194,15 @@ class TripMapDtoTest {
         assertEquals("trip-1", overview.trails.single().tripId)
         assertEquals(2, overview.stats.renderedPointCount)
     }
+
+    @Test
+    fun decodesLegacyMapStylesWithoutStyleUrl() {
+        val overview = ApiClient.defaultJson.decodeFromString<TripsMapOverviewResponse>(legacyTripsMapOverviewJson)
+
+        assertEquals(listOf("outdoor", "streets", "satellite"), overview.map.styles.map { it.id })
+        assertEquals("", overview.map.styles.first().styleUrl)
+        assertEquals(emptyList<String>(), overview.map.styles.first().requestOrigins)
+    }
 }
 
 private val tripDetailJson = """
@@ -347,6 +356,26 @@ private val tripsMapOverviewJson = """
   }],
   "bounds": {"min_lng": 114.15, "min_lat": 27.45, "max_lng": 114.18, "max_lat": 27.49},
   "stats": {"trip_count": 1, "trail_count": 1, "rendered_point_count": 2, "total_distance_m": 12000.0, "total_ascent_m": 900.0, "total_descent_m": 850.0},
+  "truncated": false
+}
+""".trimIndent()
+
+private val legacyTripsMapOverviewJson = """
+{
+  "map": {
+    "provider": "maptiler",
+    "public_key": "pk.test",
+    "coordinate_system": "WGS84",
+    "enabled": true,
+    "styles": [
+      {"id": "outdoor", "label": "户外"},
+      {"id": "streets", "label": "街道"},
+      {"id": "satellite", "label": "卫星"}
+    ],
+    "default_style_id": "outdoor"
+  },
+  "trails": [],
+  "stats": {"trip_count": 0, "trail_count": 0, "rendered_point_count": 0, "total_distance_m": 0.0, "total_ascent_m": 0.0, "total_descent_m": 0.0},
   "truncated": false
 }
 """.trimIndent()

@@ -55,7 +55,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -408,11 +407,33 @@ private fun TrailLibraryFact(label: String, value: String, modifier: Modifier = 
     }
 }
 
-private enum class Trail3dPreviewMode {
-    Map,
-    Terrain3d,
-    Track3d,
+internal enum class TrailMapPreviewMode {
+    FlatMap,
+    Map3d,
 }
+
+internal enum class TrailMap3dContent {
+    Terrain,
+    Track,
+}
+
+internal data class TrailMapPreviewState(
+    val mode: TrailMapPreviewMode = TrailMapPreviewMode.FlatMap,
+    val content3d: TrailMap3dContent = TrailMap3dContent.Terrain,
+)
+
+internal fun defaultTrailMapPreviewState(): TrailMapPreviewState = TrailMapPreviewState()
+
+internal fun enterTrailMapPreview3d(state: TrailMapPreviewState): TrailMapPreviewState =
+    state.copy(mode = TrailMapPreviewMode.Map3d, content3d = TrailMap3dContent.Terrain)
+
+internal fun exitTrailMapPreview3d(state: TrailMapPreviewState): TrailMapPreviewState =
+    state.copy(mode = TrailMapPreviewMode.FlatMap)
+
+internal fun selectTrailMap3dContent(
+    state: TrailMapPreviewState,
+    content: TrailMap3dContent,
+): TrailMapPreviewState = state.copy(mode = TrailMapPreviewMode.Map3d, content3d = content)
 
 @Composable
 private fun TrailPreviewDialog(
@@ -422,7 +443,7 @@ private fun TrailPreviewDialog(
     mapConfig: com.rustella.stellartrail.domain.trip.MapConfigResponse?,
     onDismiss: () -> Unit,
 ) {
-    var previewMode by remember(trail.id) { mutableStateOf(Trail3dPreviewMode.Map) }
+    var previewState by remember(trail.id) { mutableStateOf(defaultTrailMapPreviewState()) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -461,15 +482,28 @@ private fun TrailPreviewDialog(
                     }
                     TextButton(onClick = onDismiss) { Text("关闭") }
                 }
-                TrailPreviewModeSelector(selectedMode = previewMode, onSelectMode = { previewMode = it })
                 BoxWithConstraints(
                     Modifier
                         .fillMaxWidth()
                         .weight(1f),
                 ) {
-                    when (previewMode) {
-                        Trail3dPreviewMode.Map,
-                        Trail3dPreviewMode.Terrain3d -> {
+                    when {
+                        previewState.mode == TrailMapPreviewMode.Map3d &&
+                            previewState.content3d == TrailMap3dContent.Track -> {
+                            Trail3dTrackPanel(
+                                trail = trail,
+                                modifier = Modifier.fillMaxSize(),
+                                topControls = {
+                                    TrailPreviewMapControls(
+                                        state = previewState,
+                                        onEnter3d = { previewState = enterTrailMapPreview3d(previewState) },
+                                        onExit3d = { previewState = exitTrailMapPreview3d(previewState) },
+                                        onSelect3dContent = { previewState = selectTrailMap3dContent(previewState, it) },
+                                    )
+                                },
+                            )
+                        }
+                        else -> {
                             if (mapConfig != null) {
                                 TrailAssetPreviewMap(
                                     map = mapConfig,
@@ -479,16 +513,40 @@ private fun TrailPreviewDialog(
                                     modifier = Modifier.fillMaxWidth(),
                                     height = maxHeight,
                                     zoomGesturesEnabled = true,
-                                    terrain3dEnabled = previewMode == Trail3dPreviewMode.Terrain3d,
+                                    terrain3dEnabled = previewState.mode == TrailMapPreviewMode.Map3d,
+                                    showStyleSelector = previewState.mode == TrailMapPreviewMode.FlatMap,
+                                    topEndControls = {
+                                        TrailPreviewMapControls(
+                                            state = previewState,
+                                            onEnter3d = { previewState = enterTrailMapPreview3d(previewState) },
+                                            onExit3d = { previewState = exitTrailMapPreview3d(previewState) },
+                                            onSelect3dContent = { previewState = selectTrailMap3dContent(previewState, it) },
+                                        )
+                                    },
                                 )
                             } else {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    LoadingState()
+                                if (
+                                    previewState.mode == TrailMapPreviewMode.Map3d &&
+                                    previewState.content3d == TrailMap3dContent.Track
+                                ) {
+                                    Trail3dTrackPanel(
+                                        trail = trail,
+                                        modifier = Modifier.fillMaxSize(),
+                                        topControls = {
+                                            TrailPreviewMapControls(
+                                                state = previewState,
+                                                onEnter3d = { previewState = enterTrailMapPreview3d(previewState) },
+                                                onExit3d = { previewState = exitTrailMapPreview3d(previewState) },
+                                                onSelect3dContent = { previewState = selectTrailMap3dContent(previewState, it) },
+                                            )
+                                        },
+                                    )
+                                } else {
+                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        LoadingState()
+                                    }
                                 }
                             }
-                        }
-                        Trail3dPreviewMode.Track3d -> {
-                            Trail3dTrackPanel(trail = trail, modifier = Modifier.fillMaxSize())
                         }
                     }
                 }
@@ -498,48 +556,99 @@ private fun TrailPreviewDialog(
 }
 
 @Composable
-private fun TrailPreviewModeSelector(
-    selectedMode: Trail3dPreviewMode,
-    onSelectMode: (Trail3dPreviewMode) -> Unit,
+private fun TrailPreviewMapControls(
+    state: TrailMapPreviewState,
+    onEnter3d: () -> Unit,
+    onExit3d: () -> Unit,
+    onSelect3dContent: (TrailMap3dContent) -> Unit,
 ) {
     Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(999.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(2.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Trail3dPreviewMode.entries.forEach { mode ->
-            val selected = mode == selectedMode
-            Text(
-                text = mode.label(),
-                modifier = Modifier
-                    .weight(1f)
+        TrailPreviewModeChip(
+            label = if (state.mode == TrailMapPreviewMode.Map3d) "2D" else "3D",
+            selected = state.mode == TrailMapPreviewMode.Map3d,
+            enabled = true,
+            onClick = if (state.mode == TrailMapPreviewMode.Map3d) onExit3d else onEnter3d,
+        )
+        if (state.mode == TrailMapPreviewMode.Map3d) {
+            Row(
+                Modifier
                     .clip(RoundedCornerShape(999.dp))
-                    .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                    .clickable(enabled = !selected) { onSelectMode(mode) }
-                    .padding(vertical = 8.dp),
-                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-            )
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
+                    .padding(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TrailPreviewModeChip(
+                    label = "地形",
+                    selected = state.content3d == TrailMap3dContent.Terrain,
+                    onClick = { onSelect3dContent(TrailMap3dContent.Terrain) },
+                )
+                TrailPreviewModeChip(
+                    label = "轨迹",
+                    selected = state.content3d == TrailMap3dContent.Track,
+                    onClick = { onSelect3dContent(TrailMap3dContent.Track) },
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun Trail3dTrackPanel(trail: Trail, modifier: Modifier = Modifier) {
+private fun TrailPreviewModeChip(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean = !selected,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = label,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
+            .clickable(enabled = enabled) { onClick() }
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.ExtraBold,
+        maxLines = 1,
+    )
+}
+
+@Composable
+private fun Trail3dTrackPanel(
+    trail: Trail,
+    modifier: Modifier = Modifier,
+    topControls: (@Composable () -> Unit)? = null,
+) {
     val model = remember(trail.normalizedPoints) { buildTrail3dTrackModel(trail.normalizedPoints) }
     var camera by remember(model) { mutableStateOf(resetTrail3dCamera()) }
     var canvasWidthPx by remember(model) { mutableStateOf(1) }
     var canvasHeightPx by remember(model) { mutableStateOf(1) }
     var selectedTrackIndex by remember(model) { mutableStateOf(model.points.lastIndex.coerceAtLeast(0)) }
     if (!model.hasEnoughData) {
-        Box(modifier, contentAlignment = Alignment.Center) {
-            EmptyState("暂无轨迹3D", "这条轨迹没有足够的带海拔轨迹点。")
+        Surface(
+            modifier = modifier,
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                topControls?.let { controls ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        controls()
+                    }
+                }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    EmptyState("暂无轨迹3D", "这条轨迹没有足够的带海拔轨迹点。")
+                }
+            }
         }
         return
     }
@@ -572,6 +681,11 @@ private fun Trail3dTrackPanel(trail: Trail, modifier: Modifier = Modifier) {
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            topControls?.let { controls ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    controls()
+                }
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TrailTrendMetric("最低", model.minElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
                 TrailTrendMetric("最高", model.maxElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
@@ -811,12 +925,6 @@ private fun List<PointerInputChange>.rotationDegrees(): Double {
     if (degrees > 180.0) degrees -= 360.0
     if (degrees < -180.0) degrees += 360.0
     return degrees
-}
-
-private fun Trail3dPreviewMode.label(): String = when (this) {
-    Trail3dPreviewMode.Map -> "地图"
-    Trail3dPreviewMode.Terrain3d -> "地形3D"
-    Trail3dPreviewMode.Track3d -> "轨迹3D"
 }
 
 @Composable

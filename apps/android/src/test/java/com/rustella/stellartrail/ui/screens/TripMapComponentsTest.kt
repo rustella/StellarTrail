@@ -104,6 +104,35 @@ class TripMapComponentsTest {
     }
 
     @Test
+    fun mapStyleResolutionUpgradesPublicHttpStyleUrls() {
+        val map = MapConfigResponse(
+            provider = "maptiler",
+            publicKey = "pk.test",
+            enabled = true,
+            styles = listOf(
+                MapStyleOption("outdoor", "户外", "http://api.stellartrail.cn/api/v1/map/styles/outdoor/style.json"),
+            ),
+            defaultStyleId = "outdoor",
+        )
+
+        val styles = resolveMapStyleOptions(map)
+
+        assertEquals("https://api.stellartrail.cn/api/v1/map/styles/outdoor/style.json", styles.single().styleUrl)
+    }
+
+    @Test
+    fun mapStyleResolutionKeepsLocalHttpStyleUrls() {
+        assertEquals(
+            "http://127.0.0.1:8080/api/v1/map/styles/outdoor/style.json",
+            normalizeMapStyleUrl(" http://127.0.0.1:8080/api/v1/map/styles/outdoor/style.json "),
+        )
+        assertEquals(
+            "http://10.37.112.178:8080/api/v1/map/styles/outdoor/style.json",
+            normalizeMapStyleUrl("http://10.37.112.178:8080/api/v1/map/styles/outdoor/style.json"),
+        )
+    }
+
+    @Test
     fun flatTrailMapPresentationKeepsExistingGestureDefaults() {
         val presentation = trailMapPresentation(terrain3dEnabled = false, zoomGesturesEnabled = false)
 

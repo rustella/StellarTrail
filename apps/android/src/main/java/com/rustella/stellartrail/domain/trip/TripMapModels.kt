@@ -153,7 +153,7 @@ data class MapAnnotationRequest(
 data class MapStyleOption(
     val id: String,
     val label: String,
-    @SerialName("style_url") val styleUrl: String,
+    @SerialName("style_url") val styleUrl: String = "",
     @SerialName("request_origins") val requestOrigins: List<String> = emptyList(),
 )
 
