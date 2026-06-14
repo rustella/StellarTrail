@@ -10,6 +10,9 @@ import com.rustella.stellartrail.core.theme.ThemeMode
 import com.rustella.stellartrail.core.theme.ThemeRepository
 import com.rustella.stellartrail.data.auth.AuthRepositoryContract
 import com.rustella.stellartrail.data.profile.ProfileRepositoryContract
+import com.rustella.stellartrail.domain.profile.AppContentPage
+import com.rustella.stellartrail.domain.profile.ClientVersion
+import com.rustella.stellartrail.domain.profile.ClientVersionReleaseNoteSection
 import com.rustella.stellartrail.domain.profile.OutdoorExperienceRequest
 import com.rustella.stellartrail.domain.profile.OutdoorProfile
 import com.rustella.stellartrail.domain.profile.RoadmapItem
@@ -28,6 +31,163 @@ import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+
+data class ProfileAboutSectionUi(
+    val icon: String,
+    val title: String,
+    val body: String,
+)
+
+data class ProfileAboutContentUi(
+    val eyebrow: String,
+    val title: String,
+    val subtitle: String,
+    val sections: List<ProfileAboutSectionUi>,
+)
+
+data class ProfileVersionSectionUi(
+    val title: String,
+    val items: List<String>,
+)
+
+data class ProfileVersionUi(
+    val version: String,
+    val title: String,
+    val publishedAt: String?,
+    val sections: List<ProfileVersionSectionUi>,
+)
+
+data class ProfileVersionInfoUiState(
+    val loading: Boolean = false,
+    val error: String? = null,
+    val versions: List<ProfileVersionUi> = emptyList(),
+)
+
+data class ProfileAboutUiState(
+    val loading: Boolean = true,
+    val error: String? = null,
+    val content: ProfileAboutContentUi? = null,
+    val versionInfo: ProfileVersionInfoUiState = ProfileVersionInfoUiState(),
+)
+
+class ProfileAboutViewModel(
+    private val profileRepository: ProfileRepositoryContract,
+) : ViewModel() {
+    private val _state = MutableStateFlow(ProfileAboutUiState())
+    val state: StateFlow<ProfileAboutUiState> = _state
+
+    init {
+        load()
+    }
+
+    fun load() {
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null, content = null) }
+            runCatching { profileRepository.profileAboutContent() }.onSuccess { content ->
+                val contentUi = content.toProfileAboutContentUi()
+                _state.update {
+                    if (contentUi == null) {
+                        it.copy(loading = false, error = "关于内容暂不可用", content = null)
+                    } else {
+                        it.copy(loading = false, error = null, content = contentUi)
+                    }
+                }
+            }.onFailure { error ->
+                _state.update { it.copy(loading = false, error = error.userMessage(), content = null) }
+            }
+        }
+    }
+
+    fun loadVersionInfo(force: Boolean = false) {
+        val snapshot = _state.value.versionInfo
+        if (!force && (snapshot.loading || snapshot.versions.isNotEmpty())) return
+        viewModelScope.launch {
+            _state.update { it.copy(versionInfo = ProfileVersionInfoUiState(loading = true)) }
+            runCatching { profileRepository.listAndroidClientVersions() }.onSuccess { response ->
+                val versions = response.items.mapNotNull { it.toProfileVersionUi() }
+                _state.update {
+                    it.copy(
+                        versionInfo = if (versions.isEmpty()) {
+                            ProfileVersionInfoUiState(error = "版本信息暂不可用")
+                        } else {
+                            ProfileVersionInfoUiState(versions = versions)
+                        },
+                    )
+                }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(versionInfo = ProfileVersionInfoUiState(error = error.userMessage()))
+                }
+            }
+        }
+    }
+}
+
+private fun AppContentPage.toProfileAboutContentUi(): ProfileAboutContentUi? {
+    val sections = sections.map { section ->
+        ProfileAboutSectionUi(
+            icon = section.icon.trim(),
+            title = section.title.trim(),
+            body = section.body.trim(),
+        )
+    }
+    val eyebrow = eyebrow.trim()
+    val title = title.trim()
+    val subtitle = subtitle.trim()
+    if (
+        eyebrow.isEmpty() ||
+        title.isEmpty() ||
+        subtitle.isEmpty() ||
+        sections.isEmpty() ||
+        sections.any { it.icon.isEmpty() || it.title.isEmpty() || it.body.isEmpty() }
+    ) {
+        return null
+    }
+    return ProfileAboutContentUi(
+        eyebrow = eyebrow,
+        title = title,
+        subtitle = subtitle,
+        sections = sections,
+    )
+}
+
+private fun ClientVersion.toProfileVersionUi(): ProfileVersionUi? {
+    val version = version.trim()
+    val title = title.trim()
+    if (version.isEmpty() || title.isEmpty()) return null
+    val sections = releaseNoteSections.mapNotNull { section ->
+        val items = section.items.mapNotNull { it.trim().takeIf(String::isNotEmpty) }
+        if (items.isEmpty()) {
+            null
+        } else {
+            ProfileVersionSectionUi(
+                title = section.displayTitle(),
+                items = items,
+            )
+        }
+    }.ifEmpty {
+        val notes = releaseNotes.mapNotNull { it.trim().takeIf(String::isNotEmpty) }
+        if (notes.isEmpty()) {
+            emptyList()
+        } else {
+            listOf(ProfileVersionSectionUi(title = "更新内容", items = notes))
+        }
+    }
+    if (sections.isEmpty()) return null
+    return ProfileVersionUi(
+        version = version,
+        title = title,
+        publishedAt = publishedAt?.trim()?.takeIf(String::isNotEmpty),
+        sections = sections,
+    )
+}
+
+private fun ClientVersionReleaseNoteSection.displayTitle(): String = when (key) {
+    "feature" -> "主要功能"
+    "bug_fix" -> "修复与优化"
+    "notes" -> "说明"
+    else -> title.trim().takeIf(String::isNotEmpty) ?: "更新内容"
+}
 
 data class RoadmapUiState(
     val loggedIn: Boolean = false,

@@ -11,6 +11,53 @@ data class ProfileUserResponse(
 )
 
 @Serializable
+data class AppContentPageSection(
+    val icon: String,
+    val title: String,
+    val body: String,
+)
+
+@Serializable
+data class AppContentPage(
+    @SerialName("page_key") val pageKey: String,
+    @SerialName("client_key") val clientKey: String,
+    val locale: String,
+    val eyebrow: String,
+    val title: String,
+    val subtitle: String,
+    val sections: List<AppContentPageSection> = emptyList(),
+    @SerialName("button_text") val buttonText: String,
+    @SerialName("updated_at") val updatedAt: String,
+)
+
+@Serializable
+data class ClientVersionReleaseNoteSection(
+    val key: String,
+    val title: String,
+    val items: List<String> = emptyList(),
+)
+
+@Serializable
+data class ClientVersion(
+    val id: String,
+    @SerialName("client_key") val clientKey: String,
+    val version: String,
+    val title: String,
+    @SerialName("release_notes") val releaseNotes: List<String> = emptyList(),
+    @SerialName("release_note_sections") val releaseNoteSections: List<ClientVersionReleaseNoteSection> = emptyList(),
+    val status: String,
+    @SerialName("published_at") val publishedAt: String? = null,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("updated_at") val updatedAt: String,
+)
+
+@Serializable
+data class ListClientVersionsResponse(
+    val items: List<ClientVersion> = emptyList(),
+    @SerialName("next_cursor") val nextCursor: String? = null,
+)
+
+@Serializable
 data class OutdoorProfile(
     @SerialName("user_id") val userId: String = "",
     @SerialName("outdoor_id") val outdoorId: String? = null,

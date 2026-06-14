@@ -69,6 +69,11 @@ import com.rustella.stellartrail.domain.packing.ListGearPackingListsRequest
 import com.rustella.stellartrail.domain.packing.ListGearPackingListsResponse
 import com.rustella.stellartrail.domain.packing.UpdateGearPackingItemRequest
 import com.rustella.stellartrail.domain.gear.label
+import com.rustella.stellartrail.domain.profile.AppContentPage
+import com.rustella.stellartrail.domain.profile.AppContentPageSection
+import com.rustella.stellartrail.domain.profile.ClientVersion
+import com.rustella.stellartrail.domain.profile.ClientVersionReleaseNoteSection
+import com.rustella.stellartrail.domain.profile.ListClientVersionsResponse
 import com.rustella.stellartrail.domain.profile.ListOutdoorExperiencesResponse
 import com.rustella.stellartrail.domain.profile.ListRoadmapResponse
 import com.rustella.stellartrail.domain.profile.OutdoorExperienceRequest
@@ -322,6 +327,70 @@ private class FixtureProfileRepository(private val sessionStore: SessionStore) :
     override suspend fun currentProfile(): ProfileUserResponse = ProfileUserResponse(
         sessionStore.session.value?.user ?: LoginUser(id = "fixture-user", username = "trail_user", email = "trail@example.test", nickname = "星野徒步者"),
     )
+
+    override suspend fun profileAboutContent(): AppContentPage = AppContentPage(
+        pageKey = "profile_about",
+        clientKey = "android",
+        locale = "zh-CN",
+        eyebrow = "🏕️ 寻径星野",
+        title = "关于寻径星野",
+        subtitle = "把每次出发前的准备，整理得更安心。",
+        sections = listOf(
+            AppContentPageSection(
+                icon = "🧭",
+                title = "出发准备",
+                body = "寻径星野是一个面向户外爱好者的个人工具，希望把出发前准备、装备管理、装备图鉴、户外技能复习和离线可用的知识内容慢慢整理到一起。",
+            ),
+            AppContentPageSection(
+                icon = "🎒",
+                title = "山野陪伴",
+                body = "它不只服务某一次路线或某一类装备，而是想陪伴每一次走向山野之前的准备过程：少一点遗漏，多一点安心。",
+            ),
+            AppContentPageSection(
+                icon = "✨",
+                title = "作者的话",
+                body = "这个项目由作者在业余时间出于爱好开发，也会按自己的使用感受持续打磨。希望它能陪你把每次出发前的准备做得更清楚、更安心。",
+            ),
+        ),
+        buttonText = "知道了",
+        updatedAt = "2026-06-15T00:00:00Z",
+    )
+
+    override suspend fun listAndroidClientVersions(): ListClientVersionsResponse =
+        ListClientVersionsResponse(
+            items = listOf(
+                ClientVersion(
+                    id = "android-0-0-1",
+                    clientKey = "android",
+                    version = "0.0.1",
+                    title = "Android 0.0.1 初始版本",
+                    releaseNotes = listOf(
+                        "补齐账号登录、我的页面与资料入口，支持基础账号和户外资料管理。",
+                        "上线装备库与装备图鉴，方便记录个人装备并查看公共装备信息。",
+                        "支持户外技能与绳结内容浏览，常用内容可离线缓存。",
+                        "支持行程规划、轨迹导入、轨迹库和地图预览，把出发前资料整理到手机端。",
+                        "关于页与版本信息改为读取数据库，便于后续按 Android 端独立维护。",
+                    ),
+                    releaseNoteSections = listOf(
+                        ClientVersionReleaseNoteSection(
+                            key = "feature",
+                            title = "Feature",
+                            items = listOf(
+                                "补齐账号登录、我的页面与资料入口，支持基础账号和户外资料管理。",
+                                "上线装备库与装备图鉴，方便记录个人装备并查看公共装备信息。",
+                                "支持户外技能与绳结内容浏览，常用内容可离线缓存。",
+                                "支持行程规划、轨迹导入、轨迹库和地图预览，把出发前资料整理到手机端。",
+                                "关于页与版本信息改为读取数据库，便于后续按 Android 端独立维护。",
+                            ),
+                        ),
+                    ),
+                    status = "published",
+                    publishedAt = "2026-06-15T00:00:00Z",
+                    createdAt = "2026-06-15T00:00:00Z",
+                    updatedAt = "2026-06-15T00:00:00Z",
+                ),
+            ),
+        )
 
     override suspend fun outdoorProfile(): OutdoorProfileResponse = OutdoorProfileResponse(
         OutdoorProfile(

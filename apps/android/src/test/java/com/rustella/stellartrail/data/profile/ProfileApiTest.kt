@@ -70,6 +70,8 @@ class ProfileApiTest {
         val api = ProfileApi(testClient { request ->
             requests += request
             when (request.url.encodedPath) {
+                "/api/v1/content-pages/profile_about" -> respondJson(profileAboutJson)
+                "/api/v1/client-versions" -> respondJson(clientVersionsJson)
                 "/api/v1/me/profile/outdoor" -> respondJson(outdoorProfileJson)
                 "/api/v1/me/outdoor-experiences" -> {
                     if (request.method == HttpMethod.Get) respondJson(outdoorExperiencesJson) else respondJson(outdoorExperienceJson)
@@ -87,6 +89,8 @@ class ProfileApiTest {
         val outdoorPatch: JsonObject = buildJsonObject { put("outdoor_id", "星星") }
         val experienceRequest = OutdoorExperienceRequest(title = "罗浮山三天两夜重装")
 
+        val about = api.profileAboutContent()
+        val versions = api.listAndroidClientVersions()
         api.outdoorProfile()
         api.updateOutdoorProfile(outdoorPatch)
         api.listOutdoorExperiences()
@@ -102,6 +106,8 @@ class ProfileApiTest {
 
         assertEquals(
             listOf(
+                HttpMethod.Get,
+                HttpMethod.Get,
                 HttpMethod.Get,
                 HttpMethod.Patch,
                 HttpMethod.Get,
@@ -119,6 +125,8 @@ class ProfileApiTest {
         )
         assertEquals(
             listOf(
+                "/api/v1/content-pages/profile_about",
+                "/api/v1/client-versions",
                 "/api/v1/me/profile/outdoor",
                 "/api/v1/me/profile/outdoor",
                 "/api/v1/me/outdoor-experiences",
@@ -134,8 +142,14 @@ class ProfileApiTest {
             ),
             requests.map { it.url.encodedPath },
         )
-        assertEquals("client_key=android&limit=50", requests[6].url.encodedQuery)
-        assertEquals("client_key=android&status=building&limit=50", requests[7].url.encodedQuery)
+        assertEquals("client_key=android&locale=zh-CN", requests[0].url.encodedQuery)
+        assertEquals("client_key=android&limit=20", requests[1].url.encodedQuery)
+        assertEquals("数据库文案", about.subtitle)
+        assertEquals("来自数据库", about.sections.single().body)
+        assertEquals("0.0.1", versions.items.single().version)
+        assertEquals("Android 0.0.1 初始版本", versions.items.single().title)
+        assertEquals("client_key=android&limit=50", requests[8].url.encodedQuery)
+        assertEquals("client_key=android&status=building&limit=50", requests[9].url.encodedQuery)
     }
 
     @Test
@@ -178,6 +192,64 @@ private val profileUserJson = """
     "nickname": "星野徒步者",
     "avatar_url": "https://assets-alt.example.invalid/users/user-1/avatar/custom.png"
   }
+}
+""".trimIndent()
+
+private val profileAboutJson = """
+{
+  "page_key": "profile_about",
+  "client_key": "android",
+  "locale": "zh-CN",
+  "eyebrow": "寻径星野",
+  "title": "关于寻径星野",
+  "subtitle": "数据库文案",
+  "sections": [
+    {
+      "icon": "星",
+      "title": "出发准备",
+      "body": "来自数据库"
+    }
+  ],
+  "button_text": "知道了",
+  "updated_at": "2026-06-15T00:00:00Z"
+}
+""".trimIndent()
+
+private val clientVersionsJson = """
+{
+  "items": [
+    {
+      "id": "android-0-0-1",
+      "client_key": "android",
+      "version": "0.0.1",
+      "title": "Android 0.0.1 初始版本",
+      "release_notes": [
+        "补齐账号登录、我的页面与资料入口，支持基础账号和户外资料管理。",
+        "上线装备库与装备图鉴，方便记录个人装备并查看公共装备信息。",
+        "支持户外技能与绳结内容浏览，常用内容可离线缓存。",
+        "支持行程规划、轨迹导入、轨迹库和地图预览，把出发前资料整理到手机端。",
+        "关于页与版本信息改为读取数据库，便于后续按 Android 端独立维护。"
+      ],
+      "release_note_sections": [
+        {
+          "key": "feature",
+          "title": "Feature",
+          "items": [
+            "补齐账号登录、我的页面与资料入口，支持基础账号和户外资料管理。",
+            "上线装备库与装备图鉴，方便记录个人装备并查看公共装备信息。",
+            "支持户外技能与绳结内容浏览，常用内容可离线缓存。",
+            "支持行程规划、轨迹导入、轨迹库和地图预览，把出发前资料整理到手机端。",
+            "关于页与版本信息改为读取数据库，便于后续按 Android 端独立维护。"
+          ]
+        }
+      ],
+      "status": "published",
+      "published_at": "2026-06-15T00:00:00Z",
+      "created_at": "2026-06-15T00:00:00Z",
+      "updated_at": "2026-06-15T00:00:00Z"
+    }
+  ],
+  "next_cursor": null
 }
 """.trimIndent()
 
