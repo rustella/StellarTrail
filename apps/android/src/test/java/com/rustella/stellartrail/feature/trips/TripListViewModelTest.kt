@@ -137,7 +137,7 @@ private class FakeTripRepository : TripRepositoryContract {
     override suspend fun importPackingList(id: String, request: ImportTripPackingListRequest): TripDetail = unused()
     override suspend fun createRecord(id: String, collectionPath: String, request: JsonObject): TripDetail = unused()
     override suspend fun updateRecord(id: String, collectionPath: String, recordId: String, request: JsonObject): TripDetail = unused()
-    override suspend fun deleteRecord(id: String, collectionPath: String, recordId: String) = Unit
+    override suspend fun deleteRecord(id: String, collectionPath: String, recordId: String): TripDetail = unused()
     override suspend fun bindSharedGearDemandMyGear(id: String, itemId: String, request: JsonObject): TripDetail = unused()
     override suspend fun fillSharedGearDemandConcreteGear(id: String, itemId: String, request: JsonObject): TripDetail = unused()
 
