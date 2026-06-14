@@ -6,6 +6,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val androidAppVersionName = "0.1.2"
+val androidAppVersionCode = 3
 
 val clientConfigProperties = Properties()
 val clientConfigFile = project.file("config.properties")
@@ -60,8 +62,8 @@ android {
         applicationId = "com.rustella.stellartrail"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = androidAppVersionCode
+        versionName = androidAppVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField(
@@ -87,7 +89,7 @@ android {
         buildConfigField(
             "String",
             "DEFAULT_CLIENT_VERSION",
-            quotedBuildConfigString(clientConfigValue("stellartrail.clientVersion", "0.1.0")),
+            quotedBuildConfigString(androidAppVersionName),
         )
         buildConfigField(
             "String",

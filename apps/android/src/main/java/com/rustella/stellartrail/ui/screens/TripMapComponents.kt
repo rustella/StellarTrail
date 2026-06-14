@@ -11,17 +11,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.AlertDialog
@@ -47,6 +52,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -65,6 +72,7 @@ import com.maptiler.maptilersdk.map.MTMapOptions
 import com.maptiler.maptilersdk.map.MTMapView
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.MTMapViewDelegate
+import com.maptiler.maptilersdk.map.gestures.MTGestureType
 import com.maptiler.maptilersdk.map.options.MTEventLevel
 import com.maptiler.maptilersdk.map.options.MTFitBoundsOptions
 import com.maptiler.maptilersdk.map.options.MTPaddingOptions
@@ -90,11 +98,10 @@ import com.rustella.stellartrail.domain.trip.MapTrailLink
 import com.rustella.stellartrail.domain.trip.Trail
 import com.rustella.stellartrail.domain.trip.TrailBounds
 import com.rustella.stellartrail.domain.trip.TripOverviewMapTrail
+import com.rustella.stellartrail.domain.trip.TripOverviewMapTrailSource
 import com.rustella.stellartrail.domain.trip.TripsMapOverviewStats
 import com.rustella.stellartrail.feature.trips.TripMapUiState
 import com.rustella.stellartrail.feature.trips.TripsOverviewMapUiState
-import com.rustella.stellartrail.ui.common.Badge
-import com.rustella.stellartrail.ui.common.BadgeTone
 import com.rustella.stellartrail.ui.common.CompactPillAction
 import com.rustella.stellartrail.ui.common.ErrorState
 import com.rustella.stellartrail.ui.common.LoadingState
@@ -109,11 +116,14 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.URI
 import java.net.URL
 import kotlin.math.hypot
+import kotlin.math.ln
+import kotlin.math.max
 
 @Composable
 fun TripsOverviewMapSection(
@@ -138,6 +148,30 @@ fun TripsOverviewMapSection(
         return
     }
     val trails = data.trails
+    val overviewTrailItems = remember(trails) { overviewTrailListItems(trails) }
+    var isOverview3dEnabled by remember { mutableStateOf(false) }
+    var isTrailSidebarExpanded by remember { mutableStateOf(false) }
+    var selectedOverviewTrailId by remember { mutableStateOf<String?>(null) }
+    var overviewTrailFocusRequestKey by remember { mutableStateOf(0) }
+    val overviewTrailSidebarState = OverviewTrailSidebarState(
+        expanded = isTrailSidebarExpanded,
+        selectedTrailId = selectedOverviewTrailId,
+    )
+    val selectedOverviewTrailIndex = overviewTrailItems.indexOfFirst { it.trailId == selectedOverviewTrailId }
+    val selectedOverviewTrail = overviewTrailItems.getOrNull(selectedOverviewTrailIndex)
+    fun selectOverviewTrail(index: Int) {
+        val item = overviewTrailItems.getOrNull(index) ?: return
+        selectedOverviewTrailId = item.trailId
+        overviewTrailFocusRequestKey = nextOverviewTrailFocusRequestKey(overviewTrailFocusRequestKey)
+    }
+    fun selectNextOverviewTrail() {
+        nextOverviewTrailIndex(selectedOverviewTrailIndex, overviewTrailItems.size)?.let(::selectOverviewTrail)
+    }
+    LaunchedEffect(overviewTrailItems) {
+        if (selectedOverviewTrailId != null && overviewTrailItems.none { it.trailId == selectedOverviewTrailId }) {
+            selectedOverviewTrailId = null
+        }
+    }
     val canRenderMap = data.map.enabled && data.map.publicKey?.isNotBlank() == true
     var expandedMap by remember { mutableStateOf(false) }
     var compactStyleIdWhileExpanded by remember { mutableStateOf<String?>(null) }
@@ -173,7 +207,6 @@ fun TripsOverviewMapSection(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (data.truncated) Badge("已简化显示", tone = BadgeTone.Info)
                     CompactPillAction("轨迹库", onOpenTrailLibrary)
                 }
             }
@@ -194,10 +227,13 @@ fun TripsOverviewMapSection(
                 onSelectStyle = onSelectMapStyle,
                 bounds = data.bounds,
                 featureCollection = featureCollection,
+                selectedBounds = selectedOverviewTrail?.bounds,
+                focusRequestKey = overviewTrailFocusRequestKey,
                 height = 204.dp,
                 lineColor = USER_TRAIL_COLOR,
                 eventLevel = MTEventLevel.ESSENTIAL,
                 zoomGesturesEnabled = false,
+                terrain3dEnabled = isOverview3dEnabled,
                 locationTrackingEnabled = !expandedMap,
                 initialCameraSnapshot = compactCameraSnapshot,
                 initialLocation = compactLocationTrackingHandoff.lastLocation,
@@ -225,6 +261,25 @@ fun TripsOverviewMapSection(
                     )
                     expandedMap = true
                 },
+                bottomStartControls = {
+                    MapDimensionButton(
+                        isMap3d = isOverview3dEnabled,
+                        onToggle = { isOverview3dEnabled = !isOverview3dEnabled },
+                    )
+                },
+                mapOverlay = {
+                    OverviewTrailSidebar(
+                        items = overviewTrailItems,
+                        selectedTrailId = overviewTrailSidebarState.selectedTrailId,
+                        expanded = overviewTrailSidebarState.expanded,
+                        onToggle = { isTrailSidebarExpanded = !isTrailSidebarExpanded },
+                        onSelect = { index -> selectOverviewTrail(index) },
+                        onNext = ::selectNextOverviewTrail,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 8.dp),
+                    )
+                },
             )
         } else {
             CompactMapFallback(
@@ -243,6 +298,9 @@ fun TripsOverviewMapSection(
             onSelectStyle = onSelectMapStyle,
             bounds = data.bounds,
             featureCollection = featureCollection,
+            selectedBounds = selectedOverviewTrail?.bounds,
+            focusRequestKey = overviewTrailFocusRequestKey,
+            terrain3dEnabled = isOverview3dEnabled,
             initialCameraSnapshot = expandedInitialCameraSnapshot,
             initialLocation = expandedInitialLocationTrackingHandoff.lastLocation,
             autoStartLocationTrackingKey = expandedAutoStartLocationTrackingKey,
@@ -268,6 +326,25 @@ fun TripsOverviewMapSection(
                 compactAutoStartLocationTrackingKey = nextLocationTrackingAutoStartKey(
                     currentKey = compactAutoStartLocationTrackingKey,
                     shouldAutoStart = resumeHandoff.active,
+                )
+            },
+            bottomStartControls = {
+                MapDimensionButton(
+                    isMap3d = isOverview3dEnabled,
+                    onToggle = { isOverview3dEnabled = !isOverview3dEnabled },
+                )
+            },
+            mapOverlay = {
+                OverviewTrailSidebar(
+                    items = overviewTrailItems,
+                    selectedTrailId = overviewTrailSidebarState.selectedTrailId,
+                    expanded = overviewTrailSidebarState.expanded,
+                    onToggle = { isTrailSidebarExpanded = !isTrailSidebarExpanded },
+                    onSelect = { index -> selectOverviewTrail(index) },
+                    onNext = ::selectNextOverviewTrail,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 10.dp),
                 )
             },
         )
@@ -622,6 +699,8 @@ private fun MapTilerTrailMap(
     onSelectStyle: (String) -> Unit,
     bounds: TrailBounds?,
     featureCollection: String,
+    selectedBounds: TrailBounds? = null,
+    focusRequestKey: Int = 0,
     height: Dp,
     lineColor: Color,
     eventLevel: MTEventLevel,
@@ -639,6 +718,7 @@ private fun MapTilerTrailMap(
     showStyleSelector: Boolean = true,
     bottomStartControls: @Composable () -> Unit = {},
     topEndControls: @Composable () -> Unit = {},
+    mapOverlay: @Composable BoxScope.() -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -720,7 +800,17 @@ private fun MapTilerTrailMap(
     LaunchedEffect(renderIdentity, controllerDelegate) {
         controllerDelegate.applyMapStyle(styleUrl)
     }
+    LaunchedEffect(mapPresentation, controllerDelegate) {
+        controllerDelegate.applyMapPresentation(mapPresentation)
+    }
     val currentControllerDelegate by rememberUpdatedState(controllerDelegate)
+    LaunchedEffect(focusRequestKey, selectedBounds, terrain3dEnabled, controllerDelegate) {
+        controllerDelegate.requestFocusBounds(
+            requestKey = focusRequestKey,
+            bounds = sanitizeOverviewFocusBounds(selectedBounds),
+            terrain3dEnabled = terrain3dEnabled,
+        )
+    }
 
     fun startLocationTracking(
         permission: ForegroundLocationPermission,
@@ -941,6 +1031,7 @@ private fun MapTilerTrailMap(
                 )
             }
         }
+        mapOverlay()
         locationTrackingState.message?.takeIf { !legendVisible }?.let { message ->
             MapLocationMessage(
                 message = message,
@@ -1013,6 +1104,37 @@ private fun MapZoomButton(symbol: String, onClick: () -> Unit) {
 }
 
 @Composable
+private fun MapDimensionButton(
+    isMap3d: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = if (isMap3d) MaterialTheme.colorScheme.primary.copy(alpha = 0.94f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp,
+    ) {
+        Box(
+            Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(onClick = onToggle),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = if (isMap3d) "2D" else "3D",
+                color = if (isMap3d) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
 private fun MapLocateButton(
     state: ForegroundLocationTrackingState,
     enabled: Boolean,
@@ -1053,6 +1175,162 @@ private fun MapLocateButton(
                     else -> MaterialTheme.colorScheme.onSurface
                 },
             )
+        }
+    }
+}
+
+@Composable
+private fun OverviewTrailSidebar(
+    items: List<OverviewTrailListItem>,
+    selectedTrailId: String?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onSelect: (Int) -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (items.isEmpty()) return
+    if (!expanded) {
+        Surface(
+            modifier = modifier,
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+            tonalElevation = 2.dp,
+            shadowElevation = 2.dp,
+        ) {
+            Box(
+                Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .semantics { contentDescription = "展开轨迹列表" }
+                    .clickable(onClick = onToggle),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "<",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                )
+            }
+        }
+        return
+    }
+    Surface(
+        modifier = modifier
+            .widthIn(min = 196.dp, max = 260.dp)
+            .fillMaxHeight(0.88f),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        tonalElevation = 3.dp,
+        shadowElevation = 3.dp,
+    ) {
+        Column(
+            Modifier.padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "我的轨迹",
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                )
+                Text(
+                    "下一条",
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.92f))
+                        .clickable(onClick = onNext)
+                        .padding(horizontal = 9.dp, vertical = 5.dp),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                )
+                Text(
+                    "收起",
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .clickable(onClick = onToggle)
+                        .padding(horizontal = 6.dp, vertical = 5.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+            }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                items.forEachIndexed { index, item ->
+                    OverviewTrailSidebarRow(
+                        item = item,
+                        selected = item.trailId == selectedTrailId,
+                        onClick = { onSelect(index) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverviewTrailSidebarRow(
+    item: OverviewTrailListItem,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.96f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f),
+    ) {
+        Column(
+            Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                item.title,
+                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    overviewTrailSourceLabel(item.source),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+                Text(
+                    "${(item.distanceM / 1000.0).formatOne()} km",
+                    color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }
@@ -1212,6 +1490,9 @@ private fun ExpandedTrailMapDialog(
     onSelectStyle: (String) -> Unit,
     bounds: TrailBounds?,
     featureCollection: String,
+    selectedBounds: TrailBounds? = null,
+    focusRequestKey: Int = 0,
+    terrain3dEnabled: Boolean = false,
     initialCameraSnapshot: MapCameraSnapshot?,
     initialLocation: ForegroundLocation?,
     autoStartLocationTrackingKey: Int,
@@ -1221,6 +1502,8 @@ private fun ExpandedTrailMapDialog(
     onLocationTrackingActiveChanged: (Boolean) -> Unit = {},
     onDismiss: () -> Unit,
     onMapLongPress: (Double, Double) -> Unit = { _, _ -> },
+    bottomStartControls: @Composable () -> Unit = {},
+    mapOverlay: @Composable BoxScope.() -> Unit = {},
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -1250,10 +1533,13 @@ private fun ExpandedTrailMapDialog(
                     onSelectStyle = onSelectStyle,
                     bounds = bounds,
                     featureCollection = featureCollection,
+                    selectedBounds = selectedBounds,
+                    focusRequestKey = focusRequestKey,
                     height = 480.dp,
                     lineColor = lineColor,
                     eventLevel = eventLevel,
                     zoomGesturesEnabled = true,
+                    terrain3dEnabled = terrain3dEnabled,
                     initialCameraSnapshot = initialCameraSnapshot,
                     initialLocation = initialLocation,
                     autoStartLocationTrackingKey = autoStartLocationTrackingKey,
@@ -1261,6 +1547,8 @@ private fun ExpandedTrailMapDialog(
                     onLocationTrackingActiveChanged = onLocationTrackingActiveChanged,
                     onMapTap = { _, _ -> },
                     onMapLongPress = onMapLongPress,
+                    bottomStartControls = bottomStartControls,
+                    mapOverlay = mapOverlay,
                 )
             }
         }
@@ -1337,16 +1625,20 @@ internal fun trailMapPresentation(
 internal data class TrailMapRenderIdentity(
     val styleId: String,
     val styleUrl: String,
-    val presentation: TrailMapPresentation,
+)
+
+private data class TrailMapFocusRequest(
+    val requestKey: Int,
+    val bounds: TrailBounds,
+    val terrain3dEnabled: Boolean,
 )
 
 internal fun trailMapRenderIdentity(
     selectedStyle: MapStyleOption,
-    presentation: TrailMapPresentation,
+    @Suppress("UNUSED_PARAMETER") presentation: TrailMapPresentation,
 ): TrailMapRenderIdentity = TrailMapRenderIdentity(
     styleId = selectedStyle.id,
     styleUrl = selectedStyle.styleUrl,
-    presentation = presentation,
 )
 
 private class TrailMapDelegate(
@@ -1358,7 +1650,7 @@ private class TrailMapDelegate(
     initialLocation: ForegroundLocation?,
     private val lineColor: Int,
     private val eventLevel: MTEventLevel,
-    private val mapPresentation: TrailMapPresentation,
+    private var mapPresentation: TrailMapPresentation,
     private val onTap: (Double, Double) -> Unit,
     private val onLongPress: (Double, Double) -> Unit,
     private val onCameraSnapshotChanged: (MapCameraSnapshot) -> Unit,
@@ -1368,21 +1660,30 @@ private class TrailMapDelegate(
     private var suppressNextTap = false
     private var pinchGestureEnabled = false
     private var pitchGestureEnabled = false
+    private var doubleTapGestureEnabled = false
+    private var mapReady = false
+    private var pendingFocusRequest: TrailMapFocusRequest? = null
+    private var appliedFocusRequestKey: Int? = null
+    private var initialCameraApplied = false
     private var currentLocationMarker: MTMarker? = null
     private var currentLocationForMarker: ForegroundLocation? = initialLocation
     private var appliedStyleUrl: String? = null
 
     override fun onMapViewInitialized() {
+        mapReady = true
         renderTrailLayer()
         restoreCurrentLocationMarker()
-        enableMapGesturesIfNeeded()
+        applyMapPresentation()
+        tryApplyPendingFocusRequest()
     }
 
     override fun onEventTriggered(event: MTEvent, data: MTData?) {
         if (shouldEnsureTrailLayerOnEvent(event)) {
+            mapReady = true
             renderTrailLayer()
-            enableMapGesturesIfNeeded()
+            applyMapPresentation()
             restoreCurrentLocationMarker()
+            tryApplyPendingFocusRequest()
             return
         }
         when (event) {
@@ -1450,8 +1751,9 @@ private class TrailMapDelegate(
             coroutineScope.launch {
                 delay(MAP_STYLE_SWITCH_COOLDOWN_MILLIS)
                 renderTrailLayer()
-                enableMapGesturesIfNeeded()
+                applyMapPresentation()
                 restoreCurrentLocationMarker()
+                tryApplyPendingFocusRequest()
             }
         }
     }
@@ -1462,9 +1764,25 @@ private class TrailMapDelegate(
             runCatching { gestureService.enablePinchRotateAndZoomGesture() }
                 .onSuccess { pinchGestureEnabled = true }
         }
+        if (!mapPresentation.pinchRotateEnabled && pinchGestureEnabled) {
+            runCatching { gestureService.disableGesture(MTGestureType.PINCH_ROTATE_AND_ZOOM) }
+                .onSuccess { pinchGestureEnabled = false }
+        }
         if (mapPresentation.pitchGestureEnabled && !pitchGestureEnabled) {
             runCatching { gestureService.enableTwoFingerDragPitchGesture() }
                 .onSuccess { pitchGestureEnabled = true }
+        }
+        if (!mapPresentation.pitchGestureEnabled && pitchGestureEnabled) {
+            runCatching { gestureService.disableGesture(MTGestureType.TWO_FINGERS_DRAG_PITCH) }
+                .onSuccess { pitchGestureEnabled = false }
+        }
+        if (mapPresentation.pinchRotateEnabled && !doubleTapGestureEnabled) {
+            runCatching { gestureService.enableDoubleTapZoomInGesture() }
+                .onSuccess { doubleTapGestureEnabled = true }
+        }
+        if (!mapPresentation.pinchRotateEnabled && doubleTapGestureEnabled) {
+            runCatching { gestureService.disableGesture(MTGestureType.DOUBLE_TAP_ZOOM_IN) }
+                .onSuccess { doubleTapGestureEnabled = false }
         }
     }
 
@@ -1484,6 +1802,39 @@ private class TrailMapDelegate(
         coroutineScope.launch {
             if (delayMillis > 0) delay(delayMillis)
             captureAndPublishCameraSnapshot()
+        }
+    }
+
+    fun requestFocusBounds(requestKey: Int, bounds: TrailBounds?, terrain3dEnabled: Boolean) {
+        if (requestKey <= 0 || bounds == null) return
+        pendingFocusRequest = TrailMapFocusRequest(
+            requestKey = requestKey,
+            bounds = bounds,
+            terrain3dEnabled = terrain3dEnabled,
+        )
+        tryApplyPendingFocusRequest()
+    }
+
+    private fun tryApplyPendingFocusRequest() {
+        val request = pendingFocusRequest ?: return
+        if (appliedFocusRequestKey == request.requestKey) {
+            pendingFocusRequest = null
+            return
+        }
+        if (!mapReady || controller.style == null) return
+        runCatching {
+            controller.fitBounds(
+                MTBounds(request.bounds.minLng, request.bounds.minLat, request.bounds.maxLng, request.bounds.maxLat),
+                overviewMapFitBoundsOptions(request.terrain3dEnabled),
+            )
+            controller.setCenter(overviewMapFocusCenter(request.bounds))
+            controller.setZoom(overviewMapFocusZoom(request.bounds, request.terrain3dEnabled))
+        }.onSuccess {
+            appliedFocusRequestKey = request.requestKey
+            pendingFocusRequest = null
+            initialCameraApplied = true
+            applyMapPresentation()
+            requestCameraSnapshot(MAP_CAMERA_SNAPSHOT_AFTER_CONTROL_DELAY_MILLIS)
         }
     }
 
@@ -1548,12 +1899,13 @@ private class TrailMapDelegate(
             )
         }.onFailure { if (it !is MTStyleError.LayerAlreadyExists) throw it }
         val snapshot = initialCameraSnapshot
-        if (initialMapCameraSource(snapshot) == InitialMapCameraSource.Snapshot && snapshot != null) {
+        if (!initialCameraApplied && initialMapCameraSource(snapshot) == InitialMapCameraSource.Snapshot && snapshot != null) {
             restoreCameraSnapshot(snapshot)
+            initialCameraApplied = true
             applyMapPresentation()
             return
         }
-        bounds?.let {
+        bounds?.takeIf { !initialCameraApplied && pendingFocusRequest == null }?.let {
             controller.fitBounds(
                 MTBounds(it.minLng, it.minLat, it.maxLng, it.maxLat),
                 MTFitBoundsOptions(
@@ -1562,20 +1914,26 @@ private class TrailMapDelegate(
                     duration = 0.0,
                 ),
             )
+            initialCameraApplied = true
         }
         applyMapPresentation()
     }
 
-    private fun applyMapPresentation() {
-        mapPresentation.terrainExaggeration?.let { exaggeration ->
-            runCatching { controller.setTerrainExaggeration(exaggeration, false) }
+    fun applyMapPresentation(nextPresentation: TrailMapPresentation = mapPresentation) {
+        mapPresentation = nextPresentation
+        val style = controller.style
+        if (mapPresentation.terrainEnabled) {
+            runCatching { style?.enableTerrain(mapPresentation.terrainExaggeration) }
+            mapPresentation.terrainExaggeration?.let { exaggeration ->
+                runCatching { controller.setTerrainExaggeration(exaggeration, false) }
+            }
+        } else {
+            runCatching { style?.disableTerrain() }
         }
-        mapPresentation.bearing?.let { bearing ->
-            runCatching { controller.setBearing(bearing) }
-        }
-        mapPresentation.pitch?.let { pitch ->
-            runCatching { controller.setPitch(pitch) }
-        }
+        runCatching { controller.setBearing(mapPresentation.bearing ?: 0.0) }
+        runCatching { controller.setPitch(mapPresentation.pitch ?: 0.0) }
+        enableMapGesturesIfNeeded()
+        tryApplyPendingFocusRequest()
     }
 
     private suspend fun captureAndPublishCameraSnapshot() {
@@ -1677,6 +2035,118 @@ private fun rememberOverviewFeatureCollection(trails: List<TripOverviewMapTrail>
 @Composable
 private fun rememberTripFeatureCollection(trails: List<MapTrailLink>): String =
     remember(trails) { featureCollectionJson(trails.map { it.simplifiedGeojson }, DETAIL_MAP_MAX_RENDERED_POINTS) }
+
+internal data class OverviewTrailListItem(
+    val trailId: String,
+    val title: String,
+    val source: TripOverviewMapTrailSource,
+    val distanceM: Double,
+    val bounds: TrailBounds?,
+    val featureGeojson: JsonElement,
+)
+
+internal data class OverviewTrailSidebarState(
+    val expanded: Boolean,
+    val selectedTrailId: String?,
+)
+
+internal fun overviewTrailListItems(trails: List<TripOverviewMapTrail>): List<OverviewTrailListItem> =
+    trails.map { trail ->
+        OverviewTrailListItem(
+            trailId = trail.trailId,
+            title = trail.trail.displayName.ifBlank { "未命名轨迹" },
+            source = trail.source,
+            distanceM = trail.trail.distanceM,
+            bounds = overviewTrailBoundsFromGeojson(trail.simplifiedGeojson) ?: trail.trail.bounds,
+            featureGeojson = trail.simplifiedGeojson,
+        )
+    }
+
+internal fun overviewTrailSourceLabel(source: TripOverviewMapTrailSource): String = when (source) {
+    TripOverviewMapTrailSource.Trip -> "行程"
+    TripOverviewMapTrailSource.Library -> "轨迹库"
+}
+
+internal fun nextOverviewTrailIndex(currentIndex: Int, itemCount: Int): Int? {
+    if (itemCount <= 0) return null
+    if (currentIndex !in 0 until itemCount) return 0
+    return (currentIndex + 1) % itemCount
+}
+
+internal fun nextOverviewTrailFocusRequestKey(currentKey: Int): Int =
+    if (currentKey == Int.MAX_VALUE) 1 else currentKey + 1
+
+internal fun overviewTrailBoundsFromGeojson(feature: JsonElement): TrailBounds? {
+    val featureObject = feature as? JsonObject ?: return null
+    val geometry = featureObject["geometry"] as? JsonObject ?: return null
+    val coordinates = geometry["coordinates"] as? JsonArray ?: return null
+    val points = when ((geometry["type"] as? JsonPrimitive)?.content) {
+        "LineString" -> coordinates.mapNotNull(::lngLatFromJsonArray)
+        "MultiLineString" -> coordinates.flatMap { line ->
+            (line as? JsonArray)?.mapNotNull(::lngLatFromJsonArray).orEmpty()
+        }
+        else -> emptyList()
+    }
+    if (points.size < 2) return null
+    return points.fold(null as TrailBounds?) { current, point ->
+        val next = TrailBounds(point.first, point.second, point.first, point.second)
+        current?.let { unionBounds(listOf(it, next)) } ?: next
+    }
+}
+
+internal fun sanitizeOverviewFocusBounds(bounds: TrailBounds?): TrailBounds? {
+    val raw = bounds ?: return null
+    if (
+        !raw.minLng.isFinite() ||
+        !raw.minLat.isFinite() ||
+        !raw.maxLng.isFinite() ||
+        !raw.maxLat.isFinite()
+    ) {
+        return null
+    }
+    if (
+        raw.minLng !in -180.0..180.0 ||
+        raw.maxLng !in -180.0..180.0 ||
+        raw.minLat !in -90.0..90.0 ||
+        raw.maxLat !in -90.0..90.0
+    ) {
+        return null
+    }
+    if (raw.minLng > raw.maxLng || raw.minLat > raw.maxLat) return null
+    val (minLng, maxLng) = expandOverviewFocusSpan(raw.minLng, raw.maxLng, -180.0, 180.0)
+    val (minLat, maxLat) = expandOverviewFocusSpan(raw.minLat, raw.maxLat, -90.0, 90.0)
+    return TrailBounds(minLng, minLat, maxLng, maxLat)
+}
+
+private fun expandOverviewFocusSpan(
+    min: Double,
+    max: Double,
+    lowerBound: Double,
+    upperBound: Double,
+): Pair<Double, Double> {
+    if (max - min >= OVERVIEW_FOCUS_MIN_SPAN_DEGREES) return min to max
+    val halfSpan = OVERVIEW_FOCUS_MIN_SPAN_DEGREES / 2.0
+    val center = (min + max) / 2.0
+    var nextMin = center - halfSpan
+    var nextMax = center + halfSpan
+    if (nextMin < lowerBound) {
+        nextMax = (nextMax + lowerBound - nextMin).coerceAtMost(upperBound)
+        nextMin = lowerBound
+    }
+    if (nextMax > upperBound) {
+        nextMin = (nextMin - (nextMax - upperBound)).coerceAtLeast(lowerBound)
+        nextMax = upperBound
+    }
+    return nextMin to nextMax
+}
+
+private fun lngLatFromJsonArray(value: JsonElement): Pair<Double, Double>? {
+    val point = value as? JsonArray ?: return null
+    val lng = (point.getOrNull(0) as? JsonPrimitive)?.doubleOrNull ?: return null
+    val lat = (point.getOrNull(1) as? JsonPrimitive)?.doubleOrNull ?: return null
+    if (!lng.isFinite() || !lat.isFinite() || lng !in -180.0..180.0 || lat !in -90.0..90.0) return null
+    return lng to lat
+}
 
 internal fun tripsOverviewMapSummary(stats: TripsMapOverviewStats): String =
     if (stats.tripCount > 0) {
@@ -1939,6 +2409,46 @@ internal fun mapCameraSnapshotOrNull(
 internal fun initialMapCameraSource(snapshot: MapCameraSnapshot?): InitialMapCameraSource =
     if (snapshot != null) InitialMapCameraSource.Snapshot else InitialMapCameraSource.BoundsOrDefault
 
+internal data class OverviewMapFocusPadding(
+    val left: Double,
+    val top: Double,
+    val right: Double,
+    val bottom: Double,
+)
+
+internal fun overviewMapFocusPadding(terrain3dEnabled: Boolean): OverviewMapFocusPadding =
+    if (terrain3dEnabled) {
+        OverviewMapFocusPadding(left = 56.0, top = 78.0, right = 118.0, bottom = 78.0)
+    } else {
+        OverviewMapFocusPadding(left = 42.0, top = 42.0, right = 104.0, bottom = 42.0)
+    }
+
+private fun overviewMapFitBoundsOptions(terrain3dEnabled: Boolean): MTFitBoundsOptions {
+    val padding = overviewMapFocusPadding(terrain3dEnabled)
+    return MTFitBoundsOptions(
+        padding = MTPaddingOptions(
+            left = padding.left,
+            top = padding.top,
+            right = padding.right,
+            bottom = padding.bottom,
+        ),
+        maxZoom = if (terrain3dEnabled) 13.2 else 14.6,
+        duration = 260.0,
+    )
+}
+
+private fun overviewMapFocusCenter(bounds: TrailBounds): LngLat =
+    LngLat((bounds.minLng + bounds.maxLng) / 2.0, (bounds.minLat + bounds.maxLat) / 2.0)
+
+internal fun overviewMapFocusZoom(bounds: TrailBounds, terrain3dEnabled: Boolean): Double {
+    val lngSpan = (bounds.maxLng - bounds.minLng).coerceAtLeast(OVERVIEW_FOCUS_MIN_SPAN_DEGREES)
+    val latSpan = (bounds.maxLat - bounds.minLat).coerceAtLeast(OVERVIEW_FOCUS_MIN_SPAN_DEGREES)
+    val span = max(lngSpan, latSpan)
+    val visualOffset = if (terrain3dEnabled) 2.2 else 1.7
+    val maxZoom = if (terrain3dEnabled) 13.2 else 14.6
+    return (ln(360.0 / span) / ln(2.0) - visualOffset).coerceIn(6.0, maxZoom)
+}
+
 internal enum class LocationTrackingStopReason {
     UserButton,
     AppBackgrounded,
@@ -1994,6 +2504,7 @@ private const val MAP_STYLE_SWITCH_COOLDOWN_MILLIS = 700L
 private const val MAP_LOCATION_START_TIMEOUT_MILLIS = 12_000L
 private const val MAP_LOCATION_MESSAGE_MILLIS = 3_000L
 private const val DETAIL_MAP_MAX_RENDERED_POINTS = 8000
+private const val OVERVIEW_FOCUS_MIN_SPAN_DEGREES = 0.0008
 private const val DEFAULT_MAP_STYLE_ID = "outdoor"
 private const val TRAIL_TERRAIN_3D_PITCH = 60.0
 private const val TRAIL_TERRAIN_3D_BEARING = -25.0

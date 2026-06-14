@@ -88,8 +88,8 @@ class InMemoryAppConfigStore(initial: AppConfig = AppConfig()) : AppConfigStore 
 fun sanitizeBaseUrl(baseUrl: String): String = baseUrl.trim().trimEnd('/')
 
 fun buildClientIdentity(client: String, version: String): String {
-    val sanitizedClient = client.trim().ifEmpty { "android" }
-    val sanitizedVersion = version.trim().ifEmpty { "0.1.0" }
+    val sanitizedClient = client.trim().ifEmpty { BuildConfig.DEFAULT_CLIENT }
+    val sanitizedVersion = version.trim().ifEmpty { BuildConfig.DEFAULT_CLIENT_VERSION }
     return "$sanitizedClient/$sanitizedVersion"
 }
 

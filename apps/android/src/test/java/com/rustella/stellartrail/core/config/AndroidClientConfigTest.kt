@@ -14,8 +14,10 @@ class AndroidClientConfigTest {
 
     @Test
     fun clientIdentityIsBuiltFromConfiguredClientAndVersion() {
-        assertEquals("android/0.1.0", AppConfig().clientIdentity)
-        assertEquals("android/0.1.0", buildClientIdentity(" ", " "))
+        val expectedIdentity = "${BuildConfig.DEFAULT_CLIENT}/${BuildConfig.DEFAULT_CLIENT_VERSION}"
+
+        assertEquals(expectedIdentity, AppConfig().clientIdentity)
+        assertEquals(expectedIdentity, buildClientIdentity(" ", " "))
         assertEquals("android/2.0.0", buildClientIdentity(" android ", " 2.0.0 "))
     }
 
