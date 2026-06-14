@@ -6,6 +6,11 @@ import com.rustella.stellartrail.core.location.ForegroundLocation
 import com.rustella.stellartrail.core.location.ForegroundLocationTrackingState
 import com.rustella.stellartrail.domain.trip.MapConfigResponse
 import com.rustella.stellartrail.domain.trip.MapStyleOption
+import com.rustella.stellartrail.domain.trip.TrailBounds
+import com.rustella.stellartrail.domain.trip.TrailSourceFormat
+import com.rustella.stellartrail.domain.trip.TrailSummary
+import com.rustella.stellartrail.domain.trip.TripOverviewMapTrail
+import com.rustella.stellartrail.domain.trip.TripOverviewMapTrailSource
 import com.rustella.stellartrail.domain.trip.TripsMapOverviewStats
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -88,6 +93,107 @@ class TripMapComponentsTest {
         val limitedCoordinates = geometry["coordinates"] as JsonArray
 
         assertEquals(6, limitedCoordinates.size)
+    }
+
+    @Test
+    fun overviewTrailBoundsFromGeojsonSupportsLineStringAndMultiLineString() {
+        val lineBounds = overviewTrailBoundsFromGeojson(
+            lineFeature(
+                listOf(
+                    114.15 to 27.45,
+                    114.24 to 27.53,
+                    114.18 to 27.49,
+                ),
+            ),
+        )
+        val multiBounds = overviewTrailBoundsFromGeojson(
+            multiLineFeature(
+                listOf(
+                    listOf(114.10 to 27.42, 114.12 to 27.44),
+                    listOf(114.30 to 27.55, 114.28 to 27.58),
+                ),
+            ),
+        )
+
+        assertEquals(TrailBounds(114.15, 27.45, 114.24, 27.53), lineBounds)
+        assertEquals(TrailBounds(114.10, 27.42, 114.30, 27.58), multiBounds)
+    }
+
+    @Test
+    fun overviewTrailBoundsFromGeojsonRejectsInvalidOrTooShortGeometry() {
+        assertNull(overviewTrailBoundsFromGeojson(lineFeature(listOf(114.15 to 27.45))))
+        assertNull(
+            overviewTrailBoundsFromGeojson(
+                JsonObject(
+                    mapOf(
+                        "type" to JsonPrimitive("Feature"),
+                        "geometry" to JsonObject(mapOf("type" to JsonPrimitive("Point"))),
+                    ),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun sanitizeOverviewFocusBoundsRejectsInvalidBounds() {
+        assertNull(sanitizeOverviewFocusBounds(null))
+        assertNull(sanitizeOverviewFocusBounds(TrailBounds(Double.NaN, 27.45, 114.18, 27.49)))
+        assertNull(sanitizeOverviewFocusBounds(TrailBounds(181.0, 27.45, 182.0, 27.49)))
+        assertNull(sanitizeOverviewFocusBounds(TrailBounds(114.18, 27.45, 114.15, 27.49)))
+        assertNull(sanitizeOverviewFocusBounds(TrailBounds(114.15, 27.49, 114.18, 27.45)))
+    }
+
+    @Test
+    fun sanitizeOverviewFocusBoundsExpandsDegenerateBounds() {
+        val sanitized = sanitizeOverviewFocusBounds(TrailBounds(114.15, 27.45, 114.15, 27.45))!!
+
+        assertTrue(sanitized.minLng < 114.15)
+        assertTrue(sanitized.maxLng > 114.15)
+        assertTrue(sanitized.minLat < 27.45)
+        assertTrue(sanitized.maxLat > 27.45)
+        assertEquals(0.0008, sanitized.maxLng - sanitized.minLng, 0.0000001)
+        assertEquals(0.0008, sanitized.maxLat - sanitized.minLat, 0.0000001)
+    }
+
+    @Test
+    fun sanitizeOverviewFocusBoundsKeepsValidWideBounds() {
+        val bounds = TrailBounds(114.15, 27.45, 114.24, 27.53)
+
+        assertEquals(bounds, sanitizeOverviewFocusBounds(bounds))
+    }
+
+    @Test
+    fun overviewTrailListItemsIncludeTripAndLibrarySources() {
+        val tripTrail = overviewTrail(
+            id = "trip-trail",
+            name = "行程轨迹",
+            source = TripOverviewMapTrailSource.Trip,
+            distanceM = 12000.0,
+            feature = lineFeature(listOf(114.15 to 27.45, 114.18 to 27.49)),
+        )
+        val libraryTrail = overviewTrail(
+            id = "library-trail",
+            name = "自传轨迹",
+            source = TripOverviewMapTrailSource.Library,
+            distanceM = 8000.0,
+            feature = lineFeature(listOf(114.20 to 27.50, 114.24 to 27.53)),
+        )
+
+        val items = overviewTrailListItems(listOf(tripTrail, libraryTrail))
+
+        assertEquals(listOf("trip-trail", "library-trail"), items.map { it.trailId })
+        assertEquals(listOf(TripOverviewMapTrailSource.Trip, TripOverviewMapTrailSource.Library), items.map { it.source })
+        assertEquals("行程", overviewTrailSourceLabel(items.first().source))
+        assertEquals("轨迹库", overviewTrailSourceLabel(items.last().source))
+        assertEquals(TrailBounds(114.20, 27.50, 114.24, 27.53), items.last().bounds)
+    }
+
+    @Test
+    fun nextOverviewTrailIndexHandlesEmptyUnselectedAndLoopingCases() {
+        assertNull(nextOverviewTrailIndex(currentIndex = -1, itemCount = 0))
+        assertEquals(0, nextOverviewTrailIndex(currentIndex = -1, itemCount = 3))
+        assertEquals(2, nextOverviewTrailIndex(currentIndex = 1, itemCount = 3))
+        assertEquals(0, nextOverviewTrailIndex(currentIndex = 2, itemCount = 3))
     }
 
     @Test
@@ -197,6 +303,29 @@ class TripMapComponentsTest {
         assertFalse(identity == trailMapRenderIdentity(sameUrlStreets, flatPresentation))
         assertFalse(identity == trailMapRenderIdentity(differentUrlOutdoor, flatPresentation))
         assertFalse(identity == trailMapRenderIdentity(outdoor, terrainPresentation))
+    }
+
+    @Test
+    fun trailMapRenderIdentityIgnoresOverviewTrailSelectionState() {
+        val flatPresentation = trailMapPresentation(terrain3dEnabled = false, zoomGesturesEnabled = true)
+        val outdoor = MapStyleOption("outdoor", "户外", "https://api.example.test/api/v1/map/styles/outdoor/style.json")
+        val firstFocus = sanitizeOverviewFocusBounds(TrailBounds(114.15, 27.45, 114.18, 27.49))
+        val nextFocus = sanitizeOverviewFocusBounds(TrailBounds(114.20, 27.50, 114.24, 27.53))
+
+        assertEquals(TrailBounds(114.15, 27.45, 114.18, 27.49), firstFocus)
+        assertEquals(TrailBounds(114.20, 27.50, 114.24, 27.53), nextFocus)
+        assertEquals(trailMapRenderIdentity(outdoor, flatPresentation), trailMapRenderIdentity(outdoor, flatPresentation))
+    }
+
+    @Test
+    fun overviewMapFocusPaddingLeavesMoreRoomFor3dAndSidebar() {
+        val flatPadding = overviewMapFocusPadding(terrain3dEnabled = false)
+        val terrainPadding = overviewMapFocusPadding(terrain3dEnabled = true)
+
+        assertTrue(flatPadding.right > flatPadding.left)
+        assertTrue(terrainPadding.right > terrainPadding.left)
+        assertTrue(terrainPadding.top > flatPadding.top)
+        assertTrue(terrainPadding.bottom > flatPadding.bottom)
     }
 
     @Test
@@ -386,5 +515,69 @@ class TripMapComponentsTest {
             MapStyleOption("satellite", "卫星", "https://api.example.test/api/v1/map/styles/satellite/style.json"),
         ),
         defaultStyleId = "outdoor",
+    )
+
+    private fun lineFeature(points: List<Pair<Double, Double>>): JsonObject = JsonObject(
+        mapOf(
+            "type" to JsonPrimitive("Feature"),
+            "geometry" to JsonObject(
+                mapOf(
+                    "type" to JsonPrimitive("LineString"),
+                    "coordinates" to JsonArray(points.map { (lng, lat) -> coordinate(lng, lat) }),
+                ),
+            ),
+        ),
+    )
+
+    private fun multiLineFeature(lines: List<List<Pair<Double, Double>>>): JsonObject = JsonObject(
+        mapOf(
+            "type" to JsonPrimitive("Feature"),
+            "geometry" to JsonObject(
+                mapOf(
+                    "type" to JsonPrimitive("MultiLineString"),
+                    "coordinates" to JsonArray(lines.map { line ->
+                        JsonArray(line.map { (lng, lat) -> coordinate(lng, lat) })
+                    }),
+                ),
+            ),
+        ),
+    )
+
+    private fun coordinate(lng: Double, lat: Double): JsonArray =
+        JsonArray(listOf(JsonPrimitive(lng), JsonPrimitive(lat)))
+
+    private fun overviewTrail(
+        id: String,
+        name: String,
+        source: TripOverviewMapTrailSource,
+        distanceM: Double,
+        feature: JsonObject,
+    ): TripOverviewMapTrail = TripOverviewMapTrail(
+        source = source,
+        tripId = if (source == TripOverviewMapTrailSource.Trip) "trip-1" else null,
+        tripTitle = if (source == TripOverviewMapTrailSource.Trip) "端午武功山" else null,
+        trailId = id,
+        linkedByUserId = if (source == TripOverviewMapTrailSource.Trip) "user-1" else null,
+        role = if (source == TripOverviewMapTrailSource.Trip) "route" else null,
+        sortOrder = if (source == TripOverviewMapTrailSource.Trip) 0 else null,
+        createdAt = if (source == TripOverviewMapTrailSource.Trip) "2026-05-01T00:00:00Z" else null,
+        updatedAt = if (source == TripOverviewMapTrailSource.Trip) "2026-05-01T00:00:00Z" else null,
+        trail = TrailSummary(
+            id = id,
+            ownerUserId = "user-1",
+            displayName = name,
+            sourceFormat = TrailSourceFormat.GPX,
+            originalFilename = "$id.gpx",
+            contentType = "application/gpx+xml",
+            sizeBytes = 128,
+            sha256Hex = "$id-sha",
+            distanceM = distanceM,
+            ascentM = 100.0,
+            descentM = 80.0,
+            pointCount = 2,
+            createdAt = "2026-05-01T00:00:00Z",
+            updatedAt = "2026-05-01T00:00:00Z",
+        ),
+        simplifiedGeojson = feature,
     )
 }
