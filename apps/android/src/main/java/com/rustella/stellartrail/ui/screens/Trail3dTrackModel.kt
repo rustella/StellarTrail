@@ -24,6 +24,7 @@ internal const val TRAIL_3D_MAX_ZOOM = 2.4
 internal const val TRAIL_3D_DOUBLE_TAP_ZOOM_MULTIPLIER = 1.35
 internal const val TRAIL_3D_ROTATION_GESTURE_YAW_FACTOR = 0.8
 internal const val TRAIL_3D_PITCH_GESTURE_PX_FACTOR = 0.22
+internal const val TRAIL_3D_MAX_VERTICAL_EXAGGERATION = 3.0
 
 internal data class Trail3dTrackPoint(
     val eastM: Double,
@@ -84,42 +85,54 @@ private data class Raw3dPoint(
     val source: Trail3dTrackPoint? = null,
 )
 
+private data class Trail3dPositionedPoint(
+    val pointIndex: Int,
+    val point: TrailPoint,
+    val distanceM: Double,
+)
+
 internal fun buildTrail3dTrackModel(
     points: List<TrailPoint>,
     maxRenderedPoints: Int = TRAIL_3D_TRACK_MAX_POINTS,
 ): Trail3dTrackModel {
-    val validPoints = points.withIndex()
-        .filter { (_, point) -> point.hasValidCoordinate() && point.elevationM?.isFinite() == true }
-    if (validPoints.isEmpty()) return emptyTrail3dTrackModel()
+    val positionedPoints = points.positionedValidCoordinatePoints()
+    if (positionedPoints.isEmpty()) return emptyTrail3dTrackModel()
 
-    val centerLat = validPoints.map { it.value.lat }.average()
-    val centerLng = validPoints.map { it.value.lng }.average()
+    val centerLat = positionedPoints.map { it.point.lat }.average()
+    val centerLng = positionedPoints.map { it.point.lng }.average()
     val centerLatRadians = centerLat.toRadians()
-    var distanceM = 0.0
-    var previousPoint: TrailPoint? = null
-    val trackPoints = validPoints.map { (index, point) ->
-        previousPoint?.let { previous -> distanceM += haversineDistanceM(previous, point) }
-        previousPoint = point
+    val allEastMeters = positionedPoints.map { positioned ->
+        (positioned.point.lng - centerLng).toRadians() * EARTH_RADIUS_M * cos(centerLatRadians)
+    }
+    val allNorthMeters = positionedPoints.map { positioned ->
+        (positioned.point.lat - centerLat).toRadians() * EARTH_RADIUS_M
+    }
+    val trackPoints = positionedPoints.mapNotNull { positioned ->
+        val point = positioned.point
+        val elevationM = point.elevationM.takeIf { it?.isFinite() == true }
+            ?: positioned.interpolateElevationM(positionedPoints)
+            ?: return@mapNotNull null
         Trail3dTrackPoint(
             eastM = (point.lng - centerLng).toRadians() * EARTH_RADIUS_M * cos(centerLatRadians),
             northM = (point.lat - centerLat).toRadians() * EARTH_RADIUS_M,
-            elevationM = point.elevationM ?: 0.0,
-            distanceM = distanceM,
+            elevationM = elevationM,
+            distanceM = positioned.distanceM,
             lng = point.lng,
             lat = point.lat,
-            pointIndex = index,
+            pointIndex = positioned.pointIndex,
         )
     }
+    if (trackPoints.isEmpty()) return emptyTrail3dTrackModel()
     val sampledPoints = evenlySampleTrackPoints(trackPoints, maxRenderedPoints)
-    val eastMin = trackPoints.minOf { it.eastM }
-    val eastMax = trackPoints.maxOf { it.eastM }
-    val northMin = trackPoints.minOf { it.northM }
-    val northMax = trackPoints.maxOf { it.northM }
+    val eastMin = allEastMeters.minOrNull() ?: 0.0
+    val eastMax = allEastMeters.maxOrNull() ?: 0.0
+    val northMin = allNorthMeters.minOrNull() ?: 0.0
+    val northMax = allNorthMeters.maxOrNull() ?: 0.0
     return Trail3dTrackModel(
         points = sampledPoints,
         minElevationM = trackPoints.minOfOrNull { it.elevationM },
         maxElevationM = trackPoints.maxOfOrNull { it.elevationM },
-        distanceM = distanceM,
+        distanceM = positionedPoints.last().distanceM,
         eastMinM = eastMin,
         eastMaxM = eastMax,
         northMinM = northMin,
@@ -138,10 +151,17 @@ internal fun evenlySampleTrackPoints(
     if (maxRenderedPoints == 1) return listOf(points.first())
     val lastIndex = points.lastIndex
     val indices = LinkedHashSet<Int>()
-    (0 until maxRenderedPoints).forEach { index ->
-        indices += ((index * lastIndex).toDouble() / (maxRenderedPoints - 1)).roundToInt().coerceIn(0, lastIndex)
-    }
+    indices += 0
     indices += lastIndex
+    if (maxRenderedPoints >= 4) {
+        indices += points.indices.minBy { points[it].elevationM }
+        indices += points.indices.maxBy { points[it].elevationM }
+    }
+    (0 until maxRenderedPoints).forEach { index ->
+        if (indices.size < maxRenderedPoints) {
+            indices += ((index * lastIndex).toDouble() / (maxRenderedPoints - 1)).roundToInt().coerceIn(0, lastIndex)
+        }
+    }
     return indices.sorted().map(points::get)
 }
 
@@ -359,7 +379,8 @@ private fun Trail3dTrackModel.groundExtents(): Trail3dGroundExtents {
 
 private fun Trail3dTrackModel.verticalDisplayScale(): Double {
     val elevationSpan = ((maxElevationM ?: 0.0) - (minElevationM ?: 0.0)).coerceAtLeast(1.0)
-    return ((horizontalSpanM * 0.58) / elevationSpan).coerceIn(0.35, 28.0)
+    val targetScale = (horizontalSpanM * TRAIL_3D_TARGET_VERTICAL_RATIO / elevationSpan).coerceAtLeast(1.0)
+    return targetScale.coerceAtMost(TRAIL_3D_MAX_VERTICAL_EXAGGERATION)
 }
 
 private fun emptyTrail3dTrackModel(): Trail3dTrackModel = Trail3dTrackModel(
@@ -378,6 +399,37 @@ private fun emptyTrail3dTrackModel(): Trail3dTrackModel = Trail3dTrackModel(
 private fun TrailPoint.hasValidCoordinate(): Boolean =
     lng.isFinite() && lat.isFinite() && lng in -180.0..180.0 && lat in -90.0..90.0
 
+private fun List<TrailPoint>.positionedValidCoordinatePoints(): List<Trail3dPositionedPoint> {
+    var distanceM = 0.0
+    var previousPoint: TrailPoint? = null
+    return withIndex()
+        .filter { (_, point) -> point.hasValidCoordinate() }
+        .map { (index, point) ->
+            previousPoint?.let { previous -> distanceM += haversineDistanceM(previous, point) }
+            previousPoint = point
+            Trail3dPositionedPoint(
+                pointIndex = index,
+                point = point,
+                distanceM = distanceM,
+            )
+        }
+}
+
+private fun Trail3dPositionedPoint.interpolateElevationM(points: List<Trail3dPositionedPoint>): Double? {
+    val currentIndex = points.indexOfFirst { it.pointIndex == pointIndex }
+    if (currentIndex < 0) return null
+    val previous = points.take(currentIndex)
+        .lastOrNull { it.point.elevationM?.isFinite() == true }
+    val next = points.drop(currentIndex + 1)
+        .firstOrNull { it.point.elevationM?.isFinite() == true }
+    val previousElevation = previous?.point?.elevationM ?: return null
+    val nextElevation = next?.point?.elevationM ?: return null
+    val distanceSpan = next.distanceM - previous.distanceM
+    if (distanceSpan <= 0.0001) return (previousElevation + nextElevation) / 2.0
+    val ratio = ((distanceM - previous.distanceM) / distanceSpan).coerceIn(0.0, 1.0)
+    return previousElevation + (nextElevation - previousElevation) * ratio
+}
+
 private fun haversineDistanceM(a: TrailPoint, b: TrailPoint): Double {
     val lat1 = a.lat.toRadians()
     val lat2 = b.lat.toRadians()
@@ -392,3 +444,4 @@ private fun Double.finiteOrDefault(default: Double): Double = if (isFinite()) th
 private fun Double.toRadians(): Double = this * PI / 180.0
 
 private const val EARTH_RADIUS_M = 6_371_000.0
+private const val TRAIL_3D_TARGET_VERTICAL_RATIO = 0.22

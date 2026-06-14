@@ -43,6 +43,25 @@ class Trail3dTrackModelTest {
     }
 
     @Test
+    fun trackModelUsesAllCoordinatesForDistanceAndInterpolatesMiddleElevations() {
+        val model = buildTrail3dTrackModel(
+            listOf(
+                TrailPoint(lng = 114.0, lat = 22.0, elevationM = 100.0),
+                TrailPoint(lng = 114.001, lat = 22.0, elevationM = null),
+                TrailPoint(lng = 114.002, lat = 22.0, elevationM = 140.0),
+                TrailPoint(lng = 114.003, lat = 22.0, elevationM = 160.0),
+            ),
+        )
+
+        assertTrue(model.hasEnoughData)
+        assertEquals(4, model.points.size)
+        assertEquals(1, model.points[1].pointIndex)
+        assertEquals(120.0, model.points[1].elevationM, 0.5)
+        assertTrue(model.distanceM > 300.0)
+        assertEquals(model.distanceM, model.points.last().distanceM, 0.01)
+    }
+
+    @Test
     fun trackModelSkipsInvalidCoordinatesAndMissingElevation() {
         val model = buildTrail3dTrackModel(
             listOf(
@@ -59,6 +78,23 @@ class Trail3dTrackModelTest {
     }
 
     @Test
+    fun trackModelSkipsUninterpolatableEdgeElevationsButKeepsFullGroundSpan() {
+        val model = buildTrail3dTrackModel(
+            listOf(
+                TrailPoint(lng = 114.0, lat = 22.0, elevationM = null),
+                TrailPoint(lng = 114.001, lat = 22.0, elevationM = 100.0),
+                TrailPoint(lng = 114.002, lat = 22.0, elevationM = 200.0),
+                TrailPoint(lng = 114.003, lat = 22.0, elevationM = null),
+            ),
+        )
+
+        assertTrue(model.hasEnoughData)
+        assertEquals(listOf(1, 2), model.points.map { it.pointIndex })
+        assertTrue(model.distanceM > 300.0)
+        assertTrue(model.horizontalSpanM > 300.0)
+    }
+
+    @Test
     fun trackModelDownsamplingKeepsEndpointsWithinLimit() {
         val points = (0 until 100).map { index ->
             TrailPoint(lng = 114.0 + index * 0.001, lat = 22.0, elevationM = 100.0 + index)
@@ -70,6 +106,27 @@ class Trail3dTrackModelTest {
         assertTrue(model.points.size <= 12)
         assertEquals(0, model.points.first().pointIndex)
         assertEquals(99, model.points.last().pointIndex)
+    }
+
+    @Test
+    fun trackModelDownsamplingKeepsLowestAndHighestPoints() {
+        val points = (0 until 100).map { index ->
+            val elevation = when (index) {
+                37 -> 10.0
+                63 -> 520.0
+                else -> 180.0 + (index % 7)
+            }
+            TrailPoint(lng = 114.0 + index * 0.001, lat = 22.0, elevationM = elevation)
+        }
+
+        val model = buildTrail3dTrackModel(points, maxRenderedPoints = 12)
+
+        assertTrue(model.hasEnoughData)
+        assertTrue(model.points.size <= 12)
+        assertTrue(model.points.any { it.pointIndex == 37 && it.elevationM == 10.0 })
+        assertTrue(model.points.any { it.pointIndex == 63 && it.elevationM == 520.0 })
+        assertEquals(10.0, model.minElevationM ?: -1.0, 0.0)
+        assertEquals(520.0, model.maxElevationM ?: -1.0, 0.0)
     }
 
     @Test

@@ -511,7 +511,7 @@ private fun TrailPreviewDialog(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            "${(trail.distanceM / 1000.0).formatOne()} km · ${trail.pointCount} 点",
+                            trailPreviewHeaderSummary(trail.distanceM),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -906,6 +906,9 @@ internal fun trail3dGestureGuideLines(): List<String> = listOf(
     "双击放大",
     "点按轨迹查看点位",
 )
+
+internal fun trailPreviewHeaderSummary(distanceM: Double): String =
+    "${(distanceM / 1000.0).formatOne()} km"
 
 @Composable
 private fun Trail3dGestureHelpButton(

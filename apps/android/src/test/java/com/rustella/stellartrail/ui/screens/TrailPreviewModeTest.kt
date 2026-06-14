@@ -1,6 +1,7 @@
 package com.rustella.stellartrail.ui.screens
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class TrailPreviewModeTest {
@@ -38,5 +39,13 @@ class TrailPreviewModeTest {
 
         assertEquals(TrailMapPreviewMode.FlatMap, next.mode)
         assertEquals(TrailMap3dContent.Track, next.content3d)
+    }
+
+    @Test
+    fun previewHeaderSummaryDoesNotIncludePointCount() {
+        val summary = trailPreviewHeaderSummary(distanceM = 12_360.0)
+
+        assertEquals("12.4 km", summary)
+        assertFalse(summary.contains("点"))
     }
 }
