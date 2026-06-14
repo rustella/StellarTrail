@@ -562,7 +562,7 @@ private fun DrawScope.drawTrailElevationProfile(
             y = top + chartHeight * (1f - elevationRatio.coerceIn(0f, 1f)),
         )
     }
-    val offsets = profile.points.mapIndexed(::pointOffset)
+    val offsets = profile.points.mapIndexed { index, point -> pointOffset(point, index) }
     val basePath = Path().apply {
         moveTo(left + iso.x, top + iso.y)
         lineTo(left + chartWidth + iso.x, top + iso.y)
