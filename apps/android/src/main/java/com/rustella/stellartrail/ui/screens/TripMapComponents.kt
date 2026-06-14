@@ -517,6 +517,7 @@ fun TrailAssetPreviewMap(
     onSelectMapStyle: (String) -> Unit,
     modifier: Modifier = Modifier,
     height: Dp = 220.dp,
+    zoomGesturesEnabled: Boolean = false,
 ) {
     val canRenderMap = map.enabled && map.publicKey?.isNotBlank() == true
     if (!canRenderMap) {
@@ -547,7 +548,7 @@ fun TrailAssetPreviewMap(
         height = height,
         lineColor = USER_TRAIL_COLOR,
         eventLevel = MTEventLevel.ESSENTIAL,
-        zoomGesturesEnabled = false,
+        zoomGesturesEnabled = zoomGesturesEnabled,
         onMapTap = { _, _ -> },
         modifier = modifier,
     )
