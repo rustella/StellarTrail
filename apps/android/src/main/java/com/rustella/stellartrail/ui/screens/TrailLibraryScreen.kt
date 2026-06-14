@@ -6,7 +6,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -46,6 +45,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -72,7 +72,9 @@ import com.rustella.stellartrail.ui.common.LoadingState
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SoftPillButton
 import com.rustella.stellartrail.ui.common.SurfaceCard
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 
@@ -495,13 +497,39 @@ private fun Trail3dTrackPanel(trail: Trail, modifier: Modifier = Modifier) {
                         canvasHeightPx = size.height.coerceAtLeast(1)
                     }
                     .pointerInput(model) {
-                        detectTransformGestures { _, pan, zoomChange, _ ->
-                            camera = updateTrail3dCamera(
-                                camera = camera,
-                                yawDeltaDegrees = pan.x * 0.32,
-                                pitchDeltaDegrees = -pan.y * 0.24,
-                                zoomMultiplier = zoomChange.toDouble(),
-                            )
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val pressedChanges = event.changes.filter { it.pressed }
+                                when (pressedChanges.size) {
+                                    0 -> Unit
+                                    1 -> {
+                                        val change = pressedChanges.single()
+                                        val delta = change.position - change.previousPosition
+                                        if (change.previousPressed && !delta.isZero()) {
+                                            camera = panTrail3dCamera(
+                                                camera = camera,
+                                                panDeltaXPx = delta.x.toDouble(),
+                                                panDeltaYPx = delta.y.toDouble(),
+                                            )
+                                            change.consume()
+                                        }
+                                    }
+                                    else -> {
+                                        val stableChanges = pressedChanges.filter { it.previousPressed }
+                                        if (stableChanges.size >= 2) {
+                                            val pan = stableChanges.currentCentroid() - stableChanges.previousCentroid()
+                                            camera = updateTrail3dCamera(
+                                                camera = camera,
+                                                yawDeltaDegrees = pan.x * 0.28 + stableChanges.rotationDegrees() * 0.8,
+                                                pitchDeltaDegrees = -pan.y * 0.22,
+                                                zoomMultiplier = stableChanges.zoomMultiplier().toDouble(),
+                                            )
+                                            stableChanges.forEach { it.consume() }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     .pointerInput(model, projection) {
@@ -649,6 +677,53 @@ private fun Trail3dProjection.nearestTrackPointIndex(offset: Offset): Int? =
         val point = trackPoints[index]
         hypot((point.x - offset.x).toDouble(), (point.y - offset.y).toDouble())
     }
+
+private fun Offset.isZero(): Boolean = x == 0f && y == 0f
+
+private fun List<PointerInputChange>.currentCentroid(): Offset = centroid { it.position }
+
+private fun List<PointerInputChange>.previousCentroid(): Offset = centroid { it.previousPosition }
+
+private fun List<PointerInputChange>.centroid(position: (PointerInputChange) -> Offset): Offset {
+    if (isEmpty()) return Offset.Zero
+    val x = sumOf { position(it).x.toDouble() } / size
+    val y = sumOf { position(it).y.toDouble() } / size
+    return Offset(x.toFloat(), y.toFloat())
+}
+
+private fun List<PointerInputChange>.zoomMultiplier(): Float {
+    val currentCentroid = currentCentroid()
+    val previousCentroid = previousCentroid()
+    val currentDistance = averageDistanceFrom(currentCentroid) { it.position }
+    val previousDistance = averageDistanceFrom(previousCentroid) { it.previousPosition }
+    if (previousDistance <= 0.0001f || !currentDistance.isFinite()) return 1f
+    return (currentDistance / previousDistance).coerceIn(0.75f, 1.35f)
+}
+
+private fun List<PointerInputChange>.averageDistanceFrom(
+    centroid: Offset,
+    position: (PointerInputChange) -> Offset,
+): Float {
+    if (isEmpty()) return 0f
+    val distance = sumOf { change ->
+        val point = position(change)
+        hypot((point.x - centroid.x).toDouble(), (point.y - centroid.y).toDouble())
+    } / size
+    return distance.toFloat()
+}
+
+private fun List<PointerInputChange>.rotationDegrees(): Double {
+    if (size < 2) return 0.0
+    val first = this[0]
+    val second = this[1]
+    val current = second.position - first.position
+    val previous = second.previousPosition - first.previousPosition
+    if (current.isZero() || previous.isZero()) return 0.0
+    var degrees = (atan2(current.y, current.x) - atan2(previous.y, previous.x)) * 180.0 / PI
+    if (degrees > 180.0) degrees -= 360.0
+    if (degrees < -180.0) degrees += 360.0
+    return degrees
+}
 
 private fun Trail3dPreviewMode.label(): String = when (this) {
     Trail3dPreviewMode.Map -> "地图"

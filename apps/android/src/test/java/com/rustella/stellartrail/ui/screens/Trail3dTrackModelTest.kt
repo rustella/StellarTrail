@@ -98,17 +98,77 @@ class Trail3dTrackModelTest {
     }
 
     @Test
-    fun trackCameraClampsPitchAndZoomAndCanReset() {
+    fun trackCameraSettersClampPitchAndNormalizeYaw() {
+        val camera = Trail3dCamera(yawDegrees = 0.0, pitchDegrees = 55.0, zoom = 1.0)
+
+        assertEquals(-170.0, setTrail3dCameraYaw(camera, 190.0).yawDegrees, 0.0)
+        assertEquals(170.0, setTrail3dCameraYaw(camera, -190.0).yawDegrees, 0.0)
+        assertEquals(TRAIL_3D_DEFAULT_YAW_DEGREES, setTrail3dCameraYaw(camera, Double.NaN).yawDegrees, 0.0)
+        assertEquals(TRAIL_3D_MIN_PITCH_DEGREES, setTrail3dCameraPitch(camera, 0.0).pitchDegrees, 0.0)
+        assertEquals(TRAIL_3D_MAX_PITCH_DEGREES, setTrail3dCameraPitch(camera, 90.0).pitchDegrees, 0.0)
+    }
+
+    @Test
+    fun trackCameraUpdateNormalizesYawAndClampsPitchAndZoom() {
         val camera = updateTrail3dCamera(
-            Trail3dCamera(yawDegrees = 10.0, pitchDegrees = 55.0, zoom = 1.0),
-            yawDeltaDegrees = 20.0,
+            Trail3dCamera(yawDegrees = 170.0, pitchDegrees = 55.0, zoom = 1.0),
+            yawDeltaDegrees = 30.0,
             pitchDeltaDegrees = 100.0,
             zoomMultiplier = 10.0,
         )
 
-        assertEquals(30.0, camera.yawDegrees, 0.0)
+        assertEquals(-160.0, camera.yawDegrees, 0.0)
         assertEquals(TRAIL_3D_MAX_PITCH_DEGREES, camera.pitchDegrees, 0.0)
         assertEquals(TRAIL_3D_MAX_ZOOM, camera.zoom, 0.0)
+    }
+
+    @Test
+    fun trackCameraZoomMultiplierStaysWithinLimit() {
+        assertEquals(
+            TRAIL_3D_MAX_ZOOM,
+            zoomTrail3dCamera(
+                Trail3dCamera(zoom = TRAIL_3D_MAX_ZOOM),
+                10.0,
+            ).zoom,
+            0.0,
+        )
+        assertEquals(
+            TRAIL_3D_MIN_ZOOM,
+            zoomTrail3dCamera(
+                Trail3dCamera(zoom = TRAIL_3D_MIN_ZOOM),
+                0.1,
+            ).zoom,
+            0.0,
+        )
+    }
+
+    @Test
+    fun trackCameraPanMovesProjectionAndCanReset() {
+        val model = buildTrail3dTrackModel(
+            listOf(
+                TrailPoint(lng = 114.0, lat = 22.0, elevationM = 100.0),
+                TrailPoint(lng = 114.001, lat = 22.001, elevationM = 180.0),
+                TrailPoint(lng = 114.002, lat = 22.0, elevationM = 140.0),
+            ),
+        )
+        val baseProjection = projectTrail3dScene(model, resetTrail3dCamera(), viewportWidthPx = 480f, viewportHeightPx = 320f)
+        val pannedCamera = panTrail3dCamera(resetTrail3dCamera(), panDeltaXPx = 24.0, panDeltaYPx = -18.0)
+        val pannedProjection = projectTrail3dScene(model, pannedCamera, viewportWidthPx = 480f, viewportHeightPx = 320f)
+
+        assertEquals(24.0, pannedCamera.panXPx, 0.0)
+        assertEquals(-18.0, pannedCamera.panYPx, 0.0)
+        assertNotNull(baseProjection)
+        assertNotNull(pannedProjection)
+        baseProjection ?: return
+        pannedProjection ?: return
+        assertEquals(baseProjection.trackPoints.first().x.toDouble() + 24.0, pannedProjection.trackPoints.first().x.toDouble(), 0.01)
+        assertEquals(baseProjection.trackPoints.first().y.toDouble() - 18.0, pannedProjection.trackPoints.first().y.toDouble(), 0.01)
+        assertEquals(0.0, resetTrail3dCamera().panXPx, 0.0)
+        assertEquals(0.0, resetTrail3dCamera().panYPx, 0.0)
+    }
+
+    @Test
+    fun trackCameraCanReset() {
         assertEquals(Trail3dCamera(), resetTrail3dCamera())
     }
 }

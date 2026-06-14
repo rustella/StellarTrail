@@ -15,6 +15,8 @@ internal const val TRAIL_3D_TRACK_MAX_POINTS = 240
 internal const val TRAIL_3D_DEFAULT_YAW_DEGREES = -35.0
 internal const val TRAIL_3D_DEFAULT_PITCH_DEGREES = 55.0
 internal const val TRAIL_3D_DEFAULT_ZOOM = 1.0
+internal const val TRAIL_3D_MIN_YAW_DEGREES = -180.0
+internal const val TRAIL_3D_MAX_YAW_DEGREES = 180.0
 internal const val TRAIL_3D_MIN_PITCH_DEGREES = 20.0
 internal const val TRAIL_3D_MAX_PITCH_DEGREES = 78.0
 internal const val TRAIL_3D_MIN_ZOOM = 0.65
@@ -47,6 +49,8 @@ internal data class Trail3dCamera(
     val yawDegrees: Double = TRAIL_3D_DEFAULT_YAW_DEGREES,
     val pitchDegrees: Double = TRAIL_3D_DEFAULT_PITCH_DEGREES,
     val zoom: Double = TRAIL_3D_DEFAULT_ZOOM,
+    val panXPx: Double = 0.0,
+    val panYPx: Double = 0.0,
 )
 
 internal data class Trail3dProjectedPoint(
@@ -140,19 +144,62 @@ internal fun evenlySampleTrackPoints(
 
 internal fun resetTrail3dCamera(): Trail3dCamera = Trail3dCamera()
 
+internal fun setTrail3dCameraYaw(camera: Trail3dCamera, yawDegrees: Double): Trail3dCamera =
+    camera.copy(yawDegrees = normalizeTrail3dYawDegrees(yawDegrees))
+
+internal fun setTrail3dCameraPitch(camera: Trail3dCamera, pitchDegrees: Double): Trail3dCamera =
+    camera.copy(
+        pitchDegrees = pitchDegrees.finiteOrDefault(TRAIL_3D_DEFAULT_PITCH_DEGREES).coerceIn(
+            TRAIL_3D_MIN_PITCH_DEGREES,
+            TRAIL_3D_MAX_PITCH_DEGREES,
+        ),
+    )
+
+internal fun setTrail3dCameraZoom(camera: Trail3dCamera, zoom: Double): Trail3dCamera =
+    camera.copy(
+        zoom = zoom.finiteOrDefault(TRAIL_3D_DEFAULT_ZOOM).coerceIn(
+            TRAIL_3D_MIN_ZOOM,
+            TRAIL_3D_MAX_ZOOM,
+        ),
+    )
+
+internal fun zoomTrail3dCamera(
+    camera: Trail3dCamera,
+    zoomMultiplier: Double,
+): Trail3dCamera = setTrail3dCameraZoom(
+    camera = camera,
+    zoom = camera.zoom * zoomMultiplier.finiteOrDefault(1.0),
+)
+
+internal fun panTrail3dCamera(
+    camera: Trail3dCamera,
+    panDeltaXPx: Double,
+    panDeltaYPx: Double,
+): Trail3dCamera = camera.copy(
+    panXPx = camera.panXPx + panDeltaXPx.finiteOrDefault(0.0),
+    panYPx = camera.panYPx + panDeltaYPx.finiteOrDefault(0.0),
+)
+
 internal fun updateTrail3dCamera(
     camera: Trail3dCamera,
     yawDeltaDegrees: Double = 0.0,
     pitchDeltaDegrees: Double = 0.0,
     zoomMultiplier: Double = 1.0,
-): Trail3dCamera = Trail3dCamera(
-    yawDegrees = camera.yawDegrees + yawDeltaDegrees,
-    pitchDegrees = (camera.pitchDegrees + pitchDeltaDegrees).coerceIn(
-        TRAIL_3D_MIN_PITCH_DEGREES,
-        TRAIL_3D_MAX_PITCH_DEGREES,
-    ),
-    zoom = (camera.zoom * zoomMultiplier).coerceIn(TRAIL_3D_MIN_ZOOM, TRAIL_3D_MAX_ZOOM),
-)
+    panDeltaXPx: Double = 0.0,
+    panDeltaYPx: Double = 0.0,
+): Trail3dCamera = camera
+    .let { setTrail3dCameraYaw(it, it.yawDegrees + yawDeltaDegrees) }
+    .let { setTrail3dCameraPitch(it, it.pitchDegrees + pitchDeltaDegrees) }
+    .let { zoomTrail3dCamera(it, zoomMultiplier) }
+    .let { panTrail3dCamera(it, panDeltaXPx, panDeltaYPx) }
+
+internal fun normalizeTrail3dYawDegrees(yawDegrees: Double): Double {
+    if (!yawDegrees.isFinite()) return TRAIL_3D_DEFAULT_YAW_DEGREES
+    var normalized = yawDegrees % 360.0
+    if (normalized > TRAIL_3D_MAX_YAW_DEGREES) normalized -= 360.0
+    if (normalized < TRAIL_3D_MIN_YAW_DEGREES) normalized += 360.0
+    return normalized
+}
 
 internal fun projectTrail3dScene(
     model: Trail3dTrackModel,
@@ -212,8 +259,8 @@ internal fun projectTrail3dScene(
     val centerRawX = (rawMinX + rawMaxX) / 2.0
     val centerRawY = (rawMinY + rawMaxY) / 2.0
     fun toScreen(raw: Raw3dPoint): Trail3dProjectedPoint = Trail3dProjectedPoint(
-        x = (viewportWidthPx / 2.0 + (raw.x - centerRawX) * scale).toFloat(),
-        y = (viewportHeightPx / 2.0 + (raw.y - centerRawY) * scale).toFloat(),
+        x = (viewportWidthPx / 2.0 + (raw.x - centerRawX) * scale + clampedCamera.panXPx).toFloat(),
+        y = (viewportHeightPx / 2.0 + (raw.y - centerRawY) * scale + clampedCamera.panYPx).toFloat(),
         depth = raw.depth,
         source = raw.source,
     )
@@ -324,6 +371,8 @@ private fun haversineDistanceM(a: TrailPoint, b: TrailPoint): Double {
     val h = sin(deltaLat / 2).pow(2.0) + cos(lat1) * cos(lat2) * sin(deltaLng / 2).pow(2.0)
     return 2.0 * EARTH_RADIUS_M * asin(sqrt(h.coerceIn(0.0, 1.0)))
 }
+
+private fun Double.finiteOrDefault(default: Double): Double = if (isFinite()) this else default
 
 private fun Double.toRadians(): Double = this * PI / 180.0
 
