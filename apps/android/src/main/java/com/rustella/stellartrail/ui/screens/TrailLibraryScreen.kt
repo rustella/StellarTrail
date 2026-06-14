@@ -527,17 +527,16 @@ private fun TrailPreviewDialog(
                             Trail3dTrackPanel(
                                 trail = trail,
                                 modifier = Modifier.fillMaxSize(),
+                                topStartControls = {
+                                    TrailPreviewTrackReturnButton(
+                                        enabled = true,
+                                        onClick = { previewState = exitTrailMapPreview3d(previewState) },
+                                    )
+                                },
                                 topEndControls = {
                                     TrailPreview3dContentSelector(
                                         selectedContent = previewState.content3d,
                                         onSelect3dContent = { previewState = selectTrailMap3dContent(previewState, it) },
-                                    )
-                                },
-                                bottomStartControls = {
-                                    TrailPreviewDimensionButton(
-                                        state = previewState,
-                                        onEnter3d = { previewState = enterTrailMapPreview3d(previewState) },
-                                        onExit3d = { previewState = exitTrailMapPreview3d(previewState) },
                                     )
                                 },
                             )
@@ -580,19 +579,18 @@ private fun TrailPreviewDialog(
                                     Trail3dTrackPanel(
                                         trail = trail,
                                         modifier = Modifier.fillMaxSize(),
+                                        topStartControls = {
+                                            TrailPreviewTrackReturnButton(
+                                                enabled = true,
+                                                onClick = { previewState = exitTrailMapPreview3d(previewState) },
+                                            )
+                                        },
                                         topEndControls = {
                                             TrailPreview3dContentSelector(
                                                 selectedContent = previewState.content3d,
                                                 onSelect3dContent = {
                                                     previewState = selectTrailMap3dContent(previewState, it)
                                                 },
-                                            )
-                                        },
-                                        bottomStartControls = {
-                                            TrailPreviewDimensionButton(
-                                                state = previewState,
-                                                onEnter3d = { previewState = enterTrailMapPreview3d(previewState) },
-                                                onExit3d = { previewState = exitTrailMapPreview3d(previewState) },
                                             )
                                         },
                                     )
@@ -646,6 +644,22 @@ private fun TrailPreviewDimensionButton(
 }
 
 @Composable
+private fun TrailPreviewTrackReturnButton(enabled: Boolean, onClick: () -> Unit) {
+    Text(
+        text = "2D地图",
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.94f))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        color = MaterialTheme.colorScheme.onPrimary,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.ExtraBold,
+        maxLines = 1,
+    )
+}
+
+@Composable
 private fun TrailPreview3dContentSelector(
     selectedContent: TrailMap3dContent,
     onSelect3dContent: (TrailMap3dContent) -> Unit,
@@ -655,7 +669,7 @@ private fun TrailPreview3dContentSelector(
             .clip(RoundedCornerShape(999.dp))
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
             .padding(2.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TrailPreviewModeChip(
@@ -684,7 +698,7 @@ private fun TrailPreviewModeChip(
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
             .clickable(enabled = enabled) { onClick() }
-            .padding(horizontal = 14.dp, vertical = 7.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.ExtraBold,
@@ -696,8 +710,8 @@ private fun TrailPreviewModeChip(
 private fun Trail3dTrackPanel(
     trail: Trail,
     modifier: Modifier = Modifier,
+    topStartControls: (@Composable () -> Unit)? = null,
     topEndControls: (@Composable () -> Unit)? = null,
-    bottomStartControls: (@Composable () -> Unit)? = null,
 ) {
     val model = remember(trail.normalizedPoints) { buildTrail3dTrackModel(trail.normalizedPoints) }
     var camera by remember(model) { mutableStateOf(resetTrail3dCamera()) }
@@ -715,18 +729,13 @@ private fun Trail3dTrackPanel(
                     .fillMaxSize()
                     .padding(12.dp),
             ) {
-                topEndControls?.let { controls ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        controls()
-                    }
-                }
+                Trail3dTrackControlRow(
+                    topStartControls = topStartControls,
+                    topEndControls = topEndControls,
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     EmptyState("暂无轨迹3D", "这条轨迹没有足够的带海拔轨迹点。")
-                }
-                bottomStartControls?.let { controls ->
-                    Box(Modifier.align(Alignment.BottomStart)) {
-                        controls()
-                    }
                 }
             }
         }
@@ -762,11 +771,10 @@ private fun Trail3dTrackPanel(
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                topEndControls?.let { controls ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        controls()
-                    }
-                }
+                Trail3dTrackControlRow(
+                    topStartControls = topStartControls,
+                    topEndControls = topEndControls,
+                )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TrailTrendMetric("最低", model.minElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
                     TrailTrendMetric("最高", model.maxElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
@@ -854,15 +862,26 @@ private fun Trail3dTrackPanel(
                     )
                 }
             }
-            bottomStartControls?.let { controls ->
-                Box(
-                    Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 12.dp, bottom = 44.dp),
-                ) {
-                    controls()
-                }
-            }
+        }
+    }
+}
+
+@Composable
+private fun Trail3dTrackControlRow(
+    topStartControls: (@Composable () -> Unit)?,
+    topEndControls: (@Composable () -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            topStartControls?.invoke()
+        }
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+            topEndControls?.invoke()
         }
     }
 }
