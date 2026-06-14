@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,11 +26,15 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,6 +77,8 @@ import com.rustella.stellartrail.ui.common.LoadingState
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SoftPillButton
 import com.rustella.stellartrail.ui.common.SurfaceCard
+import com.rustella.stellartrail.ui.common.TrailInnerCardShape
+import com.rustella.stellartrail.ui.common.currentTrailPalette
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -287,35 +294,117 @@ private fun TrailLibraryRow(
     onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val palette = currentTrailPalette()
     SurfaceCard(
         Modifier
             .fillMaxWidth()
-            .clickable(enabled = selecting && enabled, onClick = onToggle),
-        contentPadding = PaddingValues(12.dp),
+            .clickable(enabled = enabled, onClick = { if (selecting) onToggle() else onPreview() }),
+        contentPadding = PaddingValues(14.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
             if (selecting) Checkbox(checked = selected, onCheckedChange = { onToggle() }, enabled = enabled)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Badge(trail.sourceFormat.label())
-                    Text(trail.displayName, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Badge(trail.sourceFormat.label())
+                        Text(
+                            trail.displayName,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    TrailLibraryEditMenu(enabled = enabled, onRename = onRename, onDelete = onDelete)
                 }
-                Text(
-                    trail.metricLine(),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(trail.elevationLine(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    "更新 ${trail.updatedAt.datePart()}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CompactPillAction("预览", onPreview, enabled = enabled)
-                    CompactPillAction("重命名", onRename, enabled = enabled)
-                    CompactPillAction("删除", onDelete, enabled = enabled)
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(TrailInnerCardShape)
+                        .background(palette.controlBackground)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TrailLibraryFact("长度", (trail.distanceM / 1000.0).formatOne() + " km", Modifier.weight(1f))
+                        TrailLibraryFact("爬升", trail.ascentM.formatMeters(), Modifier.weight(1f))
+                        TrailLibraryFact("下降", trail.descentM.formatMeters(), Modifier.weight(1f))
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TrailLibraryFact("起点", trail.startElevationM?.formatMeters() ?: "暂无", Modifier.weight(1f))
+                        TrailLibraryFact("终点", trail.endElevationM?.formatMeters() ?: "暂无", Modifier.weight(1f))
+                        TrailLibraryFact("更新", trail.updatedAt.datePart(), Modifier.weight(1f))
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TrailLibraryEditMenu(
+    enabled: Boolean,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(
+            onClick = { expanded = true },
+            enabled = enabled,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = "编辑轨迹",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("重命名") },
+                onClick = {
+                    expanded = false
+                    onRename()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("删除") },
+                onClick = {
+                    expanded = false
+                    onDelete()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrailLibraryFact(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
