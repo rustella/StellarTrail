@@ -1,5 +1,6 @@
 package com.rustella.stellartrail.core.network
 
+import com.rustella.stellartrail.BuildConfig
 import com.rustella.stellartrail.core.config.AppConfig
 import com.rustella.stellartrail.core.config.AppDomainCandidate
 import com.rustella.stellartrail.core.config.RequestSignatureCredentials
@@ -55,7 +56,10 @@ class ApiClientTest {
         assertEquals("/base/healthz", request.url.encodedPath)
         assertEquals("q=trail", request.url.encodedQuery)
         assertEquals("Bearer access-token", request.headers[HttpHeaders.Authorization])
-        assertEquals("android/0.1.0", request.headers["X-StellarTrail-Client"])
+        assertEquals(
+            "${BuildConfig.DEFAULT_CLIENT}/${BuildConfig.DEFAULT_CLIENT_VERSION}",
+            request.headers["X-StellarTrail-Client"],
+        )
     }
 
     @Test

@@ -37,7 +37,7 @@ HTTP/1.1 400 Bad Request
 
 - Web：默认从 `apps/web/package.json` 的 `version` 通过 Vite 注入，生成 `web/0.1.0`。
 - WeChat：`apps/wechat-miniprogram/miniprogram/config.example.ts` 默认 `client: "wechat"`、`version: "0.2.2"`，本地 `config.ts` 可覆盖。
-- Android：`apps/android/config.example.properties` / `config.properties` 默认 `stellartrail.client=android`、`stellartrail.clientVersion=0.1.0`，Gradle 注入 `BuildConfig`。
+- Android：`apps/android/build.gradle.kts` 定义应用版本常量，生成 `android/0.1.2`；配置文件只管理 `stellartrail.client` 和环境相关配置，Gradle 注入 `BuildConfig`。
 - iOS：`apps/ios/StellarTrail/Resources/ClientConfig.example.plist` 默认 `CLIENT=ios`、`CLIENT_VERSION=0.1.0`，本地 `ClientConfig.plist` 可覆盖。
 - macOS：`apps/macos/StellarTrailMac/Resources/ClientConfig.example.plist` 默认 `CLIENT=mac`、`CLIENT_VERSION=0.1.0`，本地 `ClientConfig.plist` 可覆盖。
 
