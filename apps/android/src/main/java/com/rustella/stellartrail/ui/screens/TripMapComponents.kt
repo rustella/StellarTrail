@@ -1200,7 +1200,7 @@ private fun OverviewTrailSidebar(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    "迹",
+                    "<",
                     color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.ExtraBold,
