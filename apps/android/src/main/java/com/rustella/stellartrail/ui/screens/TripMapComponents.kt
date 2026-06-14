@@ -163,7 +163,11 @@ fun TripsOverviewMapSection(
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("行程轨迹总览", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
                 Text(
-                    if (trails.isEmpty()) "上传轨迹后会在这里汇总显示。" else "${data.stats.tripCount} 个行程 · ${data.stats.trailCount} 条轨迹",
+                    if (trails.isEmpty()) {
+                        "这里只汇总已绑定到行程的轨迹；轨迹库中未绑定行程的轨迹不会显示。"
+                    } else {
+                        "${data.stats.tripCount} 个行程 · ${data.stats.trailCount} 条已绑定轨迹"
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -1184,11 +1188,13 @@ private class TrailMapDelegate(
     }
 
     override fun onEventTriggered(event: MTEvent, data: MTData?) {
+        if (shouldEnsureTrailLayerOnEvent(event)) {
+            renderTrailLayer()
+            enablePinchGestureIfNeeded()
+            restoreCurrentLocationMarker()
+            return
+        }
         when (event) {
-            MTEvent.ON_READY, MTEvent.ON_LOAD -> {
-                enablePinchGestureIfNeeded()
-                restoreCurrentLocationMarker()
-            }
             MTEvent.ON_IDLE, MTEvent.ON_MOVE_END, MTEvent.ON_ZOOM_END, MTEvent.ON_DRAG_END -> {
                 requestCameraSnapshot()
             }
@@ -1692,6 +1698,9 @@ internal fun shouldStopLocationTracking(reason: LocationTrackingStopReason): Boo
     LocationTrackingStopReason.MapCanvasGesture,
     LocationTrackingStopReason.StyleSwitch -> false
 }
+
+internal fun shouldEnsureTrailLayerOnEvent(event: MTEvent): Boolean =
+    event == MTEvent.ON_READY || event == MTEvent.ON_LOAD
 
 private fun createCurrentLocationMarkerBitmap(
     spec: CurrentLocationMarkerVisualSpec = currentLocationMarkerVisualSpec(),
