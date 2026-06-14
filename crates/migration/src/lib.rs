@@ -32,6 +32,7 @@ mod create_user_gear_items;
 mod create_user_knot_favorites;
 mod create_user_outdoor_profiles;
 mod create_users_sessions;
+mod ensure_android_profile_about_copy;
 mod ensure_sms_verification_challenges;
 mod ensure_user_gear_archive_fields;
 mod ensure_users_phone_fields;
@@ -100,6 +101,7 @@ impl MigratorTrait for Migrator {
             Box::new(create_app_content_pages::Migration),
             Box::new(update_profile_about_copy::Migration),
             Box::new(compat_folded_migrations::ensure_gear_atlas_import_i18n::Migration),
+            Box::new(ensure_android_profile_about_copy::Migration),
         ]
     }
 }
@@ -160,6 +162,7 @@ mod tests {
             "m20260607_000002_create_app_content_pages",
             "m20260607_000003_update_profile_about_copy",
             "m20260611_000001_ensure_gear_atlas_import_i18n",
+            "m20260615_000001_ensure_android_profile_about_copy",
         ]
         .into_iter()
         .map(str::to_owned)

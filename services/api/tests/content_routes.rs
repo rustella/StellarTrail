@@ -149,6 +149,58 @@ async fn content_page_route_returns_seeded_profile_about_copy() {
 }
 
 #[tokio::test]
+async fn content_page_route_returns_seeded_android_profile_about_copy() {
+    let app = test_app().await;
+    let seeded_row = app
+        .db
+        .query_one(Statement::from_string(
+            app.db.get_database_backend(),
+            "SELECT content_json FROM app_content_pages WHERE page_key = 'profile_about' AND client_key = 'android' AND locale = 'zh-CN'",
+        ))
+        .await
+        .unwrap();
+    assert!(
+        seeded_row.is_some(),
+        "Android profile About content seed is missing"
+    );
+
+    let (status, body) = get_json(
+        &app.router,
+        "/api/v1/content-pages/profile_about?client_key=android&locale=zh-CN",
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["page_key"], "profile_about");
+    assert_eq!(body["client_key"], "android");
+    assert_eq!(body["locale"], "zh-CN");
+    assert_eq!(body["eyebrow"], "🏕️ 寻径星野");
+    assert_eq!(body["title"], "关于寻径星野");
+    assert_eq!(body["subtitle"], "把每次出发前的准备，整理得更安心。");
+    assert_eq!(body["sections"].as_array().unwrap().len(), 3);
+    assert_eq!(body["sections"][0]["title"], "出发准备");
+    assert_eq!(body["sections"][0]["icon"], "🧭");
+    assert_eq!(
+        body["sections"][2]["body"],
+        "这个项目由作者在业余时间出于爱好开发，也会按自己的使用感受持续打磨。希望它能陪你把每次出发前的准备做得更清楚、更安心。"
+    );
+    assert!(
+        !body["sections"][2]["body"]
+            .as_str()
+            .unwrap()
+            .contains("广告")
+    );
+    assert!(
+        !body["sections"][2]["body"]
+            .as_str()
+            .unwrap()
+            .contains("商业化")
+    );
+    assert_eq!(body["button_text"], "知道了");
+    assert_eq!(body["updated_at"], "2026-06-15T00:00:00Z");
+}
+
+#[tokio::test]
 async fn content_page_route_rejects_unknown_or_invalid_selectors() {
     let app = test_app().await;
 

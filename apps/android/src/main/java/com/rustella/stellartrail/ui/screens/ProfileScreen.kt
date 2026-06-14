@@ -49,9 +49,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rustella.stellartrail.core.theme.ThemeMode
 import com.rustella.stellartrail.domain.auth.LoginUser
 import com.rustella.stellartrail.domain.auth.UserSession
+import com.rustella.stellartrail.feature.profile.ProfileAboutSectionUi
+import com.rustella.stellartrail.feature.profile.ProfileAboutUiState
+import com.rustella.stellartrail.feature.profile.ProfileAboutViewModel
 import com.rustella.stellartrail.feature.profile.ProfileCacheKind
 import com.rustella.stellartrail.feature.profile.ProfileCacheViewModel
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
+import com.rustella.stellartrail.feature.profile.ProfileVersionInfoUiState
 import com.rustella.stellartrail.ui.common.AvatarImage
 import com.rustella.stellartrail.ui.common.CompactPillAction
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
@@ -267,11 +271,13 @@ fun ProfileCacheScreen(
 
 @Composable
 fun ProfileAboutScreen(
+    viewModel: ProfileAboutViewModel,
     onBack: () -> Unit,
     onOpenRoadmap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var dialog by remember { mutableStateOf<ProfileAboutAction?>(null) }
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    var showVersionInfo by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -280,34 +286,7 @@ fun ProfileAboutScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        SurfaceCard {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
-                    Text(
-                        ProfileVisualContract.aboutBrandEyebrow,
-                        color = currentTrailPalette().brandSoftText,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                    )
-                    Text(ProfileVisualContract.aboutBrandTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-                }
-                ProfileBackAction(onBack)
-            }
-            Text(
-                ProfileVisualContract.aboutBrandDescription,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ProfileVisualContract.aboutIntroItems.forEach { item ->
-                    ProfileAboutIntroRow(item)
-                }
-            }
-        }
+        ProfileAboutContentCard(state = state, onBack = onBack, onRetry = viewModel::load)
         SurfaceCard {
             Text(ProfileVisualContract.aboutTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
             ProfileVisualContract.aboutItems.forEach { item ->
@@ -316,15 +295,84 @@ fun ProfileAboutScreen(
                     onClick = {
                         when (item.action) {
                             ProfileAboutAction.Roadmap -> onOpenRoadmap()
-                            ProfileAboutAction.VersionInfo -> dialog = item.action
+                            ProfileAboutAction.VersionInfo -> {
+                                showVersionInfo = true
+                                viewModel.loadVersionInfo()
+                            }
                         }
                     },
                 )
             }
         }
     }
-    dialog?.let { action ->
-        ProfileAboutInfoDialog(action = action, onDismiss = { dialog = null })
+    if (showVersionInfo) {
+        ProfileVersionInfoDialog(
+            state = state.versionInfo,
+            onRetry = { viewModel.loadVersionInfo(force = true) },
+            onDismiss = { showVersionInfo = false },
+        )
+    }
+}
+
+@Composable
+private fun ProfileAboutContentCard(
+    state: ProfileAboutUiState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    val content = state.content
+    SurfaceCard {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                if (content != null) {
+                    Text(
+                        content.eyebrow,
+                        color = currentTrailPalette().brandSoftText,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    Text(content.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                } else {
+                    Text(
+                        if (state.loading) "正在加载关于内容..." else "关于内容加载失败",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
+            }
+            ProfileBackAction(onBack)
+        }
+        when {
+            content != null -> {
+                Text(
+                    content.subtitle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    content.sections.forEach { item ->
+                        ProfileAboutIntroRow(item)
+                    }
+                }
+            }
+            state.loading -> {
+                Text(
+                    "正在加载内容...",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            else -> {
+                state.error?.let { error ->
+                    Text(error, color = currentTrailPalette().dangerText, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                }
+                SoftPillButton(text = "重试", onClick = onRetry)
+            }
+        }
     }
 }
 
@@ -595,7 +643,7 @@ private fun ProfileCacheRow(
 }
 
 @Composable
-private fun ProfileAboutIntroRow(item: ProfileAboutIntroItem) {
+private fun ProfileAboutIntroRow(item: ProfileAboutSectionUi) {
     val palette = currentTrailPalette()
     Row(
         modifier = Modifier
@@ -618,7 +666,7 @@ private fun ProfileAboutIntroRow(item: ProfileAboutIntroItem) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
             Text(
-                item.description,
+                item.body,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
             )
@@ -678,15 +726,70 @@ private fun ProfileInfoDialog(action: ProfileHelpAction, onDismiss: () -> Unit) 
 }
 
 @Composable
-private fun ProfileAboutInfoDialog(action: ProfileAboutAction, onDismiss: () -> Unit) {
-    val (title, body) = ProfileVisualContract.aboutDialog(action)
+private fun ProfileVersionInfoDialog(
+    state: ProfileVersionInfoUiState,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title, fontWeight = FontWeight.ExtraBold) },
-        text = { Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        title = { Text("版本信息", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                when {
+                    state.loading -> {
+                        Text("正在加载版本信息...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    state.versions.isNotEmpty() -> {
+                        state.versions.forEach { version ->
+                            Text(version.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+                            Text(
+                                "版本 ${version.version}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            version.sections.forEach { section ->
+                                Text(section.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold)
+                                section.items.forEach { item ->
+                                    Text(
+                                        "· $item",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        Text(
+                            state.error ?: "版本信息暂不可用",
+                            color = currentTrailPalette().dangerText,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("知道了")
+            if (!state.loading && state.versions.isEmpty()) {
+                TextButton(onClick = onRetry) {
+                    Text("重试")
+                }
+            } else {
+                TextButton(onClick = onDismiss) {
+                    Text("知道了")
+                }
+            }
+        },
+        dismissButton = {
+            if (!state.loading && state.versions.isEmpty()) {
+                TextButton(onClick = onDismiss) {
+                    Text("关闭")
+                }
             }
         },
     )

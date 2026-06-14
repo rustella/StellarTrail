@@ -8,6 +8,8 @@ import com.rustella.stellartrail.data.auth.AuthRepository
 import com.rustella.stellartrail.data.profile.ProfileRepositoryContract
 import com.rustella.stellartrail.domain.auth.LoginUser
 import com.rustella.stellartrail.domain.auth.UserSession
+import com.rustella.stellartrail.domain.profile.AppContentPage
+import com.rustella.stellartrail.domain.profile.ListClientVersionsResponse
 import com.rustella.stellartrail.domain.profile.ListOutdoorExperiencesResponse
 import com.rustella.stellartrail.domain.profile.ListRoadmapResponse
 import com.rustella.stellartrail.domain.profile.OutdoorExperienceRequest
@@ -94,6 +96,8 @@ class ProfileViewModelTest {
 
     private class FakeProfileRepository(private val user: LoginUser) : ProfileRepositoryContract {
         override suspend fun currentProfile(): ProfileUserResponse = ProfileUserResponse(user)
+        override suspend fun profileAboutContent(): AppContentPage = unused()
+        override suspend fun listAndroidClientVersions(): ListClientVersionsResponse = unused()
         override suspend fun outdoorProfile(): OutdoorProfileResponse = unused()
         override suspend fun updateOutdoorProfile(request: JsonObject): OutdoorProfileResponse = unused()
         override suspend fun listOutdoorExperiences(): ListOutdoorExperiencesResponse = unused()

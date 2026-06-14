@@ -217,6 +217,46 @@ async fn public_client_versions_return_seeded_wechat_release() {
 }
 
 #[tokio::test]
+async fn public_client_versions_return_only_android_zero_zero_one_release() {
+    let app = test_app().await;
+
+    let (current_status, current) = send_empty_json(
+        &app.router,
+        "GET",
+        "/api/v1/client-versions/current?client_key=android",
+        None,
+    )
+    .await;
+    assert_eq!(current_status, StatusCode::OK, "{current}");
+    assert_eq!(current["version"], "0.0.1");
+    assert_eq!(current["title"], "Android 0.0.1 初始版本");
+    assert_eq!(current["status"], "published");
+    assert_eq!(current["release_note_sections"][0]["key"], "feature");
+    assert!(
+        current["release_notes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item
+                .as_str()
+                .unwrap()
+                .contains("行程规划、轨迹导入、轨迹库和地图预览"))
+    );
+
+    let (list_status, list) = send_empty_json(
+        &app.router,
+        "GET",
+        "/api/v1/client-versions?client_key=android",
+        None,
+    )
+    .await;
+    assert_eq!(list_status, StatusCode::OK, "{list}");
+    let items = list["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["version"], "0.0.1");
+}
+
+#[tokio::test]
 async fn public_client_versions_validate_client_key_and_filter_drafts() {
     let app = test_app().await;
     let admin_token = grant_admin_role(&app, "draft_filter").await;
@@ -324,11 +364,11 @@ async fn admin_can_create_publish_update_and_list_client_versions() {
         "/api/v1/admin/client-versions",
         Some(&admin_token),
         json!({
-            "client_key": "android",
+            "client_key": "ios",
             "version": "0.1.0",
-            "title": "Android 初始版本",
+            "title": "iOS 初始版本",
             "release_note_sections": [
-                {"key": "feature", "title": "Feature", "items": ["新增 Android 客户端"]}
+                {"key": "feature", "title": "Feature", "items": ["新增 iOS 客户端"]}
             ],
             "status": "draft"
         }),
@@ -344,11 +384,11 @@ async fn admin_can_create_publish_update_and_list_client_versions() {
         &format!("/api/v1/admin/client-versions/{id}"),
         Some(&admin_token),
         json!({
-            "client_key": "android",
+            "client_key": "ios",
             "version": "0.1.0",
-            "title": "Android 0.1.0",
+            "title": "iOS 0.1.0",
             "release_note_sections": [
-                {"key": "feature", "title": "Feature", "items": ["新增 Android 客户端"]},
+                {"key": "feature", "title": "Feature", "items": ["新增 iOS 客户端"]},
                 {"key": "bug_fix", "title": "BugFix", "items": ["支持多域名探测"]}
             ],
             "status": "published",
@@ -366,18 +406,18 @@ async fn admin_can_create_publish_update_and_list_client_versions() {
     let (admin_list_status, admin_list) = send_empty_json(
         &app.router,
         "GET",
-        "/api/v1/admin/client-versions?client_key=android&status=published",
+        "/api/v1/admin/client-versions?client_key=ios&status=published",
         Some(&admin_token),
     )
     .await;
     assert_eq!(admin_list_status, StatusCode::OK, "{admin_list}");
-    assert_eq!(admin_list["items"][0]["title"], "Android 0.1.0");
+    assert_eq!(admin_list["items"][0]["title"], "iOS 0.1.0");
     assert_eq!(admin_list["items"][0]["commit_hash"], "abcdef1");
 
     let (public_status, public_list) = send_empty_json(
         &app.router,
         "GET",
-        "/api/v1/client-versions?client_key=android",
+        "/api/v1/client-versions?client_key=ios",
         None,
     )
     .await;

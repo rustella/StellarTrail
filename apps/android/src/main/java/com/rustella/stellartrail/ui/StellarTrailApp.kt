@@ -49,6 +49,7 @@ import com.rustella.stellartrail.feature.home.HomeViewModel
 import com.rustella.stellartrail.feature.packing.PackingViewModel
 import com.rustella.stellartrail.feature.profile.OutdoorExperiencesViewModel
 import com.rustella.stellartrail.feature.profile.OutdoorProfileViewModel
+import com.rustella.stellartrail.feature.profile.ProfileAboutViewModel
 import com.rustella.stellartrail.feature.profile.ProfileCacheViewModel
 import com.rustella.stellartrail.feature.profile.ProfileSettingsViewModel
 import com.rustella.stellartrail.feature.profile.ProfileViewModel
@@ -605,7 +606,11 @@ private fun AuthenticatedApp(
                 )
             }
             composable(AppRoutes.PROFILE_ABOUT) {
+                val viewModel: ProfileAboutViewModel = viewModel(factory = viewModelFactory {
+                    ProfileAboutViewModel(container.profileRepository)
+                })
                 ProfileAboutScreen(
+                    viewModel = viewModel,
                     onBack = { navController.popBackStack() },
                     onOpenRoadmap = { navController.navigate(AppRoutes.PROFILE_ROADMAP) },
                 )

@@ -1,6 +1,8 @@
 package com.rustella.stellartrail.data.profile
 
 import com.rustella.stellartrail.core.network.ApiClient
+import com.rustella.stellartrail.domain.profile.AppContentPage
+import com.rustella.stellartrail.domain.profile.ListClientVersionsResponse
 import com.rustella.stellartrail.domain.profile.ListOutdoorExperiencesResponse
 import com.rustella.stellartrail.domain.profile.ListRoadmapResponse
 import com.rustella.stellartrail.domain.profile.OutdoorExperienceRequest
@@ -15,6 +17,24 @@ import kotlinx.serialization.json.buildJsonObject
 class ProfileApi(private val apiClient: ApiClient) {
     suspend fun currentProfile(): ProfileUserResponse =
         apiClient.get<ProfileUserResponse>("/me/profile").withResolvedAvatar()
+
+    suspend fun profileAboutContent(): AppContentPage =
+        apiClient.get(
+            path = "/content-pages/profile_about",
+            query = mapOf(
+                "client_key" to "android",
+                "locale" to "zh-CN",
+            ),
+        )
+
+    suspend fun listAndroidClientVersions(): ListClientVersionsResponse =
+        apiClient.get(
+            path = "/client-versions",
+            query = mapOf(
+                "client_key" to "android",
+                "limit" to "20",
+            ),
+        )
 
     suspend fun outdoorProfile(): OutdoorProfileResponse = apiClient.get("/me/profile/outdoor")
 
@@ -68,6 +88,8 @@ class ProfileApi(private val apiClient: ApiClient) {
 
 interface ProfileRepositoryContract {
     suspend fun currentProfile(): ProfileUserResponse
+    suspend fun profileAboutContent(): AppContentPage
+    suspend fun listAndroidClientVersions(): ListClientVersionsResponse
     suspend fun outdoorProfile(): OutdoorProfileResponse
     suspend fun updateOutdoorProfile(request: JsonObject): OutdoorProfileResponse
     suspend fun listOutdoorExperiences(): ListOutdoorExperiencesResponse
@@ -83,6 +105,8 @@ interface ProfileRepositoryContract {
 
 class ProfileRepository(private val api: ProfileApi) : ProfileRepositoryContract {
     override suspend fun currentProfile(): ProfileUserResponse = api.currentProfile()
+    override suspend fun profileAboutContent(): AppContentPage = api.profileAboutContent()
+    override suspend fun listAndroidClientVersions(): ListClientVersionsResponse = api.listAndroidClientVersions()
     override suspend fun outdoorProfile(): OutdoorProfileResponse = api.outdoorProfile()
     override suspend fun updateOutdoorProfile(request: JsonObject): OutdoorProfileResponse = api.updateOutdoorProfile(request)
     override suspend fun listOutdoorExperiences(): ListOutdoorExperiencesResponse = api.listOutdoorExperiences()
