@@ -493,12 +493,17 @@ private fun TrailPreviewDialog(
                             Trail3dTrackPanel(
                                 trail = trail,
                                 modifier = Modifier.fillMaxSize(),
-                                topControls = {
-                                    TrailPreviewMapControls(
+                                topEndControls = {
+                                    TrailPreview3dContentSelector(
+                                        selectedContent = previewState.content3d,
+                                        onSelect3dContent = { previewState = selectTrailMap3dContent(previewState, it) },
+                                    )
+                                },
+                                bottomStartControls = {
+                                    TrailPreviewDimensionButton(
                                         state = previewState,
                                         onEnter3d = { previewState = enterTrailMapPreview3d(previewState) },
                                         onExit3d = { previewState = exitTrailMapPreview3d(previewState) },
-                                        onSelect3dContent = { previewState = selectTrailMap3dContent(previewState, it) },
                                     )
                                 },
                             )
@@ -516,12 +521,21 @@ private fun TrailPreviewDialog(
                                     terrain3dEnabled = previewState.mode == TrailMapPreviewMode.Map3d,
                                     showStyleSelector = previewState.mode == TrailMapPreviewMode.FlatMap,
                                     bottomStartControls = {
-                                        TrailPreviewMapControls(
+                                        TrailPreviewDimensionButton(
                                             state = previewState,
                                             onEnter3d = { previewState = enterTrailMapPreview3d(previewState) },
                                             onExit3d = { previewState = exitTrailMapPreview3d(previewState) },
-                                            onSelect3dContent = { previewState = selectTrailMap3dContent(previewState, it) },
                                         )
+                                    },
+                                    topEndControls = {
+                                        if (previewState.mode == TrailMapPreviewMode.Map3d) {
+                                            TrailPreview3dContentSelector(
+                                                selectedContent = previewState.content3d,
+                                                onSelect3dContent = {
+                                                    previewState = selectTrailMap3dContent(previewState, it)
+                                                },
+                                            )
+                                        }
                                     },
                                 )
                             } else {
@@ -532,12 +546,19 @@ private fun TrailPreviewDialog(
                                     Trail3dTrackPanel(
                                         trail = trail,
                                         modifier = Modifier.fillMaxSize(),
-                                        topControls = {
-                                            TrailPreviewMapControls(
+                                        topEndControls = {
+                                            TrailPreview3dContentSelector(
+                                                selectedContent = previewState.content3d,
+                                                onSelect3dContent = {
+                                                    previewState = selectTrailMap3dContent(previewState, it)
+                                                },
+                                            )
+                                        },
+                                        bottomStartControls = {
+                                            TrailPreviewDimensionButton(
                                                 state = previewState,
                                                 onEnter3d = { previewState = enterTrailMapPreview3d(previewState) },
                                                 onExit3d = { previewState = exitTrailMapPreview3d(previewState) },
-                                                onSelect3dContent = { previewState = selectTrailMap3dContent(previewState, it) },
                                             )
                                         },
                                     )
@@ -556,43 +577,63 @@ private fun TrailPreviewDialog(
 }
 
 @Composable
-private fun TrailPreviewMapControls(
+private fun TrailPreviewDimensionButton(
     state: TrailMapPreviewState,
     onEnter3d: () -> Unit,
     onExit3d: () -> Unit,
+) {
+    val isMap3d = state.mode == TrailMapPreviewMode.Map3d
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (isMap3d) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.94f)
+        } else {
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+        },
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp,
+    ) {
+        Box(
+            Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(onClick = if (isMap3d) onExit3d else onEnter3d),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = if (isMap3d) "2D" else "3D",
+                color = if (isMap3d) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrailPreview3dContentSelector(
+    selectedContent: TrailMap3dContent,
     onSelect3dContent: (TrailMap3dContent) -> Unit,
 ) {
     Row(
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
+            .padding(2.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TrailPreviewModeChip(
-            label = if (state.mode == TrailMapPreviewMode.Map3d) "2D" else "3D",
-            selected = state.mode == TrailMapPreviewMode.Map3d,
-            enabled = true,
-            onClick = if (state.mode == TrailMapPreviewMode.Map3d) onExit3d else onEnter3d,
+            label = "地形",
+            selected = selectedContent == TrailMap3dContent.Terrain,
+            onClick = { onSelect3dContent(TrailMap3dContent.Terrain) },
         )
-        if (state.mode == TrailMapPreviewMode.Map3d) {
-            Row(
-                Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
-                    .padding(2.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TrailPreviewModeChip(
-                    label = "地形",
-                    selected = state.content3d == TrailMap3dContent.Terrain,
-                    onClick = { onSelect3dContent(TrailMap3dContent.Terrain) },
-                )
-                TrailPreviewModeChip(
-                    label = "轨迹",
-                    selected = state.content3d == TrailMap3dContent.Track,
-                    onClick = { onSelect3dContent(TrailMap3dContent.Track) },
-                )
-            }
-        }
+        TrailPreviewModeChip(
+            label = "轨迹",
+            selected = selectedContent == TrailMap3dContent.Track,
+            onClick = { onSelect3dContent(TrailMap3dContent.Track) },
+        )
     }
 }
 
@@ -607,7 +648,7 @@ private fun TrailPreviewModeChip(
         text = label,
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
+            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
             .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 14.dp, vertical = 7.dp),
         color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -621,7 +662,8 @@ private fun TrailPreviewModeChip(
 private fun Trail3dTrackPanel(
     trail: Trail,
     modifier: Modifier = Modifier,
-    topControls: (@Composable () -> Unit)? = null,
+    topEndControls: (@Composable () -> Unit)? = null,
+    bottomStartControls: (@Composable () -> Unit)? = null,
 ) {
     val model = remember(trail.normalizedPoints) { buildTrail3dTrackModel(trail.normalizedPoints) }
     var camera by remember(model) { mutableStateOf(resetTrail3dCamera()) }
@@ -634,19 +676,23 @@ private fun Trail3dTrackPanel(
             shape = RoundedCornerShape(8.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
         ) {
-            Column(
+            Box(
                 Modifier
                     .fillMaxSize()
                     .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                topControls?.let { controls ->
+                topEndControls?.let { controls ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         controls()
                     }
                 }
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     EmptyState("暂无轨迹3D", "这条轨迹没有足够的带海拔轨迹点。")
+                }
+                bottomStartControls?.let { controls ->
+                    Box(Modifier.align(Alignment.BottomStart)) {
+                        controls()
+                    }
                 }
             }
         }
@@ -675,102 +721,113 @@ private fun Trail3dTrackPanel(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
     ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            topControls?.let { controls ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    controls()
-                }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TrailTrendMetric("最低", model.minElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
-                TrailTrendMetric("最高", model.maxElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
-                TrailTrendMetric("长度", (model.distanceM / 1000.0).formatOne() + " km", Modifier.weight(1f))
-            }
-            Canvas(
+        Box(Modifier.fillMaxSize()) {
+            Column(
                 Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .onSizeChanged { size ->
-                        canvasWidthPx = size.width.coerceAtLeast(1)
-                        canvasHeightPx = size.height.coerceAtLeast(1)
+                    .fillMaxSize()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                topEndControls?.let { controls ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        controls()
                     }
-                    .pointerInput(model) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val pressedChanges = event.changes.filter { it.pressed }
-                                when (pressedChanges.size) {
-                                    0 -> Unit
-                                    1 -> {
-                                        val change = pressedChanges.single()
-                                        val delta = change.position - change.previousPosition
-                                        if (change.previousPressed && !delta.isZero()) {
-                                            camera = panTrail3dCamera(
-                                                camera = camera,
-                                                panDeltaXPx = delta.x.toDouble(),
-                                                panDeltaYPx = delta.y.toDouble(),
-                                            )
-                                            change.consume()
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TrailTrendMetric("最低", model.minElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
+                    TrailTrendMetric("最高", model.maxElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
+                    TrailTrendMetric("长度", (model.distanceM / 1000.0).formatOne() + " km", Modifier.weight(1f))
+                }
+                Canvas(
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .onSizeChanged { size ->
+                            canvasWidthPx = size.width.coerceAtLeast(1)
+                            canvasHeightPx = size.height.coerceAtLeast(1)
+                        }
+                        .pointerInput(model) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val pressedChanges = event.changes.filter { it.pressed }
+                                    when (pressedChanges.size) {
+                                        0 -> Unit
+                                        1 -> {
+                                            val change = pressedChanges.single()
+                                            val delta = change.position - change.previousPosition
+                                            if (change.previousPressed && !delta.isZero()) {
+                                                camera = panTrail3dCamera(
+                                                    camera = camera,
+                                                    panDeltaXPx = delta.x.toDouble(),
+                                                    panDeltaYPx = delta.y.toDouble(),
+                                                )
+                                                change.consume()
+                                            }
                                         }
-                                    }
-                                    else -> {
-                                        val stableChanges = pressedChanges.filter { it.previousPressed }
-                                        if (stableChanges.size >= 2) {
-                                            val pan = stableChanges.currentCentroid() - stableChanges.previousCentroid()
-                                            camera = updateTrail3dCamera(
-                                                camera = camera,
-                                                yawDeltaDegrees = pan.x * 0.28 + stableChanges.rotationDegrees() * 0.8,
-                                                pitchDeltaDegrees = -pan.y * 0.22,
-                                                zoomMultiplier = stableChanges.zoomMultiplier().toDouble(),
-                                            )
-                                            stableChanges.forEach { it.consume() }
+                                        else -> {
+                                            val stableChanges = pressedChanges.filter { it.previousPressed }
+                                            if (stableChanges.size >= 2) {
+                                                val pan = stableChanges.currentCentroid() - stableChanges.previousCentroid()
+                                                camera = updateTrail3dCamera(
+                                                    camera = camera,
+                                                    yawDeltaDegrees = pan.x * 0.28 + stableChanges.rotationDegrees() * 0.8,
+                                                    pitchDeltaDegrees = -pan.y * 0.22,
+                                                    zoomMultiplier = stableChanges.zoomMultiplier().toDouble(),
+                                                )
+                                                stableChanges.forEach { it.consume() }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                    .pointerInput(model, projection) {
-                        detectTapGestures(
-                            onDoubleTap = {
-                                camera = zoomTrail3dCamera(camera, TRAIL_3D_DOUBLE_TAP_ZOOM_MULTIPLIER)
-                            },
-                            onTap = { offset ->
-                                projection?.nearestTrackPointIndex(offset)?.let { selectedTrackIndex = it }
-                            },
+                        .pointerInput(model, projection) {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    camera = zoomTrail3dCamera(camera, TRAIL_3D_DOUBLE_TAP_ZOOM_MULTIPLIER)
+                                },
+                                onTap = { offset ->
+                                    projection?.nearestTrackPointIndex(offset)?.let { selectedTrackIndex = it }
+                                },
+                            )
+                        },
+                ) {
+                    projection?.let {
+                        drawTrail3dTrackProjection(
+                            projection = it,
+                            selectedIndex = safeSelectedIndex,
+                            lineColor = lineColor,
+                            groundFillColor = groundFillColor,
+                            groundStrokeColor = groundStrokeColor,
+                            gridColor = gridColor,
+                            shadowColor = shadowColor,
+                            startColor = startColor,
+                            endColor = endColor,
+                            selectedColor = selectedColor,
                         )
-                    },
-            ) {
-                projection?.let {
-                    drawTrail3dTrackProjection(
-                        projection = it,
-                        selectedIndex = safeSelectedIndex,
-                        lineColor = lineColor,
-                        groundFillColor = groundFillColor,
-                        groundStrokeColor = groundStrokeColor,
-                        gridColor = gridColor,
-                        shadowColor = shadowColor,
-                        startColor = startColor,
-                        endColor = endColor,
-                        selectedColor = selectedColor,
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "第 ${selectedPoint.pointIndex + 1} 点",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    Text(
+                        "${(selectedPoint.distanceM / 1000.0).formatOne()} km · ${selectedPoint.elevationM.formatMeters()}",
+                        fontWeight = FontWeight.ExtraBold,
                     )
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "第 ${selectedPoint.pointIndex + 1} 点",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                Text(
-                    "${(selectedPoint.distanceM / 1000.0).formatOne()} km · ${selectedPoint.elevationM.formatMeters()}",
-                    fontWeight = FontWeight.ExtraBold,
-                )
+            bottomStartControls?.let { controls ->
+                Box(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 12.dp, bottom = 44.dp),
+                ) {
+                    controls()
+                }
             }
         }
     }

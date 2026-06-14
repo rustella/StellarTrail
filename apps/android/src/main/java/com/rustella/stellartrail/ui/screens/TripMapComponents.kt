@@ -529,6 +529,7 @@ fun TrailAssetPreviewMap(
     terrain3dEnabled: Boolean = false,
     showStyleSelector: Boolean = true,
     bottomStartControls: @Composable () -> Unit = {},
+    topEndControls: @Composable () -> Unit = {},
 ) {
     val canRenderMap = map.enabled && map.publicKey?.isNotBlank() == true
     if (!canRenderMap) {
@@ -538,6 +539,7 @@ fun TrailAssetPreviewMap(
             height = height,
             modifier = modifier,
             bottomStartControls = bottomStartControls,
+            topEndControls = topEndControls,
         )
         return
     }
@@ -549,6 +551,7 @@ fun TrailAssetPreviewMap(
             height = height,
             modifier = modifier,
             bottomStartControls = bottomStartControls,
+            topEndControls = topEndControls,
         )
         return
     }
@@ -567,6 +570,7 @@ fun TrailAssetPreviewMap(
         terrain3dEnabled = terrain3dEnabled,
         showStyleSelector = showStyleSelector,
         bottomStartControls = bottomStartControls,
+        topEndControls = topEndControls,
         onMapTap = { _, _ -> },
         modifier = modifier,
     )
@@ -579,6 +583,7 @@ private fun TrailAssetPreviewFallback(
     height: Dp,
     modifier: Modifier,
     bottomStartControls: @Composable () -> Unit,
+    topEndControls: @Composable () -> Unit,
 ) {
     Box(
         modifier
@@ -594,6 +599,15 @@ private fun TrailAssetPreviewFallback(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             bottomStartControls()
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            topEndControls()
         }
     }
 }
@@ -622,6 +636,7 @@ private fun MapTilerTrailMap(
     onMapLongPress: (Double, Double) -> Unit = { _, _ -> },
     showStyleSelector: Boolean = true,
     bottomStartControls: @Composable () -> Unit = {},
+    topEndControls: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -914,6 +929,7 @@ private fun MapTilerTrailMap(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            topEndControls()
             if (showStyleSelector) {
                 MapStyleSelector(
                     styles = styleOptions,
