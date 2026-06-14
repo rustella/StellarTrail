@@ -6,6 +6,7 @@ import com.rustella.stellartrail.core.location.ForegroundLocation
 import com.rustella.stellartrail.core.location.ForegroundLocationTrackingState
 import com.rustella.stellartrail.domain.trip.MapConfigResponse
 import com.rustella.stellartrail.domain.trip.MapStyleOption
+import com.rustella.stellartrail.domain.trip.TripsMapOverviewStats
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -17,6 +18,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TripMapComponentsTest {
+    @Test
+    fun tripsOverviewMapSummaryCoversTripAndLibraryTrails() {
+        assertEquals(
+            "2 个行程 · 5 条轨迹",
+            tripsOverviewMapSummary(TripsMapOverviewStats(tripCount = 2, trailCount = 5)),
+        )
+        assertEquals(
+            "3 条轨迹",
+            tripsOverviewMapSummary(TripsMapOverviewStats(tripCount = 0, trailCount = 3)),
+        )
+    }
+
     @Test
     fun featureCollectionJsonAllowsEmptyTrailSet() {
         val json = Json.parseToJsonElement(featureCollectionJson(emptyList())) as JsonObject
@@ -101,6 +114,89 @@ class TripMapComponentsTest {
         val styles = resolveMapStyleOptions(map)
 
         assertTrue(styles.isEmpty())
+    }
+
+    @Test
+    fun mapStyleResolutionUpgradesPublicHttpStyleUrls() {
+        val map = MapConfigResponse(
+            provider = "maptiler",
+            publicKey = "pk.test",
+            enabled = true,
+            styles = listOf(
+                MapStyleOption("outdoor", "户外", "http://api.stellartrail.cn/api/v1/map/styles/outdoor/style.json"),
+            ),
+            defaultStyleId = "outdoor",
+        )
+
+        val styles = resolveMapStyleOptions(map)
+
+        assertEquals("https://api.stellartrail.cn/api/v1/map/styles/outdoor/style.json", styles.single().styleUrl)
+    }
+
+    @Test
+    fun mapStyleResolutionKeepsLocalHttpStyleUrls() {
+        assertEquals(
+            "http://127.0.0.1:8080/api/v1/map/styles/outdoor/style.json",
+            normalizeMapStyleUrl(" http://127.0.0.1:8080/api/v1/map/styles/outdoor/style.json "),
+        )
+        assertEquals(
+            "http://10.37.112.178:8080/api/v1/map/styles/outdoor/style.json",
+            normalizeMapStyleUrl("http://10.37.112.178:8080/api/v1/map/styles/outdoor/style.json"),
+        )
+    }
+
+    @Test
+    fun flatTrailMapPresentationKeepsExistingGestureDefaults() {
+        val presentation = trailMapPresentation(terrain3dEnabled = false, zoomGesturesEnabled = false)
+
+        assertFalse(presentation.terrainEnabled)
+        assertNull(presentation.terrainExaggeration)
+        assertNull(presentation.pitch)
+        assertNull(presentation.bearing)
+        assertFalse(presentation.pinchRotateEnabled)
+        assertFalse(presentation.pitchGestureEnabled)
+
+        val zoomPresentation = trailMapPresentation(terrain3dEnabled = false, zoomGesturesEnabled = true)
+        assertTrue(zoomPresentation.pinchRotateEnabled)
+        assertFalse(zoomPresentation.pitchGestureEnabled)
+    }
+
+    @Test
+    fun terrainTrailMapPresentationEnables3dCameraTerrainAndGestures() {
+        val presentation = trailMapPresentation(terrain3dEnabled = true, zoomGesturesEnabled = false)
+
+        assertTrue(presentation.terrainEnabled)
+        assertEquals(1.35, presentation.terrainExaggeration ?: -1.0, 0.0)
+        assertEquals(60.0, presentation.pitch ?: -1.0, 0.0)
+        assertEquals(-25.0, presentation.bearing ?: 0.0, 0.0)
+        assertTrue(presentation.pinchRotateEnabled)
+        assertTrue(presentation.pitchGestureEnabled)
+    }
+
+    @Test
+    fun map3dGestureGuideDescribesTerrainMapControls() {
+        val lines = map3dGestureGuideLines()
+
+        assertTrue(lines.contains("单指拖动移动地图"))
+        assertTrue(lines.contains("双指捏合缩放"))
+        assertTrue(lines.contains("双指旋转方向"))
+        assertTrue(lines.contains("双指上下拖动调整俯仰"))
+        assertTrue(lines.contains("双击放大"))
+    }
+
+    @Test
+    fun trailMapRenderIdentityChangesForStyleIdStyleUrlAndPresentation() {
+        val flatPresentation = trailMapPresentation(terrain3dEnabled = false, zoomGesturesEnabled = true)
+        val terrainPresentation = trailMapPresentation(terrain3dEnabled = true, zoomGesturesEnabled = true)
+        val outdoor = MapStyleOption("outdoor", "户外", "https://api.example.test/api/v1/map/styles/outdoor/style.json")
+        val sameUrlStreets = MapStyleOption("streets", "街道", outdoor.styleUrl)
+        val differentUrlOutdoor = outdoor.copy(styleUrl = "https://api.example.test/api/v1/map/styles/outdoor-v2/style.json")
+
+        val identity = trailMapRenderIdentity(outdoor, flatPresentation)
+
+        assertFalse(identity == trailMapRenderIdentity(sameUrlStreets, flatPresentation))
+        assertFalse(identity == trailMapRenderIdentity(differentUrlOutdoor, flatPresentation))
+        assertFalse(identity == trailMapRenderIdentity(outdoor, terrainPresentation))
     }
 
     @Test

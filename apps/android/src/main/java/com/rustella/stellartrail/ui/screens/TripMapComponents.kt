@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
@@ -89,6 +90,7 @@ import com.rustella.stellartrail.domain.trip.MapTrailLink
 import com.rustella.stellartrail.domain.trip.Trail
 import com.rustella.stellartrail.domain.trip.TrailBounds
 import com.rustella.stellartrail.domain.trip.TripOverviewMapTrail
+import com.rustella.stellartrail.domain.trip.TripsMapOverviewStats
 import com.rustella.stellartrail.feature.trips.TripMapUiState
 import com.rustella.stellartrail.feature.trips.TripsOverviewMapUiState
 import com.rustella.stellartrail.ui.common.Badge
@@ -109,6 +111,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.net.URI
 import java.net.URL
 import kotlin.math.hypot
 
@@ -176,9 +179,9 @@ fun TripsOverviewMapSection(
             }
             Text(
                 if (trails.isEmpty()) {
-                    "这里只汇总已绑定到行程的轨迹；轨迹库中未绑定行程的轨迹不会显示。"
+                    "上传轨迹或添加到行程后，会在这里汇总显示。"
                 } else {
-                    "${data.stats.tripCount} 个行程 · ${data.stats.trailCount} 条已绑定轨迹"
+                    tripsOverviewMapSummary(data.stats)
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -525,22 +528,32 @@ fun TrailAssetPreviewMap(
     modifier: Modifier = Modifier,
     height: Dp = 220.dp,
     zoomGesturesEnabled: Boolean = false,
+    terrain3dEnabled: Boolean = false,
+    showStyleSelector: Boolean = true,
+    bottomStartControls: @Composable () -> Unit = {},
+    topEndControls: @Composable () -> Unit = {},
 ) {
     val canRenderMap = map.enabled && map.publicKey?.isNotBlank() == true
     if (!canRenderMap) {
-        CompactMapFallback(
+        TrailAssetPreviewFallback(
             title = "地图暂未启用",
             body = "后端未返回可用 MapTiler public key。",
             height = height,
+            modifier = modifier,
+            bottomStartControls = bottomStartControls,
+            topEndControls = topEndControls,
         )
         return
     }
     val styleOptions = resolveMapStyleOptions(map)
     if (styleOptions.isEmpty()) {
-        CompactMapFallback(
+        TrailAssetPreviewFallback(
             title = "地图暂未启用",
             body = "后端未返回可用地图样式。",
             height = height,
+            modifier = modifier,
+            bottomStartControls = bottomStartControls,
+            topEndControls = topEndControls,
         )
         return
     }
@@ -556,9 +569,49 @@ fun TrailAssetPreviewMap(
         lineColor = USER_TRAIL_COLOR,
         eventLevel = MTEventLevel.ESSENTIAL,
         zoomGesturesEnabled = zoomGesturesEnabled,
+        terrain3dEnabled = terrain3dEnabled,
+        showStyleSelector = showStyleSelector,
+        bottomStartControls = bottomStartControls,
+        topEndControls = topEndControls,
         onMapTap = { _, _ -> },
         modifier = modifier,
     )
+}
+
+@Composable
+private fun TrailAssetPreviewFallback(
+    title: String,
+    body: String,
+    height: Dp,
+    modifier: Modifier,
+    bottomStartControls: @Composable () -> Unit,
+    topEndControls: @Composable () -> Unit,
+) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(height),
+    ) {
+        CompactMapFallback(title = title, body = body, height = height)
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 8.dp, bottom = 12.dp),
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            bottomStartControls()
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            topEndControls()
+        }
+    }
 }
 
 @Composable
@@ -573,6 +626,7 @@ private fun MapTilerTrailMap(
     lineColor: Color,
     eventLevel: MTEventLevel,
     zoomGesturesEnabled: Boolean,
+    terrain3dEnabled: Boolean = false,
     locationTrackingEnabled: Boolean = true,
     initialCameraSnapshot: MapCameraSnapshot? = null,
     initialLocation: ForegroundLocation? = null,
@@ -582,6 +636,9 @@ private fun MapTilerTrailMap(
     onLocationTrackingActiveChanged: (Boolean) -> Unit = {},
     onMapTap: (Double, Double) -> Unit,
     onMapLongPress: (Double, Double) -> Unit = { _, _ -> },
+    showStyleSelector: Boolean = true,
+    bottomStartControls: @Composable () -> Unit = {},
+    topEndControls: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -589,6 +646,10 @@ private fun MapTilerTrailMap(
     val coroutineScope = rememberCoroutineScope()
     val styleUrl = selectedStyle.styleUrl
     val mapPublicKey = map.publicKey.orEmpty()
+    val mapPresentation = remember(terrain3dEnabled, zoomGesturesEnabled) {
+        trailMapPresentation(terrain3dEnabled = terrain3dEnabled, zoomGesturesEnabled = zoomGesturesEnabled)
+    }
+    val renderIdentity = trailMapRenderIdentity(selectedStyle, mapPresentation)
     val locationProvider = remember(context) { AndroidForegroundLocationProvider(context) }
     var legendVisible by remember { mutableStateOf(false) }
     var styleSwitchLocked by remember { mutableStateOf(false) }
@@ -602,7 +663,7 @@ private fun MapTilerTrailMap(
         locationTrackingState = ForegroundLocationTrackingState.Idle
     }
 
-    LaunchedEffect(styleUrl) {
+    LaunchedEffect(renderIdentity) {
         if (styleSwitchLocked) {
             delay(MAP_STYLE_SWITCH_COOLDOWN_MILLIS)
             styleSwitchLocked = false
@@ -632,7 +693,14 @@ private fun MapTilerTrailMap(
     val currentOnCameraSnapshotChanged by rememberUpdatedState(onCameraSnapshotChanged)
     val currentOnLocationChanged by rememberUpdatedState(onLocationChanged)
     val currentOnLocationTrackingActiveChanged by rememberUpdatedState(onLocationTrackingActiveChanged)
-    val controllerDelegate = remember(styleUrl, mapPublicKey, featureCollection, bounds, lineColor, eventLevel, zoomGesturesEnabled) {
+    val controllerDelegate = remember(
+        renderIdentity,
+        mapPublicKey,
+        featureCollection,
+        bounds,
+        lineColor,
+        eventLevel,
+    ) {
         MTConfig.apiKey = mapPublicKey
         TrailMapDelegate(
             context = context,
@@ -643,11 +711,14 @@ private fun MapTilerTrailMap(
             initialLocation = lastFollowLocation,
             lineColor = lineColor.toArgb(),
             eventLevel = eventLevel,
-            zoomGesturesEnabled = zoomGesturesEnabled,
+            mapPresentation = mapPresentation,
             onTap = { lng, lat -> currentOnMapTap(lng, lat) },
             onLongPress = { lng, lat -> currentOnMapLongPress(lng, lat) },
             onCameraSnapshotChanged = { snapshot -> currentOnCameraSnapshotChanged(snapshot) },
         )
+    }
+    LaunchedEffect(renderIdentity, controllerDelegate) {
+        controllerDelegate.applyMapStyle(styleUrl)
     }
     val currentControllerDelegate by rememberUpdatedState(controllerDelegate)
 
@@ -794,7 +865,7 @@ private fun MapTilerTrailMap(
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        key(styleUrl) {
+        key(renderIdentity) {
             MTMapView(
                 referenceStyle = MTMapReferenceStyle.CUSTOM(URL(styleUrl)),
                 options = MTMapOptions(
@@ -802,11 +873,17 @@ private fun MapTilerTrailMap(
                     zoom = SHENZHEN_MAP_ZOOM,
                     minZoom = 2.0,
                     maxZoom = 18.0,
+                    bearing = mapPresentation.bearing,
+                    pitch = mapPresentation.pitch,
+                    terrainIsEnabled = mapPresentation.terrainEnabled,
+                    terrainExaggeration = mapPresentation.terrainExaggeration,
                     isInteractionEnabled = true,
                     dragPanIsEnabled = true,
-                    dragRotateIsEnabled = zoomGesturesEnabled,
-                    doubleTapShouldZoom = zoomGesturesEnabled,
-                    shouldPinchToRotateAndZoom = zoomGesturesEnabled,
+                    dragRotateIsEnabled = mapPresentation.pinchRotateEnabled,
+                    doubleTapShouldZoom = mapPresentation.pinchRotateEnabled,
+                    shouldPinchToRotateAndZoom = mapPresentation.pinchRotateEnabled,
+                    shouldDragToPitch = mapPresentation.pitchGestureEnabled,
+                    shouldPitchWithRotate = mapPresentation.pitchGestureEnabled,
                     navigationControlIsVisible = false,
                     geolocateControlIsVisible = false,
                     terrainControlIsVisible = false,
@@ -826,6 +903,7 @@ private fun MapTilerTrailMap(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            bottomStartControls()
             MapLegendHelpButton(
                 expanded = legendVisible,
                 onToggle = { legendVisible = !legendVisible },
@@ -846,15 +924,23 @@ private fun MapTilerTrailMap(
                 },
             )
         }
-        MapStyleSelector(
-            styles = styleOptions,
-            selectedStyleId = selectedStyle.id,
-            enabled = !styleSwitchLocked,
-            onSelectStyle = onSafeSelectStyle,
+        Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(8.dp),
-        )
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            topEndControls()
+            if (showStyleSelector) {
+                MapStyleSelector(
+                    styles = styleOptions,
+                    selectedStyleId = selectedStyle.id,
+                    enabled = !styleSwitchLocked,
+                    onSelectStyle = onSafeSelectStyle,
+                )
+            }
+        }
         locationTrackingState.message?.takeIf { !legendVisible }?.let { message ->
             MapLocationMessage(
                 message = message,
@@ -864,11 +950,19 @@ private fun MapTilerTrailMap(
             )
         }
         if (legendVisible) {
-            MapLegendPopover(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 46.dp, bottom = 112.dp),
-            )
+            if (terrain3dEnabled) {
+                Map3dGestureGuidePopover(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 46.dp, bottom = 112.dp),
+                )
+            } else {
+                MapLegendPopover(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 46.dp, bottom = 112.dp),
+                )
+            }
         }
     }
 }
@@ -1010,6 +1104,46 @@ private fun MapLegendHelpButton(
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1,
             )
+        }
+    }
+}
+
+internal fun map3dGestureGuideLines(): List<String> = listOf(
+    "单指拖动移动地图",
+    "双指捏合缩放",
+    "双指旋转方向",
+    "双指上下拖动调整俯仰",
+    "双击放大",
+)
+
+@Composable
+private fun Map3dGestureGuidePopover(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier
+            .widthIn(max = 220.dp)
+            .clickable { },
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        tonalElevation = 1.dp,
+        shadowElevation = 1.dp,
+    ) {
+        Column(
+            Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                "地图3D操作",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            map3dGestureGuideLines().forEach { line ->
+                Text(
+                    line,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
         }
     }
 }
@@ -1168,6 +1302,53 @@ private fun MapStyleSelector(
     }
 }
 
+internal data class TrailMapPresentation(
+    val terrainEnabled: Boolean,
+    val terrainExaggeration: Double?,
+    val pitch: Double?,
+    val bearing: Double?,
+    val pinchRotateEnabled: Boolean,
+    val pitchGestureEnabled: Boolean,
+)
+
+internal fun trailMapPresentation(
+    terrain3dEnabled: Boolean,
+    zoomGesturesEnabled: Boolean,
+): TrailMapPresentation = if (terrain3dEnabled) {
+    TrailMapPresentation(
+        terrainEnabled = true,
+        terrainExaggeration = TRAIL_TERRAIN_3D_EXAGGERATION,
+        pitch = TRAIL_TERRAIN_3D_PITCH,
+        bearing = TRAIL_TERRAIN_3D_BEARING,
+        pinchRotateEnabled = true,
+        pitchGestureEnabled = true,
+    )
+} else {
+    TrailMapPresentation(
+        terrainEnabled = false,
+        terrainExaggeration = null,
+        pitch = null,
+        bearing = null,
+        pinchRotateEnabled = zoomGesturesEnabled,
+        pitchGestureEnabled = false,
+    )
+}
+
+internal data class TrailMapRenderIdentity(
+    val styleId: String,
+    val styleUrl: String,
+    val presentation: TrailMapPresentation,
+)
+
+internal fun trailMapRenderIdentity(
+    selectedStyle: MapStyleOption,
+    presentation: TrailMapPresentation,
+): TrailMapRenderIdentity = TrailMapRenderIdentity(
+    styleId = selectedStyle.id,
+    styleUrl = selectedStyle.styleUrl,
+    presentation = presentation,
+)
+
 private class TrailMapDelegate(
     context: Context,
     private val coroutineScope: kotlinx.coroutines.CoroutineScope,
@@ -1177,7 +1358,7 @@ private class TrailMapDelegate(
     initialLocation: ForegroundLocation?,
     private val lineColor: Int,
     private val eventLevel: MTEventLevel,
-    private val zoomGesturesEnabled: Boolean,
+    private val mapPresentation: TrailMapPresentation,
     private val onTap: (Double, Double) -> Unit,
     private val onLongPress: (Double, Double) -> Unit,
     private val onCameraSnapshotChanged: (MapCameraSnapshot) -> Unit,
@@ -1186,19 +1367,21 @@ private class TrailMapDelegate(
     private var touchCandidate: LongPressCandidate? = null
     private var suppressNextTap = false
     private var pinchGestureEnabled = false
+    private var pitchGestureEnabled = false
     private var currentLocationMarker: MTMarker? = null
     private var currentLocationForMarker: ForegroundLocation? = initialLocation
+    private var appliedStyleUrl: String? = null
 
     override fun onMapViewInitialized() {
         renderTrailLayer()
         restoreCurrentLocationMarker()
-        enablePinchGestureIfNeeded()
+        enableMapGesturesIfNeeded()
     }
 
     override fun onEventTriggered(event: MTEvent, data: MTData?) {
         if (shouldEnsureTrailLayerOnEvent(event)) {
             renderTrailLayer()
-            enablePinchGestureIfNeeded()
+            enableMapGesturesIfNeeded()
             restoreCurrentLocationMarker()
             return
         }
@@ -1257,11 +1440,32 @@ private class TrailMapDelegate(
         }
     }
 
-    private fun enablePinchGestureIfNeeded() {
-        if (!zoomGesturesEnabled || pinchGestureEnabled) return
+    fun applyMapStyle(styleUrl: String) {
+        if (appliedStyleUrl == styleUrl) return
+        runCatching {
+            val style = controller.style ?: return
+            style.setStyle(MTMapReferenceStyle.CUSTOM(URL(styleUrl)))
+        }.onSuccess {
+            appliedStyleUrl = styleUrl
+            coroutineScope.launch {
+                delay(MAP_STYLE_SWITCH_COOLDOWN_MILLIS)
+                renderTrailLayer()
+                enableMapGesturesIfNeeded()
+                restoreCurrentLocationMarker()
+            }
+        }
+    }
+
+    private fun enableMapGesturesIfNeeded() {
         val gestureService = controller.gestureService ?: return
-        runCatching { gestureService.enablePinchRotateAndZoomGesture() }
-            .onSuccess { pinchGestureEnabled = true }
+        if (mapPresentation.pinchRotateEnabled && !pinchGestureEnabled) {
+            runCatching { gestureService.enablePinchRotateAndZoomGesture() }
+                .onSuccess { pinchGestureEnabled = true }
+        }
+        if (mapPresentation.pitchGestureEnabled && !pitchGestureEnabled) {
+            runCatching { gestureService.enableTwoFingerDragPitchGesture() }
+                .onSuccess { pitchGestureEnabled = true }
+        }
     }
 
     fun applyLocation(location: ForegroundLocation, mode: LocationCameraMode) {
@@ -1346,6 +1550,7 @@ private class TrailMapDelegate(
         val snapshot = initialCameraSnapshot
         if (initialMapCameraSource(snapshot) == InitialMapCameraSource.Snapshot && snapshot != null) {
             restoreCameraSnapshot(snapshot)
+            applyMapPresentation()
             return
         }
         bounds?.let {
@@ -1357,6 +1562,19 @@ private class TrailMapDelegate(
                     duration = 0.0,
                 ),
             )
+        }
+        applyMapPresentation()
+    }
+
+    private fun applyMapPresentation() {
+        mapPresentation.terrainExaggeration?.let { exaggeration ->
+            runCatching { controller.setTerrainExaggeration(exaggeration, false) }
+        }
+        mapPresentation.bearing?.let { bearing ->
+            runCatching { controller.setBearing(bearing) }
+        }
+        mapPresentation.pitch?.let { pitch ->
+            runCatching { controller.setPitch(pitch) }
         }
     }
 
@@ -1460,6 +1678,13 @@ private fun rememberOverviewFeatureCollection(trails: List<TripOverviewMapTrail>
 private fun rememberTripFeatureCollection(trails: List<MapTrailLink>): String =
     remember(trails) { featureCollectionJson(trails.map { it.simplifiedGeojson }, DETAIL_MAP_MAX_RENDERED_POINTS) }
 
+internal fun tripsOverviewMapSummary(stats: TripsMapOverviewStats): String =
+    if (stats.tripCount > 0) {
+        "${stats.tripCount} 个行程 · ${stats.trailCount} 条轨迹"
+    } else {
+        "${stats.trailCount} 条轨迹"
+    }
+
 internal fun featureCollectionJson(features: List<JsonElement>, maxRenderedPoints: Int? = null): String = mapJson.encodeToString(
     JsonObject(
         mapOf(
@@ -1543,7 +1768,7 @@ private fun unionBounds(bounds: List<TrailBounds>): TrailBounds? = bounds.reduce
 internal fun resolveMapStyleOptions(map: MapConfigResponse): List<MapStyleOption> {
     val configuredStyles = map.styles.mapNotNull { style ->
         val id = style.id.trim()
-        val styleUrl = style.styleUrl.trim()
+        val styleUrl = normalizeMapStyleUrl(style.styleUrl)
         if (id.isEmpty() || styleUrl.isEmpty()) {
             null
         } else {
@@ -1555,6 +1780,31 @@ internal fun resolveMapStyleOptions(map: MapConfigResponse): List<MapStyleOption
         }
     }
     return configuredStyles
+}
+
+internal fun normalizeMapStyleUrl(styleUrl: String): String {
+    val trimmed = styleUrl.trim()
+    if (trimmed.isEmpty()) return ""
+    return runCatching {
+        val uri = URI(trimmed)
+        if (uri.scheme.equals("http", ignoreCase = true) && shouldUpgradeMapStyleHost(uri.host)) {
+            URI("https", uri.userInfo, uri.host, uri.port, uri.path, uri.query, uri.fragment).toString()
+        } else {
+            trimmed
+        }
+    }.getOrDefault(trimmed)
+}
+
+private fun shouldUpgradeMapStyleHost(host: String?): Boolean {
+    val value = host?.lowercase().orEmpty()
+    if (value.isEmpty()) return false
+    if (value == "localhost" || value.endsWith(".local")) return false
+    if (value == "0.0.0.0" || value.startsWith("127.")) return false
+    if (value.startsWith("10.") || value.startsWith("192.168.")) return false
+    val parts = value.split('.')
+    val secondOctet = parts.getOrNull(1)?.toIntOrNull()
+    if (parts.firstOrNull() == "172" && secondOctet != null && secondOctet in 16..31) return false
+    return true
 }
 
 internal fun resolveSelectedMapStyle(map: MapConfigResponse, selectedStyleId: String?): MapStyleOption {
@@ -1745,6 +1995,9 @@ private const val MAP_LOCATION_START_TIMEOUT_MILLIS = 12_000L
 private const val MAP_LOCATION_MESSAGE_MILLIS = 3_000L
 private const val DETAIL_MAP_MAX_RENDERED_POINTS = 8000
 private const val DEFAULT_MAP_STYLE_ID = "outdoor"
+private const val TRAIL_TERRAIN_3D_PITCH = 60.0
+private const val TRAIL_TERRAIN_3D_BEARING = -25.0
+private const val TRAIL_TERRAIN_3D_EXAGGERATION = 1.35
 private const val TRAIL_SOURCE_ID = "stellartrail-trails"
 private const val TRAIL_OUTLINE_LAYER_ID = "stellartrail-trails-outline"
 private const val TRAIL_LAYER_ID = "stellartrail-trails-line"

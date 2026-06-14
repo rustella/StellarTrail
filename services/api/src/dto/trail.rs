@@ -117,45 +117,84 @@ pub struct OutdoorExperienceMapStateResponse {
     pub annotations: Vec<MapAnnotation>,
 }
 
-/// One map-renderable trail in the user's all-trips overview map.
+/// Source context for one trail shown on the overview map.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TripOverviewMapTrailSource {
+    Trip,
+    Library,
+}
+
+/// One map-renderable trail in the user's trips and trail-library overview map.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TripOverviewMapTrail {
-    pub trip_id: String,
-    pub trip_title: String,
+    pub source: TripOverviewMapTrailSource,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trip_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trip_title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub trip_start_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub trip_end_date: Option<String>,
     pub trail_id: String,
-    pub linked_by_user_id: String,
-    pub role: String,
-    pub sort_order: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linked_by_user_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort_order: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
     pub trail: TrailSummary,
     pub simplified_geojson: JsonValue,
 }
 
 impl TripOverviewMapTrail {
-    pub fn from_domain(value: TripOverviewTrail, simplified_geojson: JsonValue) -> Self {
+    pub fn from_trip(value: TripOverviewTrail, simplified_geojson: JsonValue) -> Self {
         Self {
-            trip_id: value.trip_id,
-            trip_title: value.trip_title,
+            source: TripOverviewMapTrailSource::Trip,
+            trip_id: Some(value.trip_id),
+            trip_title: Some(value.trip_title),
             trip_start_date: value.trip_start_date,
             trip_end_date: value.trip_end_date,
             trail_id: value.link.trail_id,
-            linked_by_user_id: value.link.linked_by_user_id,
-            role: value.link.role,
-            sort_order: value.link.sort_order,
+            linked_by_user_id: Some(value.link.linked_by_user_id),
+            role: Some(value.link.role),
+            sort_order: Some(value.link.sort_order),
             notes: value.link.notes,
-            created_at: value.link.created_at,
-            updated_at: value.link.updated_at,
+            created_at: Some(value.link.created_at),
+            updated_at: Some(value.link.updated_at),
             trail: value.link.trail,
+            simplified_geojson,
+        }
+    }
+
+    pub fn from_library(trail: Trail, simplified_geojson: JsonValue) -> Self {
+        Self {
+            source: TripOverviewMapTrailSource::Library,
+            trip_id: None,
+            trip_title: None,
+            trip_start_date: None,
+            trip_end_date: None,
+            trail_id: trail.id.clone(),
+            linked_by_user_id: None,
+            role: None,
+            sort_order: None,
+            notes: None,
+            created_at: None,
+            updated_at: None,
+            trail: TrailSummary::from(&trail),
             simplified_geojson,
         }
     }
 }
 
-/// Aggregate counters for the all-trips overview map.
+/// Aggregate counters for the trips and trail-library overview map.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct TripsMapOverviewStats {
     pub trip_count: usize,
@@ -166,7 +205,7 @@ pub struct TripsMapOverviewStats {
     pub total_descent_m: f64,
 }
 
-/// All-trips overview map response optimized for one request and one map source.
+/// Trips and trail-library overview map response optimized for one request and one map source.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TripsMapOverviewResponse {
     pub map: MapConfigResponse,

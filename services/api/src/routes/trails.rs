@@ -268,6 +268,7 @@ async fn get_trips_map_overview(
     let mut trails = Vec::new();
     let mut bounds: Option<TrailBounds> = None;
     let mut trip_ids = BTreeSet::new();
+    let mut rendered_trail_ids = BTreeSet::new();
     let mut rendered_point_count = 0usize;
     let mut total_distance_m = 0.0;
     let mut total_ascent_m = 0.0;
@@ -284,6 +285,10 @@ async fn get_trips_map_overview(
             truncated = true;
             break;
         }
+        let trail_id = row.link.trail_id.clone();
+        if rendered_trail_ids.contains(&trail_id) {
+            continue;
+        }
         let per_trail_limit = (trail_config.overview_max_points_per_trail as usize).min(remaining);
         let (simplified_geojson, rendered_count, simplified) =
             trail_service::overview_geojson(&row.link.simplified_geojson, per_trail_limit)?;
@@ -299,7 +304,50 @@ async fn get_trips_map_overview(
         if let Some(next_bounds) = &row.link.trail.bounds {
             bounds = Some(merge_bounds(bounds, next_bounds));
         }
-        trails.push(TripOverviewMapTrail::from_domain(row, simplified_geojson));
+        rendered_trail_ids.insert(trail_id);
+        trails.push(TripOverviewMapTrail::from_trip(row, simplified_geojson));
+    }
+
+    let remaining_trail_slots =
+        (trail_config.overview_max_trails as usize).saturating_sub(trails.len());
+    if remaining_trail_slots > 0 {
+        let library_fetch_limit = remaining_trail_slots as u64 + 1;
+        let library_trails = TrailRepository::new(state.db().clone())
+            .list_owned_unlinked_to_trips(&user.id, library_fetch_limit)
+            .await?;
+        truncated |= library_trails.len() > remaining_trail_slots;
+        for trail in library_trails.into_iter().take(remaining_trail_slots) {
+            if rendered_trail_ids.contains(&trail.id) {
+                continue;
+            }
+            let remaining = trail_config
+                .overview_max_points
+                .saturating_sub(rendered_point_count as u64) as usize;
+            if remaining < 2 {
+                truncated = true;
+                break;
+            }
+            let per_trail_limit =
+                (trail_config.overview_max_points_per_trail as usize).min(remaining);
+            let (simplified_geojson, rendered_count, simplified) =
+                trail_service::overview_geojson(&trail.simplified_geojson, per_trail_limit)?;
+            if rendered_count < 2 {
+                continue;
+            }
+            truncated |= simplified || trail.point_count as usize > rendered_count;
+            rendered_point_count += rendered_count;
+            total_distance_m += trail.distance_m;
+            total_ascent_m += trail.ascent_m;
+            total_descent_m += trail.descent_m;
+            if let Some(next_bounds) = &trail.bounds {
+                bounds = Some(merge_bounds(bounds, next_bounds));
+            }
+            rendered_trail_ids.insert(trail.id.clone());
+            trails.push(TripOverviewMapTrail::from_library(
+                trail,
+                simplified_geojson,
+            ));
+        }
     }
 
     let trail_count = trails.len();

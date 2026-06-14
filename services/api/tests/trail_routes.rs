@@ -580,6 +580,22 @@ async fn trip_map_permissions_links_and_annotations_are_context_scoped() {
     );
     assert_eq!(duplicate_link["trail_id"], trail_id);
 
+    let (library_upload_status, library_trail) = upload_trail(
+        &app.router,
+        &owner_token,
+        "/api/v1/me/trails",
+        "library-only.kml",
+        "application/vnd.google-earth.kml+xml",
+        KML,
+    )
+    .await;
+    assert_eq!(
+        library_upload_status,
+        StatusCode::CREATED,
+        "{library_trail}"
+    );
+    let library_trail_id = library_trail["id"].as_str().unwrap();
+
     let (member_map_status, member_map) = send_empty_json(
         &app.router,
         "GET",
@@ -609,11 +625,29 @@ async fn trip_map_permissions_links_and_annotations_are_context_scoped() {
     )
     .await;
     assert_eq!(overview_status, StatusCode::OK, "{overview}");
-    assert_eq!(overview["trails"].as_array().unwrap().len(), 1);
+    let overview_trails = overview["trails"].as_array().unwrap();
+    assert_eq!(overview_trails.len(), 2);
+    assert_eq!(overview_trails[0]["source"], "trip");
+    assert_eq!(overview_trails[0]["trail_id"], trail_id);
+    assert_eq!(overview_trails[0]["trip_id"], trip_id);
+    assert_eq!(overview_trails[1]["source"], "library");
+    assert_eq!(overview_trails[1]["trail_id"], library_trail_id);
+    assert!(overview_trails[1].get("trip_id").is_none());
+    assert!(overview_trails[1].get("linked_by_user_id").is_none());
+    assert!(
+        overview_trails[1]["trail"]
+            .get("normalized_points")
+            .is_none()
+    );
+    assert!(overview_trails[1]["trail"].get("bucket").is_none());
+    assert!(overview_trails[1]["trail"].get("object_key").is_none());
     assert_eq!(overview["stats"]["trip_count"], 1);
-    assert_eq!(overview["stats"]["trail_count"], 1);
+    assert_eq!(overview["stats"]["trail_count"], 2);
+    assert_eq!(overview["stats"]["rendered_point_count"], 4);
     assert_eq!(overview["truncated"], false);
-    assert!(overview["trails"][0].get("simplified_geojson").is_some());
+    assert!(overview["bounds"].is_object());
+    assert!(overview_trails[0].get("simplified_geojson").is_some());
+    assert!(overview_trails[1].get("simplified_geojson").is_some());
 
     let (outsider_status, outsider_body) = send_empty_json(
         &app.router,

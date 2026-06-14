@@ -6,6 +6,7 @@ import com.rustella.stellartrail.domain.trip.ListTripsRequest
 import com.rustella.stellartrail.domain.trip.TripDetail
 import com.rustella.stellartrail.domain.trip.TripMapStateResponse
 import com.rustella.stellartrail.domain.trip.TripRecordKind
+import com.rustella.stellartrail.domain.trip.TripOverviewMapTrailSource
 import com.rustella.stellartrail.domain.trip.TripSectionKey
 import com.rustella.stellartrail.domain.trip.TripsMapOverviewResponse
 import com.rustella.stellartrail.domain.trip.TripType
@@ -134,7 +135,7 @@ class TripApiTest {
         val overview = api.tripsMapOverview()
         val tripMap = api.tripMap("trip-1")
 
-        assertEquals(1, overview.trails.size)
+        assertEquals(2, overview.trails.size)
         assertEquals(1, tripMap.trails.size)
         assertEquals(
             listOf("/api/v1/me/trips/map-overview", "/api/v1/me/trips/trip-1/map"),
@@ -191,8 +192,21 @@ class TripMapDtoTest {
         assertEquals(listOf("outdoor", "streets", "satellite"), tripMap.map.styles.map { it.id })
         assertEquals(listOf("https://api.maptiler.com"), tripMap.map.styles.first().requestOrigins)
         assertEquals("trail-1", tripMap.trails.single().trailId)
-        assertEquals("trip-1", overview.trails.single().tripId)
-        assertEquals(2, overview.stats.renderedPointCount)
+        assertEquals(listOf(TripOverviewMapTrailSource.Trip, TripOverviewMapTrailSource.Library), overview.trails.map { it.source })
+        assertEquals("trip-1", overview.trails.first().tripId)
+        assertEquals(null, overview.trails.last().tripId)
+        assertEquals(null, overview.trails.last().linkedByUserId)
+        assertEquals("library-trail", overview.trails.last().trailId)
+        assertEquals(4, overview.stats.renderedPointCount)
+    }
+
+    @Test
+    fun decodesLegacyMapStylesWithoutStyleUrl() {
+        val overview = ApiClient.defaultJson.decodeFromString<TripsMapOverviewResponse>(legacyTripsMapOverviewJson)
+
+        assertEquals(listOf("outdoor", "streets", "satellite"), overview.map.styles.map { it.id })
+        assertEquals("", overview.map.styles.first().styleUrl)
+        assertEquals(emptyList<String>(), overview.map.styles.first().requestOrigins)
     }
 }
 
@@ -317,6 +331,7 @@ private val tripsMapOverviewJson = """
     "default_style_id": "outdoor"
   },
   "trails": [{
+    "source": "trip",
     "trip_id": "trip-1",
     "trip_title": "端午武功山",
     "trip_start_date": "2026-06-01",
@@ -344,9 +359,49 @@ private val tripsMapOverviewJson = """
       "updated_at": "2026-05-01T00:00:00Z"
     },
     "simplified_geojson": {"type":"Feature","geometry":{"type":"LineString","coordinates":[[114.15,27.45],[114.18,27.49]]}}
+  }, {
+    "source": "library",
+    "trail_id": "library-trail",
+    "trail": {
+      "id": "library-trail",
+      "owner_user_id": "user-1",
+      "display_name": "自传轨迹",
+      "source_format": "kml",
+      "original_filename": "library.kml",
+      "content_type": "application/vnd.google-earth.kml+xml",
+      "size_bytes": 96,
+      "sha256_hex": "library-fixture",
+      "distance_m": 8000.0,
+      "ascent_m": 300.0,
+      "descent_m": 280.0,
+      "point_count": 2,
+      "created_at": "2026-05-02T00:00:00Z",
+      "updated_at": "2026-05-02T00:00:00Z"
+    },
+    "simplified_geojson": {"type":"Feature","geometry":{"type":"LineString","coordinates":[[114.20,27.50],[114.24,27.53]]}}
   }],
-  "bounds": {"min_lng": 114.15, "min_lat": 27.45, "max_lng": 114.18, "max_lat": 27.49},
-  "stats": {"trip_count": 1, "trail_count": 1, "rendered_point_count": 2, "total_distance_m": 12000.0, "total_ascent_m": 900.0, "total_descent_m": 850.0},
+  "bounds": {"min_lng": 114.15, "min_lat": 27.45, "max_lng": 114.24, "max_lat": 27.53},
+  "stats": {"trip_count": 1, "trail_count": 2, "rendered_point_count": 4, "total_distance_m": 20000.0, "total_ascent_m": 1200.0, "total_descent_m": 1130.0},
+  "truncated": false
+}
+""".trimIndent()
+
+private val legacyTripsMapOverviewJson = """
+{
+  "map": {
+    "provider": "maptiler",
+    "public_key": "pk.test",
+    "coordinate_system": "WGS84",
+    "enabled": true,
+    "styles": [
+      {"id": "outdoor", "label": "户外"},
+      {"id": "streets", "label": "街道"},
+      {"id": "satellite", "label": "卫星"}
+    ],
+    "default_style_id": "outdoor"
+  },
+  "trails": [],
+  "stats": {"trip_count": 0, "trail_count": 0, "rendered_point_count": 0, "total_distance_m": 0.0, "total_ascent_m": 0.0, "total_descent_m": 0.0},
   "truncated": false
 }
 """.trimIndent()

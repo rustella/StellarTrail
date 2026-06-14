@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,11 +24,15 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,6 +65,8 @@ import com.rustella.stellartrail.ui.common.LoadingState
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SoftPillButton
 import com.rustella.stellartrail.ui.common.SurfaceCard
+import com.rustella.stellartrail.ui.common.TrailInnerCardShape
+import com.rustella.stellartrail.ui.common.currentTrailPalette
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -270,37 +278,173 @@ private fun TrailLibraryRow(
     onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val palette = currentTrailPalette()
     SurfaceCard(
         Modifier
             .fillMaxWidth()
-            .clickable(enabled = selecting && enabled, onClick = onToggle),
-        contentPadding = PaddingValues(12.dp),
+            .clickable(enabled = enabled, onClick = { if (selecting) onToggle() else onPreview() }),
+        contentPadding = PaddingValues(14.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
             if (selecting) Checkbox(checked = selected, onCheckedChange = { onToggle() }, enabled = enabled)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Badge(trail.sourceFormat.label())
-                    Text(trail.displayName, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Badge(trail.sourceFormat.label())
+                        Text(
+                            trail.displayName,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    TrailLibraryEditMenu(enabled = enabled, onRename = onRename, onDelete = onDelete)
                 }
-                Text(
-                    trail.metricLine(),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(trail.elevationLine(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    "更新 ${trail.updatedAt.datePart()}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CompactPillAction("预览", onPreview, enabled = enabled)
-                    CompactPillAction("重命名", onRename, enabled = enabled)
-                    CompactPillAction("删除", onDelete, enabled = enabled)
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(TrailInnerCardShape)
+                        .background(palette.controlBackground)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TrailLibraryFact("长度", (trail.distanceM / 1000.0).formatOne() + " km", Modifier.weight(1f))
+                        TrailLibraryFact("爬升", trail.ascentM.formatMeters(), Modifier.weight(1f))
+                        TrailLibraryFact("下降", trail.descentM.formatMeters(), Modifier.weight(1f))
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TrailLibraryFact("起点", trail.startElevationM?.formatMeters() ?: "暂无", Modifier.weight(1f))
+                        TrailLibraryFact("终点", trail.endElevationM?.formatMeters() ?: "暂无", Modifier.weight(1f))
+                        TrailLibraryFact("更新", trail.updatedAt.datePart(), Modifier.weight(1f))
+                    }
+                }
+                if (!selecting) {
+                    TrailLibraryPreviewHint(enabled = enabled, onPreview = onPreview)
                 }
             }
         }
     }
 }
+
+@Composable
+private fun TrailLibraryPreviewHint(enabled: Boolean, onPreview: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(TrailInnerCardShape)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.09f))
+            .clickable(enabled = enabled, onClick = onPreview)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "点按卡片预览地图与3D地形",
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            ">",
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun TrailLibraryEditMenu(
+    enabled: Boolean,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(
+            onClick = { expanded = true },
+            enabled = enabled,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = "编辑轨迹",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("重命名") },
+                onClick = {
+                    expanded = false
+                    onRename()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("删除") },
+                onClick = {
+                    expanded = false
+                    onDelete()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrailLibraryFact(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+internal enum class TrailMapPreviewMode {
+    FlatMap,
+    Map3d,
+}
+
+internal data class TrailMapPreviewState(
+    val mode: TrailMapPreviewMode = TrailMapPreviewMode.FlatMap,
+)
+
+internal fun defaultTrailMapPreviewState(): TrailMapPreviewState = TrailMapPreviewState()
+
+internal fun enterTrailMapPreview3d(state: TrailMapPreviewState): TrailMapPreviewState =
+    state.copy(mode = TrailMapPreviewMode.Map3d)
+
+internal fun exitTrailMapPreview3d(state: TrailMapPreviewState): TrailMapPreviewState =
+    state.copy(mode = TrailMapPreviewMode.FlatMap)
+
+internal fun trailPreviewTerrainEnabled(state: TrailMapPreviewState): Boolean =
+    state.mode == TrailMapPreviewMode.Map3d
 
 @Composable
 private fun TrailPreviewDialog(
@@ -310,6 +454,7 @@ private fun TrailPreviewDialog(
     mapConfig: com.rustella.stellartrail.domain.trip.MapConfigResponse?,
     onDismiss: () -> Unit,
 ) {
+    var previewState by remember(trail.id) { mutableStateOf(defaultTrailMapPreviewState()) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -342,18 +487,18 @@ private fun TrailPreviewDialog(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            "${(trail.distanceM / 1000.0).formatOne()} km · ${trail.pointCount} 点",
+                            trailPreviewHeaderSummary(trail.distanceM),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     TextButton(onClick = onDismiss) { Text("关闭") }
                 }
-                if (mapConfig != null) {
-                    BoxWithConstraints(
-                        Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                    ) {
+                BoxWithConstraints(
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                ) {
+                    if (mapConfig != null) {
                         TrailAssetPreviewMap(
                             map = mapConfig,
                             trail = trail,
@@ -362,22 +507,64 @@ private fun TrailPreviewDialog(
                             modifier = Modifier.fillMaxWidth(),
                             height = maxHeight,
                             zoomGesturesEnabled = true,
+                            terrain3dEnabled = trailPreviewTerrainEnabled(previewState),
+                            showStyleSelector = previewState.mode == TrailMapPreviewMode.FlatMap,
+                            bottomStartControls = {
+                                TrailPreviewDimensionButton(
+                                    state = previewState,
+                                    onEnter3d = { previewState = enterTrailMapPreview3d(previewState) },
+                                    onExit3d = { previewState = exitTrailMapPreview3d(previewState) },
+                                )
+                            },
                         )
-                    }
-                } else {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        LoadingState()
+                    } else {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            LoadingState()
+                        }
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun TrailPreviewDimensionButton(
+    state: TrailMapPreviewState,
+    onEnter3d: () -> Unit,
+    onExit3d: () -> Unit,
+) {
+    val isMap3d = state.mode == TrailMapPreviewMode.Map3d
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (isMap3d) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.94f)
+        } else {
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+        },
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp,
+    ) {
+        Box(
+            Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(onClick = if (isMap3d) onExit3d else onEnter3d),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = if (isMap3d) "2D" else "3D",
+                color = if (isMap3d) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+internal fun trailPreviewHeaderSummary(distanceM: Double): String =
+    "${(distanceM / 1000.0).formatOne()} km"
 
 @Composable
 private fun RenameTrailDialog(trail: TrailSummary, onDismiss: () -> Unit, onSave: (String) -> Unit) {

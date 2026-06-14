@@ -40,6 +40,9 @@ class TrailApiTest {
 
         assertEquals(320.0, uploaded.startElevationM ?: -1.0, 0.0)
         assertEquals(1180.0, detail.endElevationM ?: -1.0, 0.0)
+        assertEquals(3, detail.normalizedPoints.size)
+        assertEquals(1180.0, detail.normalizedPoints.last().elevationM ?: -1.0, 0.0)
+        assertEquals("2026-05-01T02:20:00Z", detail.normalizedPoints.last().time)
         assertEquals(
             listOf(
                 HttpMethod.Get,
@@ -103,10 +106,14 @@ private val trailJson = """
   "sha256_hex": "fixture",
   "bucket": "trails",
   "object_key": "trails/user-1/trail-1.gpx",
-  "normalized_points": [],
+  "normalized_points": [
+    {"lng": 114.15, "lat": 27.45, "elevation_m": 320.0, "time": "2026-05-01T00:00:00Z"},
+    {"lng": 114.18, "lat": 27.49, "elevation_m": 760.0, "time": "2026-05-01T01:10:00Z"},
+    {"lng": 114.21, "lat": 27.52, "elevation_m": 1180.0, "time": "2026-05-01T02:20:00Z"}
+  ],
   "simplified_geojson": {
     "type": "Feature",
-    "geometry": {"type": "LineString", "coordinates": [[114.15,27.45],[114.18,27.49]]}
+    "geometry": {"type": "LineString", "coordinates": [[114.15,27.45,320.0],[114.18,27.49,760.0],[114.21,27.52,1180.0]]}
   },
   "distance_m": 12000.0,
   "ascent_m": 900.0,
