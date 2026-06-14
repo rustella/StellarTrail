@@ -515,7 +515,7 @@ private fun TrailPreviewDialog(
                                     zoomGesturesEnabled = true,
                                     terrain3dEnabled = previewState.mode == TrailMapPreviewMode.Map3d,
                                     showStyleSelector = previewState.mode == TrailMapPreviewMode.FlatMap,
-                                    topEndControls = {
+                                    bottomStartControls = {
                                         TrailPreviewMapControls(
                                             state = previewState,
                                             onEnter3d = { previewState = enterTrailMapPreview3d(previewState) },
