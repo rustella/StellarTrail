@@ -1522,6 +1522,7 @@ fn validate_map_config(config: &MapConfig) -> anyhow::Result<()> {
         anyhow::bail!("MAP_DEFAULT_STYLE_ID must not be padded");
     }
     let mut style_ids = HashSet::new();
+    let mut style_urls = HashSet::new();
     let mut has_default_style = false;
     for style in &config.styles {
         if style.id.trim().is_empty() {
@@ -1546,6 +1547,9 @@ fn validate_map_config(config: &MapConfig) -> anyhow::Result<()> {
             anyhow::bail!("MAP_STYLE_URL must not be padded");
         }
         origin_from_url(&style.upstream_style_url)?;
+        if !style_urls.insert(style.upstream_style_url.as_str()) {
+            anyhow::bail!("MAP_STYLE_URL must be unique per style");
+        }
         if style.request_origins.is_empty() {
             anyhow::bail!("MAP_STYLE_REQUEST_ORIGINS must not be empty");
         }
@@ -2421,6 +2425,42 @@ request_signature:
 
         assert!(
             error.contains("request_signature.clients[].app_id"),
+            "{error}"
+        );
+        restore_env(saved);
+    }
+
+    #[test]
+    fn from_env_rejects_duplicate_map_style_urls() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let saved = snapshot_env(CONFIG_KEYS);
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            config_file.path(),
+            r#"
+database:
+  url: sqlite://stellartrail.db
+map:
+  default_style_id: outdoor
+  styles:
+    - id: outdoor
+      label: 户外
+      style_url: https://maps.example.invalid/shared-style.json
+    - id: streets
+      label: 街道
+      style_url: https://maps.example.invalid/shared-style.json
+"#,
+        )
+        .unwrap();
+        unsafe {
+            clear_env(CONFIG_KEYS);
+            env::set_var("CONFIG_PATH", config_file.path());
+        }
+
+        let error = ApiConfig::from_env().unwrap_err().to_string();
+
+        assert!(
+            error.contains("MAP_STYLE_URL must be unique per style"),
             "{error}"
         );
         restore_env(saved);

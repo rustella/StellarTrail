@@ -595,6 +595,7 @@ private fun MapTilerTrailMap(
     val mapPresentation = remember(terrain3dEnabled, zoomGesturesEnabled) {
         trailMapPresentation(terrain3dEnabled = terrain3dEnabled, zoomGesturesEnabled = zoomGesturesEnabled)
     }
+    val renderIdentity = trailMapRenderIdentity(selectedStyle, mapPresentation)
     val locationProvider = remember(context) { AndroidForegroundLocationProvider(context) }
     var legendVisible by remember { mutableStateOf(false) }
     var styleSwitchLocked by remember { mutableStateOf(false) }
@@ -638,7 +639,14 @@ private fun MapTilerTrailMap(
     val currentOnCameraSnapshotChanged by rememberUpdatedState(onCameraSnapshotChanged)
     val currentOnLocationChanged by rememberUpdatedState(onLocationChanged)
     val currentOnLocationTrackingActiveChanged by rememberUpdatedState(onLocationTrackingActiveChanged)
-    val controllerDelegate = remember(styleUrl, mapPublicKey, featureCollection, bounds, lineColor, eventLevel, mapPresentation) {
+    val controllerDelegate = remember(
+        renderIdentity,
+        mapPublicKey,
+        featureCollection,
+        bounds,
+        lineColor,
+        eventLevel,
+    ) {
         MTConfig.apiKey = mapPublicKey
         TrailMapDelegate(
             context = context,
@@ -800,7 +808,7 @@ private fun MapTilerTrailMap(
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        key(styleUrl, mapPresentation) {
+        key(renderIdentity) {
             MTMapView(
                 referenceStyle = MTMapReferenceStyle.CUSTOM(URL(styleUrl)),
                 options = MTMapOptions(
@@ -1211,6 +1219,21 @@ internal fun trailMapPresentation(
         pitchGestureEnabled = false,
     )
 }
+
+internal data class TrailMapRenderIdentity(
+    val styleId: String,
+    val styleUrl: String,
+    val presentation: TrailMapPresentation,
+)
+
+internal fun trailMapRenderIdentity(
+    selectedStyle: MapStyleOption,
+    presentation: TrailMapPresentation,
+): TrailMapRenderIdentity = TrailMapRenderIdentity(
+    styleId = selectedStyle.id,
+    styleUrl = selectedStyle.styleUrl,
+    presentation = presentation,
+)
 
 private class TrailMapDelegate(
     context: Context,

@@ -132,6 +132,21 @@ class TripMapComponentsTest {
     }
 
     @Test
+    fun trailMapRenderIdentityChangesForStyleIdStyleUrlAndPresentation() {
+        val flatPresentation = trailMapPresentation(terrain3dEnabled = false, zoomGesturesEnabled = true)
+        val terrainPresentation = trailMapPresentation(terrain3dEnabled = true, zoomGesturesEnabled = true)
+        val outdoor = MapStyleOption("outdoor", "户外", "https://api.example.test/api/v1/map/styles/outdoor/style.json")
+        val sameUrlStreets = MapStyleOption("streets", "街道", outdoor.styleUrl)
+        val differentUrlOutdoor = outdoor.copy(styleUrl = "https://api.example.test/api/v1/map/styles/outdoor-v2/style.json")
+
+        val identity = trailMapRenderIdentity(outdoor, flatPresentation)
+
+        assertFalse(identity == trailMapRenderIdentity(sameUrlStreets, flatPresentation))
+        assertFalse(identity == trailMapRenderIdentity(differentUrlOutdoor, flatPresentation))
+        assertFalse(identity == trailMapRenderIdentity(outdoor, terrainPresentation))
+    }
+
+    @Test
     fun inMemoryMapStylePreferenceStoresSelectedStyleId() {
         val repository = InMemoryMapStylePreferenceRepository()
 
