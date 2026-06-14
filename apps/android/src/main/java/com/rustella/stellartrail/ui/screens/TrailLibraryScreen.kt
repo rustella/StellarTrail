@@ -344,8 +344,42 @@ private fun TrailLibraryRow(
                         TrailLibraryFact("更新", trail.updatedAt.datePart(), Modifier.weight(1f))
                     }
                 }
+                if (!selecting) {
+                    TrailLibraryPreviewHint(enabled = enabled, onPreview = onPreview)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun TrailLibraryPreviewHint(enabled: Boolean, onPreview: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(TrailInnerCardShape)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.09f))
+            .clickable(enabled = enabled, onClick = onPreview)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "点按卡片预览地图与3D轨迹",
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            ">",
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+        )
     }
 }
 
