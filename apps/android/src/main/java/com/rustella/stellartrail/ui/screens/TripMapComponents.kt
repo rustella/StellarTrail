@@ -72,6 +72,7 @@ import com.maptiler.maptilersdk.map.MTMapOptions
 import com.maptiler.maptilersdk.map.MTMapView
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.MTMapViewDelegate
+import com.maptiler.maptilersdk.map.gestures.MTGestureType
 import com.maptiler.maptilersdk.map.options.MTEventLevel
 import com.maptiler.maptilersdk.map.options.MTFitBoundsOptions
 import com.maptiler.maptilersdk.map.options.MTPaddingOptions
@@ -796,6 +797,9 @@ private fun MapTilerTrailMap(
     }
     LaunchedEffect(renderIdentity, controllerDelegate) {
         controllerDelegate.applyMapStyle(styleUrl)
+    }
+    LaunchedEffect(mapPresentation, controllerDelegate) {
+        controllerDelegate.applyMapPresentation(mapPresentation)
     }
     val currentControllerDelegate by rememberUpdatedState(controllerDelegate)
     LaunchedEffect(focusRequestKey, selectedBounds, terrain3dEnabled, controllerDelegate) {
@@ -1618,16 +1622,14 @@ internal fun trailMapPresentation(
 internal data class TrailMapRenderIdentity(
     val styleId: String,
     val styleUrl: String,
-    val presentation: TrailMapPresentation,
 )
 
 internal fun trailMapRenderIdentity(
     selectedStyle: MapStyleOption,
-    presentation: TrailMapPresentation,
+    @Suppress("UNUSED_PARAMETER") presentation: TrailMapPresentation,
 ): TrailMapRenderIdentity = TrailMapRenderIdentity(
     styleId = selectedStyle.id,
     styleUrl = selectedStyle.styleUrl,
-    presentation = presentation,
 )
 
 private class TrailMapDelegate(
@@ -1639,7 +1641,7 @@ private class TrailMapDelegate(
     initialLocation: ForegroundLocation?,
     private val lineColor: Int,
     private val eventLevel: MTEventLevel,
-    private val mapPresentation: TrailMapPresentation,
+    private var mapPresentation: TrailMapPresentation,
     private val onTap: (Double, Double) -> Unit,
     private val onLongPress: (Double, Double) -> Unit,
     private val onCameraSnapshotChanged: (MapCameraSnapshot) -> Unit,
@@ -1649,6 +1651,7 @@ private class TrailMapDelegate(
     private var suppressNextTap = false
     private var pinchGestureEnabled = false
     private var pitchGestureEnabled = false
+    private var doubleTapGestureEnabled = false
     private var currentLocationMarker: MTMarker? = null
     private var currentLocationForMarker: ForegroundLocation? = initialLocation
     private var appliedStyleUrl: String? = null
@@ -1656,13 +1659,13 @@ private class TrailMapDelegate(
     override fun onMapViewInitialized() {
         renderTrailLayer()
         restoreCurrentLocationMarker()
-        enableMapGesturesIfNeeded()
+        applyMapPresentation()
     }
 
     override fun onEventTriggered(event: MTEvent, data: MTData?) {
         if (shouldEnsureTrailLayerOnEvent(event)) {
             renderTrailLayer()
-            enableMapGesturesIfNeeded()
+            applyMapPresentation()
             restoreCurrentLocationMarker()
             return
         }
@@ -1731,7 +1734,7 @@ private class TrailMapDelegate(
             coroutineScope.launch {
                 delay(MAP_STYLE_SWITCH_COOLDOWN_MILLIS)
                 renderTrailLayer()
-                enableMapGesturesIfNeeded()
+                applyMapPresentation()
                 restoreCurrentLocationMarker()
             }
         }
@@ -1743,9 +1746,25 @@ private class TrailMapDelegate(
             runCatching { gestureService.enablePinchRotateAndZoomGesture() }
                 .onSuccess { pinchGestureEnabled = true }
         }
+        if (!mapPresentation.pinchRotateEnabled && pinchGestureEnabled) {
+            runCatching { gestureService.disableGesture(MTGestureType.PINCH_ROTATE_AND_ZOOM) }
+                .onSuccess { pinchGestureEnabled = false }
+        }
         if (mapPresentation.pitchGestureEnabled && !pitchGestureEnabled) {
             runCatching { gestureService.enableTwoFingerDragPitchGesture() }
                 .onSuccess { pitchGestureEnabled = true }
+        }
+        if (!mapPresentation.pitchGestureEnabled && pitchGestureEnabled) {
+            runCatching { gestureService.disableGesture(MTGestureType.TWO_FINGERS_DRAG_PITCH) }
+                .onSuccess { pitchGestureEnabled = false }
+        }
+        if (mapPresentation.pinchRotateEnabled && !doubleTapGestureEnabled) {
+            runCatching { gestureService.enableDoubleTapZoomInGesture() }
+                .onSuccess { doubleTapGestureEnabled = true }
+        }
+        if (!mapPresentation.pinchRotateEnabled && doubleTapGestureEnabled) {
+            runCatching { gestureService.disableGesture(MTGestureType.DOUBLE_TAP_ZOOM_IN) }
+                .onSuccess { doubleTapGestureEnabled = false }
         }
     }
 
@@ -1858,16 +1877,20 @@ private class TrailMapDelegate(
         applyMapPresentation()
     }
 
-    private fun applyMapPresentation() {
-        mapPresentation.terrainExaggeration?.let { exaggeration ->
-            runCatching { controller.setTerrainExaggeration(exaggeration, false) }
+    fun applyMapPresentation(nextPresentation: TrailMapPresentation = mapPresentation) {
+        mapPresentation = nextPresentation
+        val style = controller.style
+        if (mapPresentation.terrainEnabled) {
+            runCatching { style?.enableTerrain(mapPresentation.terrainExaggeration) }
+            mapPresentation.terrainExaggeration?.let { exaggeration ->
+                runCatching { controller.setTerrainExaggeration(exaggeration, false) }
+            }
+        } else {
+            runCatching { style?.disableTerrain() }
         }
-        mapPresentation.bearing?.let { bearing ->
-            runCatching { controller.setBearing(bearing) }
-        }
-        mapPresentation.pitch?.let { pitch ->
-            runCatching { controller.setPitch(pitch) }
-        }
+        runCatching { controller.setBearing(mapPresentation.bearing ?: 0.0) }
+        runCatching { controller.setPitch(mapPresentation.pitch ?: 0.0) }
+        enableMapGesturesIfNeeded()
     }
 
     private suspend fun captureAndPublishCameraSnapshot() {

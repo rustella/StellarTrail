@@ -291,7 +291,7 @@ class TripMapComponentsTest {
     }
 
     @Test
-    fun trailMapRenderIdentityChangesForStyleIdStyleUrlAndPresentation() {
+    fun trailMapRenderIdentityChangesForStyleIdAndStyleUrlOnly() {
         val flatPresentation = trailMapPresentation(terrain3dEnabled = false, zoomGesturesEnabled = true)
         val terrainPresentation = trailMapPresentation(terrain3dEnabled = true, zoomGesturesEnabled = true)
         val outdoor = MapStyleOption("outdoor", "户外", "https://api.example.test/api/v1/map/styles/outdoor/style.json")
@@ -302,7 +302,7 @@ class TripMapComponentsTest {
 
         assertFalse(identity == trailMapRenderIdentity(sameUrlStreets, flatPresentation))
         assertFalse(identity == trailMapRenderIdentity(differentUrlOutdoor, flatPresentation))
-        assertFalse(identity == trailMapRenderIdentity(outdoor, terrainPresentation))
+        assertEquals(identity, trailMapRenderIdentity(outdoor, terrainPresentation))
     }
 
     @Test
