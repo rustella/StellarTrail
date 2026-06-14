@@ -86,7 +86,7 @@ fun TripsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val selectedMapStyleId by mapStylePreferenceRepository.selectedStyleId.collectAsStateWithLifecycle()
     var showCreateSheet by remember { mutableStateOf(false) }
-    LaunchedEffect(isLoggedIn) { viewModel.refresh(isLoggedIn) }
+    LaunchedEffect(isLoggedIn) { viewModel.loadIfNeeded(isLoggedIn) }
     LazyColumn(
         modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 28.dp),
