@@ -3,8 +3,11 @@ package com.rustella.stellartrail.feature.gear.list
 import com.rustella.stellartrail.data.gear.GearRepositoryContract
 import com.rustella.stellartrail.domain.gear.CreateGearRequest
 import com.rustella.stellartrail.domain.gear.GearCategoriesResponse
+import com.rustella.stellartrail.domain.gear.GearCategory
 import com.rustella.stellartrail.domain.gear.GearItem
 import com.rustella.stellartrail.domain.gear.GearStatsResponse
+import com.rustella.stellartrail.domain.gear.GearStatus
+import com.rustella.stellartrail.domain.gear.GearSummary
 import com.rustella.stellartrail.domain.gear.GearTab
 import com.rustella.stellartrail.domain.gear.GearTemplate
 import com.rustella.stellartrail.domain.gear.GearTemplateCategory
@@ -76,8 +79,27 @@ class GearListViewModelTest {
         assertEquals("无法连接到 API，请检查网络或 API Base URL。", state.error)
     }
 
+    @Test
+    fun loadIfNeededKeepsGearListDuringBackgroundFailure() = runTest {
+        val repository = FakeGearRepository()
+        val viewModel = GearListViewModel(repository)
+
+        viewModel.loadIfNeeded(isLoggedIn = true)
+        advanceUntilIdle()
+        repository.failStats = true
+        viewModel.loadIfNeeded(isLoggedIn = true)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue(state.hasLoaded)
+        assertFalse(state.loading)
+        assertFalse(state.refreshing)
+        assertEquals(listOf("登山包"), state.gears.map { it.name })
+        assertEquals("无法连接到 API，请检查网络或 API Base URL。", state.error)
+    }
+
     private class FakeGearRepository(
-        private val failStats: Boolean = false,
+        var failStats: Boolean = false,
     ) : GearRepositoryContract {
         var templateCalls = 0
         var privateGearCalls = 0
@@ -110,7 +132,21 @@ class GearListViewModelTest {
 
         override suspend fun list(request: ListGearsRequest): ListGearsResponse {
             privateGearCalls += 1
-            return ListGearsResponse(emptyList(), nextCursor = "next")
+            return ListGearsResponse(
+                listOf(
+                    GearSummary(
+                        id = "gear-1",
+                        category = GearCategory.BACKPACK_SYSTEM,
+                        categoryLabel = "背负与收纳",
+                        name = "登山包",
+                        status = GearStatus.AVAILABLE,
+                        statusLabel = "可用",
+                        createdAt = "2026-05-01T00:00:00Z",
+                        updatedAt = "2026-05-01T00:00:00Z",
+                    ),
+                ),
+                nextCursor = "next",
+            )
         }
 
         override suspend fun get(id: String): GearItem = error("unused")

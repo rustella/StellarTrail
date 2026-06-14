@@ -159,22 +159,29 @@ fun TripsOverviewMapSection(
         null
     }
     SurfaceCard(modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("行程轨迹总览", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (trails.isEmpty()) {
-                        "这里只汇总已绑定到行程的轨迹；轨迹库中未绑定行程的轨迹不会显示。"
-                    } else {
-                        "${data.stats.tripCount} 个行程 · ${data.stats.trailCount} 条已绑定轨迹"
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    "行程轨迹总览",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (data.truncated) Badge("已简化显示", tone = BadgeTone.Info)
+                    CompactPillAction("轨迹库", onOpenTrailLibrary)
+                }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (data.truncated) Badge("已简化显示", tone = BadgeTone.Info)
-                CompactPillAction("轨迹库", onOpenTrailLibrary)
-            }
+            Text(
+                if (trails.isEmpty()) {
+                    "这里只汇总已绑定到行程的轨迹；轨迹库中未绑定行程的轨迹不会显示。"
+                } else {
+                    "${data.stats.tripCount} 个行程 · ${data.stats.trailCount} 条已绑定轨迹"
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         if (canRenderStyledMap && compactSelectedStyle != null) {
             MapTilerTrailMap(
