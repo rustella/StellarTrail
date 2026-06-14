@@ -609,7 +609,7 @@ private fun MapTilerTrailMap(
         locationTrackingState = ForegroundLocationTrackingState.Idle
     }
 
-    LaunchedEffect(styleUrl) {
+    LaunchedEffect(renderIdentity) {
         if (styleSwitchLocked) {
             delay(MAP_STYLE_SWITCH_COOLDOWN_MILLIS)
             styleSwitchLocked = false
@@ -662,6 +662,9 @@ private fun MapTilerTrailMap(
             onLongPress = { lng, lat -> currentOnMapLongPress(lng, lat) },
             onCameraSnapshotChanged = { snapshot -> currentOnCameraSnapshotChanged(snapshot) },
         )
+    }
+    LaunchedEffect(renderIdentity, controllerDelegate) {
+        controllerDelegate.applyMapStyle(styleUrl)
     }
     val currentControllerDelegate by rememberUpdatedState(controllerDelegate)
 
@@ -1256,6 +1259,7 @@ private class TrailMapDelegate(
     private var pitchGestureEnabled = false
     private var currentLocationMarker: MTMarker? = null
     private var currentLocationForMarker: ForegroundLocation? = initialLocation
+    private var appliedStyleUrl: String? = null
 
     override fun onMapViewInitialized() {
         renderTrailLayer()
@@ -1322,6 +1326,22 @@ private class TrailMapDelegate(
                 touchCandidate = null
             }
             else -> Unit
+        }
+    }
+
+    fun applyMapStyle(styleUrl: String) {
+        if (appliedStyleUrl == styleUrl) return
+        runCatching {
+            val style = controller.style ?: return
+            style.setStyle(MTMapReferenceStyle.CUSTOM(URL(styleUrl)))
+        }.onSuccess {
+            appliedStyleUrl = styleUrl
+            coroutineScope.launch {
+                delay(MAP_STYLE_SWITCH_COOLDOWN_MILLIS)
+                renderTrailLayer()
+                enableMapGesturesIfNeeded()
+                restoreCurrentLocationMarker()
+            }
         }
     }
 
