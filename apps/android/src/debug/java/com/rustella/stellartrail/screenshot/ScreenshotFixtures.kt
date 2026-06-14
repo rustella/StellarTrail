@@ -111,6 +111,8 @@ import com.rustella.stellartrail.domain.trip.TripHomeHighlightItem
 import com.rustella.stellartrail.domain.trip.TripHomeHighlightResponse
 import com.rustella.stellartrail.domain.trip.TripHomeHighlightStatus
 import com.rustella.stellartrail.domain.trip.Trail
+import com.rustella.stellartrail.domain.trip.TrailBounds
+import com.rustella.stellartrail.domain.trip.TrailPoint
 import com.rustella.stellartrail.domain.trip.TrailSourceFormat
 import com.rustella.stellartrail.domain.trip.TrailSummary
 import com.rustella.stellartrail.domain.trip.TripMapStateResponse
@@ -681,27 +683,34 @@ private fun fixtureTrail(
     originalFilename: String = "wugongshan.gpx",
     contentType: String = "application/gpx+xml",
     sizeBytes: Long = 128,
-): Trail = Trail(
-    id = id,
-    ownerUserId = "fixture-user",
-    displayName = displayName,
-    sourceFormat = TrailSourceFormat.GPX,
-    originalFilename = originalFilename,
-    contentType = contentType,
-    sizeBytes = sizeBytes,
-    sha256Hex = "fixture-$id",
-    bucket = "fixture",
-    objectKey = "trails/fixture/$id.gpx",
-    simplifiedGeojson = fixtureTrailGeoJson(),
-    distanceM = 12000.0,
-    ascentM = 900.0,
-    descentM = 850.0,
-    startElevationM = 320.0,
-    endElevationM = 1180.0,
-    pointCount = 120,
-    createdAt = "2026-05-01T00:00:00Z",
-    updatedAt = "2026-05-01T00:00:00Z",
-)
+): Trail {
+    val points = fixtureTrailPoints()
+    return Trail(
+        id = id,
+        ownerUserId = "fixture-user",
+        displayName = displayName,
+        sourceFormat = TrailSourceFormat.GPX,
+        originalFilename = originalFilename,
+        contentType = contentType,
+        sizeBytes = sizeBytes,
+        sha256Hex = "fixture-$id",
+        bucket = "fixture",
+        objectKey = "trails/fixture/$id.gpx",
+        normalizedPoints = points,
+        simplifiedGeojson = fixtureTrailGeoJson(),
+        bounds = TrailBounds(minLng = 114.15, minLat = 27.45, maxLng = 114.25, maxLat = 27.55),
+        distanceM = 12000.0,
+        ascentM = 900.0,
+        descentM = 850.0,
+        minElevationM = 320.0,
+        maxElevationM = 1180.0,
+        startElevationM = 320.0,
+        endElevationM = 1180.0,
+        pointCount = points.size.toLong(),
+        createdAt = "2026-05-01T00:00:00Z",
+        updatedAt = "2026-05-01T00:00:00Z",
+    )
+}
 
 private fun trailSummaryFromFixture(trail: Trail): TrailSummary = TrailSummary(
     id = trail.id,
@@ -744,23 +753,48 @@ private fun fixtureMapTrailLink(id: String = "trail-1"): MapTrailLink = MapTrail
         contentType = "application/gpx+xml",
         sizeBytes = 128,
         sha256Hex = "fixture",
+        bounds = TrailBounds(minLng = 114.15, minLat = 27.45, maxLng = 114.25, maxLat = 27.55),
         distanceM = 12000.0,
         ascentM = 900.0,
         descentM = 850.0,
+        minElevationM = 320.0,
+        maxElevationM = 1180.0,
         startElevationM = 320.0,
         endElevationM = 1180.0,
-        pointCount = 120,
+        pointCount = fixtureTrailPoints().size.toLong(),
         createdAt = "2026-05-01T00:00:00Z",
         updatedAt = "2026-05-01T00:00:00Z",
     ),
     simplifiedGeojson = fixtureTrailGeoJson(),
 )
 
+private fun fixtureTrailPoints() = listOf(
+    TrailPoint(lng = 114.15, lat = 27.45, elevationM = 320.0, time = "2026-05-01T00:00:00Z"),
+    TrailPoint(lng = 114.17, lat = 27.47, elevationM = 520.0, time = "2026-05-01T00:45:00Z"),
+    TrailPoint(lng = 114.18, lat = 27.49, elevationM = 760.0, time = "2026-05-01T01:20:00Z"),
+    TrailPoint(lng = 114.2, lat = 27.5, elevationM = 690.0, time = "2026-05-01T02:05:00Z"),
+    TrailPoint(lng = 114.22, lat = 27.53, elevationM = 980.0, time = "2026-05-01T03:00:00Z"),
+    TrailPoint(lng = 114.25, lat = 27.55, elevationM = 1180.0, time = "2026-05-01T03:45:00Z"),
+)
+
 private fun fixtureTrailGeoJson() = kotlinx.serialization.json.buildJsonObject {
         put("type", kotlinx.serialization.json.JsonPrimitive("Feature"))
         put("geometry", kotlinx.serialization.json.buildJsonObject {
             put("type", kotlinx.serialization.json.JsonPrimitive("LineString"))
-            put("coordinates", kotlinx.serialization.json.JsonArray(emptyList()))
+            put(
+                "coordinates",
+                kotlinx.serialization.json.JsonArray(
+                    fixtureTrailPoints().map { point ->
+                        kotlinx.serialization.json.JsonArray(
+                            listOf(
+                                kotlinx.serialization.json.JsonPrimitive(point.lng),
+                                kotlinx.serialization.json.JsonPrimitive(point.lat),
+                                kotlinx.serialization.json.JsonPrimitive(point.elevationM ?: 0.0),
+                            ),
+                        )
+                    },
+                ),
+            )
         })
     }
 

@@ -518,6 +518,7 @@ fun TrailAssetPreviewMap(
     modifier: Modifier = Modifier,
     height: Dp = 220.dp,
     zoomGesturesEnabled: Boolean = false,
+    terrain3dEnabled: Boolean = false,
 ) {
     val canRenderMap = map.enabled && map.publicKey?.isNotBlank() == true
     if (!canRenderMap) {
@@ -549,6 +550,7 @@ fun TrailAssetPreviewMap(
         lineColor = USER_TRAIL_COLOR,
         eventLevel = MTEventLevel.ESSENTIAL,
         zoomGesturesEnabled = zoomGesturesEnabled,
+        terrain3dEnabled = terrain3dEnabled,
         onMapTap = { _, _ -> },
         modifier = modifier,
     )
@@ -566,6 +568,7 @@ private fun MapTilerTrailMap(
     lineColor: Color,
     eventLevel: MTEventLevel,
     zoomGesturesEnabled: Boolean,
+    terrain3dEnabled: Boolean = false,
     locationTrackingEnabled: Boolean = true,
     initialCameraSnapshot: MapCameraSnapshot? = null,
     initialLocation: ForegroundLocation? = null,
@@ -582,6 +585,9 @@ private fun MapTilerTrailMap(
     val coroutineScope = rememberCoroutineScope()
     val styleUrl = selectedStyle.styleUrl
     val mapPublicKey = map.publicKey.orEmpty()
+    val mapPresentation = remember(terrain3dEnabled, zoomGesturesEnabled) {
+        trailMapPresentation(terrain3dEnabled = terrain3dEnabled, zoomGesturesEnabled = zoomGesturesEnabled)
+    }
     val locationProvider = remember(context) { AndroidForegroundLocationProvider(context) }
     var legendVisible by remember { mutableStateOf(false) }
     var styleSwitchLocked by remember { mutableStateOf(false) }
@@ -625,7 +631,7 @@ private fun MapTilerTrailMap(
     val currentOnCameraSnapshotChanged by rememberUpdatedState(onCameraSnapshotChanged)
     val currentOnLocationChanged by rememberUpdatedState(onLocationChanged)
     val currentOnLocationTrackingActiveChanged by rememberUpdatedState(onLocationTrackingActiveChanged)
-    val controllerDelegate = remember(styleUrl, mapPublicKey, featureCollection, bounds, lineColor, eventLevel, zoomGesturesEnabled) {
+    val controllerDelegate = remember(styleUrl, mapPublicKey, featureCollection, bounds, lineColor, eventLevel, mapPresentation) {
         MTConfig.apiKey = mapPublicKey
         TrailMapDelegate(
             context = context,
@@ -636,7 +642,7 @@ private fun MapTilerTrailMap(
             initialLocation = lastFollowLocation,
             lineColor = lineColor.toArgb(),
             eventLevel = eventLevel,
-            zoomGesturesEnabled = zoomGesturesEnabled,
+            mapPresentation = mapPresentation,
             onTap = { lng, lat -> currentOnMapTap(lng, lat) },
             onLongPress = { lng, lat -> currentOnMapLongPress(lng, lat) },
             onCameraSnapshotChanged = { snapshot -> currentOnCameraSnapshotChanged(snapshot) },
@@ -787,7 +793,7 @@ private fun MapTilerTrailMap(
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        key(styleUrl) {
+        key(styleUrl, mapPresentation) {
             MTMapView(
                 referenceStyle = MTMapReferenceStyle.CUSTOM(URL(styleUrl)),
                 options = MTMapOptions(
@@ -795,11 +801,17 @@ private fun MapTilerTrailMap(
                     zoom = SHENZHEN_MAP_ZOOM,
                     minZoom = 2.0,
                     maxZoom = 18.0,
+                    bearing = mapPresentation.bearing,
+                    pitch = mapPresentation.pitch,
+                    terrainIsEnabled = mapPresentation.terrainEnabled,
+                    terrainExaggeration = mapPresentation.terrainExaggeration,
                     isInteractionEnabled = true,
                     dragPanIsEnabled = true,
-                    dragRotateIsEnabled = zoomGesturesEnabled,
-                    doubleTapShouldZoom = zoomGesturesEnabled,
-                    shouldPinchToRotateAndZoom = zoomGesturesEnabled,
+                    dragRotateIsEnabled = mapPresentation.pinchRotateEnabled,
+                    doubleTapShouldZoom = mapPresentation.pinchRotateEnabled,
+                    shouldPinchToRotateAndZoom = mapPresentation.pinchRotateEnabled,
+                    shouldDragToPitch = mapPresentation.pitchGestureEnabled,
+                    shouldPitchWithRotate = mapPresentation.pitchGestureEnabled,
                     navigationControlIsVisible = false,
                     geolocateControlIsVisible = false,
                     terrainControlIsVisible = false,
@@ -1161,6 +1173,38 @@ private fun MapStyleSelector(
     }
 }
 
+internal data class TrailMapPresentation(
+    val terrainEnabled: Boolean,
+    val terrainExaggeration: Double?,
+    val pitch: Double?,
+    val bearing: Double?,
+    val pinchRotateEnabled: Boolean,
+    val pitchGestureEnabled: Boolean,
+)
+
+internal fun trailMapPresentation(
+    terrain3dEnabled: Boolean,
+    zoomGesturesEnabled: Boolean,
+): TrailMapPresentation = if (terrain3dEnabled) {
+    TrailMapPresentation(
+        terrainEnabled = true,
+        terrainExaggeration = TRAIL_TERRAIN_3D_EXAGGERATION,
+        pitch = TRAIL_TERRAIN_3D_PITCH,
+        bearing = TRAIL_TERRAIN_3D_BEARING,
+        pinchRotateEnabled = true,
+        pitchGestureEnabled = true,
+    )
+} else {
+    TrailMapPresentation(
+        terrainEnabled = false,
+        terrainExaggeration = null,
+        pitch = null,
+        bearing = null,
+        pinchRotateEnabled = zoomGesturesEnabled,
+        pitchGestureEnabled = false,
+    )
+}
+
 private class TrailMapDelegate(
     context: Context,
     private val coroutineScope: kotlinx.coroutines.CoroutineScope,
@@ -1170,7 +1214,7 @@ private class TrailMapDelegate(
     initialLocation: ForegroundLocation?,
     private val lineColor: Int,
     private val eventLevel: MTEventLevel,
-    private val zoomGesturesEnabled: Boolean,
+    private val mapPresentation: TrailMapPresentation,
     private val onTap: (Double, Double) -> Unit,
     private val onLongPress: (Double, Double) -> Unit,
     private val onCameraSnapshotChanged: (MapCameraSnapshot) -> Unit,
@@ -1179,19 +1223,20 @@ private class TrailMapDelegate(
     private var touchCandidate: LongPressCandidate? = null
     private var suppressNextTap = false
     private var pinchGestureEnabled = false
+    private var pitchGestureEnabled = false
     private var currentLocationMarker: MTMarker? = null
     private var currentLocationForMarker: ForegroundLocation? = initialLocation
 
     override fun onMapViewInitialized() {
         renderTrailLayer()
         restoreCurrentLocationMarker()
-        enablePinchGestureIfNeeded()
+        enableMapGesturesIfNeeded()
     }
 
     override fun onEventTriggered(event: MTEvent, data: MTData?) {
         if (shouldEnsureTrailLayerOnEvent(event)) {
             renderTrailLayer()
-            enablePinchGestureIfNeeded()
+            enableMapGesturesIfNeeded()
             restoreCurrentLocationMarker()
             return
         }
@@ -1250,11 +1295,16 @@ private class TrailMapDelegate(
         }
     }
 
-    private fun enablePinchGestureIfNeeded() {
-        if (!zoomGesturesEnabled || pinchGestureEnabled) return
+    private fun enableMapGesturesIfNeeded() {
         val gestureService = controller.gestureService ?: return
-        runCatching { gestureService.enablePinchRotateAndZoomGesture() }
-            .onSuccess { pinchGestureEnabled = true }
+        if (mapPresentation.pinchRotateEnabled && !pinchGestureEnabled) {
+            runCatching { gestureService.enablePinchRotateAndZoomGesture() }
+                .onSuccess { pinchGestureEnabled = true }
+        }
+        if (mapPresentation.pitchGestureEnabled && !pitchGestureEnabled) {
+            runCatching { gestureService.enableTwoFingerDragPitchGesture() }
+                .onSuccess { pitchGestureEnabled = true }
+        }
     }
 
     fun applyLocation(location: ForegroundLocation, mode: LocationCameraMode) {
@@ -1339,6 +1389,7 @@ private class TrailMapDelegate(
         val snapshot = initialCameraSnapshot
         if (initialMapCameraSource(snapshot) == InitialMapCameraSource.Snapshot && snapshot != null) {
             restoreCameraSnapshot(snapshot)
+            applyMapPresentation()
             return
         }
         bounds?.let {
@@ -1350,6 +1401,19 @@ private class TrailMapDelegate(
                     duration = 0.0,
                 ),
             )
+        }
+        applyMapPresentation()
+    }
+
+    private fun applyMapPresentation() {
+        mapPresentation.terrainExaggeration?.let { exaggeration ->
+            runCatching { controller.setTerrainExaggeration(exaggeration, false) }
+        }
+        mapPresentation.bearing?.let { bearing ->
+            runCatching { controller.setBearing(bearing) }
+        }
+        mapPresentation.pitch?.let { pitch ->
+            runCatching { controller.setPitch(pitch) }
         }
     }
 
@@ -1738,6 +1802,9 @@ private const val MAP_LOCATION_START_TIMEOUT_MILLIS = 12_000L
 private const val MAP_LOCATION_MESSAGE_MILLIS = 3_000L
 private const val DETAIL_MAP_MAX_RENDERED_POINTS = 8000
 private const val DEFAULT_MAP_STYLE_ID = "outdoor"
+private const val TRAIL_TERRAIN_3D_PITCH = 60.0
+private const val TRAIL_TERRAIN_3D_BEARING = -25.0
+private const val TRAIL_TERRAIN_3D_EXAGGERATION = 1.35
 private const val TRAIL_SOURCE_ID = "stellartrail-trails"
 private const val TRAIL_OUTLINE_LAYER_ID = "stellartrail-trails-outline"
 private const val TRAIL_LAYER_ID = "stellartrail-trails-line"

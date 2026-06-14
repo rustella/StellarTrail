@@ -2,8 +2,10 @@ package com.rustella.stellartrail.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,8 +38,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -59,6 +73,7 @@ import com.rustella.stellartrail.ui.common.LoadingState
 import com.rustella.stellartrail.ui.common.PrimaryPillButton
 import com.rustella.stellartrail.ui.common.SoftPillButton
 import com.rustella.stellartrail.ui.common.SurfaceCard
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -302,6 +317,12 @@ private fun TrailLibraryRow(
     }
 }
 
+private enum class Trail3dPreviewMode {
+    Map,
+    Terrain3d,
+    ElevationTrend3d,
+}
+
 @Composable
 private fun TrailPreviewDialog(
     trail: Trail,
@@ -310,6 +331,7 @@ private fun TrailPreviewDialog(
     mapConfig: com.rustella.stellartrail.domain.trip.MapConfigResponse?,
     onDismiss: () -> Unit,
 ) {
+    var previewMode by remember(trail.id) { mutableStateOf(Trail3dPreviewMode.Map) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -348,35 +370,258 @@ private fun TrailPreviewDialog(
                     }
                     TextButton(onClick = onDismiss) { Text("关闭") }
                 }
-                if (mapConfig != null) {
-                    BoxWithConstraints(
-                        Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                    ) {
-                        TrailAssetPreviewMap(
-                            map = mapConfig,
-                            trail = trail,
-                            selectedStyleId = selectedStyleId,
-                            onSelectMapStyle = onSelectMapStyle,
-                            modifier = Modifier.fillMaxWidth(),
-                            height = maxHeight,
-                            zoomGesturesEnabled = true,
-                        )
-                    }
-                } else {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        LoadingState()
+                TrailPreviewModeSelector(selectedMode = previewMode, onSelectMode = { previewMode = it })
+                BoxWithConstraints(
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                ) {
+                    when (previewMode) {
+                        Trail3dPreviewMode.Map,
+                        Trail3dPreviewMode.Terrain3d -> {
+                            if (mapConfig != null) {
+                                TrailAssetPreviewMap(
+                                    map = mapConfig,
+                                    trail = trail,
+                                    selectedStyleId = selectedStyleId,
+                                    onSelectMapStyle = onSelectMapStyle,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    height = maxHeight,
+                                    zoomGesturesEnabled = true,
+                                    terrain3dEnabled = previewMode == Trail3dPreviewMode.Terrain3d,
+                                )
+                            } else {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    LoadingState()
+                                }
+                            }
+                        }
+                        Trail3dPreviewMode.ElevationTrend3d -> {
+                            TrailElevationTrend3dPanel(trail = trail, modifier = Modifier.fillMaxSize())
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun TrailPreviewModeSelector(
+    selectedMode: Trail3dPreviewMode,
+    onSelectMode: (Trail3dPreviewMode) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(999.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Trail3dPreviewMode.entries.forEach { mode ->
+            val selected = mode == selectedMode
+            Text(
+                text = mode.label(),
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                    .clickable(enabled = !selected) { onSelectMode(mode) }
+                    .padding(vertical = 8.dp),
+                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrailElevationTrend3dPanel(trail: Trail, modifier: Modifier = Modifier) {
+    val profile = remember(trail.normalizedPoints) { buildTrailElevationProfile(trail.normalizedPoints) }
+    var chartWidthPx by remember(profile) { mutableStateOf(1) }
+    var selectedIndex by remember(profile) { mutableStateOf(profile.points.lastIndex.coerceAtLeast(0)) }
+    if (!profile.hasEnoughData) {
+        Box(modifier, contentAlignment = Alignment.Center) {
+            EmptyState("暂无海拔走势", "这条轨迹没有足够的海拔点。")
+        }
+        return
+    }
+    val safeSelectedIndex = selectedIndex.coerceIn(0, profile.points.lastIndex)
+    val selectedPoint = profile.points[safeSelectedIndex]
+    val lineColor = MaterialTheme.colorScheme.primary
+    val shadowColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.48f)
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
+    val baseColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f)
+    val markerColor = MaterialTheme.colorScheme.tertiary
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+    ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TrailTrendMetric("最低", profile.minElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
+                TrailTrendMetric("最高", profile.maxElevationM?.formatMeters().orEmpty(), Modifier.weight(1f))
+                TrailTrendMetric("长度", (profile.distanceM / 1000.0).formatOne() + " km", Modifier.weight(1f))
+            }
+            Canvas(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .onSizeChanged { chartWidthPx = it.width.coerceAtLeast(1) }
+                    .pointerInput(profile) {
+                        detectTapGestures { offset ->
+                            selectedIndex = profile.nearestPointIndex(offset.x / chartWidthPx.toFloat())
+                        }
+                    },
+            ) {
+                drawTrailElevationProfile(
+                    profile = profile,
+                    selectedIndex = safeSelectedIndex,
+                    lineColor = lineColor,
+                    shadowColor = shadowColor,
+                    gridColor = gridColor,
+                    baseColor = baseColor,
+                    fillColor = lineColor.copy(alpha = 0.16f),
+                    markerColor = markerColor,
+                )
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "第 ${selectedPoint.pointIndex + 1} 点",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Text(
+                    "${(selectedPoint.distanceM / 1000.0).formatOne()} km · ${selectedPoint.elevationM.formatMeters()}",
+                    fontWeight = FontWeight.ExtraBold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrailTrendMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+        Text(value.ifBlank { "暂无" }, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+    }
+}
+
+private fun DrawScope.drawTrailElevationProfile(
+    profile: TrailElevationProfile,
+    selectedIndex: Int,
+    lineColor: Color,
+    shadowColor: Color,
+    gridColor: Color,
+    baseColor: Color,
+    fillColor: Color,
+    markerColor: Color,
+) {
+    if (profile.points.size < 2 || size.width <= 0f || size.height <= 0f) return
+    val left = 44f
+    val right = 18f
+    val top = 18f
+    val bottom = 34f
+    val depth = 22f
+    val chartWidth = size.width - left - right - depth
+    val chartHeight = size.height - top - bottom - depth
+    if (chartWidth <= 0f || chartHeight <= 0f) return
+    val baseY = top + chartHeight
+    val iso = Offset(depth, depth)
+    val minElevation = profile.minElevationM ?: return
+    val maxElevation = profile.maxElevationM ?: return
+    val elevationRange = (maxElevation - minElevation).takeIf { abs(it) > 0.0001 } ?: 1.0
+    val distanceRange = profile.points.maxOf { it.distanceM }.takeIf { it > 0.0 } ?: 1.0
+    fun pointOffset(point: TrailElevationProfilePoint, index: Int): Offset {
+        val distanceRatio = if (distanceRange > 1.0) {
+            (point.distanceM / distanceRange).toFloat()
+        } else {
+            index.toFloat() / profile.points.lastIndex.coerceAtLeast(1)
+        }
+        val elevationRatio = ((point.elevationM - minElevation) / elevationRange).toFloat()
+        return Offset(
+            x = left + chartWidth * distanceRatio.coerceIn(0f, 1f),
+            y = top + chartHeight * (1f - elevationRatio.coerceIn(0f, 1f)),
+        )
+    }
+    val offsets = profile.points.mapIndexed(::pointOffset)
+    val basePath = Path().apply {
+        moveTo(left + iso.x, top + iso.y)
+        lineTo(left + chartWidth + iso.x, top + iso.y)
+        lineTo(left + chartWidth + iso.x, baseY + iso.y)
+        lineTo(left + iso.x, baseY + iso.y)
+        close()
+    }
+    drawPath(basePath, baseColor)
+    repeat(4) { step ->
+        val y = top + chartHeight * (step + 1) / 5f
+        drawLine(gridColor, Offset(left, y), Offset(left + chartWidth, y), strokeWidth = 1f)
+        drawLine(
+            gridColor.copy(alpha = 0.36f),
+            Offset(left + iso.x, y + iso.y),
+            Offset(left + chartWidth + iso.x, y + iso.y),
+            strokeWidth = 1f,
+        )
+    }
+    val areaPath = Path().apply {
+        moveTo(offsets.first().x, baseY)
+        offsets.forEach { lineTo(it.x, it.y) }
+        lineTo(offsets.last().x, baseY)
+        close()
+    }
+    drawPath(path = areaPath, brush = Brush.verticalGradient(listOf(fillColor, Color.Transparent)))
+    val shadowPath = Path().apply {
+        offsets.forEachIndexed { index, offset ->
+            val shifted = offset + iso
+            if (index == 0) moveTo(shifted.x, shifted.y) else lineTo(shifted.x, shifted.y)
+        }
+    }
+    drawPath(shadowPath, shadowColor, style = Stroke(width = 5f, cap = StrokeCap.Round))
+    val linePath = Path().apply {
+        offsets.forEachIndexed { index, offset ->
+            if (index == 0) moveTo(offset.x, offset.y) else lineTo(offset.x, offset.y)
+        }
+    }
+    drawPath(linePath, lineColor, style = Stroke(width = 4f, cap = StrokeCap.Round))
+    val selected = offsets[selectedIndex.coerceIn(offsets.indices)]
+    drawLine(markerColor.copy(alpha = 0.54f), Offset(selected.x, top), Offset(selected.x, baseY + iso.y), strokeWidth = 2f)
+    drawCircle(markerColor.copy(alpha = 0.24f), radius = 11f, center = selected)
+    drawCircle(markerColor, radius = 5f, center = selected)
+    drawRect(
+        color = gridColor.copy(alpha = 0.5f),
+        topLeft = Offset(left, top),
+        size = Size(chartWidth, chartHeight),
+        style = Stroke(width = 1f),
+    )
+}
+
+private fun TrailElevationProfile.nearestPointIndex(fraction: Float): Int {
+    val targetDistance = points.maxOf { it.distanceM } * fraction.coerceIn(0f, 1f)
+    return points.indices.minByOrNull { index -> abs(points[index].distanceM - targetDistance) } ?: 0
+}
+
+private fun Trail3dPreviewMode.label(): String = when (this) {
+    Trail3dPreviewMode.Map -> "地图"
+    Trail3dPreviewMode.Terrain3d -> "地形3D"
+    Trail3dPreviewMode.ElevationTrend3d -> "走势3D"
 }
 
 @Composable

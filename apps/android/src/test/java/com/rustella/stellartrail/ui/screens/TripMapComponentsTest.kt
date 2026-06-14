@@ -104,6 +104,34 @@ class TripMapComponentsTest {
     }
 
     @Test
+    fun flatTrailMapPresentationKeepsExistingGestureDefaults() {
+        val presentation = trailMapPresentation(terrain3dEnabled = false, zoomGesturesEnabled = false)
+
+        assertFalse(presentation.terrainEnabled)
+        assertNull(presentation.terrainExaggeration)
+        assertNull(presentation.pitch)
+        assertNull(presentation.bearing)
+        assertFalse(presentation.pinchRotateEnabled)
+        assertFalse(presentation.pitchGestureEnabled)
+
+        val zoomPresentation = trailMapPresentation(terrain3dEnabled = false, zoomGesturesEnabled = true)
+        assertTrue(zoomPresentation.pinchRotateEnabled)
+        assertFalse(zoomPresentation.pitchGestureEnabled)
+    }
+
+    @Test
+    fun terrainTrailMapPresentationEnables3dCameraTerrainAndGestures() {
+        val presentation = trailMapPresentation(terrain3dEnabled = true, zoomGesturesEnabled = false)
+
+        assertTrue(presentation.terrainEnabled)
+        assertEquals(1.35, presentation.terrainExaggeration ?: -1.0, 0.0)
+        assertEquals(60.0, presentation.pitch ?: -1.0, 0.0)
+        assertEquals(-25.0, presentation.bearing ?: 0.0, 0.0)
+        assertTrue(presentation.pinchRotateEnabled)
+        assertTrue(presentation.pitchGestureEnabled)
+    }
+
+    @Test
     fun inMemoryMapStylePreferenceStoresSelectedStyleId() {
         val repository = InMemoryMapStylePreferenceRepository()
 
