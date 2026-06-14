@@ -103,18 +103,25 @@ data class MapTrailLink(
 )
 
 @Serializable
+enum class TripOverviewMapTrailSource {
+    @SerialName("trip") Trip,
+    @SerialName("library") Library,
+}
+
+@Serializable
 data class TripOverviewMapTrail(
-    @SerialName("trip_id") val tripId: String,
-    @SerialName("trip_title") val tripTitle: String,
+    val source: TripOverviewMapTrailSource = TripOverviewMapTrailSource.Trip,
+    @SerialName("trip_id") val tripId: String? = null,
+    @SerialName("trip_title") val tripTitle: String? = null,
     @SerialName("trip_start_date") val tripStartDate: String? = null,
     @SerialName("trip_end_date") val tripEndDate: String? = null,
     @SerialName("trail_id") val trailId: String,
-    @SerialName("linked_by_user_id") val linkedByUserId: String,
-    val role: String,
-    @SerialName("sort_order") val sortOrder: Int,
+    @SerialName("linked_by_user_id") val linkedByUserId: String? = null,
+    val role: String? = null,
+    @SerialName("sort_order") val sortOrder: Int? = null,
     val notes: String? = null,
-    @SerialName("created_at") val createdAt: String,
-    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
     val trail: TrailSummary,
     @SerialName("simplified_geojson") val simplifiedGeojson: JsonElement,
 )

@@ -1178,11 +1178,23 @@ export interface MapTrailLink extends TrailLink {
   simplified_geojson: unknown;
 }
 
-export interface TripOverviewMapTrail extends MapTrailLink {
-  trip_id: string;
-  trip_title: string;
+export type TripOverviewMapTrailSource = "trip" | "library";
+
+export interface TripOverviewMapTrail {
+  source: TripOverviewMapTrailSource;
+  trip_id?: string | null;
+  trip_title?: string | null;
   trip_start_date?: string | null;
   trip_end_date?: string | null;
+  trail_id: string;
+  linked_by_user_id?: string | null;
+  role?: string | null;
+  sort_order?: number | null;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  trail: TrailSummary;
+  simplified_geojson: unknown;
 }
 
 export interface TripsMapOverviewStats {

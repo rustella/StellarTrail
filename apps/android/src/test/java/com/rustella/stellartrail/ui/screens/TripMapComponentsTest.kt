@@ -6,6 +6,7 @@ import com.rustella.stellartrail.core.location.ForegroundLocation
 import com.rustella.stellartrail.core.location.ForegroundLocationTrackingState
 import com.rustella.stellartrail.domain.trip.MapConfigResponse
 import com.rustella.stellartrail.domain.trip.MapStyleOption
+import com.rustella.stellartrail.domain.trip.TripsMapOverviewStats
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -17,6 +18,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TripMapComponentsTest {
+    @Test
+    fun tripsOverviewMapSummaryCoversTripAndLibraryTrails() {
+        assertEquals(
+            "2 个行程 · 5 条轨迹",
+            tripsOverviewMapSummary(TripsMapOverviewStats(tripCount = 2, trailCount = 5)),
+        )
+        assertEquals(
+            "3 条轨迹",
+            tripsOverviewMapSummary(TripsMapOverviewStats(tripCount = 0, trailCount = 3)),
+        )
+    }
+
     @Test
     fun featureCollectionJsonAllowsEmptyTrailSet() {
         val json = Json.parseToJsonElement(featureCollectionJson(emptyList())) as JsonObject

@@ -90,6 +90,7 @@ import com.rustella.stellartrail.domain.trip.MapTrailLink
 import com.rustella.stellartrail.domain.trip.Trail
 import com.rustella.stellartrail.domain.trip.TrailBounds
 import com.rustella.stellartrail.domain.trip.TripOverviewMapTrail
+import com.rustella.stellartrail.domain.trip.TripsMapOverviewStats
 import com.rustella.stellartrail.feature.trips.TripMapUiState
 import com.rustella.stellartrail.feature.trips.TripsOverviewMapUiState
 import com.rustella.stellartrail.ui.common.Badge
@@ -178,9 +179,9 @@ fun TripsOverviewMapSection(
             }
             Text(
                 if (trails.isEmpty()) {
-                    "这里只汇总已绑定到行程的轨迹；轨迹库中未绑定行程的轨迹不会显示。"
+                    "上传轨迹或添加到行程后，会在这里汇总显示。"
                 } else {
-                    "${data.stats.tripCount} 个行程 · ${data.stats.trailCount} 条已绑定轨迹"
+                    tripsOverviewMapSummary(data.stats)
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1676,6 +1677,13 @@ private fun rememberOverviewFeatureCollection(trails: List<TripOverviewMapTrail>
 @Composable
 private fun rememberTripFeatureCollection(trails: List<MapTrailLink>): String =
     remember(trails) { featureCollectionJson(trails.map { it.simplifiedGeojson }, DETAIL_MAP_MAX_RENDERED_POINTS) }
+
+internal fun tripsOverviewMapSummary(stats: TripsMapOverviewStats): String =
+    if (stats.tripCount > 0) {
+        "${stats.tripCount} 个行程 · ${stats.trailCount} 条轨迹"
+    } else {
+        "${stats.trailCount} 条轨迹"
+    }
 
 internal fun featureCollectionJson(features: List<JsonElement>, maxRenderedPoints: Int? = null): String = mapJson.encodeToString(
     JsonObject(

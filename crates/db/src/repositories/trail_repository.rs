@@ -71,6 +71,36 @@ impl TrailRepository {
             .collect()
     }
 
+    /// Lists active owned trails that are not linked to any active trip.
+    pub async fn list_owned_unlinked_to_trips(
+        &self,
+        user_id: &str,
+        max_trails: u64,
+    ) -> Result<Vec<Trail>, DbErr> {
+        if max_trails == 0 {
+            return Ok(Vec::new());
+        }
+        let rows = self
+            .db
+            .query_all(statement(
+                self.db.get_database_backend(),
+                trail_select_sql(
+                    "FROM trails t \
+                     WHERE t.owner_user_id = ? AND t.is_deleted = FALSE \
+                        AND NOT EXISTS ( \
+                            SELECT 1 FROM trip_trails tt \
+                            JOIN trips trip ON trip.id = tt.trip_id AND trip.is_deleted = FALSE \
+                            WHERE tt.trail_id = t.id AND tt.is_deleted = FALSE \
+                        ) \
+                     ORDER BY t.updated_at DESC, t.id DESC \
+                     LIMIT ?",
+                ),
+                vec![user_id.to_owned().into(), (max_trails as i64).into()],
+            ))
+            .await?;
+        rows.iter().map(map_trail).collect()
+    }
+
     /// Reads one active trail owned by the current user.
     pub async fn get_owned(&self, user_id: &str, trail_id: &str) -> Result<Option<Trail>, DbErr> {
         let row = self
