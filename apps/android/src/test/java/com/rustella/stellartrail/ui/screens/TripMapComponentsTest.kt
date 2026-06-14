@@ -1,5 +1,6 @@
 package com.rustella.stellartrail.ui.screens
 
+import com.maptiler.maptilersdk.events.MTEvent
 import com.rustella.stellartrail.core.map.InMemoryMapStylePreferenceRepository
 import com.rustella.stellartrail.core.location.ForegroundLocation
 import com.rustella.stellartrail.core.location.ForegroundLocationTrackingState
@@ -221,6 +222,13 @@ class TripMapComponentsTest {
         assertFalse(shouldStopLocationTracking(LocationTrackingStopReason.MapControlZoom))
         assertFalse(shouldStopLocationTracking(LocationTrackingStopReason.MapCanvasGesture))
         assertFalse(shouldStopLocationTracking(LocationTrackingStopReason.StyleSwitch))
+    }
+
+    @Test
+    fun trailLayerIsEnsuredAfterMapStyleReadinessEvents() {
+        assertTrue(shouldEnsureTrailLayerOnEvent(MTEvent.ON_READY))
+        assertTrue(shouldEnsureTrailLayerOnEvent(MTEvent.ON_LOAD))
+        assertFalse(shouldEnsureTrailLayerOnEvent(MTEvent.ON_IDLE))
     }
 
     @Test
