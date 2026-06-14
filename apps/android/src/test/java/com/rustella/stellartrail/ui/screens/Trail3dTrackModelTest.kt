@@ -143,6 +143,15 @@ class Trail3dTrackModelTest {
     }
 
     @Test
+    fun trackCameraDoubleTapZoomDoesNotExceedMaxZoom() {
+        val camera = generateSequence(resetTrail3dCamera()) { current ->
+            zoomTrail3dCamera(current, TRAIL_3D_DOUBLE_TAP_ZOOM_MULTIPLIER)
+        }.drop(12).first()
+
+        assertEquals(TRAIL_3D_MAX_ZOOM, camera.zoom, 0.0)
+    }
+
+    @Test
     fun trackCameraPanMovesProjectionAndCanReset() {
         val model = buildTrail3dTrackModel(
             listOf(

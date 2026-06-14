@@ -535,8 +535,7 @@ private fun Trail3dTrackPanel(trail: Trail, modifier: Modifier = Modifier) {
                     .pointerInput(model, projection) {
                         detectTapGestures(
                             onDoubleTap = {
-                                camera = resetTrail3dCamera()
-                                selectedTrackIndex = model.points.lastIndex.coerceAtLeast(0)
+                                camera = zoomTrail3dCamera(camera, TRAIL_3D_DOUBLE_TAP_ZOOM_MULTIPLIER)
                             },
                             onTap = { offset ->
                                 projection?.nearestTrackPointIndex(offset)?.let { selectedTrackIndex = it }

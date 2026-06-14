@@ -21,6 +21,7 @@ internal const val TRAIL_3D_MIN_PITCH_DEGREES = 20.0
 internal const val TRAIL_3D_MAX_PITCH_DEGREES = 78.0
 internal const val TRAIL_3D_MIN_ZOOM = 0.65
 internal const val TRAIL_3D_MAX_ZOOM = 2.4
+internal const val TRAIL_3D_DOUBLE_TAP_ZOOM_MULTIPLIER = 1.35
 
 internal data class Trail3dTrackPoint(
     val eastM: Double,
