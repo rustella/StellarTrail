@@ -64,6 +64,18 @@ impl MigrationTrait for Migration {
         )
         .await?;
         db.execute_unprepared(
+            r#"CREATE TABLE IF NOT EXISTS sms_verification_challenges (
+                id TEXT PRIMARY KEY,
+                phone TEXT NOT NULL,
+                purpose TEXT NOT NULL,
+                out_id TEXT NOT NULL UNIQUE,
+                expires_at TEXT NOT NULL,
+                consumed_at TEXT NULL,
+                created_at TEXT NOT NULL
+            )"#,
+        )
+        .await?;
+        db.execute_unprepared(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL",
         )
         .await?;
@@ -95,12 +107,26 @@ impl MigrationTrait for Migration {
             "CREATE INDEX IF NOT EXISTS idx_email_verification_code_hash ON email_verification_codes(code_hash)",
         )
         .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_sms_verification_phone_purpose_created ON sms_verification_challenges(phone, purpose, created_at)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_sms_verification_phone_created ON sms_verification_challenges(phone, created_at)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_sms_verification_out_id ON sms_verification_challenges(out_id)",
+        )
+        .await?;
         Ok(())
     }
 
     /// Runs schema rollback logic and tries to undo tables or indexes created by up.
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
+        db.execute_unprepared("DROP TABLE IF EXISTS sms_verification_challenges")
+            .await?;
         db.execute_unprepared("DROP TABLE IF EXISTS email_verification_codes")
             .await?;
         db.execute_unprepared("DROP TABLE IF EXISTS sessions")

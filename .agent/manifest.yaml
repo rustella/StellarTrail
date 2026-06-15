@@ -122,7 +122,7 @@ policies:
   doc_sync_required_for_behavior_changes: true
   keep_agent_entrypoints_thin: true
   avoid_unrequested_scope_expansion: true
-  migration_policy: Keep crates/migration as initialization schema units rather than an append-only production migration history. Fold new schema columns, tables, and indexes into the relevant existing initialization migration instead of adding standalone schema patch migrations; preserve existing compatibility no-op markers only when already needed by recorded local migration history, and keep intentional data-repair migrations separate.
+  migration_policy: Keep crates/migration as initialization schema units rather than an append-only production migration history. Fold new schema columns, tables, indexes, seed rows, copy changes, and product-data fixes into the relevant existing create_* migration instead of keeping temporary standalone add_*, ensure_*, or update_* migration files. Preserve deployed or locally recorded migration names only as no-op markers in compat_folded_migrations.rs, and keep standalone migrations only for intentional long-lived data-safety cleanups such as imported public-content sanitization.
   local_branch_policy: Follow .agent/local/AGENTS.md when present for machine-local branch and worktree rules.
 
 validation:
