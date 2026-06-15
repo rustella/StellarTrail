@@ -22,7 +22,7 @@ read_sha256_file() {
   local sha_file="$1"
   local sha=""
 
-  [[ -f "$sha_file" ]] || fail "APK_SHA256 is empty and ${sha_file} does not exist."
+  [[ -f "$sha_file" ]] || fail "SHA-256 value is empty and ${sha_file} does not exist."
   read -r sha _ <"$sha_file" || true
   [[ -n "$sha" ]] || fail "Could not read SHA-256 from ${sha_file}."
   printf '%s\n' "$sha"
@@ -83,7 +83,11 @@ for line in sys.stdin.read().splitlines():
 main() {
   local release_tag="${RELEASE_TAG:-}"
   local apk_asset_name
+  local aab_asset_name
+  local native_symbols_asset_name
   local apk_sha256="${APK_SHA256:-}"
+  local aab_sha256="${AAB_SHA256:-}"
+  local native_symbols_sha256="${NATIVE_SYMBOLS_SHA256:-}"
   local repository="${GITHUB_REPOSITORY:-rustella/StellarTrail}"
   local run_id="${GITHUB_RUN_ID:-}"
   local current_commit
@@ -92,6 +96,8 @@ main() {
   local first_release="false"
   local range_spec
   local download_url
+  local aab_download_url
+  local native_symbols_download_url
   local notes_file
   local run_url=""
   local commit_bullets
@@ -100,9 +106,17 @@ main() {
   is_release_tag "$release_tag" || fail "RELEASE_TAG ${release_tag} does not match the Android release tag pattern."
 
   apk_asset_name="${APK_ASSET_NAME:-StellarTrail-${release_tag}-android-release.apk}"
+  aab_asset_name="${AAB_ASSET_NAME:-StellarTrail-${release_tag}-android-release.aab}"
+  native_symbols_asset_name="${NATIVE_SYMBOLS_ASSET_NAME:-StellarTrail-${release_tag}-android-release-native-debug-symbols.zip}"
 
   if [[ -z "$apk_sha256" ]]; then
     apk_sha256="$(read_sha256_file "release/${apk_asset_name}.sha256")"
+  fi
+  if [[ -z "$aab_sha256" ]]; then
+    aab_sha256="$(read_sha256_file "release/${aab_asset_name}.sha256")"
+  fi
+  if [[ -z "$native_symbols_sha256" ]]; then
+    native_symbols_sha256="$(read_sha256_file "release/${native_symbols_asset_name}.sha256")"
   fi
 
   current_commit="$(resolve_tag_commit "$release_tag")" || fail "Release tag ${release_tag} does not resolve to a commit."
@@ -120,6 +134,8 @@ main() {
   mkdir -p release
   notes_file="release/release-notes-${release_tag}.md"
   download_url="https://github.com/${repository}/releases/download/${release_tag}/${apk_asset_name}"
+  aab_download_url="https://github.com/${repository}/releases/download/${release_tag}/${aab_asset_name}"
+  native_symbols_download_url="https://github.com/${repository}/releases/download/${release_tag}/${native_symbols_asset_name}"
 
   if [[ -n "$run_id" ]]; then
     run_url="https://github.com/${repository}/actions/runs/${run_id}"
@@ -128,8 +144,12 @@ main() {
   {
     printf '# StellarTrail Android %s\n\n' "$release_tag"
     printf '### 下载\n\n'
+    printf -- '- [下载 Play Console AAB](%s)\n' "$aab_download_url"
+    printf -- '- AAB SHA-256: `%s`\n' "$aab_sha256"
+    printf -- '- [下载 Native debug symbols](%s)\n' "$native_symbols_download_url"
+    printf -- '- Native debug symbols SHA-256: `%s`\n' "$native_symbols_sha256"
     printf -- '- [下载签名 Android APK](%s)\n' "$download_url"
-    printf -- '- SHA-256: `%s`\n\n' "$apk_sha256"
+    printf -- '- APK SHA-256: `%s`\n\n' "$apk_sha256"
     printf '### 更新内容\n\n'
     printf '%s\n\n' "$commit_bullets"
     printf '### 构建信息\n\n'

@@ -147,7 +147,7 @@ Copy the matching example when you need to override client endpoints:
 | Android             | `apps/android/config.example.properties`                | `apps/android/config.properties`                |
 
 Web reads `VITE_STELLARTRAIL_API_BASE_URL` and `VITE_STELLARTRAIL_ASSETS_BASE_URL`; local Vite development uses same-origin `/api/v1` by default and proxies it through `VITE_STELLARTRAIL_API_PROXY_TARGET` to the real or local API to avoid browser CORS failures. When backend request signing is enabled, Web builds also need `VITE_STELLARTRAIL_REQUEST_SIGNATURE_APP_ID` and `VITE_STELLARTRAIL_REQUEST_SIGNATURE_APP_SECRET`. The WeChat Mini Program reads `miniprogram/config.ts` and falls back to placeholder endpoints when it is absent.
-Android reads the Git-ignored `apps/android/config.properties` file and falls back to checked-in placeholder endpoints when that file is absent. Signed release APKs are built by GitHub Actions with repository-level Secrets for real domains and signing material.
+Android reads the Git-ignored `apps/android/config.properties` file and falls back to checked-in placeholder endpoints when that file is absent. Signed release APKs and AABs are built by GitHub Actions with repository-level Secrets for real domains and signing material.
 
 See [API docs](docs/api.md) for the complete API surface.
 
@@ -167,7 +167,7 @@ For local Android debugging, copy `apps/android/config.example.properties` to th
 ./gradlew :apps:android:testDebugUnitTest :apps:android:lintDebug :apps:android:assembleDebug
 ```
 
-Local release builds require release keystore path and password environment variables. After Android or Gradle changes land on `main`, CI uses GitHub Actions Secrets to build a signed release APK and uploads `StellarTrail-main-<short_sha>-android-release.apk` plus its `.sha256` file as workflow artifacts. See the [Android README](apps/android/README.md) for signing, Secrets, and download details.
+Local release builds require release keystore path and password environment variables. After Android or Gradle changes land on `main`, CI uses GitHub Actions Secrets to build a signed release APK, Play Console AAB, and native symbols zip, then uploads the matching `.sha256` files as workflow artifacts. See the [Android README](apps/android/README.md) for signing, Secrets, AAB, and symbol details.
 
 ## 🧪 Common checks
 

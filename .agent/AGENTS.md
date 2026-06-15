@@ -43,6 +43,31 @@ Do not expand the product into real-time navigation, social networking, e-commer
 9. Sync relevant documentation when APIs, schemas, directory boundaries, or validation commands change.
 10. Run the most relevant `npm`, `cargo`, or git validation after code changes. If validation cannot run, explain why and provide an alternative.
 
+## Privacy and disclosure rules
+
+Do not leave personal, local-machine, credential, or internal-only details in
+pull request or merge request descriptions, commit bodies, code, comments,
+documentation, issue or PR comments, pasted logs, release notes, or other
+tracked or remote-visible records.
+
+Never record local absolute paths, home directories, usernames, temporary
+directories, keystore locations, environment variable values, passwords,
+tokens, secrets, real credentials, private hosts or IPs, internal email
+addresses, device identifiers, or other unnecessary sensitive details.
+
+Use repository-relative paths, summarized validation outcomes, and placeholder
+values instead. When a command or example must mention local configuration, name
+only the variable or concept, not the value. Use placeholders such as
+`<local-sdk-path>`, `<temporary-keystore>`, `<secret-value>`, or
+`<private-host>` for examples.
+
+Before creating or updating a PR or MR description, release note, review
+comment, or other remote-visible text, scan it for sensitive patterns such as
+local home paths, temporary paths, password, secret, token, keystore, private
+network addresses, and environment-variable assignments. If a leak is found
+after publication, edit the remote text immediately, then read it back and
+confirm the sanitized version before handoff.
+
 ## Final response after code or PR work
 
 After updating code, committing, pushing, or creating a pull request or merge
