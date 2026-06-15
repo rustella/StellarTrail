@@ -6,9 +6,6 @@
 
 use sea_orm_migration::prelude::*;
 
-mod add_client_version_commit_hash;
-mod add_outdoor_profile_birth_date;
-mod add_outdoor_profile_trip_safety_fields;
 mod add_public_content_localizations;
 mod clear_knots3d_section_heading_steps;
 mod compat_folded_migrations;
@@ -32,13 +29,7 @@ mod create_user_gear_items;
 mod create_user_knot_favorites;
 mod create_user_outdoor_profiles;
 mod create_users_sessions;
-mod ensure_android_profile_about_copy;
-mod ensure_sms_verification_challenges;
-mod ensure_user_gear_archive_fields;
-mod ensure_users_phone_fields;
 mod sanitize_knot_risk_copy;
-mod update_profile_about_copy;
-mod update_shared_gear_demand_templates;
 
 /// Concrete SeaORM migrator used by the API server and test suites.
 ///
@@ -91,17 +82,17 @@ impl MigratorTrait for Migrator {
             Box::new(create_trips::Migration),
             Box::new(create_shared_gear_demand_templates::Migration),
             Box::new(create_user_outdoor_profiles::Migration),
-            Box::new(add_outdoor_profile_birth_date::Migration),
-            Box::new(add_outdoor_profile_trip_safety_fields::Migration),
-            Box::new(update_shared_gear_demand_templates::Migration),
-            Box::new(add_client_version_commit_hash::Migration),
-            Box::new(ensure_users_phone_fields::Migration),
-            Box::new(ensure_sms_verification_challenges::Migration),
-            Box::new(ensure_user_gear_archive_fields::Migration),
+            Box::new(compat_folded_migrations::add_outdoor_profile_birth_date::Migration),
+            Box::new(compat_folded_migrations::add_outdoor_profile_trip_safety_fields::Migration),
+            Box::new(compat_folded_migrations::update_shared_gear_demand_templates::Migration),
+            Box::new(compat_folded_migrations::add_client_version_commit_hash::Migration),
+            Box::new(compat_folded_migrations::ensure_users_phone_fields::Migration),
+            Box::new(compat_folded_migrations::ensure_sms_verification_challenges::Migration),
+            Box::new(compat_folded_migrations::ensure_user_gear_archive_fields::Migration),
             Box::new(create_app_content_pages::Migration),
-            Box::new(update_profile_about_copy::Migration),
+            Box::new(compat_folded_migrations::update_profile_about_copy::Migration),
             Box::new(compat_folded_migrations::ensure_gear_atlas_import_i18n::Migration),
-            Box::new(ensure_android_profile_about_copy::Migration),
+            Box::new(compat_folded_migrations::ensure_android_profile_about_copy::Migration),
         ]
     }
 }

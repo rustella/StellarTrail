@@ -118,6 +118,10 @@ async fn fresh_schema_contains_folded_migration_columns() {
             &["page_key", "client_key", "locale", "content_json", "status"][..],
         ),
         (
+            "client_versions",
+            &["client_key", "version", "commit_hash"][..],
+        ),
+        (
             "trips",
             &[
                 "route_use_slope_adjustment",
@@ -159,6 +163,85 @@ async fn fresh_schema_contains_folded_migration_columns() {
     );
 }
 
+#[tokio::test]
+async fn fresh_schema_seeds_client_specific_about_and_android_initial_version() {
+    let db = Database::connect("sqlite::memory:").await.expect("connect");
+    Migrator::up(&db, None).await.expect("migrate");
+
+    let about_rows = db
+        .query_all(Statement::from_string(
+            db.get_database_backend(),
+            "SELECT client_key, status FROM app_content_pages \
+             WHERE page_key = 'profile_about' AND locale = 'zh-CN' \
+             ORDER BY client_key"
+                .to_owned(),
+        ))
+        .await
+        .expect("select profile_about rows");
+    let about_clients = about_rows
+        .iter()
+        .map(|row| {
+            (
+                row.try_get::<String>("", "client_key").expect("client_key"),
+                row.try_get::<String>("", "status").expect("status"),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        about_clients,
+        vec![
+            ("android".to_owned(), "published".to_owned()),
+            ("wechat_miniprogram".to_owned(), "published".to_owned()),
+        ]
+    );
+
+    let android_versions = db
+        .query_all(Statement::from_string(
+            db.get_database_backend(),
+            "SELECT version, title, status FROM client_versions \
+             WHERE client_key = 'android' ORDER BY version"
+                .to_owned(),
+        ))
+        .await
+        .expect("select android versions");
+    assert_eq!(android_versions.len(), 1);
+    assert_eq!(
+        android_versions[0]
+            .try_get::<String>("", "version")
+            .expect("android version"),
+        "0.0.1"
+    );
+    assert_eq!(
+        android_versions[0]
+            .try_get::<String>("", "title")
+            .expect("android title"),
+        "Android 0.0.1 初始版本"
+    );
+    assert_eq!(
+        android_versions[0]
+            .try_get::<String>("", "status")
+            .expect("android status"),
+        "published"
+    );
+
+    let wechat_021 = db
+        .query_one(Statement::from_string(
+            db.get_database_backend(),
+            "SELECT commit_hash FROM client_versions \
+             WHERE client_key = 'wechat_miniprogram' AND version = '0.2.1'"
+                .to_owned(),
+        ))
+        .await
+        .expect("select WeChat 0.2.1")
+        .expect("WeChat 0.2.1 seed");
+    assert_eq!(
+        wechat_021
+            .try_get::<String>("", "commit_hash")
+            .expect("commit_hash"),
+        "376fd6c1ef08636477d5257ab720bc783beeb358"
+    );
+}
+
 #[test]
 fn folded_schema_patch_migrations_keep_history_compatibility() {
     let names = Migrator::migrations()
@@ -180,6 +263,16 @@ fn folded_schema_patch_migrations_keep_history_compatibility() {
         "m20260524_000004_add_gear_quantities",
         "m20260525_000001_add_knot_localization_aliases",
         "create_team_trip_plans",
+        "m20260527_000002_add_outdoor_profile_birth_date",
+        "add_outdoor_profile_trip_safety_fields",
+        "update_shared_gear_demand_templates",
+        "add_client_version_commit_hash",
+        "m20260606_000001_ensure_users_phone_fields",
+        "m20260606_000002_ensure_sms_verification_challenges",
+        "m20260607_000001_ensure_user_gear_archive_fields",
+        "m20260607_000003_update_profile_about_copy",
+        "m20260611_000001_ensure_gear_atlas_import_i18n",
+        "m20260615_000001_ensure_android_profile_about_copy",
     ] {
         assert!(
             names.iter().any(|name| name == compatibility_name),

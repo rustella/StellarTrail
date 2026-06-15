@@ -87,14 +87,32 @@ commands:
     command: |
       python3 - <<'PY'
       from pathlib import Path
-      import yaml
-      for path in [
+      import shutil
+      import subprocess
+      paths = [
           '.agent/manifest.yaml',
           '.agent/context-index.yaml',
           '.agent/commands.yaml',
-      ]:
-          yaml.safe_load(Path(path).read_text())
-          print(f'ok {path}')
+      ]
+      try:
+          import yaml
+      except ModuleNotFoundError:
+          ruby = shutil.which('ruby')
+          if ruby is None:
+              raise SystemExit('PyYAML is not installed and ruby is unavailable')
+          subprocess.run(
+              [
+                  ruby,
+                  '-e',
+                  'require "yaml"; ARGV.each { |path| YAML.load_file(path); puts "ok #{path}" }',
+                  *paths,
+              ],
+              check=True,
+          )
+      else:
+          for path in paths:
+              yaml.safe_load(Path(path).read_text())
+              print(f'ok {path}')
       PY
     when_to_run: Run after changing .agent YAML files.
   validate_agent_english:

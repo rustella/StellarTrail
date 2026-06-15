@@ -74,6 +74,42 @@ folded_migration!(
 );
 folded_migration!(create_team_trip_plans, "create_team_trip_plans");
 folded_migration!(
+    add_outdoor_profile_birth_date,
+    "m20260527_000002_add_outdoor_profile_birth_date"
+);
+folded_migration!(
+    add_outdoor_profile_trip_safety_fields,
+    "add_outdoor_profile_trip_safety_fields"
+);
+folded_migration!(
+    update_shared_gear_demand_templates,
+    "update_shared_gear_demand_templates"
+);
+folded_migration!(
+    add_client_version_commit_hash,
+    "add_client_version_commit_hash"
+);
+folded_migration!(
+    ensure_users_phone_fields,
+    "m20260606_000001_ensure_users_phone_fields"
+);
+folded_migration!(
+    ensure_sms_verification_challenges,
+    "m20260606_000002_ensure_sms_verification_challenges"
+);
+folded_migration!(
+    ensure_user_gear_archive_fields,
+    "m20260607_000001_ensure_user_gear_archive_fields"
+);
+folded_migration!(
+    update_profile_about_copy,
+    "m20260607_000003_update_profile_about_copy"
+);
+folded_migration!(
     ensure_gear_atlas_import_i18n,
     "m20260611_000001_ensure_gear_atlas_import_i18n"
+);
+folded_migration!(
+    ensure_android_profile_about_copy,
+    "m20260615_000001_ensure_android_profile_about_copy"
 );
