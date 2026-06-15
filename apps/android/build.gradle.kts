@@ -6,8 +6,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val androidAppVersionName = "0.1.2"
-val androidAppVersionCode = 3
+val androidAppVersionName = "0.0.1"
+val androidAppVersionCode = 4
 
 val clientConfigProperties = Properties()
 val clientConfigFile = project.file("config.properties")
@@ -133,7 +133,11 @@ android {
             if (releaseSigningRequested) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

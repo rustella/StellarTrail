@@ -147,7 +147,7 @@ curl http://127.0.0.1:8080/api/v1/meta
 | Android    | `apps/android/config.example.properties`                | `apps/android/config.properties`                |
 
 Web 可通过 `VITE_STELLARTRAIL_API_BASE_URL` 和 `VITE_STELLARTRAIL_ASSETS_BASE_URL` 覆盖；本地 Vite 开发默认使用同源 `/api/v1`，并通过 `VITE_STELLARTRAIL_API_PROXY_TARGET` 代理到真实或本地 API，避免浏览器 CORS 拦截。启用后端请求签名时，Web 构建还需要 `VITE_STELLARTRAIL_REQUEST_SIGNATURE_APP_ID` 和 `VITE_STELLARTRAIL_REQUEST_SIGNATURE_APP_SECRET`。微信小程序端会读取 `miniprogram/config.ts`，缺失时回退到占位地址。
-Android 会读取被 Git 忽略的 `apps/android/config.properties`，缺失时回退到示例占位地址；签名 Release APK 由 GitHub Actions 通过仓库级 Secrets 注入真实域名和签名材料。
+Android 会读取被 Git 忽略的 `apps/android/config.properties`，缺失时回退到示例占位地址；签名 Release APK / AAB 由 GitHub Actions 通过仓库级 Secrets 注入真实域名和签名材料。
 
 完整接口说明见 [API 文档](docs/api.md)。
 
@@ -167,7 +167,7 @@ Android 本地调试可复制 `apps/android/config.example.properties` 到被 Gi
 ./gradlew :apps:android:testDebugUnitTest :apps:android:lintDebug :apps:android:assembleDebug
 ```
 
-本地 Release 构建需要通过环境变量提供 release keystore 路径和密码；CI 合入 `main` 后会使用 GitHub Actions Secrets 构建 signed release APK，并在 workflow artifact 中提供 `StellarTrail-main-<short_sha>-android-release.apk` 与对应 `.sha256` 文件。更完整的签名、Secrets 和下载说明见 [Android README](apps/android/README.md)。
+本地 Release 构建需要通过环境变量提供 release keystore 路径和密码；CI 合入 `main` 后会使用 GitHub Actions Secrets 构建 signed release APK、Play Console AAB 和 native symbols zip，并在 workflow artifact 中提供对应 `.sha256` 文件。更完整的签名、Secrets、AAB 和符号文件说明见 [Android README](apps/android/README.md)。
 
 ## 🧪 常用检查命令
 

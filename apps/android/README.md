@@ -56,14 +56,21 @@ export STELLARTRAIL_ANDROID_KEYSTORE_PASSWORD='<KEYSTORE_PASSWORD>'
 export STELLARTRAIL_ANDROID_KEY_ALIAS='stellartrail-release'
 export STELLARTRAIL_ANDROID_KEY_PASSWORD='<KEY_PASSWORD>'
 
-./gradlew :apps:android:assembleRelease
+./gradlew :apps:android:assembleRelease :apps:android:bundleRelease
 ```
 
-本地测试签名可使用临时 keystore；正式 keystore 必须由维护者安全保存，不写入仓库。
+本地测试签名可使用临时 keystore；正式 keystore 必须由维护者安全保存，不写入仓库。Release 构建会开启 R8、资源压缩和 native debug symbols：
 
-## CI Signed Release APK
+- 本地安装 / 模拟器验证：`apps/android/build/outputs/apk/release/android-release.apk`
+- Play Console 上传：`apps/android/build/outputs/bundle/release/android-release.aab`
+- R8 mapping：`apps/android/build/outputs/mapping/release/mapping.txt`
+- Native debug symbols：`apps/android/build/outputs/native-debug-symbols/release/native-debug-symbols.zip`
 
-`Android Release` workflow 会在以下场景构建 signed release APK：
+上传 AAB 到 Play Console 时，AAB 内会携带 `BUNDLE-METADATA/com.android.tools.build.obfuscation/`，用于去混淆 Java/Kotlin 崩溃。Native debug symbols 以 `native-debug-symbols.zip` 作为单独产物上传；如果上游第三方 native 库已经是 stripped 状态，CI helper 会把 release 包内实际携带的 `.so` 归档成 Play Console 可关联的 symbols 文件。
+
+## CI Signed Release Artifacts
+
+`Android Release` workflow 会在以下场景构建 signed release APK 和 AAB：
 
 - 合入 `main` 后，如果 Android、Gradle、Android release workflow 或相关 CI 脚本有变动，生成 main 构建 artifact。
 - 指向 `main` 可达提交的 `vX.Y.Z` 或 `vX.Y` 标签进入仓库后，生成 GitHub Release 资产。
@@ -72,16 +79,24 @@ main 构建 artifact 文件名：
 
 - `StellarTrail-main-<short_sha>-android-release.apk`
 - `StellarTrail-main-<short_sha>-android-release.apk.sha256`
+- `StellarTrail-main-<short_sha>-android-release.aab`
+- `StellarTrail-main-<short_sha>-android-release.aab.sha256`
+- `StellarTrail-main-<short_sha>-android-release-native-debug-symbols.zip`
+- `StellarTrail-main-<short_sha>-android-release-native-debug-symbols.zip.sha256`
 
 tag Release 资产文件名：
 
 - `StellarTrail-<tag>-android-release.apk`
 - `StellarTrail-<tag>-android-release.apk.sha256`
+- `StellarTrail-<tag>-android-release.aab`
+- `StellarTrail-<tag>-android-release.aab.sha256`
+- `StellarTrail-<tag>-android-release-native-debug-symbols.zip`
+- `StellarTrail-<tag>-android-release-native-debug-symbols.zip.sha256`
 
 下载方式：
 
-- main 合入构建：进入 GitHub 仓库的 **Actions** 页面，打开对应 `Android Release` run，在 **Artifacts** 下载 signed APK 和 SHA-256 文件。
-- tag 发布构建：进入对应 GitHub Release 页面下载 APK 和 SHA-256 文件。
+- main 合入构建：进入 GitHub 仓库的 **Actions** 页面，打开对应 `Android Release` run，在 **Artifacts** 下载 signed APK、Play AAB、native symbols zip 和 SHA-256 文件。
+- tag 发布构建：进入对应 GitHub Release 页面下载 APK、Play AAB、native symbols zip 和 SHA-256 文件。
 
 ## GitHub Actions Secrets
 
@@ -145,4 +160,4 @@ gh secret list --repo rustella/StellarTrail
 
 ## 验证说明
 
-自动化验证覆盖 JVM 单测、Debug 构建、Android Lint 和本地临时签名 Release 构建。`connectedAndroidTest` 需要可用模拟器或真机，并需要本地/测试 API 服务配合，不作为默认 CI 阶段。
+自动化验证覆盖 JVM 单测、Debug 构建、Android Lint、本地临时签名 Release APK / AAB 构建、release AAB 的 R8 mapping metadata 检查，以及 native symbols zip 生成检查。`connectedAndroidTest` 需要可用模拟器或真机，并需要本地/测试 API 服务配合，不作为默认 CI 阶段。
