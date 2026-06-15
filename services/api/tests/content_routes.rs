@@ -201,6 +201,87 @@ async fn content_page_route_returns_seeded_android_profile_about_copy() {
 }
 
 #[tokio::test]
+async fn content_page_route_keeps_profile_about_content_client_specific() {
+    let app = test_app().await;
+    app.db
+        .execute(Statement::from_string(
+            app.db.get_database_backend(),
+            r#"UPDATE app_content_pages
+               SET content_json = '{"eyebrow":"微信","title":"微信关于","subtitle":"微信端独立内容","sections":[{"icon":"微","title":"微信","body":"只给微信端"}],"button_text":"知道了"}'
+               WHERE page_key = 'profile_about'
+                 AND client_key = 'wechat_miniprogram'
+                 AND locale = 'zh-CN'"#
+                .to_owned(),
+        ))
+        .await
+        .unwrap();
+    app.db
+        .execute(Statement::from_string(
+            app.db.get_database_backend(),
+            r#"UPDATE app_content_pages
+               SET content_json = '{"eyebrow":"安卓","title":"Android 关于","subtitle":"Android 端独立内容","sections":[{"icon":"安","title":"Android","body":"只给 Android 端"}],"button_text":"知道了"}'
+               WHERE page_key = 'profile_about'
+                 AND client_key = 'android'
+                 AND locale = 'zh-CN'"#
+                .to_owned(),
+        ))
+        .await
+        .unwrap();
+
+    let (wechat_status, wechat_body) = get_json(
+        &app.router,
+        "/api/v1/content-pages/profile_about?client_key=wechat_miniprogram&locale=zh-CN",
+    )
+    .await;
+    let (android_status, android_body) = get_json(
+        &app.router,
+        "/api/v1/content-pages/profile_about?client_key=android&locale=zh-CN",
+    )
+    .await;
+
+    assert_eq!(wechat_status, StatusCode::OK, "{wechat_body}");
+    assert_eq!(wechat_body["client_key"], "wechat_miniprogram");
+    assert_eq!(wechat_body["subtitle"], "微信端独立内容");
+    assert_eq!(wechat_body["sections"][0]["body"], "只给微信端");
+    assert_eq!(android_status, StatusCode::OK, "{android_body}");
+    assert_eq!(android_body["client_key"], "android");
+    assert_eq!(android_body["subtitle"], "Android 端独立内容");
+    assert_eq!(android_body["sections"][0]["body"], "只给 Android 端");
+}
+
+#[tokio::test]
+async fn content_page_route_does_not_fallback_to_wechat_profile_about_for_android() {
+    let app = test_app().await;
+    app.db
+        .execute(Statement::from_string(
+            app.db.get_database_backend(),
+            "DELETE FROM app_content_pages \
+             WHERE page_key = 'profile_about' \
+               AND client_key = 'android' \
+               AND locale = 'zh-CN'"
+                .to_owned(),
+        ))
+        .await
+        .unwrap();
+
+    let (wechat_status, wechat_body) = get_json(
+        &app.router,
+        "/api/v1/content-pages/profile_about?client_key=wechat_miniprogram&locale=zh-CN",
+    )
+    .await;
+    let (android_status, android_body) = get_json(
+        &app.router,
+        "/api/v1/content-pages/profile_about?client_key=android&locale=zh-CN",
+    )
+    .await;
+
+    assert_eq!(wechat_status, StatusCode::OK, "{wechat_body}");
+    assert_eq!(wechat_body["client_key"], "wechat_miniprogram");
+    assert_eq!(android_status, StatusCode::NOT_FOUND, "{android_body}");
+    assert_eq!(android_body["code"], "not_found");
+}
+
+#[tokio::test]
 async fn content_page_route_rejects_unknown_or_invalid_selectors() {
     let app = test_app().await;
 

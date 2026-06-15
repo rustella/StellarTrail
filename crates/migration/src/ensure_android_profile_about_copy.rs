@@ -228,6 +228,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn keeps_wechat_profile_about_copy_unchanged() {
+        let db = setup_content_page_db().await;
+        let wechat_content = r#"{"eyebrow":"微信","title":"微信维护","subtitle":"微信端独立内容","sections":[{"icon":"微","title":"微信","body":"不要被 Android 迁移覆盖"}],"button_text":"知道了"}"#;
+        insert_profile_about_content(&db, "wechat_miniprogram", wechat_content).await;
+
+        let manager = SchemaManager::new(&db);
+        Migration.up(&manager).await.expect("preserve WeChat copy");
+
+        assert_eq!(
+            read_profile_about_content(&db, "wechat_miniprogram").await,
+            wechat_content
+        );
+        assert_eq!(
+            read_profile_about_content(&db, "android").await,
+            PROFILE_ABOUT_CONTENT_JSON
+        );
+    }
+
+    #[tokio::test]
     async fn rewrites_legacy_android_seed_copy() {
         let db = setup_content_page_db().await;
         insert_profile_about_content(&db, "android", LEGACY_NO_ADS_PROFILE_ABOUT_CONTENT_JSON)
